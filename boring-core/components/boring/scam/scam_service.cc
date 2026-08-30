@@ -73,7 +73,7 @@ bool ScamService::ShouldBlock(const GURL& url) const {
   if (!list || !url.SchemeIsHTTPOrHTTPS() || !url.has_host()) {
     return false;
   }
-  const std::string host = url.host();
+  const std::string host(url.host());
   if (allowed_hosts_.count(host)) {
     return false;
   }

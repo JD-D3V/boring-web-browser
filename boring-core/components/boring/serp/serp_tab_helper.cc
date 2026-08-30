@@ -7,6 +7,7 @@
 #include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
 #include "components/boring/core/boring_prefs.h"
+#include "components/prefs/pref_service.h"
 #include "components/user_prefs/user_prefs.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/render_frame_host.h"
@@ -66,7 +67,7 @@ bool IsSearchResultsPage(const GURL& url) {
   if (!google && !bing) {
     return false;
   }
-  return url.path_piece() == "/search";
+  return url.path() == "/search";
 }
 
 }  // namespace

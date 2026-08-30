@@ -20,7 +20,7 @@ namespace {
 
 // The page is written directly here, in plain language, with big text.
 // A design pass comes later; this stays calm and readable on purpose.
-constexpr char kPageTop[] = R"(<!DOCTYPE html>
+constexpr char kPageTop[] = R"HTML(<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
@@ -48,9 +48,9 @@ constexpr char kPageTop[] = R"(<!DOCTYPE html>
 <div class="card">
 <div class="icon">&#9888;&#65039;</div>
 <h1>This site looks dangerous</h1>
-)";
+)HTML";
 
-constexpr char kPageBottom[] = R"(
+constexpr char kPageBottom[] = R"HTML(
 <button class="safe" onclick="goBack()">Go back to safety</button>
 %CONTINUE%
 </div>
@@ -71,7 +71,7 @@ function proceedAnyway() {
 </script>
 </body>
 </html>
-)";
+)HTML";
 
 constexpr char kContinueLink[] =
     "<span class=\"continue\">If you are certain this site is safe, you can "
