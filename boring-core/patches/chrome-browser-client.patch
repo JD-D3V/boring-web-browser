@@ -1,0 +1,22 @@
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -229,6 +229,7 @@
+ #include "components/autofill/core/common/autofill_features.h"
+ #include "components/autofill/core/common/autofill_switches.h"
+ #include "components/blocked_content/popup_blocker.h"
++#include "components/boring/adblock/adblock_throttle.h"
+ #include "components/browsing_topics/browsing_topics_service.h"
+ #include "components/captive_portal/core/buildflags.h"
+ #include "components/content_settings/browser/page_specific_content_settings.h"
+@@ -6148,6 +6149,11 @@
+     result.push_back(std::move(signin_throttle));
+   }
+ 
++  auto boring_adblock_throttle = boring::AdblockThrottle::MaybeCreate();
++  if (boring_adblock_throttle) {
++    result.push_back(std::move(boring_adblock_throttle));
++  }
++
+   return result;
+ }
+ 

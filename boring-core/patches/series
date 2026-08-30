@@ -1,2 +1,9 @@
-adblock-browser-hooks.patch
-adblock-renderer-hooks.patch
+chrome-browser-client.patch
+chrome-browser-receiver-bindings.patch
+chrome-browser-navigation-throttles.patch
+chrome-browser-prefs.patch
+chrome-browser-build-gn.patch
+chrome-ui-tab-helpers.patch
+chrome-ui-build-gn.patch
+chrome-renderer-throttle-provider.patch
+chrome-renderer-build-gn.patch

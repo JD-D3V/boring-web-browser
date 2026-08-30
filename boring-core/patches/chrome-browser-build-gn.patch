@@ -1,0 +1,14 @@
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -1098,6 +1098,11 @@
+     "//components/application_locale_storage",
+     "//components/assist_ranker",
+     "//components/blocked_content",
++    "//components/boring/adblock:browser",
++    "//components/boring/adblock/mojom",
++    "//components/boring/core",
++    "//components/boring/popunder",
++    "//components/boring/scam",
+     "//components/breadcrumbs/core",
+     "//components/breadcrumbs/core:status",
+     "//components/browser_apis/tab_drag/sessions",

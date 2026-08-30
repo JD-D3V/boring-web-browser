@@ -1,0 +1,21 @@
+--- a/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
++++ b/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
+@@ -42,6 +42,8 @@
+ #include "chrome/common/chrome_features.h"
+ #include "chrome/common/chrome_switches.h"
+ #include "chrome/common/pref_names.h"
++#include "components/boring/popunder/tab_under_throttle.h"
++#include "components/boring/scam/scam_navigation_throttle.h"
+ #include "components/captive_portal/content/captive_portal_service.h"
+ #include "components/captive_portal/core/buildflags.h"
+ #include "components/contextual_tasks/public/features.h"
+@@ -400,6 +402,9 @@
+ 
+   LookalikeUrlNavigationThrottle::MaybeCreateAndAdd(registry);
+ 
++  boring::ScamNavigationThrottle::MaybeCreateAndAdd(registry);
++  boring::TabUnderThrottle::MaybeCreateAndAdd(registry);
++
+   PDFIFrameNavigationThrottle::MaybeCreateAndAdd(registry);
+ 
+ #if BUILDFLAG(ENABLE_PDF)

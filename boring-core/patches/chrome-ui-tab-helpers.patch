@@ -1,0 +1,18 @@
+--- a/chrome/browser/ui/tab_helpers.cc
++++ b/chrome/browser/ui/tab_helpers.cc
+@@ -108,6 +108,7 @@
+ #include "chrome/common/chrome_switches.h"
+ #include "components/blocked_content/popup_blocker_tab_helper.h"
+ #include "components/blocked_content/popup_opener_tab_helper.h"
++#include "components/boring/serp/serp_tab_helper.h"
+ #include "components/breadcrumbs/core/breadcrumbs_status.h"
+ #include "components/browsing_topics/browsing_topics_redirect_observer.h"
+ #include "components/captive_portal/core/buildflags.h"
+@@ -546,6 +547,7 @@
+   blocked_content::PopupOpenerTabHelper::CreateForWebContents(
+       web_contents, base::DefaultTickClock::GetInstance(),
+       HostContentSettingsMapFactory::GetForProfile(profile));
++  boring::SerpTabHelper::CreateForWebContents(web_contents);
+   if (predictors::LoadingPredictorFactory::GetForProfile(profile)) {
+     predictors::LoadingPredictorTabHelper::CreateForWebContents(web_contents);
+   }

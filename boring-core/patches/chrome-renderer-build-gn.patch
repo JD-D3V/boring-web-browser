@@ -1,0 +1,11 @@
+--- a/chrome/renderer/BUILD.gn
++++ b/chrome/renderer/BUILD.gn
+@@ -130,6 +130,8 @@
+     "//components/autofill/content/renderer",
+     "//components/autofill/core/common:features",
+     "//components/base32",
++    "//components/boring/adblock:renderer",
++    "//components/boring/adblock/mojom",
+     "//components/cdm/renderer",
+     "//components/commerce/content/renderer",
+     "//components/content_capture/common",

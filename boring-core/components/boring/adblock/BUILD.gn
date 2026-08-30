@@ -4,7 +4,16 @@
 # DLL. apply.py copies the DLL and its import library into lib/ here.
 
 config("ffi_link") {
-  libs = [ rebase_path("lib/boring_adblock.dll.lib") ]
+  libs = [
+    rebase_path("lib/boring_adblock.dll.lib"),
+    "delayimp.lib",
+  ]
+
+  # Load the DLL only when an engine call is first made. Only the
+  # browser process makes those calls. Without this, the sandboxed
+  # renderer processes would try to load the DLL at startup and be
+  # killed by the sandbox's signed code rule.
+  ldflags = [ "/DELAYLOAD:boring_adblock.dll" ]
 }
 
 copy("adblock_dll") {
