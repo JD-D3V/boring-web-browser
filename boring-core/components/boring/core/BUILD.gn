@@ -1,0 +1,13 @@
+# Copyright 2026 boring. BSD style license.
+
+static_library("core") {
+  sources = [
+    "boring_prefs.cc",
+    "boring_prefs.h",
+  ]
+  deps = [
+    "//base",
+    "//components/pref_registry",
+    "//components/prefs",
+  ]
+}

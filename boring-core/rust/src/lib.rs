@@ -80,3 +80,80 @@ pub extern "C" fn boring_adblock_free(handle: *mut EngineHandle) {
         drop(unsafe { Box::from_raw(handle) });
     }
 }
+
+// ---- Scam and phishing blocklist ----
+
+pub struct ScamList(std::collections::HashSet<String>);
+
+/// Builds a blocklist from text with one host per line. Lines starting
+/// with # are comments. A "127.0.0.1 host" hosts file layout also works.
+#[no_mangle]
+pub extern "C" fn boring_scamlist_new(text: *const u8, len: usize) -> *mut ScamList {
+    let result = catch_unwind(|| {
+        let bytes = unsafe { std::slice::from_raw_parts(text, len) };
+        let text = String::from_utf8_lossy(bytes);
+        let mut set = std::collections::HashSet::new();
+        for line in text.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') || line.starts_with('!') {
+                continue;
+            }
+            // Take the last field so hosts file lines work too.
+            let host = line.split_whitespace().last().unwrap_or("");
+            let host = host.trim_start_matches("*.").trim_end_matches('.');
+            if host.contains('.') && !host.contains('/') {
+                set.insert(host.to_ascii_lowercase());
+            }
+        }
+        set
+    });
+    match result {
+        Ok(set) => Box::into_raw(Box::new(ScamList(set))),
+        Err(_) => std::ptr::null_mut(),
+    }
+}
+
+/// Returns 1 when the host, or any parent domain of it, is on the list.
+#[no_mangle]
+pub extern "C" fn boring_scamlist_contains(
+    handle: *const ScamList,
+    host: *const c_char,
+) -> c_int {
+    if handle.is_null() {
+        return 0;
+    }
+    let result = catch_unwind(|| {
+        let host = match cstr(host) {
+            Some(h) => h.to_ascii_lowercase(),
+            None => return 0,
+        };
+        let set = &unsafe { &*handle }.0;
+        let mut part: &str = host.trim_end_matches('.');
+        loop {
+            if set.contains(part) {
+                return 1;
+            }
+            match part.split_once('.') {
+                Some((_, rest)) if rest.contains('.') => part = rest,
+                _ => return 0,
+            }
+        }
+    });
+    result.unwrap_or(0)
+}
+
+#[no_mangle]
+pub extern "C" fn boring_scamlist_free(handle: *mut ScamList) {
+    if !handle.is_null() {
+        drop(unsafe { Box::from_raw(handle) });
+    }
+}
+
+/// Returns the number of hosts on the list. Used for logging.
+#[no_mangle]
+pub extern "C" fn boring_scamlist_size(handle: *const ScamList) -> usize {
+    if handle.is_null() {
+        return 0;
+    }
+    unsafe { &*handle }.0.len()
+}

@@ -4,8 +4,12 @@
 #define COMPONENTS_BORING_ADBLOCK_ADBLOCK_THROTTLE_H_
 
 #include <memory>
+#include <string>
+#include <vector>
 
+#include "net/http/http_request_headers.h"
 #include "third_party/blink/public/common/loader/url_loader_throttle.h"
+#include "url/gurl.h"
 
 namespace boring {
 
@@ -23,13 +27,11 @@ class AdblockThrottle : public blink::URLLoaderThrottle {
   // blink::URLLoaderThrottle:
   void WillStartRequest(network::ResourceRequest* request,
                         bool* defer) override;
-  void WillRedirectRequest(net::RedirectInfo* redirect_info,
-                           const network::mojom::URLResponseHead& response_head,
-                           bool* defer,
-                           std::vector<std::string>* to_be_removed_headers,
-                           net::HttpRequestHeaders* modified_headers,
-                           net::HttpRequestHeaders* modified_cors_headers)
-      override;
+  void WillRedirectRequest(
+      net::RedirectInfo* redirect_info,
+      const network::mojom::URLResponseHead& response_head,
+      bool* defer,
+      network::HttpRequestHeadersUpdateParams* headers_update_params) override;
 
  private:
   // Remembered from WillStartRequest for redirect checks.

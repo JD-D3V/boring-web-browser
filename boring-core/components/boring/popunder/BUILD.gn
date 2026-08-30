@@ -1,0 +1,15 @@
+# Copyright 2026 boring. BSD style license.
+
+static_library("popunder") {
+  sources = [
+    "tab_under_throttle.cc",
+    "tab_under_throttle.h",
+  ]
+  deps = [
+    "//base",
+    "//components/blocked_content",
+    "//content/public/browser",
+    "//net",
+    "//url",
+  ]
+}

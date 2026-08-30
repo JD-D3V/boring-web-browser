@@ -108,9 +108,7 @@ void AdblockRendererThrottle::WillRedirectRequest(
     net::RedirectInfo* redirect_info,
     const network::mojom::URLResponseHead& response_head,
     bool* defer,
-    std::vector<std::string>* to_be_removed_headers,
-    net::HttpRequestHeaders* modified_headers,
-    net::HttpRequestHeaders* modified_cors_headers) {
+    network::HttpRequestHeadersUpdateParams* headers_update_params) {
   if (request_type_.empty()) {
     return;
   }

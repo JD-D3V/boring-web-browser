@@ -1,0 +1,26 @@
+# Copyright 2026 boring. BSD style license.
+
+static_library("scam") {
+  sources = [
+    "scam_blocking_page.cc",
+    "scam_blocking_page.h",
+    "scam_controller_client.cc",
+    "scam_controller_client.h",
+    "scam_navigation_throttle.cc",
+    "scam_navigation_throttle.h",
+    "scam_service.cc",
+    "scam_service.h",
+  ]
+  deps = [
+    "//base",
+    "//components/boring/adblock:browser",
+    "//components/boring/core",
+    "//components/security_interstitials/content:security_interstitial_page",
+    "//components/security_interstitials/core",
+    "//components/user_prefs",
+    "//content/public/browser",
+    "//net",
+    "//ui/base",
+    "//url",
+  ]
+}

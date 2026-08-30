@@ -4,8 +4,11 @@
 #define COMPONENTS_BORING_ADBLOCK_RENDERER_ADBLOCK_RENDERER_THROTTLE_H_
 
 #include <string>
+#include <vector>
 
 #include "base/memory/weak_ptr.h"
+#include "net/http/http_request_headers.h"
+#include "url/gurl.h"
 #include "components/boring/adblock/mojom/adblock.mojom.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/remote.h"
@@ -26,13 +29,11 @@ class AdblockRendererThrottle : public blink::URLLoaderThrottle {
   void DetachFromCurrentSequence() override;
   void WillStartRequest(network::ResourceRequest* request,
                         bool* defer) override;
-  void WillRedirectRequest(net::RedirectInfo* redirect_info,
-                           const network::mojom::URLResponseHead& response_head,
-                           bool* defer,
-                           std::vector<std::string>* to_be_removed_headers,
-                           net::HttpRequestHeaders* modified_headers,
-                           net::HttpRequestHeaders* modified_cors_headers)
-      override;
+  void WillRedirectRequest(
+      net::RedirectInfo* redirect_info,
+      const network::mojom::URLResponseHead& response_head,
+      bool* defer,
+      network::HttpRequestHeadersUpdateParams* headers_update_params) override;
 
  private:
   void BindIfNeeded();

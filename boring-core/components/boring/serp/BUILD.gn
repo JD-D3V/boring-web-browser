@@ -1,0 +1,17 @@
+# Copyright 2026 boring. BSD style license.
+
+static_library("serp") {
+  sources = [
+    "serp_tab_helper.cc",
+    "serp_tab_helper.h",
+  ]
+  deps = [
+    "//base",
+    "//components/boring/core",
+    "//components/prefs",
+    "//components/user_prefs",
+    "//content/public/browser",
+    "//net",
+    "//url",
+  ]
+}
