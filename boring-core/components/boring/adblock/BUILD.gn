@@ -1,0 +1,54 @@
+# Copyright 2026 boring. BSD style license.
+
+# The Rust ad block engine is built by cargo (boring-core/rust) into a
+# DLL. apply.py copies the DLL and its import library into lib/ here.
+
+config("ffi_link") {
+  libs = [ rebase_path("lib/boring_adblock.dll.lib") ]
+}
+
+copy("adblock_dll") {
+  sources = [ "lib/boring_adblock.dll" ]
+  outputs = [ "$root_out_dir/boring_adblock.dll" ]
+}
+
+static_library("browser") {
+  sources = [
+    "adblock_checker_impl.cc",
+    "adblock_checker_impl.h",
+    "adblock_ffi.h",
+    "adblock_service.cc",
+    "adblock_service.h",
+    "adblock_throttle.cc",
+    "adblock_throttle.h",
+  ]
+  deps = [
+    "//base",
+    "//components/boring/adblock/mojom",
+    "//mojo/public/cpp/bindings",
+    "//net",
+    "//services/network/public/cpp",
+    "//services/network/public/mojom",
+    "//third_party/blink/public/common",
+    "//url",
+  ]
+  public_configs = [ ":ffi_link" ]
+  data_deps = [ ":adblock_dll" ]
+}
+
+static_library("renderer") {
+  sources = [
+    "renderer/adblock_renderer_throttle.cc",
+    "renderer/adblock_renderer_throttle.h",
+  ]
+  deps = [
+    "//base",
+    "//components/boring/adblock/mojom",
+    "//mojo/public/cpp/bindings",
+    "//net",
+    "//services/network/public/cpp",
+    "//services/network/public/mojom",
+    "//third_party/blink/public/common",
+    "//url",
+  ]
+}

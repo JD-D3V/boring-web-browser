@@ -1,0 +1,19 @@
+// Copyright 2026 boring. BSD style license.
+
+module boring.mojom;
+
+import "url/mojom/url.mojom";
+
+// Lets a renderer ask the browser whether the ad blocker wants to block
+// a request. The engine and the filter lists live only in the browser
+// process.
+interface AdblockChecker {
+  // request_type uses the filter list names: script, image, stylesheet,
+  // subdocument, xmlhttprequest, font, media, websocket, ping, other.
+  Check(url.mojom.Url url, url.mojom.Url initiator, string request_type)
+      => (bool block);
+
+  // Binds another checker, used when a throttle provider is cloned for
+  // a new worker thread.
+  Clone(pending_receiver<AdblockChecker> receiver);
+};

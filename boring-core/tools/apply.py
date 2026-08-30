@@ -139,12 +139,21 @@ def main():
         restore(args.src)
         return
 
-    sync_tree(os.path.join(CORE, "components", "boring"),
-              os.path.join(args.src, "components", "boring"))
-    overlay_chromium_src(args.src)
-    apply_patches(args.src)
     if not args.no_rust:
         build_rust(args.src)
+    sync_tree(os.path.join(CORE, "components", "boring"),
+              os.path.join(args.src, "components", "boring"))
+    # Stage the cargo build products where GN expects them.
+    rust_out = os.path.join(CORE, "rust", "target", "release")
+    lib_dir = os.path.join(args.src, "components", "boring", "adblock", "lib")
+    os.makedirs(lib_dir, exist_ok=True)
+    for name in ("boring_adblock.dll", "boring_adblock.dll.lib"):
+        built = os.path.join(rust_out, name)
+        if os.path.exists(built):
+            shutil.copy2(built, os.path.join(lib_dir, name))
+            print("stage", name)
+    overlay_chromium_src(args.src)
+    apply_patches(args.src)
     print("done")
 
 

@@ -1,0 +1,137 @@
+--- a/chrome/renderer/url_loader_throttle_provider_impl.cc
++++ b/chrome/renderer/url_loader_throttle_provider_impl.cc
+@@ -15,6 +15,7 @@
+ #include "build/build_config.h"
+ #include "chrome/common/google_url_loader_throttle.h"
+ #include "chrome/common/request_header_integrity/buildflags.h"
++#include "components/boring/adblock/renderer/adblock_renderer_throttle.h"
+ #include "chrome/renderer/chrome_content_renderer_client.h"
+ #include "chrome/renderer/chrome_render_frame_observer.h"
+ #include "chrome/renderer/chrome_render_thread_observer.h"
+@@ -106,6 +107,8 @@
+     blink::ThreadSafeBrowserInterfaceBrokerProxy* broker) {
+   mojo::PendingRemote<safe_browsing::mojom::SafeBrowsing> pending_safe_browsing;
+   broker->GetInterface(pending_safe_browsing.InitWithNewPipeAndPassReceiver());
++  mojo::PendingRemote<boring::mojom::AdblockChecker> pending_boring_adblock;
++  broker->GetInterface(pending_boring_adblock.InitWithNewPipeAndPassReceiver());
+ #if BUILDFLAG(ENABLE_EXTENSIONS)
+   mojo::PendingRemote<safe_browsing::mojom::ExtensionWebRequestReporter>
+       pending_extension_web_request_reporter;
+@@ -115,6 +118,7 @@
+ 
+   return std::make_unique<URLLoaderThrottleProviderImpl>(
+       type, chrome_content_renderer_client, std::move(pending_safe_browsing),
++      std::move(pending_boring_adblock),
+ #if BUILDFLAG(ENABLE_EXTENSIONS)
+       std::move(pending_extension_web_request_reporter),
+ #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
+@@ -130,6 +134,7 @@
+     ChromeContentRendererClient* chrome_content_renderer_client,
+     mojo::PendingRemote<safe_browsing::mojom::SafeBrowsing>
+         pending_safe_browsing,
++    mojo::PendingRemote<boring::mojom::AdblockChecker> pending_boring_adblock,
+ #if BUILDFLAG(ENABLE_EXTENSIONS)
+     mojo::PendingRemote<safe_browsing::mojom::ExtensionWebRequestReporter>
+         pending_extension_web_request_reporter,
+@@ -139,6 +144,7 @@
+     : type_(type),
+       chrome_content_renderer_client_(chrome_content_renderer_client),
+       pending_safe_browsing_(std::move(pending_safe_browsing)),
++      pending_boring_adblock_(std::move(pending_boring_adblock)),
+ #if BUILDFLAG(ENABLE_EXTENSIONS)
+       pending_extension_web_request_reporter_(
+           std::move(pending_extension_web_request_reporter)),
+@@ -156,6 +162,7 @@
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+   return std::make_unique<URLLoaderThrottleProviderImpl>(
+       type_, chrome_content_renderer_client_, CloneSafeBrowsingPendingRemote(),
++      CloneBoringAdblockPendingRemote(),
+ #if BUILDFLAG(ENABLE_EXTENSIONS)
+       CloneExtensionWebRequestReporterPendingRemote(),
+ #endif  // BUILDFLAG(ENABLE_EXTENSIONS)
+@@ -201,6 +208,16 @@
+         local_frame_token.value());
+     if (throttle) {
+       throttles.emplace_back(std::move(throttle));
++    }
++  }
++
++  if (!is_frame_resource) {
++    mojo::PendingRemote<boring::mojom::AdblockChecker> checker =
++        CloneBoringAdblockPendingRemote();
++    if (checker.is_valid()) {
++      throttles.emplace_back(
++          std::make_unique<boring::AdblockRendererThrottle>(
++              std::move(checker)));
+     }
+   }
+ 
+@@ -299,6 +316,19 @@
+ #endif
+ }
+ 
++mojo::PendingRemote<boring::mojom::AdblockChecker>
++URLLoaderThrottleProviderImpl::CloneBoringAdblockPendingRemote() {
++  DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
++  mojo::PendingRemote<boring::mojom::AdblockChecker> new_pending;
++  if (pending_boring_adblock_) {
++    boring_adblock_.Bind(std::move(pending_boring_adblock_));
++  }
++  if (boring_adblock_) {
++    boring_adblock_->Clone(new_pending.InitWithNewPipeAndPassReceiver());
++  }
++  return new_pending;
++}
++
+ mojo::PendingRemote<safe_browsing::mojom::SafeBrowsing>
+ URLLoaderThrottleProviderImpl::CloneSafeBrowsingPendingRemote() {
+   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
+--- a/chrome/renderer/url_loader_throttle_provider_impl.h
++++ b/chrome/renderer/url_loader_throttle_provider_impl.h
+@@ -11,6 +11,7 @@
+ #include "base/memory/raw_ptr.h"
+ #include "base/sequence_checker.h"
+ #include "base/types/pass_key.h"
++#include "components/boring/adblock/mojom/adblock.mojom.h"
+ #include "components/safe_browsing/content/common/safe_browsing.mojom.h"
+ #include "extensions/buildflags/buildflags.h"
+ #include "mojo/public/cpp/bindings/pending_remote.h"
+@@ -43,6 +44,8 @@
+       ChromeContentRendererClient* chrome_content_renderer_client,
+       mojo::PendingRemote<safe_browsing::mojom::SafeBrowsing>
+           pending_safe_browsing,
++      mojo::PendingRemote<boring::mojom::AdblockChecker>
++          pending_boring_adblock,
+ #if BUILDFLAG(ENABLE_EXTENSIONS)
+       mojo::PendingRemote<safe_browsing::mojom::ExtensionWebRequestReporter>
+           pending_extension_web_request_reporter,
+@@ -65,6 +68,8 @@
+  private:
+   mojo::PendingRemote<safe_browsing::mojom::SafeBrowsing>
+   CloneSafeBrowsingPendingRemote();
++  mojo::PendingRemote<boring::mojom::AdblockChecker>
++  CloneBoringAdblockPendingRemote();
+ #if BUILDFLAG(ENABLE_EXTENSIONS)
+   mojo::PendingRemote<safe_browsing::mojom::ExtensionWebRequestReporter>
+   CloneExtensionWebRequestReporterPendingRemote();
+@@ -76,6 +81,9 @@
+   mojo::PendingRemote<safe_browsing::mojom::SafeBrowsing>
+       pending_safe_browsing_;
+   mojo::Remote<safe_browsing::mojom::SafeBrowsing> safe_browsing_;
++
++  mojo::PendingRemote<boring::mojom::AdblockChecker> pending_boring_adblock_;
++  mojo::Remote<boring::mojom::AdblockChecker> boring_adblock_;
+ 
+ // TODO(crbug.com/513231260): Convert to ENABLE_EXTENSIONS_CORE when safe
+ // browsing supports extensions on desktop Android.
+--- a/chrome/renderer/BUILD.gn
++++ b/chrome/renderer/BUILD.gn
+@@ -130,6 +130,8 @@
+     "//components/autofill/content/renderer",
+     "//components/autofill/core/common:features",
+     "//components/base32",
++    "//components/boring/adblock:renderer",
++    "//components/boring/adblock/mojom",
+     "//components/cdm/renderer",
+     "//components/commerce/content/renderer",
+     "//components/content_capture/common",

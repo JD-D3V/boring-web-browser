@@ -1,0 +1,14 @@
+[package]
+name = "adblock_ffi"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "boring_adblock"
+crate-type = ["cdylib"]
+
+[dependencies]
+adblock = "0.13.3"
+
+[profile.release]
+lto = true

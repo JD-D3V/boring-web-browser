@@ -1,0 +1,8 @@
+# Copyright 2026 boring. BSD style license.
+
+import("//mojo/public/tools/bindings/mojom.gni")
+
+mojom("mojom") {
+  sources = [ "adblock.mojom" ]
+  public_deps = [ "//url/mojom:url_mojom_gurl" ]
+}

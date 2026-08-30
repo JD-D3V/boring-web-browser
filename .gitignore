@@ -23,6 +23,16 @@ desktop.ini
 node_modules/
 /vendor/
 
+# Python
+__pycache__/
+*.pyc
+
+# Rust build output
+boring-core/rust/target/
+
+# Saved copies of original Chromium files (local cache, not source)
+boring-core/.pristine/
+
 # Env / secrets
 .env
 .env.*
