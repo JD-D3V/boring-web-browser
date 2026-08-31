@@ -1,0 +1,68 @@
+# Build the browser on my desktop.
+#
+# This runs on a self hosted runner, not GitHub's free cloud runners.
+# Chromium is far too big for those.
+#
+# The build takes hours, so this does not run on every push. Start it by
+# hand from the Actions tab, or let the nightly run pick up the day's
+# changes.
+
+name: build
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: "Also make the installer and zip"
+        type: boolean
+        default: false
+  schedule:
+    # Every day at 03:00 UTC, when the machine is likely free.
+    - cron: "0 3 * * *"
+
+jobs:
+  desktop:
+    runs-on: [self-hosted, windows, chromium-build]
+    timeout-minutes: 600
+    steps:
+      - name: Check out our files
+        uses: actions/checkout@v4
+
+      - name: Put boring-core into the build tree
+        shell: cmd
+        run: python boring-core\tools\apply.py
+
+      - name: Refresh the filter lists and the scam blocklist
+        shell: cmd
+        run: |
+          python boring-core\tools\get_filterlists.py
+          python boring-core\tools\get_scamlist.py
+
+      - name: Build
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+          set TMP=E:\tmp
+          set TEMP=E:\tmp
+          cd /d E:\ung
+          python3 build.py --ci
+
+      - name: Check the browser still works
+        shell: cmd
+        run: python boring-core\tools\smoke_all.py
+
+      - name: Package
+        if: ${{ inputs.package }}
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+          cd /d E:\ung
+          python3 package.py
+
+      - name: Keep the installer
+        if: ${{ inputs.package }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: E:\ung\build\*_installer_x64.exe
+          if-no-files-found: error
