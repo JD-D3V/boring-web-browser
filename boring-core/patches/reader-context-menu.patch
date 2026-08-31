@@ -8,41 +8,88 @@
  #include "base/i18n/rtl.h"
  #include "base/logging.h"
  #include "base/metrics/field_trial.h"
-@@ -53,6 +54,7 @@
+@@ -53,7 +54,11 @@
  #include "chrome/browser/devtools/features.h"
  #include "chrome/browser/devtools/views/devtools_floaty.h"
  #include "chrome/browser/dictation/features.h"
 +#include "chrome/browser/dom_distiller/tab_utils.h"
  #include "chrome/browser/download/download_prefs.h"
++#include "chrome/common/chrome_isolated_world_ids.h"
++#include "components/boring/ai/ai_prefs.h"
++#include "components/boring/ai/ai_summary_service.h"
  #include "chrome/browser/download/download_stats.h"
  #include "chrome/browser/enterprise/data_protection/data_protection_clipboard_utils.h"
-@@ -2468,6 +2470,15 @@
+ #include "chrome/browser/glic/browser_ui/glic_vector_icon_manager.h"
+@@ -2465,8 +2470,57 @@
+   }
+ }
+ 
++void RenderViewContextMenu::BoringSummarizePage() {
++  content::RenderFrameHost* frame = GetRenderFrameHost();
++  if (!frame) {
++    return;
++  }
++  // Read the visible text of the page, then put it aside. Nothing is
++  // sent anywhere here; the person confirms that on the next screen.
++  const std::string title =
++      base::UTF16ToUTF8(source_web_contents_->GetTitle());
++  const std::string url = params_.page_url.spec();
++  base::WeakPtr<content::WebContents> contents =
++      source_web_contents_->GetWeakPtr();
++  frame->ExecuteJavaScriptInIsolatedWorld(
++      u"document.body ? document.body.innerText : ''",
++      base::BindOnce(
++          [](std::string title, std::string url,
++             base::WeakPtr<content::WebContents> contents, base::Value result) {
++            if (!contents) {
++              return;
++            }
++            const std::string* text = result.GetIfString();
++            boring::ai::AiSummaryService::GetInstance()->HoldPage(
++                title, url, text ? *text : std::string());
++            contents->OpenURL(
++                content::OpenURLParams(
++                    GURL("chrome://boring-ai"), content::Referrer(),
++                    WindowOpenDisposition::NEW_FOREGROUND_TAB,
++                    ui::PAGE_TRANSITION_AUTO_TOPLEVEL, false),
++                /*navigation_handle_callback=*/{});
++          },
++          title, url, contents),
++      ISOLATED_WORLD_ID_CHROME_INTERNAL);
++}
++
  void RenderViewContextMenu::AppendPageItems() {
    AppendExitFullscreenItem();
- 
++
 +  // boring: reader view, near the top of the menu so it is easy to find.
 +  // TODO: move this label into the translated strings.
 +  if (params_.link_url.is_empty() && !params_.is_editable &&
 +      params_.page_url.SchemeIsHTTPOrHTTPS()) {
 +    menu_model_.AddItem(IDC_CONTENT_CONTEXT_BORING_READER,
 +                        u"Open in reader view");
++    // Only offered once a service has been picked in the AI settings.
++    Profile* boring_profile = GetProfile();
++    if (boring_profile && boring::ai::IsReady(boring_profile->GetPrefs())) {
++      menu_model_.AddItem(IDC_CONTENT_CONTEXT_BORING_SUMMARIZE,
++                          u"Summarise this page");
++    }
 +    menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
 +  }
-+
+ 
    const bool glic_below_search =
        base::FeatureList::IsEnabled(features::kGlicContextMenuBelowSearch);
- 
-@@ -3463,6 +3474,9 @@
+@@ -3463,6 +3517,10 @@
      case IDC_SAVE_PAGE:
        return IsSavePageEnabled();
  
 +    case IDC_CONTENT_CONTEXT_BORING_READER:
++    case IDC_CONTENT_CONTEXT_BORING_SUMMARIZE:
 +      return true;
 +
      case IDC_CONTENT_CONTEXT_RELOADFRAME:
        return params_.is_subframe &&
               params_.frame_url.DeprecatedGetOriginAsURL() !=
-@@ -4027,6 +4041,11 @@
+@@ -4027,6 +4085,15 @@
  
      case IDC_CONTENT_CONTEXT_PARTIAL_TRANSLATE:
        ExecPartialTranslate();
@@ -51,16 +98,33 @@
 +    case IDC_CONTENT_CONTEXT_BORING_READER:
 +      DistillCurrentPageAndViewIfSuccessful(source_web_contents_,
 +                                            base::DoNothing());
++      break;
++
++    case IDC_CONTENT_CONTEXT_BORING_SUMMARIZE:
++      BoringSummarizePage();
        break;
  
      case IDC_CONTENT_CONTEXT_RELOADFRAME:
+--- a/chrome/browser/renderer_context_menu/render_view_context_menu.h
++++ b/chrome/browser/renderer_context_menu/render_view_context_menu.h
+@@ -323,6 +323,9 @@
+   void AppendMediaItems();
+   void AppendPluginItems();
+   void AppendPageItems();
++  // boring: puts this page aside for a summary and opens the page where
++  // the person confirms where it would be sent.
++  void BoringSummarizePage();
+   void AppendExitFullscreenItem();
+   void AppendCopyItem();
+   void AppendLinkToTextItems();
 --- a/chrome/browser/renderer_context_menu/BUILD.gn
 +++ b/chrome/browser/renderer_context_menu/BUILD.gn
-@@ -126,6 +126,7 @@
+@@ -126,6 +126,8 @@
        "//chrome/browser/custom_handlers",
        "//chrome/browser/devtools",
        "//chrome/browser/dictation",
 +      "//chrome/browser/dom_distiller",
++      "//components/boring/ai",
        "//chrome/browser/glic",
        "//chrome/browser/glic/browser_ui",
        "//chrome/browser/glic/public:features",

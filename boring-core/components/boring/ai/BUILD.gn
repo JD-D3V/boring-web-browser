@@ -4,6 +4,8 @@ static_library("ai") {
   sources = [
     "ai_prefs.cc",
     "ai_prefs.h",
+    "ai_summary_service.cc",
+    "ai_summary_service.h",
     "ai_ui.cc",
     "ai_ui.h",
   ]
@@ -14,6 +16,10 @@ static_library("ai") {
     "//components/user_prefs",
     "//content/public/browser",
     "//content/public/common",
+    "//net",
+    "//net/traffic_annotation",
+    "//services/network/public/cpp",
+    "//services/network/public/mojom",
     "//url",
   ]
 }

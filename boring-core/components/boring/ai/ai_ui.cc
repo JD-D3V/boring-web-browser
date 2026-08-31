@@ -6,13 +6,17 @@
 #include <string>
 
 #include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/values.h"
 #include "components/boring/ai/ai_prefs.h"
+#include "components/boring/ai/ai_summary_service.h"
 #include "components/prefs/pref_service.h"
 #include "components/user_prefs/user_prefs.h"
 #include "content/public/browser/browser_context.h"
+#include "content/public/browser/storage_partition.h"
 #include "content/public/browser/url_data_source.h"
+#include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_data_source.h"
 #include "content/public/browser/web_ui_message_handler.h"
@@ -56,10 +60,21 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
           margin-top: 1.5em; padding: 1em 1.2em; }
   .saved { color: #188038; margin-inline-start: 1em; }
   .hidden { display: none; }
+  #ask { border: 2px solid #1a73e8; border-radius: 12px;
+         margin-bottom: 2em; padding: 1.2em 1.4em; }
+  #ask h2 { font-size: 1.15em; margin: 0 0 0.4em; }
+  #ask .page-name { font-weight: 600; word-break: break-all; }
+  #ask .going { background: #fef7e0; border-radius: 8px;
+                margin: 0.9em 0; padding: 0.8em 1em; }
+  #ask .buttons { display: flex; gap: 0.8em; margin-top: 1em; }
+  #ask button.no { background: transparent; border: 1px solid
+                   rgba(128,128,128,0.5); color: inherit; }
+  #summary { white-space: pre-wrap; }
 </style>
 </head>
 <body>
 <div class="page">
+  <div id="ask" class="hidden"></div>
   <h1>AI settings</h1>
   <p class="lede">The browser never reads your pages on its own. Nothing
   is sent anywhere until you ask for it, and you are told where it is
@@ -188,8 +203,77 @@ el('save').addEventListener('click', function() {
   setTimeout(function() { el('saved').classList.add('hidden'); }, 2000);
 });
 
+// The summary side of the page. Asking for a summary only puts the page
+// aside. Nothing is sent until the person reads where it is going and
+// says send.
+var PROVIDER_NAMES = {ollama: 'Ollama on your own computer',
+                      gemini: 'Google Gemini', openai: 'OpenAI',
+                      openrouter: 'OpenRouter', groq: 'Groq'};
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function(c) {
+    return {'&': '&amp;', '<': '&lt;', '>': '&gt;',
+            '"': '&quot;', "'": '&#39;'}[c];
+  });
+}
+
+function showSummaryState(s) {
+  var box = el('ask');
+  if (!s || s.state === 'nothing') {
+    box.classList.add('hidden');
+    return;
+  }
+  box.classList.remove('hidden');
+  var name = PROVIDER_NAMES[s.provider] || 'the service you picked';
+  var page = '<div class="page-name">' + escapeHtml(s.title || s.url) +
+             '</div>';
+
+  if (s.state === 'waiting') {
+    var where = s.provider === 'ollama'
+        ? 'This stays on your computer. Nothing goes over the internet.'
+        : 'The text of this page will be sent to ' + escapeHtml(name) + '.';
+    box.innerHTML =
+        '<h2>Summarise this page?</h2>' + page +
+        '<div class="going">' + where + ' About ' +
+        Math.round((s.textLength || 0) / 1000) +
+        ' thousand characters of page text would be sent. Nothing has ' +
+        'been sent yet.</div>' +
+        '<div class="buttons"><button id="do-send">Send and summarise' +
+        '</button><button class="no" id="do-cancel">No thanks</button></div>';
+    el('do-send').addEventListener('click', function() {
+      chrome.send('sendSummary');
+    });
+    el('do-cancel').addEventListener('click', function() {
+      chrome.send('forgetSummary');
+    });
+  } else if (s.state === 'working') {
+    box.innerHTML = '<h2>Working</h2>' + page +
+        '<p>Sent to ' + escapeHtml(name) + '. Waiting for the answer.</p>';
+  } else if (s.state === 'done') {
+    box.innerHTML = '<h2>Summary</h2>' + page +
+        '<div id="summary">' + escapeHtml(s.summary) + '</div>' +
+        '<div class="buttons"><button class="no" id="do-cancel">Close' +
+        '</button></div>';
+    el('do-cancel').addEventListener('click', function() {
+      chrome.send('forgetSummary');
+    });
+  } else if (s.state === 'failed') {
+    box.innerHTML = '<h2>That did not work</h2>' + page +
+        '<p>' + escapeHtml(s.error) + '</p>' +
+        '<div class="buttons"><button class="no" id="do-cancel">Close' +
+        '</button></div>';
+    el('do-cancel').addEventListener('click', function() {
+      chrome.send('forgetSummary');
+    });
+  }
+}
+
 window.loadSettings = load;
+window.loadSummaryState = showSummaryState;
 chrome.send('getSettings');
+chrome.send('getSummaryState');
+// While a request is in flight, keep the page up to date.
+setInterval(function() { chrome.send('getSummaryState'); }, 1000);
 )SCRIPT";
 
 // Reads and writes the AI settings for the page.
@@ -206,6 +290,18 @@ class AiMessageHandler : public content::WebUIMessageHandler {
     web_ui()->RegisterMessageCallback(
         "saveSettings",
         base::BindRepeating(&AiMessageHandler::HandleSave,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "getSummaryState",
+        base::BindRepeating(&AiMessageHandler::HandleSummaryState,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "sendSummary",
+        base::BindRepeating(&AiMessageHandler::HandleSendSummary,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "forgetSummary",
+        base::BindRepeating(&AiMessageHandler::HandleForgetSummary,
                             base::Unretained(this)));
   }
 
@@ -250,6 +346,53 @@ class AiMessageHandler : public content::WebUIMessageHandler {
     if (const std::string* model = in.FindString("model")) {
       prefs->SetString(prefs::kModel, *model);
     }
+  }
+
+  void HandleSummaryState(const base::ListValue& args) {
+    AllowJavascript();
+    AiSummaryService* service = AiSummaryService::GetInstance();
+    PrefService* prefs = GetPrefs();
+
+    base::DictValue out;
+    switch (service->state()) {
+      case AiSummaryService::State::kNothing:
+        out.Set("state", "nothing");
+        break;
+      case AiSummaryService::State::kWaiting:
+        out.Set("state", "waiting");
+        break;
+      case AiSummaryService::State::kWorking:
+        out.Set("state", "working");
+        break;
+      case AiSummaryService::State::kDone:
+        out.Set("state", "done");
+        break;
+      case AiSummaryService::State::kFailed:
+        out.Set("state", "failed");
+        break;
+    }
+    out.Set("title", service->title());
+    out.Set("url", service->url());
+    out.Set("summary", service->summary());
+    out.Set("error", service->error());
+    out.Set("textLength", static_cast<int>(service->text_length()));
+    out.Set("provider",
+            prefs ? prefs->GetString(prefs::kProvider) : std::string("off"));
+    web_ui()->CallJavascriptFunctionUnsafe("loadSummaryState", out);
+  }
+
+  void HandleSendSummary(const base::ListValue& args) {
+    content::BrowserContext* context =
+        web_ui()->GetWebContents()->GetBrowserContext();
+    AiSummaryService::GetInstance()->Send(
+        GetPrefs(),
+        context->GetDefaultStoragePartition()
+            ->GetURLLoaderFactoryForBrowserProcess(),
+        base::DoNothing());
+  }
+
+  void HandleForgetSummary(const base::ListValue& args) {
+    AiSummaryService::GetInstance()->Forget();
   }
 };
 

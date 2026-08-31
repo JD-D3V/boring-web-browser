@@ -1,11 +1,13 @@
 --- a/chrome/app/chrome_command_ids.h
 +++ b/chrome/app/chrome_command_ids.h
-@@ -451,6 +451,8 @@
+@@ -451,6 +451,10 @@
  #define IDC_CONTENT_CONTEXT_USE_PASSKEY_FROM_ANOTHER_DEVICE 50194
  // Listen to this page context menu.
  #define IDC_CONTENT_CONTEXT_LISTEN_TO_THIS_PAGE 50195
 +// boring: open this page in reader view.
 +#define IDC_CONTENT_CONTEXT_BORING_READER 50196
++// boring: summarise this page with the AI service the user picked.
++#define IDC_CONTENT_CONTEXT_BORING_SUMMARIZE 50197
  // Open with items.
  #define IDC_CONTENT_CONTEXT_OPEN_WITH1 50200
  #define IDC_CONTENT_CONTEXT_OPEN_WITH2 50201
