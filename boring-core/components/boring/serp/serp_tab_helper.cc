@@ -12,6 +12,7 @@
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/common/isolated_world_ids.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "url/gurl.h"
 
@@ -19,8 +20,17 @@ namespace boring {
 
 namespace {
 
-// Isolated world for our script, away from the page's own scripts.
-constexpr int32_t kBoringWorldId = 8888;
+// Our script runs in an isolated world, away from the page's own
+// scripts. The id must be one the browser already knows about. A made
+// up number is rejected and takes the tab down with it.
+//
+// This is the same value as ISOLATED_WORLD_ID_CHROME_INTERNAL in
+// chrome/common/chrome_isolated_world_ids.h, the world the browser uses
+// for its own scripts. We work it out here rather than include that
+// header, because this component sits below the chrome layer. If that
+// list ever changes order, change this line with it.
+constexpr int32_t kBoringWorldId =
+    content::ISOLATED_WORLD_ID_CONTENT_END + 3;
 
 // The selectors cover the ad blocks Google and Bing use today. The
 // script watches for new results because both sites update the page in
