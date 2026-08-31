@@ -7,3 +7,6 @@ chrome-ui-tab-helpers.patch
 chrome-ui-build-gn.patch
 chrome-renderer-throttle-provider.patch
 chrome-renderer-build-gn.patch
+reader-always-on.patch
+reader-command-id.patch
+reader-context-menu.patch

@@ -66,7 +66,11 @@ void AdblockService::LoadOnBackgroundThread() {
                  << ", blocking is off";
     return;
   }
-  void* engine = boring_adblock_new(
+  const BoringLibrary* lib = GetBoringLibrary();
+  if (!lib) {
+    return;
+  }
+  void* engine = lib->adblock_new(
       reinterpret_cast<const unsigned char*>(rules.data()), rules.size());
   if (!engine) {
     LOG(ERROR) << "boring adblock: engine failed to build";
@@ -90,10 +94,13 @@ bool AdblockService::ShouldBlock(const GURL& url,
   if (!url.SchemeIsHTTPOrHTTPS()) {
     return false;
   }
-  return boring_adblock_check(engine, url.spec().c_str(),
-                              initiator.is_valid() ? initiator.spec().c_str()
-                                                   : "",
-                              request_type.c_str()) == 1;
+  const BoringLibrary* lib = GetBoringLibrary();
+  if (!lib) {
+    return false;
+  }
+  const std::string source = initiator.is_valid() ? initiator.spec() : "";
+  return lib->adblock_check(engine, url.spec().c_str(), source.c_str(),
+                            request_type.c_str()) == 1;
 }
 
 // static

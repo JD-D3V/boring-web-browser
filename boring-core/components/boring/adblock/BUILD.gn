@@ -1,20 +1,9 @@
 # Copyright 2026 boring. BSD style license.
 
 # The Rust ad block engine is built by cargo (boring-core/rust) into a
-# DLL. apply.py copies the DLL and its import library into lib/ here.
-
-config("ffi_link") {
-  libs = [
-    rebase_path("lib/boring_adblock.dll.lib"),
-    "delayimp.lib",
-  ]
-
-  # Load the DLL only when an engine call is first made. Only the
-  # browser process makes those calls. Without this, the sandboxed
-  # renderer processes would try to load the DLL at startup and be
-  # killed by the sandbox's signed code rule.
-  ldflags = [ "/DELAYLOAD:boring_adblock.dll" ]
-}
+# DLL that apply.py copies into lib/ here. We do not link against it.
+# adblock_ffi.cc loads it by hand at first use, in the browser process
+# only, so sandboxed processes never load unsigned code.
 
 copy("adblock_dll") {
   sources = [ "lib/boring_adblock.dll" ]
@@ -25,6 +14,7 @@ static_library("browser") {
   sources = [
     "adblock_checker_impl.cc",
     "adblock_checker_impl.h",
+    "adblock_ffi.cc",
     "adblock_ffi.h",
     "adblock_service.cc",
     "adblock_service.h",
@@ -41,7 +31,6 @@ static_library("browser") {
     "//third_party/blink/public/common",
     "//url",
   ]
-  public_configs = [ ":ffi_link" ]
   data_deps = [ ":adblock_dll" ]
 }
 

@@ -1,0 +1,66 @@
+--- a/chrome/browser/renderer_context_menu/render_view_context_menu.cc
++++ b/chrome/browser/renderer_context_menu/render_view_context_menu.cc
+@@ -19,6 +19,7 @@
+ #include "base/feature_list.h"
+ #include "base/functional/bind.h"
+ #include "base/functional/callback.h"
++#include "base/functional/callback_helpers.h"
+ #include "base/i18n/rtl.h"
+ #include "base/logging.h"
+ #include "base/metrics/field_trial.h"
+@@ -53,6 +54,7 @@
+ #include "chrome/browser/devtools/features.h"
+ #include "chrome/browser/devtools/views/devtools_floaty.h"
+ #include "chrome/browser/dictation/features.h"
++#include "chrome/browser/dom_distiller/tab_utils.h"
+ #include "chrome/browser/download/download_prefs.h"
+ #include "chrome/browser/download/download_stats.h"
+ #include "chrome/browser/enterprise/data_protection/data_protection_clipboard_utils.h"
+@@ -2468,6 +2470,15 @@
+ void RenderViewContextMenu::AppendPageItems() {
+   AppendExitFullscreenItem();
+ 
++  // boring: reader view, near the top of the menu so it is easy to find.
++  // TODO: move this label into the translated strings.
++  if (params_.link_url.is_empty() && !params_.is_editable &&
++      params_.page_url.SchemeIsHTTPOrHTTPS()) {
++    menu_model_.AddItem(IDC_CONTENT_CONTEXT_BORING_READER,
++                        u"Open in reader view");
++    menu_model_.AddSeparator(ui::NORMAL_SEPARATOR);
++  }
++
+   const bool glic_below_search =
+       base::FeatureList::IsEnabled(features::kGlicContextMenuBelowSearch);
+ 
+@@ -3463,6 +3474,9 @@
+     case IDC_SAVE_PAGE:
+       return IsSavePageEnabled();
+ 
++    case IDC_CONTENT_CONTEXT_BORING_READER:
++      return true;
++
+     case IDC_CONTENT_CONTEXT_RELOADFRAME:
+       return params_.is_subframe &&
+              params_.frame_url.DeprecatedGetOriginAsURL() !=
+@@ -4027,6 +4041,11 @@
+ 
+     case IDC_CONTENT_CONTEXT_PARTIAL_TRANSLATE:
+       ExecPartialTranslate();
++      break;
++
++    case IDC_CONTENT_CONTEXT_BORING_READER:
++      DistillCurrentPageAndViewIfSuccessful(source_web_contents_,
++                                            base::DoNothing());
+       break;
+ 
+     case IDC_CONTENT_CONTEXT_RELOADFRAME:
+--- a/chrome/browser/renderer_context_menu/BUILD.gn
++++ b/chrome/browser/renderer_context_menu/BUILD.gn
+@@ -126,6 +126,7 @@
+       "//chrome/browser/custom_handlers",
+       "//chrome/browser/devtools",
+       "//chrome/browser/dictation",
++      "//chrome/browser/dom_distiller",
+       "//chrome/browser/glic",
+       "//chrome/browser/glic/browser_ui",
+       "//chrome/browser/glic/public:features",

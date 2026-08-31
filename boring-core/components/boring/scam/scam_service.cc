@@ -12,11 +12,7 @@
 #include "base/task/thread_pool.h"
 #include "url/gurl.h"
 
-extern "C" {
-void* boring_scamlist_new(const unsigned char* text, size_t len);
-int boring_scamlist_contains(const void* list, const char* host);
-size_t boring_scamlist_size(const void* list);
-}
+#include "components/boring/adblock/adblock_ffi.h"
 
 namespace boring {
 
@@ -54,14 +50,18 @@ void ScamService::LoadOnBackgroundThread() {
     LOG(WARNING) << "boring scam: no blocklist file, protection is off";
     return;
   }
-  void* list = boring_scamlist_new(
+  const BoringLibrary* lib = GetBoringLibrary();
+  if (!lib) {
+    return;
+  }
+  void* list = lib->scamlist_new(
       reinterpret_cast<const unsigned char*>(text.data()), text.size());
   if (!list) {
     LOG(ERROR) << "boring scam: blocklist failed to parse";
     return;
   }
   list_.store(list, std::memory_order_release);
-  VLOG(1) << "boring scam: ready, " << boring_scamlist_size(list) << " hosts";
+  VLOG(1) << "boring scam: ready, " << lib->scamlist_size(list) << " hosts";
 }
 
 bool ScamService::IsReady() const {
@@ -77,7 +77,11 @@ bool ScamService::ShouldBlock(const GURL& url) const {
   if (allowed_hosts_.count(host)) {
     return false;
   }
-  return boring_scamlist_contains(list, host.c_str()) == 1;
+  const BoringLibrary* lib = GetBoringLibrary();
+  if (!lib) {
+    return false;
+  }
+  return lib->scamlist_contains(list, host.c_str()) == 1;
 }
 
 void ScamService::AllowHostForSession(const std::string& host) {

@@ -1,0 +1,21 @@
+--- a/components/dom_distiller/core/dom_distiller_features.cc
++++ b/components/dom_distiller/core/dom_distiller_features.cc
+@@ -21,13 +21,14 @@
+ namespace dom_distiller {
+ 
+ bool IsDomDistillerEnabled() {
+-  return base::CommandLine::ForCurrentProcess()->HasSwitch(
+-      switches::kEnableDomDistiller);
++  // boring: reader view is a main feature here, so it is always on. The
++  // switch is no longer needed to turn it on.
++  return true;
+ }
+ 
+ bool ShouldStartDistillabilityService() {
+-  return base::CommandLine::ForCurrentProcess()->HasSwitch(
+-      switches::kEnableDistillabilityService);
++  // boring: always on, so the browser knows which pages can be read.
++  return true;
+ }
+ 
+ BASE_FEATURE(kReaderModeUseReadability, base::FEATURE_ENABLED_BY_DEFAULT);
