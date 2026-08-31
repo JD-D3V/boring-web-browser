@@ -1,0 +1,19 @@
+# Copyright 2026 boring. BSD style license.
+
+static_library("ai") {
+  sources = [
+    "ai_prefs.cc",
+    "ai_prefs.h",
+    "ai_ui.cc",
+    "ai_ui.h",
+  ]
+  deps = [
+    "//base",
+    "//components/pref_registry",
+    "//components/prefs",
+    "//components/user_prefs",
+    "//content/public/browser",
+    "//content/public/common",
+    "//url",
+  ]
+}

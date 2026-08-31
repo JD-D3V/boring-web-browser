@@ -1,0 +1,28 @@
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -58,6 +58,7 @@
+ #include "chrome/browser/ui/webui/ungoogled_first_run.h"
+ #include "chrome/browser/ui/webui/usb_internals/usb_internals_ui.h"
+ #include "chrome/browser/ui/webui/version/version_ui.h"
++#include "components/boring/ai/ai_ui.h"
+ #include "components/enterprise/buildflags/buildflags.h"
+ #include "components/safe_browsing/buildflags.h"
+ #include "components/security_interstitials/content/connection_help_ui.h"
+@@ -253,6 +254,7 @@
+ #endif  // BUILDFLAG(IS_CHROMEOS)
+ 
+   auto& map = content::WebUIConfigMap::GetInstance();
++  map.AddWebUIConfig(std::make_unique<boring::ai::BoringAiUIConfig>());
+   map.AddWebUIConfig(std::make_unique<AccessibilityUIConfig>());
+   map.AddWebUIConfig(std::make_unique<AutofillInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<BluetoothInternalsUIConfig>());
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -96,6 +96,7 @@
+     "//chrome/browser/ui/webui/translate_internals",
+     "//chrome/browser/ui/webui/usb_internals",
+     "//chrome/browser/ui/webui/version",
++    "//components/boring/ai",
+     "//components/compose:buildflags",
+     "//components/lens:buildflags",
+     "//components/security_interstitials/content:security_interstitial_page",
