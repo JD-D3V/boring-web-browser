@@ -115,23 +115,5 @@ icon font glyphs, and an estimated reading time line.
       </div>
     </div>
   </div>
-  <script>
-    // Estimated reading time, updated as the article streams in.
-    (function() {
-      var el = document.getElementById('boring-read-time');
-      function update() {
-        var content = document.getElementById('content');
-        if (!content || !el) return;
-        var words = (content.innerText || '').split(/\s+/).filter(
-            function(w) { return w.length > 0; }).length;
-        if (words < 50) { el.textContent = ''; return; }
-        var minutes = Math.max(1, Math.round(words / 220));
-        el.textContent = minutes + ' minute read';
-      }
-      new MutationObserver(update).observe(
-          document.body, {subtree: true, childList: true});
-      window.addEventListener('load', update);
-    })();
-  </script>
 </body>
 </html>

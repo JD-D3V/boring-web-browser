@@ -1,0 +1,43 @@
+--- a/components/dom_distiller/core/javascript/dom_distiller_viewer_main.js
++++ b/components/dom_distiller/core/javascript/dom_distiller_viewer_main.js
+@@ -173,6 +173,8 @@
+  * This function should be called after the DOM is loaded.
+  */
+ function initializeDomDistillerViewer() {
++  // boring: the reading time line under the title.
++  boringStartReadTime();
+   // The settings dialog is always present.
+   SettingsDialog.getInstance();
+   if (navigator.userAgent.toLowerCase().indexOf('android') > -1) {
+@@ -181,3 +183,31 @@
+     FontSizeSlider.getInstance();
+   }
+ }
++
++// boring: show an estimated reading time under the title. The article
++// arrives a piece at a time, so watch the content and update as it
++// grows. 220 words a minute is an average adult reading speed.
++function boringUpdateReadTime() {
++  const line = document.getElementById('boring-read-time');
++  const content = document.getElementById('content');
++  if (!line || !content) {
++    return;
++  }
++  const words = (content.innerText || '').split(/\s+/).filter(
++      (word) => word.length > 0).length;
++  if (words < 50) {
++    line.textContent = '';
++    return;
++  }
++  const minutes = Math.max(1, Math.round(words / 220));
++  line.textContent = minutes === 1 ? '1 minute read' : minutes + ' minute read';
++}
++
++function boringStartReadTime() {
++  boringUpdateReadTime();
++  const content = document.getElementById('content');
++  if (content) {
++    new MutationObserver(boringUpdateReadTime).observe(
++        content, {subtree: true, childList: true, characterData: true});
++  }
++}
