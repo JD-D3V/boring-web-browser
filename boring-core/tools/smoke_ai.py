@@ -32,6 +32,15 @@ def main():
         note = b.run("return document.getElementById('dest-note').textContent")
         print("note when off:", note.strip()[:60])
 
+        # With no page waiting, the summary panel must stay out of the
+        # way. It only appears after the user asks for a summary.
+        hidden = b.run(
+            "return document.getElementById('ask')"
+            ".classList.contains('hidden')")
+        print("summary panel hidden when nothing waiting:", hidden)
+        if not hidden:
+            failures.append("the summary panel showed with nothing waiting")
+
         # Pick the local option and save.
         b.run("document.getElementById('p-ollama').click();"
               "document.getElementById('model').value = 'llama3.2';"
