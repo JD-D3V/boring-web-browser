@@ -15,7 +15,7 @@ namespace boring {
 namespace prefs {
 
 // One switch that makes every protection strict. Set once by the user
-// or by a caregiver. See FEATURES.md section 2.
+// or by a caregiver.
 inline constexpr char kSeniorSafeMode[] = "boring.senior_safe_mode";
 
 // Hide sponsored results on search pages instead of only labeling them.
