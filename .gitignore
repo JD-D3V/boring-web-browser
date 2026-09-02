@@ -39,3 +39,8 @@ boring-core/.pristine/
 *.key
 *.pem
 secrets*
+
+# Local notes and working docs, deliberately kept off the published repo.
+# The readme is the only markdown that ships.
+*.md
+!/README.md
