@@ -50,3 +50,6 @@ secrets*
 
 # Local tool settings for other coding assistants.
 /.codex/
+
+# Output from unrelated local tasks, never part of the browser.
+/outputs/
