@@ -1,0 +1,31 @@
+--- a/chrome/browser/resources/settings/people_page/people_page.html
++++ b/chrome/browser/resources/settings/people_page/people_page.html
+@@ -14,6 +14,15 @@
+ 
+       #sync-setup {
+         --cr-secondary-text-color: var(--settings-error-color);
++      }
++
++      /* boring: there is no sync and no Google account to manage, so
++         these rows lead nowhere. Hidden here rather than by unpicking
++         the bindings, so the page logic is untouched. */
++      #sync-setup,
++      #google-services,
++      #manage-google-account {
++        display: none;
+       }
+ 
+       #sync-not-allowed {
+--- a/chrome/app/settings_strings.grdp
++++ b/chrome/app/settings_strings.grdp
+@@ -3727,8 +3727,8 @@
+     </message>
+ 
+     <!-- Sync / People Page -->
+-    <message name="IDS_SETTINGS_PEOPLE" desc="Name of the settings page which manages the user's relationship to Google.">
+-      You and Google
++    <message name="IDS_SETTINGS_PEOPLE" desc="Name of the settings page which manages the browser profile.">
++      Profile
+     </message>
+     <message name="IDS_SETTINGS_CHANGE_PICTURE_PROFILE_PHOTO" desc="The text on the Google profile photo of the user.">
+       Google Profile photo

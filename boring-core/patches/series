@@ -21,3 +21,4 @@ package-boring-files.patch
 tab-shape.patch
 omnibox-shape.patch
 protection-toolbar-button.patch
+settings-drop-google.patch
