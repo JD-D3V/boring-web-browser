@@ -47,6 +47,9 @@ constexpr char kScript[] = R"((function() {
   function apply() {
     adSelectors.forEach(function(selector) {
       document.querySelectorAll(selector).forEach(function(adBlock) {
+        // Google keeps an empty ad slot on pages with no ads. Leave it
+        // alone until an ad is actually put in it.
+        if (!adBlock.textContent.trim()) return;
         if (hide) { adBlock.style.display = 'none'; return; }
         if (adBlock.dataset.boringLabeled) return;
         adBlock.dataset.boringLabeled = '1';

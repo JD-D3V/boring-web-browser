@@ -96,6 +96,7 @@ def main():
                 b.get(
                     "data:text/html,<title>Controlled search fixture</title>"
                     "<main><div id='tads'>Paid offer</div>"
+                    "<div id='bottomads'></div>"
                     "<ol><li id='ddg' data-layout='products_middle'>Ads</li></ol>"
                     "<div id='organic'>Ordinary result</div></main>"
                 )
@@ -104,9 +105,12 @@ def main():
                     "var ad=document.getElementById('tads');"
                     "var organic=document.getElementById('organic');"
                     "var ddg=document.getElementById('ddg');"
+                    "var empty=document.getElementById('bottomads');"
                     "return {hidden:getComputedStyle(ad).display==='none',"
                     "label:ad.innerText.includes('Sponsored'),"
                     "ddg_hidden:getComputedStyle(ddg).display==='none',"
+                    "empty_slot_untouched:!empty.dataset.boringLabeled&&"
+                    "getComputedStyle(empty).display!=='none',"
                     "ddg_label:ddg.innerText.includes('Sponsored'),"
                     "organic:getComputedStyle(organic).display!=='none'}"
                 )
