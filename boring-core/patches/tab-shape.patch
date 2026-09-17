@@ -1,0 +1,26 @@
+--- a/chrome/browser/ui/tabs/tab_style.cc
++++ b/chrome/browser/ui/tabs/tab_style.cc
+@@ -28,8 +28,10 @@
+ constexpr int kTabVerticalPadding = 6;
+ constexpr int kTabHorizontalPadding = 8;
+ 
+-// The standard tab width is 232 DIP, excluding separators and overlap.
+-constexpr int kTabWidth = 232;
++// The standard tab width, excluding separators and overlap. 195 DIP is
++// about as much page title as anyone reads, and it keeps more tabs
++// legible before they start shrinking.
++constexpr int kTabWidth = 195;
+ 
+ }  // namespace
+ 
+@@ -98,7 +100,9 @@
+ }
+ 
+ int TabStyle::GetTopCornerRadius() const {
+-  return 10;
++  // A calmer corner than Chromium's, matching the cards and fields on our
++  // own pages.
++  return 8;
+ }
+ 
+ int TabStyle::GetBottomCornerRadius() const {

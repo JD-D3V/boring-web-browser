@@ -1,0 +1,36 @@
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -202,6 +202,11 @@
+ 
+ namespace {
+ 
++// The corner on the address bar, matching the fields on our own pages
++// rather than Chromium's full pill. Used for the fill and the focus ring
++// together, so they sit on the same shape.
++constexpr int kFieldCornerRadius = 8;
++
+ int IncrementalMinimumWidth(const views::View* view) {
+   return (view && view->GetVisible()) ? view->GetMinimumSize().width() : 0;
+ }
+@@ -265,7 +270,8 @@
+                  !v->GetOmniboxController()->IsPopupOpen();
+         }));
+     views::FocusRing::Get(this)->SetOutsetFocusRingDisabled(true);
+-    views::InstallPillHighlightPathGenerator(this);
++    views::InstallRoundRectHighlightPathGenerator(this, gfx::Insets(),
++                                                 kFieldCornerRadius);
+ 
+ #if BUILDFLAG(OS_LEVEL_GEOLOCATION_PERMISSION_SUPPORTED)
+     if (features::IsOsLevelGeolocationPermissionSupportEnabled()) {
+@@ -627,8 +633,9 @@
+ 
+ // static
+ int LocationBarView::ComputeBorderRadius(gfx::Size size) {
+-  return ChromeLayoutProvider::Get()->GetCornerRadiusMetric(
+-      views::Emphasis::kMaximum, size);
++  // Never round more than half the height, so a short bar still looks
++  // right.
++  return std::min(kFieldCornerRadius, size.height() / 2);
+ }
+ 
+ // static

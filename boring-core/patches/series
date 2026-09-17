@@ -18,3 +18,5 @@ newtab-default.patch
 welcome-first-run.patch
 settings-menu-links.patch
 package-boring-files.patch
+tab-shape.patch
+omnibox-shape.patch
