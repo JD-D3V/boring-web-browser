@@ -8,7 +8,7 @@
  #include "base/i18n/rtl.h"
  #include "base/logging.h"
  #include "base/metrics/field_trial.h"
-@@ -53,7 +54,11 @@
+@@ -53,7 +54,12 @@
  #include "chrome/browser/devtools/features.h"
  #include "chrome/browser/devtools/views/devtools_floaty.h"
  #include "chrome/browser/dictation/features.h"
@@ -17,10 +17,11 @@
 +#include "chrome/common/chrome_isolated_world_ids.h"
 +#include "components/boring/ai/ai_prefs.h"
 +#include "components/boring/ai/ai_summary_service.h"
++#include "components/boring/reader/reader_scroll_keeper.h"
  #include "chrome/browser/download/download_stats.h"
  #include "chrome/browser/enterprise/data_protection/data_protection_clipboard_utils.h"
  #include "chrome/browser/glic/browser_ui/glic_vector_icon_manager.h"
-@@ -2465,8 +2470,57 @@
+@@ -2465,8 +2471,92 @@
    }
  }
  
@@ -45,8 +46,16 @@
 +              return;
 +            }
 +            const std::string* text = result.GetIfString();
-+            boring::ai::AiSummaryService::GetInstance()->HoldPage(
-+                title, url, text ? *text : std::string());
++            // The service belongs to this profile, so a page read in an
++            // incognito window is never held where an ordinary window
++            // could ask for a summary of it.
++            boring::ai::AiSummaryService* service =
++                boring::ai::AiSummaryService::GetForBrowserContext(
++                    contents->GetBrowserContext());
++            if (!service) {
++              return;
++            }
++            service->HoldPage(title, url, text ? *text : std::string());
 +            contents->OpenURL(
 +                content::OpenURLParams(
 +                    GURL("chrome://boring-ai"), content::Referrer(),
@@ -55,6 +64,33 @@
 +                /*navigation_handle_callback=*/{});
 +          },
 +          title, url, contents),
++      ISOLATED_WORLD_ID_CHROME_INTERNAL);
++}
++
++void RenderViewContextMenu::BoringOpenReaderView() {
++  content::RenderFrameHost* frame = GetRenderFrameHost();
++  if (!frame) {
++    DistillCurrentPageAndViewIfSuccessful(source_web_contents_,
++                                          base::DoNothing());
++    return;
++  }
++  // Ask the live page which paragraph has been reached, then open reader
++  // view there instead of back at the top of the article.
++  base::WeakPtr<content::WebContents> contents =
++      source_web_contents_->GetWeakPtr();
++  frame->ExecuteJavaScriptInIsolatedWorld(
++      base::UTF8ToUTF16(std::string(boring::kReaderAnchorScript)),
++      base::BindOnce(
++          [](base::WeakPtr<content::WebContents> contents,
++             base::Value result) {
++            if (!contents) {
++              return;
++            }
++            boring::ReaderScrollKeeper::Remember(contents.get(), result);
++            DistillCurrentPageAndViewIfSuccessful(contents.get(),
++                                                  base::DoNothing());
++          },
++          contents),
 +      ISOLATED_WORLD_ID_CHROME_INTERNAL);
 +}
 +
@@ -78,7 +114,7 @@
  
    const bool glic_below_search =
        base::FeatureList::IsEnabled(features::kGlicContextMenuBelowSearch);
-@@ -3463,6 +3517,10 @@
+@@ -3463,6 +3553,10 @@
      case IDC_SAVE_PAGE:
        return IsSavePageEnabled();
  
@@ -89,15 +125,14 @@
      case IDC_CONTENT_CONTEXT_RELOADFRAME:
        return params_.is_subframe &&
               params_.frame_url.DeprecatedGetOriginAsURL() !=
-@@ -4027,6 +4085,15 @@
+@@ -4027,6 +4121,14 @@
  
      case IDC_CONTENT_CONTEXT_PARTIAL_TRANSLATE:
        ExecPartialTranslate();
 +      break;
 +
 +    case IDC_CONTENT_CONTEXT_BORING_READER:
-+      DistillCurrentPageAndViewIfSuccessful(source_web_contents_,
-+                                            base::DoNothing());
++      BoringOpenReaderView();
 +      break;
 +
 +    case IDC_CONTENT_CONTEXT_BORING_SUMMARIZE:
@@ -107,24 +142,27 @@
      case IDC_CONTENT_CONTEXT_RELOADFRAME:
 --- a/chrome/browser/renderer_context_menu/render_view_context_menu.h
 +++ b/chrome/browser/renderer_context_menu/render_view_context_menu.h
-@@ -323,6 +323,9 @@
+@@ -323,6 +323,11 @@
    void AppendMediaItems();
    void AppendPluginItems();
    void AppendPageItems();
 +  // boring: puts this page aside for a summary and opens the page where
 +  // the person confirms where it would be sent.
 +  void BoringSummarizePage();
++  // boring: opens reader view at the place the reader had got to.
++  void BoringOpenReaderView();
    void AppendExitFullscreenItem();
    void AppendCopyItem();
    void AppendLinkToTextItems();
 --- a/chrome/browser/renderer_context_menu/BUILD.gn
 +++ b/chrome/browser/renderer_context_menu/BUILD.gn
-@@ -126,6 +126,8 @@
+@@ -126,6 +126,9 @@
        "//chrome/browser/custom_handlers",
        "//chrome/browser/devtools",
        "//chrome/browser/dictation",
 +      "//chrome/browser/dom_distiller",
 +      "//components/boring/ai",
++      "//components/boring/reader",
        "//chrome/browser/glic",
        "//chrome/browser/glic/browser_ui",
        "//chrome/browser/glic/public:features",

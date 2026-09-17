@@ -1,0 +1,15 @@
+# Copyright 2026 boring. BSD style license.
+
+static_library("reader") {
+  sources = [
+    "reader_scroll_keeper.cc",
+    "reader_scroll_keeper.h",
+  ]
+  deps = [
+    "//base",
+    "//components/dom_distiller/core",
+    "//content/public/browser",
+    "//content/public/common",
+    "//url",
+  ]
+}
