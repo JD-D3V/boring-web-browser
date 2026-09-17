@@ -20,7 +20,7 @@ def main():
         time.sleep(2)
         title = b.run("return document.title")
         print("page title:", title)
-        if title != "AI settings":
+        if title != "AI summaries":
             print("FAIL: page did not open")
             return 1
 
@@ -52,7 +52,7 @@ def main():
         # The note must name where the text would go.
         note = b.run("return document.getElementById('dest-note').textContent")
         print("note for local:", note.strip()[:70])
-        if "your own computer" not in note:
+        if "this computer" not in note:
             failures.append("the page does not say where the text goes")
 
         # Reload and check the setting stuck.

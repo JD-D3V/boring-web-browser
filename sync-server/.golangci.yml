@@ -18,7 +18,7 @@ linters:
   exclusions:
     generated: strict      # skip files marked "Code generated ... DO NOT EDIT."
     paths:
-      - "protocol/.*\\.pb\\.go$"   # the generated sync protobufs — never lint these
+      - "protocol/.*\\.pb\\.go$"   # the generated sync protobufs, never lint these
 
 formatters:
   enable:

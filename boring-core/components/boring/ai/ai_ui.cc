@@ -31,7 +31,7 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>AI settings</title>
+<title>AI summaries</title>
 <style>
   :root { color-scheme: light dark;
     --surface: light-dark(#faf9f6, #1c2422);
@@ -51,7 +51,6 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
          padding: 3em 1.5em; display: flex; justify-content: center; }
   .page { width: 40em; max-width: 100%; }
   h1 { font-size: 1.6em; margin: 0 0 0.2em; }
-  .lede { color: var(--muted); margin-top: 0; }
   fieldset { border: 1px solid var(--line); background: var(--paper);
              border-radius: 10px; margin: 1.5em 0; padding: 1.2em 1.4em; }
   legend { font-weight: 600; padding: 0 0.4em; }
@@ -65,7 +64,7 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
            margin: 0.7em 0; }
   .radio input { margin-top: 0.35em; }
   .radio .what { font-weight: 600; }
-  .radio .why { color: var(--muted); font-size: 0.9em; }
+  .why { color: var(--muted); font-size: 0.9em; }
   button { background: var(--accent); border: none; border-radius: 8px;
            color: var(--surface); cursor: pointer; font: inherit;
            padding: 0.65em 1.4em; }
@@ -103,80 +102,61 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
        rebuilt on every change and would repeat itself if it spoke. -->
   <div id="summary-status" class="sr-only" role="status"></div>
   <button class="no hidden" id="summary-settings" aria-expanded="false"
-      aria-controls="settings-panel">Show summary settings</button>
+      aria-controls="settings-panel">Settings</button>
   <section id="settings-panel">
-  <h1 id="settings-heading" tabindex="-1">AI settings</h1>
-  <p class="lede">The browser never reads your pages on its own. Nothing
-  is sent anywhere until you ask for it, and you are told where it is
-  going first.</p>
+  <h1 id="settings-heading" tabindex="-1">AI summaries</h1>
 
   <fieldset>
-    <legend>Which service answers</legend>
+    <legend>Service</legend>
     <div class="radio">
       <input type="radio" name="provider" id="p-off" value="off">
-      <label for="p-off"><span class="what">Off</span><br>
-        <span class="why">No AI features at all. This is the default.</span>
-      </label>
+      <label for="p-off"><span class="what">Off</span></label>
     </div>
     <div class="radio">
       <input type="radio" name="provider" id="p-ollama" value="ollama">
-      <label for="p-ollama"><span class="what">On your own computer, with Ollama</span><br>
-        <span class="why">Free and private. Nothing leaves this machine.
-        You install Ollama yourself.</span>
-      </label>
+      <label for="p-ollama"><span class="what">Ollama on this computer</span></label>
     </div>
     <div class="radio">
       <input type="radio" name="provider" id="p-gemini" value="gemini">
-      <label for="p-gemini"><span class="what">Google Gemini, with your key</span><br>
-        <span class="why">Pages you ask about are sent to Google.</span>
-      </label>
+      <label for="p-gemini"><span class="what">Google Gemini</span></label>
     </div>
     <div class="radio">
       <input type="radio" name="provider" id="p-openai" value="openai">
-      <label for="p-openai"><span class="what">OpenAI, with your key</span><br>
-        <span class="why">Pages you ask about are sent to OpenAI.</span>
-      </label>
+      <label for="p-openai"><span class="what">OpenAI</span></label>
     </div>
     <div class="radio">
       <input type="radio" name="provider" id="p-openrouter" value="openrouter">
-      <label for="p-openrouter"><span class="what">OpenRouter, with your key</span><br>
-        <span class="why">Pages you ask about are sent to OpenRouter.</span>
-      </label>
+      <label for="p-openrouter"><span class="what">OpenRouter</span></label>
     </div>
     <div class="radio">
       <input type="radio" name="provider" id="p-groq" value="groq">
-      <label for="p-groq"><span class="what">Groq, with your key</span><br>
-        <span class="why">Pages you ask about are sent to Groq.</span>
-      </label>
+      <label for="p-groq"><span class="what">Groq</span></label>
     </div>
   </fieldset>
 
   <fieldset id="local-box">
-    <legend>Your own computer</legend>
-    <label class="row">Where Ollama is listening
+    <legend>Ollama</legend>
+    <label class="row">Address
       <input type="text" id="ollama-url" placeholder="http://localhost:11434">
     </label>
   </fieldset>
 
   <fieldset id="key-box">
-    <legend>Your key</legend>
+    <legend>API key</legend>
     <label class="row">Key
-      <input type="password" id="api-key" placeholder="paste your key here"
+      <input type="password" id="api-key" placeholder="Paste your key"
           aria-describedby="key-bad">
     </label>
-    <p class="why">The key is encrypted and kept on this device only. It
-    is never sent to us, never synced to your other devices, and never
-    shown again once saved.</p>
-    <p id="key-bad" class="bad hidden">That key does not look right, so it
-    was not saved. Keys are printable characters with no spaces or line
-    breaks.</p>
-    <button class="no" id="forget-key">Forget the saved key</button>
+    <p class="why">Stored encrypted on this device.</p>
+    <p id="key-bad" class="bad hidden">Key not saved: it contains spaces or
+    invalid characters.</p>
+    <button class="no" id="forget-key">Remove key</button>
   </fieldset>
 
   <fieldset>
     <legend>Model</legend>
-    <label class="row">Model name
-      <input type="text" id="model" placeholder="for example llama3.2">
+    <label class="row">Name
+      <input type="text" id="model" placeholder="llama3.2">
     </label>
   </fieldset>
 
@@ -205,16 +185,14 @@ function refresh() {
   el('key-box').classList.toggle('hidden',
                                provider === 'off' || provider === 'ollama');
   var note = el('dest-note');
-  if (provider === 'off') {
-    note.textContent = 'AI features are off. Nothing is sent anywhere.';
-  } else if (provider === 'ollama') {
-    note.textContent = 'When you ask for a summary, the page text goes to ' +
-        'Ollama on your own computer. It does not leave this machine.';
-  } else {
+  note.classList.toggle('hidden', provider === 'off');
+  if (provider === 'ollama') {
+    note.textContent = 'Summaries run on this computer.';
+  } else if (provider !== 'off') {
     var names = {gemini: 'Google Gemini', openai: 'OpenAI',
                  openrouter: 'OpenRouter', groq: 'Groq'};
-    note.textContent = 'When you ask for a summary, the page text is sent ' +
-        'to ' + names[provider] + '. You will be shown this before it is sent.';
+    note.textContent = 'Page text is sent to ' + names[provider] +
+        ' when you ask for a summary.';
   }
 }
 
@@ -232,9 +210,9 @@ function showNotice(text) {
 function load(settings) {
   if (pendingNotice === 'save') {
     showNotice(settings.keyRejected
-        ? 'Other settings saved. The key was not.' : 'Saved');
+        ? 'Saved, except the key' : 'Saved');
   } else if (pendingNotice === 'forget') {
-    showNotice('The saved key is gone');
+    showNotice('Key removed');
   }
   pendingNotice = null;
   var id = 'p-' + (settings.provider || 'off');
@@ -246,8 +224,8 @@ function load(settings) {
   var key = el('api-key');
   key.value = '';
   key.placeholder = settings.hasApiKey
-      ? 'a key is saved. Type here only to replace it'
-      : 'paste your key here';
+      ? 'Saved. Type to replace'
+      : 'Paste your key';
   el('forget-key').classList.toggle('hidden', !settings.hasApiKey);
   el('key-bad').classList.toggle('hidden', !settings.keyRejected);
   key.setAttribute('aria-invalid', String(!!settings.keyRejected));
@@ -303,7 +281,7 @@ var lastDrawn = null;
 el('summary-settings').addEventListener('click', function() {
   var hidden = el('settings-panel').classList.toggle('hidden');
   this.setAttribute('aria-expanded', String(!hidden));
-  this.textContent = hidden ? 'Show summary settings' : 'Hide summary settings';
+  this.textContent = hidden ? 'Settings' : 'Hide settings';
 });
 
 function showSummaryState(s) {
@@ -321,7 +299,7 @@ function showSummaryState(s) {
     el('settings-panel').classList.remove('hidden');
     summaryState = 'nothing';
     if (previous !== 'nothing') {
-      el('summary-status').textContent = 'Summary closed.';
+      el('summary-status').textContent = 'Summary closed';
       el('settings-heading').focus();
     }
     return;
@@ -329,7 +307,7 @@ function showSummaryState(s) {
   if (previous === 'nothing') {
     el('settings-panel').classList.add('hidden');
     el('summary-settings').setAttribute('aria-expanded', 'false');
-    el('summary-settings').textContent = 'Show summary settings';
+    el('summary-settings').textContent = 'Settings';
   }
   summaryState = s.state;
   el('summary-settings').classList.remove('hidden');
@@ -357,25 +335,20 @@ function showSummaryState(s) {
   }
 
   if (s.state === 'waiting') {
-    var where = s.local
-        ? 'This stays on your computer. Nothing goes over the internet.'
-        : 'The text of this page will be sent to ' + name +
-          ', over the internet.';
-    heading.textContent = 'Summarise this page?';
-    box.append(summaryNode('div', where + ' About ' +
-        (s.textLength || 0).toLocaleString('en') +
-        ' characters of page text would be sent. Nothing has been sent ' +
-        'yet.', 'going'));
-    addButton('Send and summarise', 'do-send', false, function() {
+    heading.textContent = s.local ? 'Summarise this page?'
+                                  : 'Send this page to ' + name + '?';
+    box.append(summaryNode('div', (s.local ? 'Runs on this computer. ' : '') +
+        'About ' + (s.textLength || 0).toLocaleString('en') + ' characters.',
+        'going'));
+    addButton('Summarise', 'do-send', false, function() {
       chrome.send('sendSummary');
       chrome.send('getSummaryState');
     });
-    addButton('No thanks', 'do-cancel', true, function() {
+    addButton('Cancel', 'do-cancel', true, function() {
       chrome.send('forgetSummary');
     });
   } else if (s.state === 'working') {
-    heading.textContent = 'Working';
-    box.append(summaryNode('p', 'Sent to ' + name + '. Waiting for the answer.'));
+    heading.textContent = 'Summarising';
   } else if (s.state === 'done') {
     heading.textContent = 'Summary';
     var result = summaryNode('div', s.summary || '');
@@ -385,7 +358,7 @@ function showSummaryState(s) {
       chrome.send('forgetSummary');
     });
   } else if (s.state === 'failed') {
-    heading.textContent = 'That did not work';
+    heading.textContent = 'Summary failed';
     box.append(summaryNode('p', s.error || 'The service could not be reached.'));
     addButton('Close', 'do-cancel', true, function() {
       chrome.send('forgetSummary');
@@ -396,10 +369,10 @@ function showSummaryState(s) {
   // redrawn without being announced or taking focus.
   if (s.state !== previous) {
     var said = {
-      waiting: 'Summarise this page? Nothing has been sent yet.',
-      working: 'Sent to ' + name + '. Waiting for the answer.',
-      done: 'The summary is ready.',
-      failed: 'The summary did not work.'
+      waiting: heading.textContent,
+      working: 'Summarising',
+      done: 'Summary ready',
+      failed: 'Summary failed'
     };
     el('summary-status').textContent = said[s.state] || '';
     heading.focus();

@@ -53,10 +53,8 @@ def main():
     ):
         b.get("chrome://newtab")
         checks["new tab is our page"] = wait_for(b, "location.host==='boring-newtab'")
-        checks["protection line says on"] = wait_for(
-            b,
-            "document.getElementById('protection-text').textContent"
-            ".startsWith('Scam and ad protection is on')",
+        checks["no protection message while it works"] = wait_for(
+            b, "document.getElementById('protection').className==='hidden'"
         )
         checks["starts with no shortcuts"] = b.run(
             "return document.querySelectorAll('#shortcuts a').length===0"

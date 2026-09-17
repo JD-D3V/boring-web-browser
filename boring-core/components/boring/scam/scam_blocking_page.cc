@@ -64,7 +64,7 @@ constexpr char kPageTop[] = R"HTML(<!DOCTYPE html>
 )HTML";
 
 constexpr char kPageBottom[] = R"HTML(
-<button class="safe" onclick="goBack()">Go back to safety</button>
+<button class="safe" onclick="goBack()">Go back</button>
 %CONTINUE%
 </div>
 <script>
@@ -87,9 +87,8 @@ function proceedAnyway() {
 )HTML";
 
 constexpr char kContinueLink[] =
-    "<span class=\"continue\">If you are certain this site is safe, you can "
-    "<a href=\"#\" onclick=\"return proceedAnyway()\">continue anyway</a>."
-    "</span>";
+    "<span class=\"continue\"><a href=\"#\" "
+    "onclick=\"return proceedAnyway()\">Continue anyway</a></span>";
 
 }  // namespace
 
@@ -127,9 +126,7 @@ std::string ScamBlockingPage::GetHTMLContents() {
   std::string host = base::EscapeForHTML(request_url().host());
   std::string body = base::StrCat(
       {"<p>The site <span class=\"host\">", host,
-       "</span> is on a list of known scam or phishing sites. Criminals "
-       "build sites like this to steal passwords, card numbers, or "
-       "money.</p><p>It is safest to leave now.</p>"});
+       "</span> is on a list of known scam and phishing sites.</p>"});
   std::string bottom(kPageBottom);
   std::string marker = "%CONTINUE%";
   std::string link = senior_safe_mode_ ? "" : kContinueLink;

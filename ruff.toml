@@ -8,10 +8,10 @@ line-length = 88
 
 [lint]
 select = [
-  "E", "W",   # pycodestyle — style + whitespace
-  "F",        # pyflakes — real bugs (unused imports, undefined names)
-  "I",        # isort — import ordering
-  "UP",       # pyupgrade — keep syntax modern for 3.12
-  "B",        # flake8-bugbear — common gotchas
-  "SIM",      # flake8-simplify — simpler equivalents
+  "E", "W",   # pycodestyle: style + whitespace
+  "F",        # pyflakes: real bugs (unused imports, undefined names)
+  "I",        # isort: import ordering
+  "UP",       # pyupgrade: keep syntax modern for 3.12
+  "B",        # flake8-bugbear: common gotchas
+  "SIM",      # flake8-simplify: simpler equivalents
 ]

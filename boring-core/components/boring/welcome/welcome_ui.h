@@ -12,10 +12,8 @@ namespace boring {
 inline constexpr char kBoringWelcomeHost[] = "boring-welcome";
 inline constexpr char kBoringWelcomeUrl[] = "chrome://boring-welcome";
 
-// The one page shown the first time the browser opens. It says what is
-// already switched on, offers Senior Safe Mode for someone setting the
-// browser up for another person, and gets out of the way. There is
-// nothing to sign in to and nothing to agree to.
+// Shown the first time the browser opens: import, default browser, and
+// Senior Safe Mode for someone setting it up for another person.
 class BoringWelcomeUI : public content::WebUIController {
  public:
   explicit BoringWelcomeUI(content::WebUI* web_ui);

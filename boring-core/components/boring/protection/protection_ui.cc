@@ -48,15 +48,15 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
          padding: 3em 1.5em; display: flex; justify-content: center; }
   .page { width: 40em; max-width: 100%; }
   h1 { font-size: 1.6em; margin: 0 0 0.2em; }
-  .lede, .why { color: var(--muted); }
-  .lede { margin-top: 0; }
-  .why { display: block; font-size: 0.9em; margin: 0.2em 0 0; }
+  .why { color: var(--muted); display: block; font-size: 0.9em;
+         margin: 0.2em 0 0; }
   section { border: 1px solid var(--line); background: var(--paper);
             border-radius: 10px; margin: 1.5em 0; padding: 1.2em 1.4em; }
-  h2 { font-size: 1.05em; margin: 0 0 0.6em; }
   .row { display: flex; gap: 1em; align-items: flex-start;
          justify-content: space-between; padding: 0.7em 0; }
-  .row + .row { border-top: 1px solid var(--line); }
+  .row + .row, .why + .row, #confirm-off + .row {
+    border-top: 1px solid var(--line); }
+  .row + .why { margin: -0.5em 0 0.7em; }
   .row strong { display: block; }
   .state { flex: none; border-radius: 999px; font-size: 0.85em;
            font-weight: 600; padding: 0.15em 0.8em;
@@ -79,8 +79,6 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
                  margin-top: 0.6em; padding: 1em 1.2em; }
   #confirm-off p { margin: 0 0 0.8em; }
   .buttons { display: flex; flex-wrap: wrap; gap: 0.8em; }
-  .note { color: var(--muted); font-size: 0.9em; }
-  a { color: var(--accent); text-underline-offset: 3px; }
   .hidden { display: none; }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden;
              clip-path: inset(50%); white-space: nowrap; }
@@ -92,60 +90,41 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
 <body>
 <div class="page">
   <h1>Protection</h1>
-  <p class="lede">What the browser is doing to keep you safe, right now.
-  Everything here happens on this computer.</p>
 
-  <section aria-labelledby="now-heading">
-    <h2 id="now-heading">Working right now</h2>
+  <section>
     <div class="row">
-      <div><strong>Scam and phishing sites</strong>
-        <p class="why" id="scam-why"></p></div>
-      <span class="state wait" id="scam-state">Checking</span>
+      <strong>Scam sites</strong>
+      <span class="state wait" id="scam-state">Starting</span>
     </div>
+    <p class="why problem hidden" id="scam-why"></p>
     <div class="row">
-      <div><strong>Ads and trackers</strong>
-        <p class="why" id="ads-why"></p></div>
-      <span class="state wait" id="ads-state">Checking</span>
+      <strong>Ads and trackers</strong>
+      <span class="state wait" id="ads-state">Starting</span>
     </div>
-    <p class="note">Lists catch known threats. They cannot spot every
-    unsafe site, so an unfamiliar site still deserves care.</p>
+    <p class="why problem hidden" id="ads-why"></p>
   </section>
 
-  <section aria-labelledby="senior-heading">
-    <h2 id="senior-heading">Senior Safe Mode</h2>
+  <section>
     <label class="row" for="senior">
-      <span><strong>Turn on Senior Safe Mode</strong>
-        <span class="why" id="senior-why">Scam warnings lose their
-        "continue anyway" link, so there is no way past one by accident.
-        Sponsored search results are hidden too.</span></span>
+      <span><strong>Senior Safe Mode</strong>
+        <span class="why" id="senior-why">No way past scam warnings.
+        Sponsored results hidden.</span></span>
       <input type="checkbox" id="senior">
     </label>
     <div id="confirm-off" class="hidden" role="alertdialog"
-        aria-labelledby="confirm-heading" aria-describedby="confirm-text">
-      <p><strong id="confirm-heading">Before you turn this off</strong></p>
-      <p id="confirm-text">No bank, computer company or government office
-      will ever ask you to change this. If someone is asking you to right
-      now, on the phone or on screen, stop and hang up.</p>
+        aria-labelledby="confirm-text">
+      <p id="confirm-text">Nobody from a bank or tech company will ever ask
+      you to turn this off. If someone is asking, hang up.</p>
       <div class="buttons">
         <button id="keep-on">Keep it on</button>
         <button class="no" id="turn-off">Turn it off</button>
       </div>
     </div>
-  </section>
-
-  <section aria-labelledby="search-heading">
-    <h2 id="search-heading">Search results</h2>
     <label class="row" for="hide-ads">
-      <span><strong>Hide sponsored results</strong>
-        <span class="why" id="hide-why">Paid placements on Google, Bing and
-        DuckDuckGo are removed instead of labelled. Sponsored does not always mean
-        unsafe, and this does not remove every scam link.</span></span>
+      <strong>Hide sponsored search results</strong>
       <input type="checkbox" id="hide-ads">
     </label>
   </section>
-
-  <p class="note">Page summaries are off unless you turn them on in
-  <a href="chrome://boring-ai">AI settings</a>.</p>
   <div id="status" class="sr-only" role="status"></div>
 </div>
 <script src="protection.js"></script>
@@ -156,37 +135,18 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
 constexpr char kScript[] = R"SCRIPT(
 function el(id) { return document.getElementById(id); }
 
-var WORDS = {
-  scam: {
-    ready: 'Sites on the list of known scams are stopped before they open.',
-    off: 'Known scam sites are not being blocked.'
-  },
-  ads: {
-    ready: 'Known advertising and tracking requests are blocked.',
-    off: 'Ads and trackers are not being blocked.'
-  }
-};
-
-// Shows one protection as it really is. A failure is never softened into
-// something that looks like it is working.
+// A failure is shown as a failure, with the reason.
 function showState(name, state, problem) {
   var badge = el(name + '-state');
   var why = el(name + '-why');
   badge.className = 'state' + (state === 'ready' ? '' :
                                state === 'failed' ? ' off' : ' wait');
-  if (state === 'ready') {
-    badge.textContent = 'On';
-    why.className = 'why';
-    why.textContent = WORDS[name].ready;
-  } else if (state === 'failed') {
-    badge.textContent = 'Not working';
-    why.className = 'why problem';
-    why.textContent = WORDS[name].off + ' The reason: ' +
-        (problem || 'unknown') + '. A browser update should fix this.';
-  } else {
-    badge.textContent = 'Starting';
-    why.className = 'why';
-    why.textContent = 'Getting ready. This takes a few seconds.';
+  badge.textContent = state === 'ready' ? 'On' :
+                      state === 'failed' ? 'Off' : 'Starting';
+  why.classList.toggle('hidden', state !== 'failed');
+  if (state === 'failed') {
+    var reason = problem || 'unknown problem';
+    why.textContent = reason.charAt(0).toUpperCase() + reason.slice(1) + '.';
   }
 }
 
@@ -200,15 +160,11 @@ function load(s) {
   senior.checked = s.senior;
   senior.disabled = s.seniorForced;
   if (s.seniorForced) {
-    el('senior-why').textContent = 'Turned on for this computer by whoever ' +
-        'set it up, so it cannot be turned off here.';
+    el('senior-why').textContent = 'Set for this computer.';
   }
   var hide = el('hide-ads');
   hide.checked = s.hideSponsored || s.senior;
   hide.disabled = s.senior;
-  if (s.senior) {
-    el('hide-why').textContent = 'Always hidden while Senior Safe Mode is on.';
-  }
 
   // Keep asking only while something is still starting up.
   var starting = s.scam === 'loading' || s.ads === 'loading';
@@ -229,11 +185,10 @@ function say(text) {
 el('senior').addEventListener('change', function(e) {
   if (e.target.checked) {
     chrome.send('setSeniorSafeMode', [true]);
-    say('Senior Safe Mode is on.');
+    say('Senior Safe Mode on.');
     return;
   }
-  // Turning it off is the one change a scammer asks for. Put it back
-  // until the person has read why, then ask again.
+  // Turning it off is the one change a scammer asks for, so ask first.
   e.target.checked = true;
   el('confirm-off').classList.remove('hidden');
   el('keep-on').focus();
@@ -242,20 +197,17 @@ el('senior').addEventListener('change', function(e) {
 el('keep-on').addEventListener('click', function() {
   el('confirm-off').classList.add('hidden');
   el('senior').focus();
-  say('Senior Safe Mode stays on.');
 });
 
 el('turn-off').addEventListener('click', function() {
   el('confirm-off').classList.add('hidden');
   chrome.send('setSeniorSafeMode', [false]);
   el('senior').focus();
-  say('Senior Safe Mode is off.');
+  say('Senior Safe Mode off.');
 });
 
 el('hide-ads').addEventListener('change', function(e) {
   chrome.send('setHideSponsored', [e.target.checked]);
-  say(e.target.checked ? 'Sponsored results will be hidden.'
-                       : 'Sponsored results will be labelled.');
 });
 
 window.loadProtection = load;

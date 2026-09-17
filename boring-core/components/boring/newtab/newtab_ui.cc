@@ -56,7 +56,6 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
          display: flex; flex-direction: column; align-items: center;
          justify-content: center; padding: 2em 1.5em; }
   .page { width: 44em; max-width: 100%; }
-  .hint { color: var(--muted); text-align: center; margin: 0 0 2em; }
   #shortcuts { display: grid; gap: 0.8em; list-style: none; margin: 0;
                padding: 0; justify-content: center;
                grid-template-columns: repeat(auto-fit, 9.5em); }
@@ -115,21 +114,19 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
 <body>
 <main class="page">
   <h1 class="hidden">New tab</h1>
-  <p class="hint">Type in the address bar to search or go to a site.</p>
   <ul id="shortcuts" aria-label="Shortcuts"></ul>
   <form id="add-form" class="hidden">
     <label>Name <input id="add-title" maxlength="40" autocomplete="off"></label>
     <label>Address <input id="add-url" autocomplete="off"
         placeholder="example.com"></label>
-    <p id="add-bad" class="bad hidden" role="alert">That address does not
-    look right. Try something like example.com.</p>
+    <p id="add-bad" class="bad hidden" role="alert">Not a web address.</p>
     <div class="buttons">
-      <button class="primary" type="submit">Add shortcut</button>
+      <button class="primary" type="submit">Add</button>
       <button class="secondary" type="button" id="add-cancel">Cancel</button>
     </div>
   </form>
-  <p id="protection" role="status"><span class="dot" aria-hidden="true"></span
-  ><span id="protection-text">Checking protection</span></p>
+  <p id="protection" class="hidden" role="status"><span class="dot"
+      aria-hidden="true"></span><span id="protection-text"></span></p>
 </main>
 <script src="newtab.js"></script>
 </body>
@@ -174,7 +171,8 @@ function showShortcuts(list) {
     var add = node('button', 'add');
     add.type = 'button';
     add.id = 'add-open';
-    add.append(node('span', 'mark', '+'), node('span', 'name', 'Add shortcut'));
+    add.setAttribute('aria-label', 'Add shortcut');
+    add.append(node('span', 'mark', '+'), node('span', 'name', 'Add'));
     add.addEventListener('click', openForm);
     li.append(add);
     ul.append(li);
@@ -201,27 +199,20 @@ el('add-form').addEventListener('submit', function(e) {
 });
 el('add-cancel').addEventListener('click', closeForm);
 
+// Only speaks up when something is wrong. A working browser does not
+// need to say so on every new tab.
 function showProtection(p) {
-  var box = el('protection');
+  var failed = p.scam === 'failed' || p.ads === 'failed';
+  el('protection').className = failed ? 'off' : 'hidden';
   var text = el('protection-text');
   text.replaceChildren();
-  var link = node('a', '', '');
-  link.href = 'chrome://boring-protection';
-  if (p.scam === 'failed' || p.ads === 'failed') {
-    box.className = 'off';
-    text.append('Protection needs attention. ');
-    link.textContent = 'See what is wrong';
-  } else if (p.scam === 'ready' && p.ads === 'ready') {
-    box.className = '';
-    text.append('Scam and ad protection is on. ');
-    link.textContent = 'Details';
-  } else {
-    box.className = '';
-    text.append('Protection is starting. ');
-    link.textContent = 'Details';
+  if (failed) {
+    var link = node('a', '', 'Details');
+    link.href = 'chrome://boring-protection';
+    text.append('Protection is off. ', link);
+  } else if (p.scam === 'loading' || p.ads === 'loading') {
     setTimeout(function() { chrome.send('getProtection'); }, 2000);
   }
-  text.append(link);
 }
 
 window.loadShortcuts = function(list, added, rejected) {

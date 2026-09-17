@@ -34,14 +34,14 @@ def main():
             print("PASS: warning wall shows for a listed site")
         else:
             failures.append("no warning wall; page text: " + text[:200])
-        if "continue anyway" in text:
+        if "continue anyway" in text.lower():
             print("PASS: normal mode offers the continue link")
         else:
             failures.append("normal mode is missing the continue link")
 
     with Browser(user_data_dir=PROFILE, args=["--senior-safe-mode"]) as b:
         text = wait_for_block(b)
-        if "dangerous" in text and "continue anyway" not in text:
+        if "dangerous" in text and "continue anyway" not in text.lower():
             print("PASS: Senior Safe Mode hides the continue link")
         else:
             failures.append("senior mode text wrong: " + text[:200])

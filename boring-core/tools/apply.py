@@ -13,6 +13,8 @@ import shutil
 import subprocess
 import sys
 
+from rebrand import rebrand
+
 CORE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_SRC = r"E:\ung\build\src"
 PRISTINE = os.path.join(CORE, ".pristine")
@@ -172,6 +174,7 @@ def main():
             print("stage", name)
     overlay_chromium_src(args.src)
     apply_patches(args.src)
+    rebrand(args.src)
     print("done")
 
 

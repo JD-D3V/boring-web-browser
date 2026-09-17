@@ -77,7 +77,7 @@ def main():
             b.get("http://boring-scam-test.invalid/")
             text = b.run("return document.body.innerText")
             checks["listed_site_blocked"] = "This site looks dangerous" in text
-            checks["normal_mode_continue_visible"] = "continue anyway" in text
+            checks["normal_mode_continue_visible"] = "continue anyway" in text.lower()
             checks["warning_button_uses_page_font"] = b.run(
                 "return getComputedStyle(document.querySelector('.safe')).fontFamily"
                 "===getComputedStyle(document.body).fontFamily"
@@ -95,7 +95,7 @@ def main():
             for hide in [False, True]:
                 b.get(
                     "data:text/html,<title>Controlled search fixture</title>"
-                    "<main><div id='tads'>Sponsored offer</div>"
+                    "<main><div id='tads'>Paid offer</div>"
                     "<ol><li id='ddg' data-layout='products_middle'>Ads</li></ol>"
                     "<div id='organic'>Ordinary result</div></main>"
                 )
@@ -105,9 +105,9 @@ def main():
                     "var organic=document.getElementById('organic');"
                     "var ddg=document.getElementById('ddg');"
                     "return {hidden:getComputedStyle(ad).display==='none',"
-                    "label:ad.innerText.includes('Sponsored result'),"
+                    "label:ad.innerText.includes('Sponsored'),"
                     "ddg_hidden:getComputedStyle(ddg).display==='none',"
-                    "ddg_label:ddg.innerText.includes('Sponsored result'),"
+                    "ddg_label:ddg.innerText.includes('Sponsored'),"
                     "organic:getComputedStyle(organic).display!=='none'}"
                 )
                 checks[f"search_{'hide' if hide else 'label'}_fixture"] = result
@@ -130,7 +130,8 @@ def main():
             b.get("http://boring-scam-test.invalid/")
             text = b.run("return document.body.innerText")
             checks["senior_blocks_without_bypass"] = (
-                "This site looks dangerous" in text and "continue anyway" not in text
+                "This site looks dangerous" in text
+                and "continue anyway" not in text.lower()
             )
             b.screenshot(str(OUT / "scam-warning-senior.png"))
     (OUT / "results.json").write_text(json.dumps(report, indent=2), encoding="utf-8")

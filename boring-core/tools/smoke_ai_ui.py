@@ -74,8 +74,7 @@ def main():
         )
         checks["rejected key is not called saved"] = wait_for(
             b,
-            "document.getElementById('saved').textContent==="
-            "'Other settings saved. The key was not.'",
+            "document.getElementById('saved').textContent==='Saved, except the key'",
         )
         checks["rejected key is explained"] = b.run(
             "return !document.getElementById('key-bad').classList"
@@ -146,8 +145,8 @@ def main():
             "local:false,textLength:4200})"
         )
         checks["consent names external destination"] = b.run(
-            "return document.querySelector('.going').textContent"
-            ".includes('Google Gemini, over the internet')"
+            "return document.querySelector('#ask h2').textContent"
+            ".includes('Send this page to Google Gemini?')"
         )
         checks["consent gives the character count"] = b.run(
             "return document.querySelector('.going').textContent"
@@ -156,7 +155,7 @@ def main():
         checks["new state takes focus and is announced"] = b.run(
             "return document.activeElement.id==='summary-heading' && "
             "document.getElementById('summary-status').textContent"
-            ".startsWith('Summarise this page?')"
+            ".startsWith('Send this page to Google Gemini?')"
         )
         working = (
             "{state:'working',title:'Sample',provider:'gemini',"
@@ -199,7 +198,7 @@ def main():
         checks["closing hands focus back to the settings"] = b.run(
             "return document.activeElement.id==='settings-heading' && "
             "document.getElementById('summary-status').textContent"
-            "==='Summary closed.'"
+            "==='Summary closed'"
         )
     (OUT / "ai-checks.json").write_text(json.dumps(checks, indent=2), encoding="utf-8")
     for name, passed in checks.items():

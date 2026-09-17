@@ -26,7 +26,7 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Welcome</title>
+<title>Welcome to Boring Browser</title>
 <style>
   :root { color-scheme: light dark;
     --surface: light-dark(#faf9f6, #1c2422);
@@ -43,17 +43,11 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
          background: var(--surface); color: var(--ink);
          padding: 4em 1.5em; display: flex; justify-content: center; }
   .page { width: 38em; max-width: 100%; }
-  h1 { font-size: 2em; line-height: 1.2; margin: 0 0 0.3em; }
-  .lede { color: var(--muted); font-size: 1.1em; margin: 0 0 2em; }
+  h1 { font-size: 2em; line-height: 1.2; margin: 0 0 1em; }
   section { background: var(--paper); border: 1px solid var(--line);
             border-radius: 12px; padding: 1.3em 1.5em; margin: 0 0 1.2em; }
-  h2 { font-size: 1.1em; margin: 0 0 0.6em; }
-  ul { list-style: none; margin: 0; padding: 0; }
-  li { padding: 0.35em 0 0.35em 1.8em; position: relative; }
-  li::before { content: ""; position: absolute; left: 0.2em; top: 0.85em;
-               width: 0.8em; height: 0.45em; border: solid var(--accent);
-               border-width: 0 0 2.5px 2.5px; transform: rotate(-45deg); }
-  .why { color: var(--muted); margin: 0 0 1em; }
+  .row { display: flex; align-items: center; justify-content: space-between;
+         gap: 1em; }
   button { background: var(--accent); border: none; border-radius: 8px;
            color: var(--surface); cursor: pointer; font: inherit;
            padding: 0.7em 1.5em; }
@@ -63,7 +57,7 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   .done { color: var(--accent); font-weight: 600; margin: 0; }
   a { color: var(--accent); text-underline-offset: 3px; }
   .links { display: grid; gap: 0.4em; }
-  .start { margin-top: 2em; display: flex; justify-content: flex-end; }
+  .start { margin-top: 1.5em; display: flex; justify-content: flex-end; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
   .hidden { display: none; }
   @media (forced-colors: active) {
@@ -73,44 +67,21 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
 </head>
 <body>
 <main class="page">
-  <h1>Welcome. You are set up.</h1>
-  <p class="lede">There is nothing to sign in to and nothing to agree to.
-  The browser is already protecting you.</p>
+  <h1>Welcome to Boring Browser</h1>
 
-  <section aria-labelledby="on-heading">
-    <h2 id="on-heading">Already on</h2>
-    <ul>
-      <li>Known scam and phishing sites are stopped before they open.</li>
-      <li>Ads and trackers are blocked.</li>
-      <li>Searches in the address bar go to DuckDuckGo, which does not
-      track you.</li>
-      <li>The pages you visit are checked on this computer. They are not
-      sent anywhere to be checked.</li>
-    </ul>
+  <section class="links">
+    <a href="chrome://settings/importData">Import bookmarks and passwords</a>
+    <a href="chrome://settings/defaultBrowser">Make Boring Browser your
+    default browser</a>
   </section>
 
-  <section aria-labelledby="senior-heading">
-    <h2 id="senior-heading">Setting this up for someone else?</h2>
-    <p class="why">Senior Safe Mode removes the way past scam warnings and
-    hides paid search results, so a wrong click cannot lead somewhere
-    dangerous.</p>
-    <div id="senior-off">
-      <button id="senior-on">Turn on Senior Safe Mode</button>
+  <section>
+    <div id="senior-off" class="row">
+      <strong>Senior Safe Mode</strong>
+      <button class="no" id="senior-on">Turn on</button>
     </div>
-    <p id="senior-done" class="done hidden" tabindex="-1">Senior Safe Mode is
-    on. You can change it any time from Protection in the menu.</p>
-  </section>
-
-  <section aria-labelledby="more-heading">
-    <h2 id="more-heading">If you want to</h2>
-    <div class="links">
-      <a href="chrome://settings/importData">Bring over bookmarks and
-      passwords from another browser</a>
-      <a href="chrome://settings/defaultBrowser">Make this your default
-      browser</a>
-      <a href="chrome://settings/search">Choose a different search
-      engine</a>
-    </div>
+    <p id="senior-done" class="done hidden" tabindex="-1">Senior Safe Mode
+    is on.</p>
   </section>
 
   <div class="start">

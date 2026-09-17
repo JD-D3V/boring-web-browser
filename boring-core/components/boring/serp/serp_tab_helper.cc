@@ -53,7 +53,7 @@ constexpr char kScript[] = R"((function() {
         adBlock.style.outline = '3px solid #c5221f';
         adBlock.style.borderRadius = '8px';
         var tag = document.createElement('div');
-        tag.textContent = 'Sponsored result (paid advertisement)';
+        tag.textContent = 'Sponsored';
         tag.style.cssText = 'background:#c5221f;color:#fff;' +
             'font:bold 13px system-ui;padding:4px 10px;' +
             'border-radius:6px 6px 0 0;';
