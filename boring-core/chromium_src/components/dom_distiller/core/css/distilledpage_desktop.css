@@ -353,6 +353,7 @@ body.monospace { font-family: ui-monospace, Consolas, monospace; }
 #main-content {
   width: 42em;
   max-width: 94%;
+  box-sizing: border-box;
   padding: 0 1em 4em;
 }
 
@@ -370,7 +371,7 @@ body.monospace { font-family: ui-monospace, Consolas, monospace; }
 }
 
 #boring-read-time {
-  color: rgb(var(--google-grey-500));
+  color: #5d6966;
   font-size: 0.85em;
   margin: 0.4em 0 0;
 }
@@ -408,11 +409,15 @@ body.monospace { font-family: ui-monospace, Consolas, monospace; }
 
 /* Page colors. The sepia option is warm, the dark option is easy on
  * OLED screens without being pure black behind text blocks. */
-body.light { background-color: #faf9f7; color: #1c1c1e; }
+body.light { background-color: #faf9f6; color: #242e2d; }
 body.sepia { background-color: #f4ecd8; color: #433422; }
-body.dark { background-color: #121212; color: #d8d8d8; }
+body.dark { background-color: #1c2422; color: #e8ede7; }
 
-body.dark #content a { color: #8ab4f8; }
+body.dark #boring-read-time { color: #adb9b2; }
+body.sepia #boring-read-time { color: #69563d; }
+body.light #content a { color: #176b5b; }
+
+body.dark #content a { color: #92d4bb; }
 body.sepia #content a { color: #7a5c1e; }
 
 /* The settings button reads Aa like a proper reader. */
@@ -440,11 +445,13 @@ body.sepia #content a { color: #7a5c1e; }
   border-radius: 12px;
   font-family: var(--boring-sans);
   height: auto;
+  max-width: calc(100vw - 24px);
+  padding-top: 24px;
 }
 
 body.dark #settings-dialog {
-  background-color: #202124;
-  color: #d8d8d8;
+  background-color: #252e2b;
+  color: #e8ede7;
 }
 
 /* Native select arrow back, since the icon font is gone. */
@@ -460,9 +467,9 @@ body.dark select#font-family-selection {
 }
 
 /* Theme swatches show their real page color. */
-.theme-option input[type='radio'].light { background-color: #faf9f7; }
+.theme-option input[type='radio'].light { background-color: #faf9f6; }
 .theme-option input[type='radio'].sepia { background-color: #f4ecd8; }
-.theme-option input[type='radio'].dark { background-color: #121212; }
+.theme-option input[type='radio'].dark { background-color: #1c2422; }
 
 .checkmark span {
   background-color: white;
@@ -479,4 +486,22 @@ body.dark select#font-family-selection {
 #close-settings-button span {
   font-size: 18px;
   line-height: 18px;
+}
+
+#close-settings-button {
+  width: 32px;
+  height: 32px;
+  top: 4px;
+  right: 4px;
+  border-radius: 6px;
+}
+
+body :focus-visible {
+  outline: 2px solid #176b5b;
+  outline-offset: 3px;
+}
+body.dark :focus-visible { outline-color: #92d4bb; }
+
+@media (prefers-reduced-motion: reduce) {
+  body { transition: none; }
 }

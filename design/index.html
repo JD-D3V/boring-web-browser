@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Boring — interface study</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="study">
+      <div>
+        <strong>boring<span class="brand-dot">.</span></strong
+        ><span class="study-label">Interface study / 01</span>
+      </div>
+      <div class="study-controls">
+        <label
+          >Appearance
+          <select id="theme">
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select></label
+        ><label
+          >Spacing
+          <select id="density">
+            <option value="comfortable">Comfortable</option>
+            <option value="compact">Compact</option>
+            <option value="large">Larger controls</option>
+          </select></label
+        ><label
+          >Open tabs
+          <select id="tab-count">
+            <option>3</option>
+            <option>1</option>
+            <option>10</option>
+            <option>30</option>
+            <option>100</option>
+          </select></label
+        >
+      </div>
+    </header>
+    <div class="study-nav" aria-label="Preview scenarios">
+      <span>Explore</span
+      ><button data-view="home" aria-pressed="true">New tab</button
+      ><button data-view="search">Search results</button
+      ><button data-view="reader">Reader</button
+      ><button data-view="settings">Settings</button
+      ><button data-view="warning">Scam warning</button
+      ><button data-view="summary">Summary</button
+      ><button id="simulate-failure">Protection failure</button>
+    </div>
+    <section class="browser" aria-label="Browser interface prototype">
+      <header class="chrome">
+        <div class="titlebar">
+          <div
+            class="tab-list"
+            role="tablist"
+            aria-label="Open pages"
+            id="tabs"
+          ></div>
+          <button class="icon-button new-tab" aria-label="New tab" id="new-tab">
+            +
+          </button>
+          <div class="window-controls" aria-hidden="true">
+            <span>−</span><span>□</span><span>×</span>
+          </div>
+        </div>
+        <div class="toolbar">
+          <button class="icon-button" id="back" aria-label="Back">←</button
+          ><button
+            class="icon-button"
+            id="forward"
+            aria-label="Forward"
+            disabled
+          >
+            →</button
+          ><button class="icon-button" id="reload" aria-label="Reload preview">
+            ↻
+          </button>
+          <form id="address-form" class="address">
+            <span aria-hidden="true">⌕</span
+            ><input
+              id="address"
+              aria-label="Search or enter address"
+              placeholder="Search or enter address"
+              autocomplete="off"
+            /><button
+              type="button"
+              id="bookmark"
+              class="icon-button"
+              aria-label="Bookmark this page"
+              aria-pressed="false"
+            >
+              ☆
+            </button>
+          </form>
+          <button
+            id="protection"
+            class="protection-button"
+            aria-expanded="false"
+            aria-controls="protection-panel"
+          >
+            <span class="status-dot"></span
+            ><span id="protection-label">Protection</span></button
+          ><button
+            id="downloads"
+            class="icon-button"
+            aria-label="Downloads"
+            aria-expanded="false"
+            aria-controls="download-panel"
+          >
+            ↓</button
+          ><button id="menu" class="icon-button" aria-label="Settings">
+            ☰
+          </button>
+        </div>
+      </header>
+      <aside
+        id="protection-panel"
+        class="popover"
+        hidden
+        aria-labelledby="protection-title"
+      >
+        <div class="panel-heading">
+          <h2 id="protection-title">Your protection</h2>
+          <button class="close icon-button" aria-label="Close protection">
+            ×
+          </button>
+        </div>
+        <p class="muted">For this browser</p>
+        <div id="protection-rows"></div>
+        <p class="panel-note">
+          Blocklists help detect known threats. They cannot identify every
+          unsafe site.
+        </p>
+        <button class="text-button" data-view="settings">
+          Protection settings →
+        </button>
+      </aside>
+      <aside
+        id="download-panel"
+        class="popover"
+        hidden
+        aria-labelledby="download-title"
+      >
+        <div class="panel-heading">
+          <h2 id="download-title">Downloads</h2>
+          <button class="close icon-button" aria-label="Close downloads">
+            ×
+          </button>
+        </div>
+        <div class="download-row">
+          <span class="file-icon">↓</span>
+          <div>
+            <strong>Reading-list.pdf</strong>
+            <p class="muted" id="download-status">6.4 of 12 MB · Downloading</p>
+            <progress
+              value="53"
+              max="100"
+              aria-label="Reading-list.pdf download progress"
+            ></progress>
+          </div>
+          <button class="text-button" id="pause">Pause</button>
+        </div>
+        <p class="panel-note">Sample download for this preview.</p>
+      </aside>
+      <main id="content" tabindex="-1"></main>
+      <footer class="browser-footer">
+        <span id="footer-status">Known threats are checked on this device</span
+        ><span>Local design preview · simulated data</span>
+      </footer>
+    </section>
+    <footer class="study-footer">
+      <span>A quieter place for the web.</span
+      ><span
+        >Prototype only. Browsing, protection, downloads and AI are
+        simulated.</span
+      >
+    </footer>
+    <div
+      id="announcement"
+      class="sr-only"
+      role="status"
+      aria-live="polite"
+    ></div>
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -5,8 +5,8 @@
 #include <utility>
 
 #include "base/strings/escape.h"
-#include "base/strings/string_number_conversions.h"
 #include "base/strings/strcat.h"
+#include "base/strings/string_number_conversions.h"
 #include "components/boring/core/boring_prefs.h"
 #include "components/boring/scam/scam_controller_client.h"
 #include "components/security_interstitials/core/controller_client.h"
@@ -19,34 +19,47 @@ namespace boring {
 namespace {
 
 // The page is written directly here, in plain language, with big text.
-// A design pass comes later; this stays calm and readable on purpose.
+// It stays calm on purpose, and shares its colours with the AI page.
 constexpr char kPageTop[] = R"HTML(<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Warning: this site looks dangerous</title>
 <style>
-  body { background: #fef7f7; color: #202124; font-family: system-ui, sans-serif;
+  :root { color-scheme: light dark;
+    --surface: light-dark(#faf9f6, #1c2422);
+    --ink: light-dark(#242e2d, #e8ede7);
+    --muted: light-dark(#5d6966, #adb9b2);
+    --accent: light-dark(#176b5b, #92d4bb);
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--surface); color: var(--ink); font-family: system-ui, sans-serif;
          margin: 0; display: flex; min-height: 100vh; align-items: center;
          justify-content: center; }
-  .card { max-width: 40em; padding: 2.5em; }
+  .card { width: 40em; max-width: 100%; padding: 2.5em; }
   h1 { font-size: 1.9em; margin: 0.5em 0; }
   p { font-size: 1.15em; line-height: 1.6; }
   .host { font-weight: bold; word-break: break-all; }
-  .safe { display: inline-block; background: #1a73e8; color: #fff;
-          border: none; border-radius: 8px; font-size: 1.2em;
+  .safe { display: inline-block; background: var(--accent); color: var(--surface);
+          border: none; border-radius: 8px; font: inherit; font-size: 1.2em;
           padding: 0.8em 1.6em; cursor: pointer; margin-top: 1em; }
-  .safe:hover { background: #1765c9; }
+  .safe:hover { filter: brightness(0.94); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
   .continue { display: block; margin-top: 2.5em; font-size: 0.9em;
-              color: #5f6368; }
-  .continue a { color: #5f6368; }
-  .icon { font-size: 3em; }
+              color: var(--muted); }
+  .continue a { color: var(--muted); text-underline-offset: 3px; }
+  .icon { font-size: 2em; width: 1.8em; height: 1.8em;
+          display: grid; place-items: center; border-radius: 12px;
+          background: light-dark(#fbebe4, #412f28);
+          color: light-dark(#9e3e24, #ffb69c); }
+  @media (max-width: 480px) { .card { padding: 1.5em; } }
+  @media (forced-colors: active) { .safe { border: 1px solid ButtonText; } }
 </style>
 </head>
 <body>
 <div class="card">
-<div class="icon">&#9888;&#65039;</div>
+<div class="icon" aria-hidden="true">!</div>
 <h1>This site looks dangerous</h1>
 )HTML";
 
@@ -93,8 +106,7 @@ std::unique_ptr<ScamBlockingPage> ScamBlockingPage::Create(
   bool senior = IsSeniorSafeMode(prefs);
   return std::make_unique<ScamBlockingPage>(
       web_contents, request_url, senior,
-      std::make_unique<ScamControllerClient>(web_contents, request_url,
-                                             prefs));
+      std::make_unique<ScamControllerClient>(web_contents, request_url, prefs));
 }
 
 ScamBlockingPage::ScamBlockingPage(
@@ -121,9 +133,9 @@ std::string ScamBlockingPage::GetHTMLContents() {
   std::string bottom(kPageBottom);
   std::string marker = "%CONTINUE%";
   std::string link = senior_safe_mode_ ? "" : kContinueLink;
-  size_t pos = bottom.find(marker);
-  if (pos != std::string::npos) {
-    bottom.replace(pos, marker.size(), link);
+  size_t marker_pos = bottom.find(marker);
+  if (marker_pos != std::string::npos) {
+    bottom.replace(marker_pos, marker.size(), link);
   }
   return base::StrCat({kPageTop, body, bottom});
 }
@@ -131,15 +143,15 @@ std::string ScamBlockingPage::GetHTMLContents() {
 void ScamBlockingPage::OnInterstitialClosing() {}
 
 void ScamBlockingPage::CommandReceived(const std::string& command) {
-  int cmd = 0;
-  if (!base::StringToInt(command, &cmd)) {
+  int command_id = 0;
+  if (!base::StringToInt(command, &command_id)) {
     return;
   }
-  if (cmd == security_interstitials::CMD_PROCEED && !senior_safe_mode_) {
+  if (command_id == security_interstitials::CMD_PROCEED && !senior_safe_mode_) {
     controller()->Proceed();
     return;
   }
-  if (cmd == security_interstitials::CMD_DONT_PROCEED) {
+  if (command_id == security_interstitials::CMD_DONT_PROCEED) {
     controller()->GoBack();
   }
 }

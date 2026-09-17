@@ -29,11 +29,13 @@ def reader_url(url, title):
     """
     digest = hashlib.sha256(url.encode()).hexdigest()
     host = str(uuid.uuid4()) + "_" + digest
-    query = urllib.parse.urlencode({
-        "title": title,
-        "time": str(int(time.time() * 1000)),
-        "url": url,
-    })
+    query = urllib.parse.urlencode(
+        {
+            "title": title,
+            "time": str(int(time.time() * 1000)),
+            "url": url,
+        }
+    )
     return "chrome-distiller://" + host + "/?" + query
 
 
@@ -49,20 +51,21 @@ def main():
         title = b.run("return document.title")
         print("reader page title:", title)
 
-        has_aa = b.run(
-            "return !!document.querySelector('.boring-aa')")
+        has_aa = b.run("return !!document.querySelector('.boring-aa')")
         read_time = b.run(
             "var e = document.getElementById('boring-read-time');"
-            "return e ? e.textContent : ''")
-        body_bg = b.run(
-            "return getComputedStyle(document.body).backgroundColor")
+            "return e ? e.textContent : ''"
+        )
+        body_bg = b.run("return getComputedStyle(document.body).backgroundColor")
         width = b.run(
             "var e = document.getElementById('main-content');"
-            "return e ? getComputedStyle(e).width : ''")
+            "return e ? getComputedStyle(e).width : ''"
+        )
 
         words = b.run(
             "var e = document.getElementById('content');"
-            "return e ? (e.innerText || '').split(/\\s+/).length : 0")
+            "return e ? (e.innerText || '').split(/\\s+/).length : 0"
+        )
 
         print("settings button is ours (Aa):", has_aa)
         print("article words pulled out:", words)
@@ -70,12 +73,30 @@ def main():
         print("page background:", body_bg)
         print("text column width:", width)
 
+        # The dark theme is picked from the Aa menu. The reader's own
+        # script is out of reach from here, so press the menu's option the
+        # way a person would and check our colours took over.
+        b.run("document.querySelector('input[value=dark]').click()")
+        time.sleep(0.5)
+        dark_bg = b.run("return getComputedStyle(document.body).backgroundColor")
+        dark_link = b.run(
+            "var a = document.querySelector('#content a');"
+            "return a ? getComputedStyle(a).color : ''"
+        )
+        print("dark page background:", dark_bg)
+        print("dark link colour:", dark_link)
+        b.run("document.querySelector('input[value=light]').click()")
+
         if not has_aa:
             failures.append("our reader look did not load")
         if words < 200:
             failures.append("the article text was not extracted")
         if "minute read" not in read_time:
             failures.append("no reading time shown")
+        if dark_bg != "rgb(28, 36, 34)":
+            failures.append("the dark theme is not using our colours")
+        if dark_link and dark_link != "rgb(146, 212, 187)":
+            failures.append("links in the dark theme are not our teal")
 
     if failures:
         for f in failures:

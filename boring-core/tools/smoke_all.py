@@ -8,6 +8,8 @@ import os
 import subprocess
 import sys
 
+from drive import OUT
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 CHECKS = [
@@ -16,15 +18,26 @@ CHECKS = [
     ("sponsored search results", "smoke_serp.py"),
     ("reader view", "smoke_reader.py"),
     ("AI settings page", "smoke_ai.py"),
+    ("AI consent and result UI", "smoke_ai_ui.py"),
     ("Widevine streaming", "smoke_widevine.py"),
     ("password manager", "smoke_passwords.py"),
 ]
 
 
 def stop_browsers():
-    for name in ("chrome.exe", "chromedriver.exe"):
-        subprocess.run(["taskkill", "/F", "/IM", name],
-                       capture_output=True)
+    # Only the copies from our build folder. Killing every chrome.exe by
+    # name would also close the Google Chrome someone is using.
+    script = (
+        "Get-Process chrome, chromedriver -ErrorAction SilentlyContinue"
+        " | Where-Object { $_.Path -and $_.Path.StartsWith($env:BORING_OUT,"
+        " [StringComparison]::OrdinalIgnoreCase) }"
+        " | Stop-Process -Force"
+    )
+    subprocess.run(
+        ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+        capture_output=True,
+        env={**os.environ, "BORING_OUT": OUT},
+    )
 
 
 def main():
@@ -44,7 +57,7 @@ def main():
     print("-------")
     failed = 0
     for label, outcome in results:
-        print("%-38s %s" % (label, outcome))
+        print(f"{label:<38} {outcome}")
         if outcome == "FAIL":
             failed += 1
     return 1 if failed else 0

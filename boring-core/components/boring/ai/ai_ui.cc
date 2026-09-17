@@ -28,54 +28,84 @@ namespace ai {
 namespace {
 
 constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <title>AI settings</title>
 <style>
-  :root { color-scheme: light dark; }
+  :root { color-scheme: light dark;
+    --surface: light-dark(#faf9f6, #1c2422);
+    --paper: light-dark(#ffffff, #252e2b);
+    --ink: light-dark(#242e2d, #e8ede7);
+    --muted: light-dark(#5d6966, #adb9b2);
+    --line: light-dark(#d8ddd7, #414e47);
+    /* Edges of things you can type in or press. Dark enough to find
+       against the white panel, which --line is not. */
+    --field: light-dark(#7d8783, #83908a);
+    --accent: light-dark(#176b5b, #92d4bb);
+    --soft: light-dark(#e5f1eb, #273f35);
+  }
+  * { box-sizing: border-box; }
   body { font: 15px/1.6 system-ui, sans-serif; margin: 0;
-         padding: 2.5em 1.5em; display: flex; justify-content: center; }
+         background: var(--surface); color: var(--ink);
+         padding: 3em 1.5em; display: flex; justify-content: center; }
   .page { width: 40em; max-width: 100%; }
   h1 { font-size: 1.6em; margin: 0 0 0.2em; }
-  .lede { color: #5f6368; margin-top: 0; }
-  fieldset { border: 1px solid rgba(128,128,128,0.35);
+  .lede { color: var(--muted); margin-top: 0; }
+  fieldset { border: 1px solid var(--line); background: var(--paper);
              border-radius: 10px; margin: 1.5em 0; padding: 1.2em 1.4em; }
   legend { font-weight: 600; padding: 0 0.4em; }
   label.row { display: block; margin: 0.6em 0; }
   input[type=text], input[type=password], select {
-    box-sizing: border-box; border: 1px solid rgba(128,128,128,0.5);
+    border: 1px solid var(--field);
+    background: var(--paper); color: var(--ink);
     border-radius: 8px; font: inherit; margin-top: 0.3em;
     padding: 0.55em 0.7em; width: 100%; }
   .radio { align-items: flex-start; display: flex; gap: 0.6em;
            margin: 0.7em 0; }
   .radio input { margin-top: 0.35em; }
   .radio .what { font-weight: 600; }
-  .radio .why { color: #5f6368; font-size: 0.9em; }
-  button { background: #1a73e8; border: none; border-radius: 8px;
-           color: #fff; cursor: pointer; font: inherit;
+  .radio .why { color: var(--muted); font-size: 0.9em; }
+  button { background: var(--accent); border: none; border-radius: 8px;
+           color: var(--surface); cursor: pointer; font: inherit;
            padding: 0.65em 1.4em; }
-  button:hover { background: #1765c9; }
-  .note { background: rgba(128,128,128,0.12); border-radius: 10px;
+  button:hover { filter: brightness(0.94); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+  input[type=radio] { accent-color: var(--accent); }
+  .note { background: var(--soft); border-radius: 10px;
           margin-top: 1.5em; padding: 1em 1.2em; }
-  .saved { color: #188038; margin-inline-start: 1em; }
+  .saved { color: var(--accent); margin-inline-start: 1em; }
+  .bad { color: light-dark(#9e3e24, #ffb69c); }
+  button.no { background: transparent; border: 1px solid var(--field);
+              color: inherit; }
   .hidden { display: none; }
-  #ask { border: 2px solid #1a73e8; border-radius: 12px;
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden;
+             clip-path: inset(50%); white-space: nowrap; }
+  #ask { border: 1px solid var(--line); background: var(--paper);
+         border-radius: 12px;
          margin-bottom: 2em; padding: 1.2em 1.4em; }
   #ask h2 { font-size: 1.15em; margin: 0 0 0.4em; }
   #ask .page-name { font-weight: 600; word-break: break-all; }
-  #ask .going { background: #fef7e0; border-radius: 8px;
+  #ask .going { background: var(--soft); border-radius: 8px;
                 margin: 0.9em 0; padding: 0.8em 1em; }
-  #ask .buttons { display: flex; gap: 0.8em; margin-top: 1em; }
-  #ask button.no { background: transparent; border: 1px solid
-                   rgba(128,128,128,0.5); color: inherit; }
-  #summary { white-space: pre-wrap; }
+  #ask .buttons { display: flex; flex-wrap: wrap; gap: 0.8em; margin-top: 1em; }
+  #summary { white-space: pre-wrap; overflow-wrap: anywhere; }
+  #summary-settings { margin-bottom: 1.5em; }
+  @media (forced-colors: active) {
+    button { border: 1px solid ButtonText; }
+  }
 </style>
 </head>
 <body>
 <div class="page">
   <div id="ask" class="hidden"></div>
-  <h1>AI settings</h1>
+  <!-- Says what the summary is doing. Kept apart from #ask, which is
+       rebuilt on every change and would repeat itself if it spoke. -->
+  <div id="summary-status" class="sr-only" role="status"></div>
+  <button class="no hidden" id="summary-settings" aria-expanded="false"
+      aria-controls="settings-panel">Show summary settings</button>
+  <section id="settings-panel">
+  <h1 id="settings-heading" tabindex="-1">AI settings</h1>
   <p class="lede">The browser never reads your pages on its own. Nothing
   is sent anywhere until you ask for it, and you are told where it is
   going first.</p>
@@ -131,10 +161,16 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   <fieldset id="key-box">
     <legend>Your key</legend>
     <label class="row">Key
-      <input type="password" id="api-key" placeholder="paste your key here">
+      <input type="password" id="api-key" placeholder="paste your key here"
+          aria-describedby="key-bad">
     </label>
-    <p class="why">The key is kept on this device only. It is never sent
-    to us and never synced to your other devices.</p>
+    <p class="why">The key is encrypted and kept on this device only. It
+    is never sent to us, never synced to your other devices, and never
+    shown again once saved.</p>
+    <p id="key-bad" class="bad hidden">That key does not look right, so it
+    was not saved. Keys are printable characters with no spaces or line
+    breaks.</p>
+    <button class="no" id="forget-key">Forget the saved key</button>
   </fieldset>
 
   <fieldset>
@@ -144,9 +180,11 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
     </label>
   </fieldset>
 
-  <button id="save">Save</button><span id="saved" class="saved hidden">Saved</span>
+  <button id="save">Save</button><span id="saved" class="saved"
+      role="status"></span>
 
   <div class="note" id="dest-note"></div>
+  </section>
 </div>
 <script src="ai.js"></script>
 </body>
@@ -162,29 +200,57 @@ function currentProvider() {
 }
 
 function refresh() {
-  var p = currentProvider();
-  el('local-box').classList.toggle('hidden', p !== 'ollama');
-  el('key-box').classList.toggle('hidden', p === 'off' || p === 'ollama');
+  var provider = currentProvider();
+  el('local-box').classList.toggle('hidden', provider !== 'ollama');
+  el('key-box').classList.toggle('hidden',
+                               provider === 'off' || provider === 'ollama');
   var note = el('dest-note');
-  if (p === 'off') {
+  if (provider === 'off') {
     note.textContent = 'AI features are off. Nothing is sent anywhere.';
-  } else if (p === 'ollama') {
+  } else if (provider === 'ollama') {
     note.textContent = 'When you ask for a summary, the page text goes to ' +
         'Ollama on your own computer. It does not leave this machine.';
   } else {
     var names = {gemini: 'Google Gemini', openai: 'OpenAI',
                  openrouter: 'OpenRouter', groq: 'Groq'};
     note.textContent = 'When you ask for a summary, the page text is sent ' +
-        'to ' + names[p] + '. You will be shown this before it is sent.';
+        'to ' + names[provider] + '. You will be shown this before it is sent.';
   }
 }
 
+// What the last button press asked for, so the reply can say how it went.
+// Saying "Saved" before the browser answers would contradict a rejected key.
+var pendingNotice = null;
+var noticeTimer = null;
+
+function showNotice(text) {
+  el('saved').textContent = text;
+  clearTimeout(noticeTimer);
+  noticeTimer = setTimeout(function() { el('saved').textContent = ''; }, 4000);
+}
+
 function load(settings) {
+  if (pendingNotice === 'save') {
+    showNotice(settings.keyRejected
+        ? 'Other settings saved. The key was not.' : 'Saved');
+  } else if (pendingNotice === 'forget') {
+    showNotice('The saved key is gone');
+  }
+  pendingNotice = null;
   var id = 'p-' + (settings.provider || 'off');
   if (el(id)) { el(id).checked = true; } else { el('p-off').checked = true; }
   el('ollama-url').value = settings.ollamaUrl || '';
-  el('api-key').value = settings.apiKey || '';
   el('model').value = settings.model || '';
+  // The key never comes back from the browser. All we are told is
+  // whether one is stored, so the box starts empty either way.
+  var key = el('api-key');
+  key.value = '';
+  key.placeholder = settings.hasApiKey
+      ? 'a key is saved. Type here only to replace it'
+      : 'paste your key here';
+  el('forget-key').classList.toggle('hidden', !settings.hasApiKey);
+  el('key-bad').classList.toggle('hidden', !settings.keyRejected);
+  key.setAttribute('aria-invalid', String(!!settings.keyRejected));
   refresh();
 }
 
@@ -193,14 +259,24 @@ document.addEventListener('change', function(e) {
 });
 
 el('save').addEventListener('click', function() {
-  chrome.send('saveSettings', [{
+  var settings = {
     provider: currentProvider(),
     ollamaUrl: el('ollama-url').value,
-    apiKey: el('api-key').value,
     model: el('model').value
-  }]);
-  el('saved').classList.remove('hidden');
-  setTimeout(function() { el('saved').classList.add('hidden'); }, 2000);
+  };
+  // Only send a key when one was actually typed, so saving the other
+  // settings does not wipe the key already stored.
+  if (el('api-key').value) { settings.apiKey = el('api-key').value; }
+  pendingNotice = 'save';
+  chrome.send('saveSettings', [settings]);
+});
+
+el('forget-key').addEventListener('click', function() {
+  pendingNotice = 'forget';
+  chrome.send('clearApiKey');
+  // The button hides itself once the key is gone, so hand focus to the
+  // box the key came from rather than dropping it on the page.
+  el('api-key').focus();
 });
 
 // The summary side of the page. Asking for a summary only puts the page
@@ -210,70 +286,148 @@ var PROVIDER_NAMES = {ollama: 'Ollama on your own computer',
                       gemini: 'Google Gemini', openai: 'OpenAI',
                       openrouter: 'OpenRouter', groq: 'Groq'};
 
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, function(c) {
-    return {'&': '&amp;', '<': '&lt;', '>': '&gt;',
-            '"': '&quot;', "'": '&#39;'}[c];
-  });
+// WebUI requires TrustedHTML. Build nodes directly instead of weakening
+// that policy or treating page titles, model output, or errors as markup.
+function summaryNode(tag, text, className) {
+  var node = document.createElement(tag);
+  node.textContent = text;
+  if (className) node.className = className;
+  return node;
 }
 
+var summaryState = 'nothing';
+// The state last drawn. While an answer is on its way the page asks
+// every second, and redrawing the same thing each time would throw away
+// keyboard focus.
+var lastDrawn = null;
+el('summary-settings').addEventListener('click', function() {
+  var hidden = el('settings-panel').classList.toggle('hidden');
+  this.setAttribute('aria-expanded', String(!hidden));
+  this.textContent = hidden ? 'Show summary settings' : 'Hide summary settings';
+});
+
 function showSummaryState(s) {
-  var box = el('ask');
-  if (!s || s.state === 'nothing') {
-    box.classList.add('hidden');
+  var drawn = JSON.stringify(s || {state: 'nothing'});
+  if (drawn === lastDrawn) {
     return;
   }
+  lastDrawn = drawn;
+  var box = el('ask');
+  var previous = summaryState;
+  if (!s || s.state === 'nothing') {
+    box.classList.add('hidden');
+    box.replaceChildren();
+    el('summary-settings').classList.add('hidden');
+    el('settings-panel').classList.remove('hidden');
+    summaryState = 'nothing';
+    if (previous !== 'nothing') {
+      el('summary-status').textContent = 'Summary closed.';
+      el('settings-heading').focus();
+    }
+    return;
+  }
+  if (previous === 'nothing') {
+    el('settings-panel').classList.add('hidden');
+    el('summary-settings').setAttribute('aria-expanded', 'false');
+    el('summary-settings').textContent = 'Show summary settings';
+  }
+  summaryState = s.state;
+  el('summary-settings').classList.remove('hidden');
   box.classList.remove('hidden');
-  var name = PROVIDER_NAMES[s.provider] || 'the service you picked';
-  var page = '<div class="page-name">' + escapeHtml(s.title || s.url) +
-             '</div>';
+  box.replaceChildren();
+  // The browser tells us where this would really go. Ollama pointed at
+  // another machine is named as such rather than called local.
+  var name = s.destination || PROVIDER_NAMES[s.provider] ||
+             'the service you picked';
+  var heading = summaryNode('h2', '');
+  heading.id = 'summary-heading';
+  heading.tabIndex = -1;
+  box.append(heading, summaryNode('div', s.title || s.url || '', 'page-name'));
+  function addButton(label, id, secondary, action) {
+    var buttons = box.querySelector('.buttons');
+    if (!buttons) {
+      buttons = summaryNode('div', '', 'buttons');
+      box.append(buttons);
+    }
+    var button = summaryNode('button', label, secondary ? 'no' : '');
+    button.type = 'button';
+    button.id = id;
+    button.addEventListener('click', action);
+    buttons.append(button);
+  }
 
   if (s.state === 'waiting') {
-    var where = s.provider === 'ollama'
+    var where = s.local
         ? 'This stays on your computer. Nothing goes over the internet.'
-        : 'The text of this page will be sent to ' + escapeHtml(name) + '.';
-    box.innerHTML =
-        '<h2>Summarise this page?</h2>' + page +
-        '<div class="going">' + where + ' About ' +
-        Math.round((s.textLength || 0) / 1000) +
-        ' thousand characters of page text would be sent. Nothing has ' +
-        'been sent yet.</div>' +
-        '<div class="buttons"><button id="do-send">Send and summarise' +
-        '</button><button class="no" id="do-cancel">No thanks</button></div>';
-    el('do-send').addEventListener('click', function() {
+        : 'The text of this page will be sent to ' + name +
+          ', over the internet.';
+    heading.textContent = 'Summarise this page?';
+    box.append(summaryNode('div', where + ' About ' +
+        (s.textLength || 0).toLocaleString('en') +
+        ' characters of page text would be sent. Nothing has been sent ' +
+        'yet.', 'going'));
+    addButton('Send and summarise', 'do-send', false, function() {
       chrome.send('sendSummary');
+      chrome.send('getSummaryState');
     });
-    el('do-cancel').addEventListener('click', function() {
+    addButton('No thanks', 'do-cancel', true, function() {
       chrome.send('forgetSummary');
     });
   } else if (s.state === 'working') {
-    box.innerHTML = '<h2>Working</h2>' + page +
-        '<p>Sent to ' + escapeHtml(name) + '. Waiting for the answer.</p>';
+    heading.textContent = 'Working';
+    box.append(summaryNode('p', 'Sent to ' + name + '. Waiting for the answer.'));
   } else if (s.state === 'done') {
-    box.innerHTML = '<h2>Summary</h2>' + page +
-        '<div id="summary">' + escapeHtml(s.summary) + '</div>' +
-        '<div class="buttons"><button class="no" id="do-cancel">Close' +
-        '</button></div>';
-    el('do-cancel').addEventListener('click', function() {
+    heading.textContent = 'Summary';
+    var result = summaryNode('div', s.summary || '');
+    result.id = 'summary';
+    box.append(result);
+    addButton('Close', 'do-cancel', true, function() {
       chrome.send('forgetSummary');
     });
   } else if (s.state === 'failed') {
-    box.innerHTML = '<h2>That did not work</h2>' + page +
-        '<p>' + escapeHtml(s.error) + '</p>' +
-        '<div class="buttons"><button class="no" id="do-cancel">Close' +
-        '</button></div>';
-    el('do-cancel').addEventListener('click', function() {
+    heading.textContent = 'That did not work';
+    box.append(summaryNode('p', s.error || 'The service could not be reached.'));
+    addButton('Close', 'do-cancel', true, function() {
       chrome.send('forgetSummary');
     });
+  }
+
+  // Only a change of state is news. A new title on the same state is
+  // redrawn without being announced or taking focus.
+  if (s.state !== previous) {
+    var said = {
+      waiting: 'Summarise this page? Nothing has been sent yet.',
+      working: 'Sent to ' + name + '. Waiting for the answer.',
+      done: 'The summary is ready.',
+      failed: 'The summary did not work.'
+    };
+    el('summary-status').textContent = said[s.state] || '';
+    heading.focus();
+  }
+}
+
+// Ask for the state once a second, but only while an answer is on its
+// way. An idle settings page has no reason to keep talking.
+var pollTimer = null;
+function keepUpToDate(state) {
+  var busy = state === 'working';
+  if (busy && !pollTimer) {
+    pollTimer = setInterval(function() {
+      chrome.send('getSummaryState');
+    }, 1000);
+  } else if (!busy && pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
   }
 }
 
 window.loadSettings = load;
-window.loadSummaryState = showSummaryState;
+window.loadSummaryState = function(s) {
+  showSummaryState(s);
+  keepUpToDate(s ? s.state : 'nothing');
+};
 chrome.send('getSettings');
 chrome.send('getSummaryState');
-// While a request is in flight, keep the page up to date.
-setInterval(function() { chrome.send('getSummaryState'); }, 1000);
 )SCRIPT";
 
 // Reads and writes the AI settings for the page.
@@ -284,21 +438,21 @@ class AiMessageHandler : public content::WebUIMessageHandler {
 
   void RegisterMessages() override {
     web_ui()->RegisterMessageCallback(
-        "getSettings",
-        base::BindRepeating(&AiMessageHandler::HandleGet,
-                            base::Unretained(this)));
+        "getSettings", base::BindRepeating(&AiMessageHandler::HandleGet,
+                                           base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
-        "saveSettings",
-        base::BindRepeating(&AiMessageHandler::HandleSave,
-                            base::Unretained(this)));
+        "saveSettings", base::BindRepeating(&AiMessageHandler::HandleSave,
+                                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "clearApiKey", base::BindRepeating(&AiMessageHandler::HandleClearApiKey,
+                                           base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
         "getSummaryState",
         base::BindRepeating(&AiMessageHandler::HandleSummaryState,
                             base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
-        "sendSummary",
-        base::BindRepeating(&AiMessageHandler::HandleSendSummary,
-                            base::Unretained(this)));
+        "sendSummary", base::BindRepeating(&AiMessageHandler::HandleSendSummary,
+                                           base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
         "forgetSummary",
         base::BindRepeating(&AiMessageHandler::HandleForgetSummary,
@@ -311,17 +465,31 @@ class AiMessageHandler : public content::WebUIMessageHandler {
         web_ui()->GetWebContents()->GetBrowserContext());
   }
 
-  void HandleGet(const base::ListValue& args) {
+  // The summary service belongs to this profile, so an incognito window
+  // gets its own and never sees what an ordinary window put aside.
+  AiSummaryService* GetService() {
+    return AiSummaryService::GetForBrowserContext(
+        web_ui()->GetWebContents()->GetBrowserContext());
+  }
+
+  void SendSettings(bool key_rejected) {
     PrefService* prefs = GetPrefs();
     base::DictValue settings;
     if (prefs) {
       settings.Set("provider", prefs->GetString(prefs::kProvider));
       settings.Set("model", prefs->GetString(prefs::kModel));
       settings.Set("ollamaUrl", prefs->GetString(prefs::kOllamaUrl));
-      settings.Set("apiKey", prefs->GetString(prefs::kApiKey));
+      // The key itself is never sent back to the page. The page only
+      // needs to know whether one is stored, so that is all it gets.
+      settings.Set("hasApiKey", HasApiKey(prefs));
+      settings.Set("keyRejected", key_rejected);
     }
     AllowJavascript();
     web_ui()->CallJavascriptFunctionUnsafe("loadSettings", settings);
+  }
+
+  void HandleGet(const base::ListValue& args) {
+    SendSettings(/*key_rejected=*/false);
   }
 
   void HandleSave(const base::ListValue& args) {
@@ -340,18 +508,34 @@ class AiMessageHandler : public content::WebUIMessageHandler {
     if (const std::string* url = in.FindString("ollamaUrl")) {
       prefs->SetString(prefs::kOllamaUrl, *url);
     }
-    if (const std::string* key = in.FindString("apiKey")) {
-      prefs->SetString(prefs::kApiKey, *key);
-    }
     if (const std::string* model = in.FindString("model")) {
       prefs->SetString(prefs::kModel, *model);
     }
+    // The key arrives only when the person typed a new one, so saving
+    // the other settings never wipes a key that is already stored.
+    bool key_rejected = false;
+    if (const std::string* key = in.FindString("apiKey")) {
+      if (!key->empty()) {
+        key_rejected = !SetApiKey(prefs, *key);
+      }
+    }
+    SendSettings(key_rejected);
+  }
+
+  void HandleClearApiKey(const base::ListValue& args) {
+    if (PrefService* prefs = GetPrefs()) {
+      SetApiKey(prefs, std::string());
+    }
+    SendSettings(/*key_rejected=*/false);
   }
 
   void HandleSummaryState(const base::ListValue& args) {
     AllowJavascript();
-    AiSummaryService* service = AiSummaryService::GetInstance();
+    AiSummaryService* service = GetService();
     PrefService* prefs = GetPrefs();
+    if (!service) {
+      return;
+    }
 
     base::DictValue out;
     switch (service->state()) {
@@ -378,34 +562,50 @@ class AiMessageHandler : public content::WebUIMessageHandler {
     out.Set("textLength", static_cast<int>(service->text_length()));
     out.Set("provider",
             prefs ? prefs->GetString(prefs::kProvider) : std::string("off"));
+    // Worked out in C++ so the confirm screen cannot claim a request
+    // stays on this machine when the address points somewhere else.
+    out.Set("local", prefs && prefs->GetString(prefs::kProvider) == "ollama" &&
+                         OllamaStaysOnThisMachine(prefs));
+    out.Set("destination", DestinationForDisplay(prefs));
     web_ui()->CallJavascriptFunctionUnsafe("loadSummaryState", out);
   }
 
   void HandleSendSummary(const base::ListValue& args) {
     content::BrowserContext* context =
         web_ui()->GetWebContents()->GetBrowserContext();
-    AiSummaryService::GetInstance()->Send(
-        GetPrefs(),
-        context->GetDefaultStoragePartition()
-            ->GetURLLoaderFactoryForBrowserProcess(),
-        base::DoNothing());
+    AiSummaryService* service = GetService();
+    if (!service) {
+      return;
+    }
+    // The prefs and the network stack both come from this same profile,
+    // so an incognito summary can never go out under the ordinary
+    // profile's key.
+    service->Send(GetPrefs(),
+                  context->GetDefaultStoragePartition()
+                      ->GetURLLoaderFactoryForBrowserProcess(),
+                  base::DoNothing());
   }
 
   void HandleForgetSummary(const base::ListValue& args) {
-    AiSummaryService::GetInstance()->Forget();
+    if (AiSummaryService* service = GetService()) {
+      service->Forget();
+    }
+    // Idle pages do not poll, so cancellation must update the visible UI.
+    HandleSummaryState(args);
   }
 };
 
 bool ShouldHandle(const std::string& path) {
-  return true;
+  // Only the page itself and its script. Anything else is not ours.
+  return path.empty() || path == "ai.js";
 }
 
 void Handle(const std::string& path,
             content::WebUIDataSource::GotDataCallback callback) {
   // The script is served as its own file. Serving it inline would break
   // the page's security rules, which we are not going to weaken.
-  std::string body = path == "ai.js" ? std::string(kScript)
-                                     : std::string(kPage);
+  std::string body =
+      path == "ai.js" ? std::string(kScript) : std::string(kPage);
   std::move(callback).Run(
       base::MakeRefCounted<base::RefCountedString>(std::move(body)));
 }
