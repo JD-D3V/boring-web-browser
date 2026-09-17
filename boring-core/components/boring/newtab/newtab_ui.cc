@@ -56,6 +56,11 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
          display: flex; flex-direction: column; align-items: center;
          justify-content: center; padding: 2em 1.5em; }
   .page { width: 44em; max-width: 100%; }
+  #search { display: flex; margin: 0 0 2.5em; }
+  #q { flex: 1; border: 1px solid var(--field); background: var(--paper);
+       color: var(--ink); border-radius: 999px; font: inherit;
+       padding: 0.8em 1.4em; }
+  #q::placeholder { color: var(--muted); }
   #shortcuts { display: grid; gap: 0.8em; list-style: none; margin: 0;
                padding: 0; justify-content: center;
                grid-template-columns: repeat(auto-fit, 9.5em); }
@@ -114,6 +119,10 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
 <body>
 <main class="page">
   <h1 class="hidden">New tab</h1>
+  <form id="search" role="search">
+    <input id="q" type="search" autocomplete="off" spellcheck="false"
+        aria-label="Search the web">
+  </form>
   <ul id="shortcuts" aria-label="Shortcuts"></ul>
   <form id="add-form" class="hidden">
     <label>Name <input id="add-title" maxlength="40" autocomplete="off"></label>
@@ -172,7 +181,8 @@ function showShortcuts(list) {
     add.type = 'button';
     add.id = 'add-open';
     add.setAttribute('aria-label', 'Add shortcut');
-    add.append(node('span', 'mark', '+'), node('span', 'name', 'Add'));
+    add.append(node('span', 'mark', '+'),
+               node('span', 'name', 'Add shortcut'));
     add.addEventListener('click', openForm);
     li.append(add);
     ul.append(li);
@@ -215,6 +225,21 @@ function showProtection(p) {
   }
 }
 
+var searchUrl = '';
+
+el('search').addEventListener('submit', function(e) {
+  e.preventDefault();
+  var typed = el('q').value.trim();
+  if (!typed || !searchUrl) return;
+  location.href = searchUrl.replace('%s', encodeURIComponent(typed));
+});
+
+window.loadSearch = function(engine) {
+  searchUrl = engine.url || '';
+  el('q').placeholder = 'Search ' + (engine.name || 'the web');
+  el('search').classList.toggle('hidden', !searchUrl);
+};
+
 window.loadShortcuts = function(list, added, rejected) {
   showShortcuts(list);
   if (rejected) {
@@ -226,6 +251,7 @@ window.loadShortcuts = function(list, added, rejected) {
 };
 window.loadProtection = showProtection;
 chrome.send('getShortcuts');
+chrome.send('getSearch');
 chrome.send('getProtection');
 )SCRIPT";
 
@@ -261,6 +287,38 @@ GURL ShortcutUrl(const std::string& typed) {
   return url;
 }
 
+// Where the address bar sends a search. The pref holds a template with
+// {searchTerms} in it, and is only written once someone picks an engine,
+// so until then it is the one we ship with.
+constexpr char kSearchEnginePref[] =
+    "default_search_provider_data.template_url_data";
+constexpr char kDefaultSearchName[] = "DuckDuckGo";
+constexpr char kDefaultSearchUrl[] = "https://duckduckgo.com/?q=%s";
+
+// Turns a search engine's template into a plain url with one %s where the
+// typed words go. Returns nothing if it is not a web address we can use.
+std::string SearchUrlFromTemplate(const std::string& engine_url) {
+  const std::string terms = "{searchTerms}";
+  size_t at = engine_url.find(terms);
+  if (at == std::string::npos) {
+    return std::string();
+  }
+  std::string url = engine_url;
+  url.replace(at, terms.size(), "%s");
+  // Drop the other {...} parts, which stand for things like the client id
+  // and are optional.
+  while ((at = url.find('{')) != std::string::npos) {
+    size_t end = url.find('}', at);
+    if (end == std::string::npos) {
+      return std::string();
+    }
+    url.erase(at, end - at + 1);
+  }
+  GURL parsed(url);
+  return parsed.is_valid() && parsed.SchemeIsHTTPOrHTTPS() ? url
+                                                           : std::string();
+}
+
 class NewTabMessageHandler : public content::WebUIMessageHandler {
  public:
   NewTabMessageHandler() = default;
@@ -279,6 +337,9 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
         "removeShortcut",
         base::BindRepeating(&NewTabMessageHandler::HandleRemoveShortcut,
                             base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "getSearch", base::BindRepeating(&NewTabMessageHandler::HandleGetSearch,
+                                         base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
         "getProtection",
         base::BindRepeating(&NewTabMessageHandler::HandleGetProtection,
@@ -362,6 +423,27 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
       }
     }
     SendShortcuts(/*added=*/false, /*rejected=*/false);
+  }
+
+  void HandleGetSearch(const base::ListValue& args) {
+    std::string name(kDefaultSearchName);
+    std::string url(kDefaultSearchUrl);
+    if (PrefService* prefs = GetPrefs()) {
+      const base::DictValue& engine = prefs->GetDict(kSearchEnginePref);
+      const std::string* engine_url = engine.FindString("url");
+      std::string usable =
+          engine_url ? SearchUrlFromTemplate(*engine_url) : std::string();
+      if (!usable.empty()) {
+        url = usable;
+        const std::string* short_name = engine.FindString("short_name");
+        name = short_name ? *short_name : std::string();
+      }
+    }
+    base::DictValue out;
+    out.Set("name", name);
+    out.Set("url", url);
+    AllowJavascript();
+    web_ui()->CallJavascriptFunctionUnsafe("loadSearch", out);
   }
 
   void HandleGetProtection(const base::ListValue& args) {
