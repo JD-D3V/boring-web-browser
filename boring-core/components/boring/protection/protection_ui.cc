@@ -2,18 +2,22 @@
 
 #include "components/boring/protection/protection_ui.h"
 
+#include <algorithm>
 #include <memory>
 #include <string>
 
 #include "base/functional/bind.h"
 #include "base/memory/ref_counted_memory.h"
+#include "base/time/time.h"
 #include "base/values.h"
 #include "components/boring/adblock/adblock_service.h"
 #include "components/boring/core/boring_prefs.h"
+#include "components/boring/lists/list_updater.h"
 #include "components/boring/scam/scam_service.h"
 #include "components/prefs/pref_service.h"
 #include "components/user_prefs/user_prefs.h"
 #include "content/public/browser/browser_context.h"
+#include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_data_source.h"
@@ -102,6 +106,18 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
       <span class="state wait" id="ads-state">Starting</span>
     </div>
     <p class="why problem hidden" id="ads-why"></p>
+    <div class="row">
+      <strong>Blocking lists</strong>
+      <span class="state wait" id="lists-state">Starting</span>
+    </div>
+    <p class="why" id="lists-age"></p>
+    <label class="row" for="list-updates">
+      <span><strong>Keep them up to date</strong>
+        <span class="why">Checks for newer lists about once a week. No
+        account, no cookie, nothing about you or the pages you
+        visit.</span></span>
+      <input type="checkbox" id="list-updates">
+    </label>
   </section>
 
   <section>
@@ -150,11 +166,37 @@ function showState(name, state, problem) {
   }
 }
 
+// Lists that stop being replaced stop recognising the scams people
+// are being sent to now, so old lists are shown as a problem rather
+// than as a detail.
+function showLists(days, updating) {
+  var badge = el('lists-state');
+  var age = el('lists-age');
+  var old = days < 0 || days > 14;
+  badge.className = 'state' + (old ? ' off' : '');
+  badge.textContent = days < 0 ? 'Unknown' : old ? 'Old' : 'Current';
+  age.classList.toggle('problem', old);
+  if (days < 0) {
+    age.textContent = 'Cannot tell how old the lists are.';
+  } else if (days < 1) {
+    age.textContent = 'Updated today.';
+  } else if (days === 1) {
+    age.textContent = 'Updated yesterday.';
+  } else {
+    age.textContent = 'Updated ' + days + ' days ago.';
+  }
+  if (old && !updating) {
+    age.textContent += ' Updates are turned off.';
+  }
+  el('list-updates').checked = updating;
+}
+
 var pollTimer = null;
 
 function load(s) {
   showState('scam', s.scam, s.scamProblem);
   showState('ads', s.ads, s.adsProblem);
+  showLists(s.listDays, s.listUpdates);
 
   var senior = el('senior');
   senior.checked = s.senior;
@@ -210,6 +252,12 @@ el('hide-ads').addEventListener('change', function(e) {
   chrome.send('setHideSponsored', [e.target.checked]);
 });
 
+el('list-updates').addEventListener('change', function(e) {
+  chrome.send('setListUpdates', [e.target.checked]);
+  say(e.target.checked ? 'Lists will be kept up to date.'
+                       : 'Lists will not be updated.');
+});
+
 window.loadProtection = load;
 chrome.send('getProtection');
 )SCRIPT";
@@ -246,12 +294,30 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler {
         "setHideSponsored",
         base::BindRepeating(&ProtectionMessageHandler::HandleSetHide,
                             base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "setListUpdates",
+        base::BindRepeating(&ProtectionMessageHandler::HandleSetListUpdates,
+                            base::Unretained(this)));
   }
 
  private:
   PrefService* GetPrefs() {
     return user_prefs::UserPrefs::Get(
         web_ui()->GetWebContents()->GetBrowserContext());
+  }
+
+  // How many days old the older of the two lists is, or -1 when that
+  // cannot be told. This is the timestamp on the files actually in
+  // use, not anything the browser wrote down about them, so the page
+  // cannot claim the lists are fresher than they are.
+  static int ListAgeInDays(const AdblockService* ads, const ScamService* scam) {
+    const base::Time ads_at = ads->list_time();
+    const base::Time scam_at = scam->list_time();
+    if (ads_at.is_null() || scam_at.is_null()) {
+      return -1;
+    }
+    const base::TimeDelta age = base::Time::Now() - std::min(ads_at, scam_at);
+    return std::max(0, age.InDays());
   }
 
   void HandleGet(const base::ListValue& args) {
@@ -263,6 +329,16 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler {
     ads->EnsureLoading();
 
     PrefService* prefs = GetPrefs();
+
+    // And a good moment to look for newer ones, unless this is an
+    // incognito window, whose network session should not carry it.
+    content::BrowserContext* context =
+        web_ui()->GetWebContents()->GetBrowserContext();
+    if (!context->IsOffTheRecord()) {
+      ListUpdater::GetInstance()->MaybeCheck(
+          prefs, context->GetDefaultStoragePartition()
+                     ->GetURLLoaderFactoryForBrowserProcess());
+    }
     base::DictValue out;
     out.Set("scam", StatusName(scam->status()));
     out.Set("scamProblem", scam->status_message());
@@ -272,6 +348,8 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler {
     out.Set("seniorForced", IsSeniorSafeModeForced());
     out.Set("hideSponsored",
             prefs && prefs->GetBoolean(prefs::kHideSponsoredResults));
+    out.Set("listDays", ListAgeInDays(ads, scam));
+    out.Set("listUpdates", ListUpdater::IsEnabled(prefs));
     AllowJavascript();
     web_ui()->CallJavascriptFunctionUnsafe("loadProtection", out);
   }
@@ -288,6 +366,14 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler {
     PrefService* prefs = GetPrefs();
     if (prefs && !args.empty() && args[0].is_bool()) {
       prefs->SetBoolean(prefs::kHideSponsoredResults, args[0].GetBool());
+    }
+    HandleGet(args);
+  }
+
+  void HandleSetListUpdates(const base::ListValue& args) {
+    PrefService* prefs = GetPrefs();
+    if (prefs && !args.empty() && args[0].is_bool()) {
+      prefs->SetBoolean(prefs::kListUpdates, args[0].GetBool());
     }
     HandleGet(args);
   }

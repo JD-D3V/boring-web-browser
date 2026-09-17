@@ -21,6 +21,11 @@ inline constexpr char kSeniorSafeMode[] = "boring.senior_safe_mode";
 // Hide sponsored results on search pages instead of only labeling them.
 inline constexpr char kHideSponsoredResults[] = "boring.hide_sponsored_results";
 
+// Keep the ad, tracker and scam lists current by downloading newer ones.
+// On by default: lists that are never replaced stop recognising this
+// month's scams, which is the one thing this browser is for.
+inline constexpr char kListUpdates[] = "boring.list_updates";
+
 }  // namespace prefs
 
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);

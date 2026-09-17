@@ -13,20 +13,15 @@
 #include "base/logging.h"
 #include "base/memory/ref_counted.h"
 #include "base/no_destructor.h"
-#include "base/path_service.h"
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
 #include "components/boring/adblock/adblock_ffi.h"
+#include "components/boring/lists/list_paths.h"
 #include "url/gurl.h"
 
 namespace boring {
 
 namespace {
-
-// Filter lists are shipped next to the browser module in this folder.
-constexpr base::FilePath::CharType kListDir[] = FILE_PATH_LITERAL("boring");
-constexpr base::FilePath::CharType kListFile[] =
-    FILE_PATH_LITERAL("easylist.txt");
 
 constexpr char kDisableSwitch[] = "disable-boring-adblock";
 
@@ -101,19 +96,13 @@ void AdblockService::LoadOnBackgroundThread() {
     }
   };
 
-  base::FilePath dir;
-  if (!base::PathService::Get(base::DIR_MODULE, &dir)) {
-    LOG(ERROR) << "boring adblock: cannot find the browser folder, ad and "
-                  "tracker blocking is OFF";
-    fail("cannot find the browser folder");
-    return;
-  }
-  base::FilePath path = dir.Append(kListDir).Append(kListFile);
-
+  // Whichever copy is newer: the one that shipped with the browser, or
+  // one the updater has downloaded since.
+  const base::FilePath path = GetListPath(ListKind::kFilters);
   base::File::Info info;
-  if (!base::GetFileInfo(path, &info)) {
-    LOG(ERROR) << "boring adblock: no filter list at " << path
-               << ", ad and tracker blocking is OFF";
+  if (path.empty() || !base::GetFileInfo(path, &info)) {
+    LOG(ERROR) << "boring adblock: no filter list to load, ad and tracker "
+                  "blocking is OFF";
     fail("the filter list file is missing");
     return;
   }
@@ -177,6 +166,15 @@ AdblockService::Status AdblockService::status() const {
 std::string AdblockService::status_message() const {
   base::AutoLock lock(lock_);
   return status_message_;
+}
+
+base::Time AdblockService::list_time() const {
+  base::AutoLock lock(lock_);
+  if (loaded_mtime_us_ == 0) {
+    return base::Time();
+  }
+  return base::Time::FromDeltaSinceWindowsEpoch(
+      base::Microseconds(loaded_mtime_us_));
 }
 
 bool AdblockService::ShouldBlock(const GURL& url,

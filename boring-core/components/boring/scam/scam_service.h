@@ -12,6 +12,7 @@
 #include "base/no_destructor.h"
 #include "base/synchronization/lock.h"
 #include "base/thread_annotations.h"
+#include "base/time/time.h"
 
 class GURL;
 
@@ -70,6 +71,10 @@ class ScamService {
   // Where the blocklist got to, and a line explaining a failure.
   Status status() const;
   std::string status_message() const;
+
+  // When the list in use was last written, so the Protection page can
+  // say how old it is. A null Time when none is loaded.
+  base::Time list_time() const;
 
   // True when this page should be blocked with a warning. Main thread.
   //

@@ -10,8 +10,10 @@ and less technical users.
 Three things it has to get right:
 
 1. **Privacy.** Strong ad and tracker blocking, on by default, no
-   configuration required. Nothing phones home. No crypto, no ad network,
-   no partner deals.
+   configuration required. No telemetry, no account, no identifier. No
+   crypto, no ad network, no partner deals. The one thing it fetches on
+   its own is a newer blocking list, at most once a day and only once
+   the ones it has are over a week old, and that can be turned off.
 2. **Safety.** Scam ads and scam sites get blocked and called out, with a
    single switch Senior Safe Mode that locks the whole thing down for
    someone who just wants to read the news and check their email.

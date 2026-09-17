@@ -18,25 +18,34 @@ LISTS = [
 
 DEFAULT_OUT = r"E:\ung\build\src\out\Default"
 
+# A source that stops responding should fail the run, not hang it.
+TIMEOUT_SECONDS = 60
 
-def main():
+
+def build_filter_list() -> str:
+    """Downloads every source list and returns them as one list's text."""
+    parts = []
+    for url, name in LISTS:
+        print("downloading", name, "...")
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as response:
+            text = response.read().decode("utf-8", "replace")
+        print(" ", len(text), "bytes")
+        parts.append(text)
+    # The engine takes one combined list, so join them.
+    return "\n".join(parts)
+
+
+def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=DEFAULT_OUT)
     args = ap.parse_args()
 
     dest_dir = os.path.join(args.out, "boring")
     os.makedirs(dest_dir, exist_ok=True)
-    parts = []
-    for url, name in LISTS:
-        print("downloading", name, "...")
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        text = urllib.request.urlopen(req).read().decode("utf-8", "replace")
-        print(" ", len(text), "bytes")
-        parts.append(text)
-    # The engine takes one combined list, so join them.
     out_path = os.path.join(dest_dir, "easylist.txt")
     with open(out_path, "w", encoding="utf-8", newline="\n") as f:
-        f.write("\n".join(parts))
+        f.write(build_filter_list())
     print("wrote", out_path)
 
 

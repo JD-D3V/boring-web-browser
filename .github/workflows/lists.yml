@@ -1,0 +1,57 @@
+# Publish the blocking lists the installed browser downloads.
+#
+# The lists are baked in when the browser is built, so on someone's
+# machine they only get older. This job rebuilds them and uploads them
+# to one release tag, "lists", that the browser checks on a schedule.
+# The tag is reused, so the address in the browser never changes.
+#
+# This is only downloading and uploading text files, so it runs on
+# GitHub's own runners rather than the desktop that builds Chromium.
+#
+# Start it by hand for now. The browser's own schedule is weekly, so
+# this wants to run weekly too, but the first run is what creates the
+# public lists release, and that is JD's call to make. Once he is happy,
+# add back:
+#
+#   schedule:
+#     - cron: "0 4 * * 1"
+
+name: lists
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DIST: ${{ github.workspace }}/dist
+    steps:
+      - name: Check out our files
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build the bundle
+        working-directory: boring-core/tools
+        run: python publish_lists.py --out "$DIST"
+
+      - name: Make the lists release if it is not there yet
+        run: |
+          if ! gh release view lists >/dev/null 2>&1; then
+            gh release create lists \
+              --title "Blocking lists" \
+              --notes "Ad, tracker and scam lists the browser downloads to stay current. Replaced every week; this tag always holds the newest set." \
+              --latest=false
+          fi
+
+      - name: Upload the bundle
+        run: gh release upload lists "$DIST"/* --clobber

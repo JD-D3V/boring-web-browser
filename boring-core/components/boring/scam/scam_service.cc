@@ -12,7 +12,6 @@
 #include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/memory/ref_counted.h"
-#include "base/path_service.h"
 #include "base/supports_user_data.h"
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
@@ -20,13 +19,11 @@
 #include "url/gurl.h"
 
 #include "components/boring/adblock/adblock_ffi.h"
+#include "components/boring/lists/list_paths.h"
 
 namespace boring {
 
 namespace {
-constexpr base::FilePath::CharType kListPath[] =
-    FILE_PATH_LITERAL("boring/scamlist.txt");
-
 // How often the file is looked at again. Long enough that it costs
 // nothing per navigation, short enough that a refreshed list is picked
 // up without restarting the browser.
@@ -119,19 +116,12 @@ void ScamService::LoadOnBackgroundThread() {
     }
   };
 
-  base::FilePath dir;
-  if (!base::PathService::Get(base::DIR_MODULE, &dir)) {
-    LOG(ERROR) << "boring scam: cannot find the browser folder, scam "
-                  "protection is OFF";
-    fail("cannot find the browser folder");
-    return;
-  }
-  const base::FilePath path = dir.Append(kListPath);
-
+  // Whichever copy is newer: the one that shipped with the browser, or
+  // one the updater has downloaded since.
+  const base::FilePath path = GetListPath(ListKind::kScam);
   base::File::Info info;
-  if (!base::GetFileInfo(path, &info)) {
-    LOG(ERROR) << "boring scam: no blocklist at " << path
-               << ", scam protection is OFF";
+  if (path.empty() || !base::GetFileInfo(path, &info)) {
+    LOG(ERROR) << "boring scam: no blocklist to load, scam protection is OFF";
     fail("the blocklist file is missing");
     return;
   }
@@ -198,6 +188,15 @@ ScamService::Status ScamService::status() const {
 std::string ScamService::status_message() const {
   base::AutoLock lock(lock_);
   return status_message_;
+}
+
+base::Time ScamService::list_time() const {
+  base::AutoLock lock(lock_);
+  if (loaded_mtime_us_ == 0) {
+    return base::Time();
+  }
+  return base::Time::FromDeltaSinceWindowsEpoch(
+      base::Microseconds(loaded_mtime_us_));
 }
 
 bool ScamService::ShouldBlock(content::BrowserContext* context,

@@ -24,6 +24,7 @@ static_library("browser") {
   deps = [
     "//base",
     "//components/boring/adblock/mojom",
+    "//components/boring/lists",
     "//mojo/public/cpp/bindings",
     "//net",
     "//services/network/public/cpp",

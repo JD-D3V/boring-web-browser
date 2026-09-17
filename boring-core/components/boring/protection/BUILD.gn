@@ -9,6 +9,7 @@ static_library("protection") {
     "//base",
     "//components/boring/adblock:browser",
     "//components/boring/core",
+    "//components/boring/lists",
     "//components/boring/scam",
     "//components/prefs",
     "//components/user_prefs",

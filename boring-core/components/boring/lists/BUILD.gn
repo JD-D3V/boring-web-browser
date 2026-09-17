@@ -1,0 +1,21 @@
+# Copyright 2026 boring. BSD style license.
+
+static_library("lists") {
+  sources = [
+    "list_paths.cc",
+    "list_paths.h",
+    "list_updater.cc",
+    "list_updater.h",
+  ]
+  deps = [
+    "//base",
+    "//components/boring/core",
+    "//components/prefs",
+    "//crypto",
+    "//net",
+    "//net/traffic_annotation",
+    "//services/network/public/cpp",
+    "//services/network/public/mojom",
+    "//url",
+  ]
+}

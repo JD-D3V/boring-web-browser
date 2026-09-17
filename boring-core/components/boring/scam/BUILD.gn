@@ -15,6 +15,7 @@ static_library("scam") {
     "//base",
     "//components/boring/adblock:browser",
     "//components/boring/core",
+    "//components/boring/lists",
     "//components/security_interstitials/content:security_interstitial_page",
     "//components/security_interstitials/core",
     "//components/user_prefs",

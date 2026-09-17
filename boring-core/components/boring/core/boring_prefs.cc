@@ -15,6 +15,7 @@ constexpr char kSeniorSafeModeSwitch[] = "senior-safe-mode";
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterBooleanPref(prefs::kSeniorSafeMode, false);
   registry->RegisterBooleanPref(prefs::kHideSponsoredResults, false);
+  registry->RegisterBooleanPref(prefs::kListUpdates, true);
 }
 
 bool IsSeniorSafeMode(const PrefService* prefs) {

@@ -12,6 +12,7 @@
 #include "base/no_destructor.h"
 #include "base/synchronization/lock.h"
 #include "base/thread_annotations.h"
+#include "base/time/time.h"
 #include "services/network/public/mojom/fetch_api.mojom-shared.h"
 
 class GURL;
@@ -66,6 +67,10 @@ class AdblockService {
   // Where the filter lists got to, and a line explaining a failure.
   Status status() const;
   std::string status_message() const;
+
+  // When the list in use was last written, so the Protection page can
+  // say how old the rules are. A null Time when none is loaded.
+  base::Time list_time() const;
 
   // Decides whether to block. Thread safe.
   bool ShouldBlock(const GURL& url,
