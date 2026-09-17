@@ -1,0 +1,18 @@
+# Copyright 2026 boring. BSD style license.
+
+static_library("protection") {
+  sources = [
+    "protection_ui.cc",
+    "protection_ui.h",
+  ]
+  deps = [
+    "//base",
+    "//components/boring/adblock:browser",
+    "//components/boring/core",
+    "//components/boring/scam",
+    "//components/prefs",
+    "//components/user_prefs",
+    "//content/public/browser",
+    "//content/public/common",
+  ]
+}

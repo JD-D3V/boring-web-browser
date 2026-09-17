@@ -1,0 +1,22 @@
+--- a/chrome/browser/themes/theme_service.cc
++++ b/chrome/browser/themes/theme_service.cc
+@@ -296,14 +296,17 @@
+   registry->RegisterIntegerPref(
+       prefs::kDeprecatedUserColorDoNotUse, SK_ColorTRANSPARENT,
+       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+-  registry->RegisterIntegerPref(prefs::kUserColor, SK_ColorTRANSPARENT);
++  // boring: our teal, so the frame is recognisably ours out of the box.
++  // Picking any colour, or grey, in Customize still replaces it.
++  registry->RegisterIntegerPref(prefs::kUserColor,
++                                SkColorSetRGB(0x17, 0x6b, 0x5b));
+   registry->RegisterIntegerPref(
+       prefs::kDeprecatedBrowserColorVariantDoNotUse,
+       static_cast<int>(ui::mojom::BrowserColorVariant::kSystem),
+       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+   registry->RegisterIntegerPref(
+       prefs::kBrowserColorVariant,
+-      static_cast<int>(ui::mojom::BrowserColorVariant::kSystem));
++      static_cast<int>(ui::mojom::BrowserColorVariant::kTonalSpot));
+   registry->RegisterBooleanPref(
+       prefs::kDeprecatedGrayscaleThemeEnabledDoNotUse, false,
+       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);

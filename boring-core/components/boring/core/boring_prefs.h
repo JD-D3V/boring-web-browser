@@ -29,6 +29,10 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
 // switch --senior-safe-mode.
 bool IsSeniorSafeMode(const PrefService* prefs);
 
+// True when the command line switch turned Senior Safe Mode on. The
+// settings page cannot turn it off then, and says so.
+bool IsSeniorSafeModeForced();
+
 }  // namespace boring
 
 #endif  // COMPONENTS_BORING_CORE_BORING_PREFS_H_

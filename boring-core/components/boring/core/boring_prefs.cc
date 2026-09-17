@@ -18,11 +18,15 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
 }
 
 bool IsSeniorSafeMode(const PrefService* prefs) {
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          kSeniorSafeModeSwitch)) {
+  if (IsSeniorSafeModeForced()) {
     return true;
   }
   return prefs && prefs->GetBoolean(prefs::kSeniorSafeMode);
+}
+
+bool IsSeniorSafeModeForced() {
+  return base::CommandLine::ForCurrentProcess()->HasSwitch(
+      kSeniorSafeModeSwitch);
 }
 
 }  // namespace boring

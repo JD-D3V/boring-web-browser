@@ -1,0 +1,49 @@
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -313,6 +313,8 @@
+ #define IDC_SHOW_READING_MODE_KEYBOARD 40303
+ #define IDC_SHOW_TABS_FROM_OTHER_DEVICES_SIDE_PANEL 40304
+ #define IDC_CHROME_ENTERPRISE_RELEASE_NOTES 40305
++// boring: open the page that says whether protection is working.
++#define IDC_BORING_PROTECTION 40306
+ 
+ // Spell-check
+ // Insert any additional suggestions before _LAST; these have to be consecutive.
+--- a/chrome/browser/ui/toolbar/app_menu_model.cc
++++ b/chrome/browser/ui/toolbar/app_menu_model.cc
+@@ -2185,6 +2185,13 @@
+ #endif
+ #endif
+ 
++  // boring: whether scam and ad blocking are really working, and the
++  // Senior Safe Mode switch. Sits next to Settings so it is easy to find.
++  AddItemWithIcon(IDC_BORING_PROTECTION, u"Protection",
++                  ui::ImageModel::FromVectorIcon(
++                      vector_icons::kShieldIcon, ui::kColorMenuIcon,
++                      ui::SimpleMenuModel::kDefaultIconSize));
++
+   AddItemWithStringIdAndVectorIcon(
+       this, IDC_OPTIONS, IDS_SETTINGS,
+       features::IsRoundedIconsEnabled() ? kSettingsIcon : kSettingsMenuOldIcon);
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -1246,6 +1246,10 @@
+     case IDC_OPTIONS:
+       ShowSettings(browser_->GetBrowserForOpeningWebUi());
+       break;
++    case IDC_BORING_PROTECTION:
++      ShowSingletonTab(browser_->GetBrowserForOpeningWebUi(),
++                       GURL("chrome://boring-protection"));
++      break;
+     case IDC_EDIT_SEARCH_ENGINES:
+       ShowSearchEngineSettings(browser_->GetBrowserForOpeningWebUi());
+       break;
+@@ -2030,6 +2034,8 @@
+                                         !forced_incognito && !is_guest);
+   command_updater->UpdateCommandEnabled(IDC_OPTIONS,
+                                         !forced_incognito || is_guest);
++  command_updater->UpdateCommandEnabled(IDC_BORING_PROTECTION,
++                                        !forced_incognito || is_guest);
+   command_updater->UpdateCommandEnabled(IDC_PERFORMANCE,
+                                         !forced_incognito && !is_guest);
+ }
