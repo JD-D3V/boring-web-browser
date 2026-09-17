@@ -1,0 +1,59 @@
+--- a/chrome/browser/resources/settings/settings_menu/settings_menu.html
++++ b/chrome/browser/resources/settings/settings_menu/settings_menu.html
+@@ -17,7 +17,8 @@
+         min-width: fit-content;
+       }
+ 
+-      #extensionsLink > .cr-icon {
++      #extensionsLink > .cr-icon,
++      .boring-link > .cr-icon {
+         height: var(--cr-icon-size);
+         margin-inline-end: 14px;  /* 16px - 2px from margin for outline. */
+         width: var(--cr-icon-size);
+@@ -42,7 +43,8 @@
+     </style>
+ 
+     <div role="navigation">
+-      <cr-menu-selector id="menu" selectable="a:not(#extensionsLink)"
++      <cr-menu-selector id="menu"
++          selectable="a:not(#extensionsLink):not(.boring-link)"
+           attr-for-selected="href" on-iron-activate="onSelectorActivate_"
+           on-click="onLinkClick_" selected-attribute="selected">
+         <a role="menuitem"
+@@ -65,6 +67,24 @@
+                 pageVisibility_.yourSavedInfo, pageVisibility_.autofill)]]">
+           <cr-icon icon="settings:assignment"></cr-icon>
+           $i18n{autofillPageTitle}
++          <cr-ripple></cr-ripple>
++        </a>
++        <!-- boring: our own pages, where people look for them. They open
++             in a tab of their own, like Extensions. -->
++        <a role="menuitem" id="boringProtectionLink"
++            class="cr-nav-menu-item boring-link"
++            href="chrome://boring-protection" target="_blank">
++          <cr-icon icon="settings20:shield"></cr-icon>
++          <span>Protection</span>
++          <div class="cr-icon icon-external"></div>
++          <cr-ripple></cr-ripple>
++        </a>
++        <a role="menuitem" id="boringAiLink"
++            class="cr-nav-menu-item boring-link"
++            href="chrome://boring-ai" target="_blank">
++          <cr-icon icon="settings20:insight-spark"></cr-icon>
++          <span>AI summaries</span>
++          <div class="cr-icon icon-external"></div>
+           <cr-ripple></cr-ripple>
+         </a>
+         <a role="menuitem" href="/privacy"
+--- a/chrome/browser/resources/settings/settings_menu/settings_menu.ts
++++ b/chrome/browser/resources/settings/settings_menu/settings_menu.ts
+@@ -127,7 +127,8 @@
+    * accessibility purposes, taps are handled separately.
+    */
+   private onLinkClick_(event: Event) {
+-    if ((event.target as HTMLElement).matches('a:not(#extensionsLink)')) {
++    if ((event.target as HTMLElement)
++            .matches('a:not(#extensionsLink):not(.boring-link)')) {
+       event.preventDefault();
+     }
+   }

@@ -15,3 +15,5 @@ protection-menu.patch
 frame-color.patch
 default-search.patch
 newtab-default.patch
+welcome-first-run.patch
+settings-menu-links.patch

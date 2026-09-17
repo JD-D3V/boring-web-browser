@@ -58,8 +58,8 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   .page { width: 44em; max-width: 100%; }
   .hint { color: var(--muted); text-align: center; margin: 0 0 2em; }
   #shortcuts { display: grid; gap: 0.8em; list-style: none; margin: 0;
-               padding: 0; grid-template-columns: repeat(auto-fill,
-               minmax(9.5em, 1fr)); }
+               padding: 0; justify-content: center;
+               grid-template-columns: repeat(auto-fit, 9.5em); }
   #shortcuts li { position: relative; }
   #shortcuts a { display: flex; flex-direction: column; align-items: center;
                  gap: 0.5em; padding: 1em 0.6em 0.8em; border-radius: 10px;

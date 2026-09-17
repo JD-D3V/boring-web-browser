@@ -1,0 +1,109 @@
+# Build a release and leave it as a draft on GitHub Releases.
+#
+# Runs on the self hosted Windows runner, like build.yml. Nothing is made
+# public here: the release is a draft until someone reads it over and
+# presses Publish on the Releases page.
+#
+# Start it by hand from the Actions tab and give it a version, for
+# example 151.0.7922.173-beta.1.
+
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, for example 151.0.7922.173-beta.1"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: [self-hosted, windows, chromium-build]
+    timeout-minutes: 720
+    env:
+      VERSION: ${{ inputs.version }}
+      DIST: ${{ github.workspace }}\dist
+    steps:
+      - name: Check out our files
+        uses: actions/checkout@v4
+
+      - name: Check the version looks like one
+        shell: pwsh
+        run: |
+          if ($env:VERSION -notmatch '^\d+\.\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$') {
+            throw "Version '$env:VERSION' should look like 151.0.7922.173-beta.1"
+          }
+
+      - name: Put boring-core into the build tree
+        shell: cmd
+        run: python boring-core\tools\apply.py
+
+      - name: Refresh the filter lists and the scam blocklist
+        shell: cmd
+        run: |
+          python boring-core\tools\get_filterlists.py
+          python boring-core\tools\get_scamlist.py
+
+      - name: Build
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+          set TMP=E:\tmp
+          set TEMP=E:\tmp
+          cd /d E:\ung
+          python3 build.py --ci
+
+      # A release that fails its own checks does not get made.
+      - name: Check the browser works
+        shell: cmd
+        run: python boring-core\tools\smoke_all.py
+
+      - name: Package
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+          cd /d E:\ung
+          python3 package.py
+
+      - name: Name the files and write checksums and the update feed
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force $env:DIST | Out-Null
+          $installer = Get-ChildItem E:\ung\build\*_installer_x64.exe |
+            Sort-Object LastWriteTime | Select-Object -Last 1
+          $zip = Get-ChildItem E:\ung\build\*_windows_x64.zip |
+            Sort-Object LastWriteTime | Select-Object -Last 1
+          $base = "boring-web-browser-$env:VERSION-windows-x64"
+          Copy-Item $installer.FullName "$env:DIST\$base-installer.exe"
+          Copy-Item $zip.FullName "$env:DIST\$base.zip"
+          Get-ChildItem $env:DIST -File | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
+          } | Set-Content -Encoding ascii "$env:DIST\SHA256SUMS.txt"
+          python boring-core\tools\make_appcast.py `
+            --installer "$env:DIST\$base-installer.exe" `
+            --version $env:VERSION `
+            --base-url "https://github.com/${{ github.repository }}/releases/download/v$env:VERSION" `
+            --out "$env:DIST\appcast.xml"
+
+      - name: Make the draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $notes = @"
+          This is a beta.
+
+          - The installer is not signed yet, so Windows will say the publisher is unknown. Check the download against SHA256SUMS.txt.
+          - Streaming services that need Widevine DRM (Netflix and similar) do not play in this build.
+          - Scam and ad blocking lists are the ones current on the day of this build.
+
+          Built from $env:GITHUB_SHA.
+          "@
+          gh release create "v$env:VERSION" --draft --prerelease `
+            --title "Beta $env:VERSION" --notes $notes `
+            --target $env:GITHUB_SHA `
+            (Get-ChildItem $env:DIST -File).FullName

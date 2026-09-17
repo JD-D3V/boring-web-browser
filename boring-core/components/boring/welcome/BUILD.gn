@@ -1,0 +1,16 @@
+# Copyright 2026 boring. BSD style license.
+
+static_library("welcome") {
+  sources = [
+    "welcome_ui.cc",
+    "welcome_ui.h",
+  ]
+  deps = [
+    "//base",
+    "//components/boring/core",
+    "//components/prefs",
+    "//components/user_prefs",
+    "//content/public/browser",
+    "//content/public/common",
+  ]
+}
