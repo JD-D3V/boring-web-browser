@@ -21,7 +21,8 @@ DEFAULT_SRC = r"E:\ung\build\src"
 PRISTINE = os.path.join(CORE, ".pristine")
 
 NAME = "Boring Browser"
-# Used where Windows wants no spaces: registry ids, ProgIDs, URL scheme.
+# Used where Windows wants no spaces: the install folder, registry ids,
+# ProgIDs and the URL scheme.
 ID = "BoringBrowser"
 
 STRING_FILES = [
@@ -41,7 +42,9 @@ BRANDING = {
 }
 
 INSTALL_MODES = [
-    ('kProductPathName[] = L"Chromium";', f'kProductPathName[] = L"{NAME}";'),
+    # The install and profile folder. No space: Windows cannot load the
+    # browser's side-by-side assembly from a folder name with one.
+    ('kProductPathName[] = L"Chromium";', f'kProductPathName[] = L"{ID}";'),
     ('.base_app_name = L"Chromium",', f'.base_app_name = L"{NAME}",'),
     ('.base_app_id = L"Chromium",', f'.base_app_id = L"{ID}",'),
     (

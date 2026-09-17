@@ -17,3 +17,4 @@ default-search.patch
 newtab-default.patch
 welcome-first-run.patch
 settings-menu-links.patch
+package-boring-files.patch

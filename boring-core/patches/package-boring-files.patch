@@ -1,0 +1,35 @@
+--- a/chrome/installer/mini_installer/chrome.release
++++ b/chrome/installer/mini_installer/chrome.release
+@@ -22,6 +22,10 @@
+ chrome_100_percent.pak: %(VersionDir)s\
+ chrome_child.dll: %(VersionDir)s\
+ chrome_elf.dll: %(VersionDir)s\
++# boring: the blocking engine and its lists, next to chrome.dll.
++boring_adblock.dll: %(VersionDir)s\
++boring\easylist.txt: %(VersionDir)s\boring\
++boring\scamlist.txt: %(VersionDir)s\boring\
+ chrome_pwa_launcher.exe: %(VersionDir)s\
+ chrome_wer.dll: %(VersionDir)s\
+ d3dcompiler_47.dll: %(VersionDir)s\
+--- a/chrome/tools/build/win/FILES.cfg
++++ b/chrome/tools/build/win/FILES.cfg
+@@ -68,6 +68,19 @@
+     'buildtype': ['official'],
+     'filegroup': ['default', 'symsrc'],
+   },
++  # boring: the blocking engine and its lists.
++  {
++    'filename': 'boring_adblock.dll',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'boring/easylist.txt',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'boring/scamlist.txt',
++    'buildtype': ['official'],
++  },
+   {
+     'filename': 'chrome_wer.dll',
+     'buildtype': ['official'],

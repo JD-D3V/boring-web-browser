@@ -26,7 +26,7 @@ WIDEVINE_ID = "oimompecagnajdejgnnjijobebaeigek"
 CHECK_URL = "https://update.googleapis.com/service/update2/json"
 
 DEFAULT_USER_DATA = os.path.join(
-    os.environ.get("LOCALAPPDATA", ""), "Boring Browser", "User Data"
+    os.environ.get("LOCALAPPDATA", ""), "BoringBrowser", "User Data"
 )
 
 
