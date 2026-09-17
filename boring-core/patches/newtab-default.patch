@@ -1,0 +1,14 @@
+--- a/chrome/browser/profiles/profile_impl.cc
++++ b/chrome/browser/profiles/profile_impl.cc
+@@ -419,8 +419,10 @@
+ #endif
+   registry->RegisterStringPref(prefs::kHomePage, std::string(),
+                                home_page_flags);
++  // boring: our own quiet new tab page. A policy or a person can still
++  // point new tabs somewhere else.
+   registry->RegisterStringPref(prefs::kNewTabPageLocationOverride,
+-                               std::string());
++                               "chrome://boring-newtab");
+ 
+ #if BUILDFLAG(ENABLE_PRINTING)
+   registry->RegisterBooleanPref(prefs::kPrintingEnabled, true);

@@ -13,3 +13,5 @@ reader-context-menu.patch
 ai-webui-config.patch
 protection-menu.patch
 frame-color.patch
+default-search.patch
+newtab-default.patch

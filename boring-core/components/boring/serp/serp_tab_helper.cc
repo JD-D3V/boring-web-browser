@@ -31,9 +31,10 @@ namespace {
 // list ever changes order, change this line with it.
 constexpr int32_t kBoringWorldId = content::ISOLATED_WORLD_ID_CONTENT_END + 3;
 
-// The selectors cover the ad blocks Google and Bing use today. The
-// script watches for new results because both sites update the page in
-// place.
+// The selectors cover the ad blocks Google, Bing and DuckDuckGo use
+// today. DuckDuckGo's class names are generated, so it is matched on the
+// data-layout attribute its results carry instead. The script watches
+// for new results because all three sites update the page in place.
 constexpr char kScript[] = R"((function() {
   if (window.__boringSerp) return;
   window.__boringSerp = true;
@@ -41,7 +42,8 @@ constexpr char kScript[] = R"((function() {
   var hide = %HIDE%;
   var adSelectors = ['#tads', '#bottomads', 'div[data-text-ad]',
               '.b_ad', '.b_adTop', '.b_adBottom', 'li.b_ad',
-              '.b_adLastChild'];
+              '.b_adLastChild', 'li[data-layout="ad"]',
+              'li[data-layout^="products"]'];
   function apply() {
     adSelectors.forEach(function(selector) {
       document.querySelectorAll(selector).forEach(function(adBlock) {
@@ -72,10 +74,11 @@ bool IsSearchResultsPage(const GURL& url) {
       url, net::registry_controlled_domains::EXCLUDE_PRIVATE_REGISTRIES);
   bool google = domain.rfind("google.", 0) == 0;
   bool bing = domain == "bing.com";
-  if (!google && !bing) {
-    return false;
+  if (google || bing) {
+    return url.path() == "/search";
   }
-  return url.path() == "/search";
+  // DuckDuckGo serves results from its home page address with a query.
+  return domain == "duckduckgo.com" && url.path() == "/" && url.has_query();
 }
 
 }  // namespace

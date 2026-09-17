@@ -137,8 +137,8 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
     <h2 id="search-heading">Search results</h2>
     <label class="row" for="hide-ads">
       <span><strong>Hide sponsored results</strong>
-        <span class="why" id="hide-why">Paid placements on Google and Bing
-        are removed instead of labelled. Sponsored does not always mean
+        <span class="why" id="hide-why">Paid placements on Google, Bing and
+        DuckDuckGo are removed instead of labelled. Sponsored does not always mean
         unsafe, and this does not remove every scam link.</span></span>
       <input type="checkbox" id="hide-ads">
     </label>

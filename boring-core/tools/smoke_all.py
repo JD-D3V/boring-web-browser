@@ -16,6 +16,7 @@ CHECKS = [
     ("ad and tracker blocking", "smoke_adblock.py"),
     ("scam warning and Senior Safe Mode", "smoke_scam.py"),
     ("Protection page", "smoke_protection.py"),
+    ("new tab page", "smoke_newtab.py"),
     ("sponsored search results", "smoke_serp.py"),
     ("reader view", "smoke_reader.py"),
     ("AI settings page", "smoke_ai.py"),

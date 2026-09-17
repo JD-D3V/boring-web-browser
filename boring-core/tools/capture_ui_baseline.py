@@ -96,14 +96,18 @@ def main():
                 b.get(
                     "data:text/html,<title>Controlled search fixture</title>"
                     "<main><div id='tads'>Sponsored offer</div>"
+                    "<ol><li id='ddg' data-layout='products_middle'>Ads</li></ol>"
                     "<div id='organic'>Ordinary result</div></main>"
                 )
                 b.run(script.replace("%HIDE%", str(hide).lower()))
                 result = b.run(
                     "var ad=document.getElementById('tads');"
                     "var organic=document.getElementById('organic');"
+                    "var ddg=document.getElementById('ddg');"
                     "return {hidden:getComputedStyle(ad).display==='none',"
                     "label:ad.innerText.includes('Sponsored result'),"
+                    "ddg_hidden:getComputedStyle(ddg).display==='none',"
+                    "ddg_label:ddg.innerText.includes('Sponsored result'),"
                     "organic:getComputedStyle(organic).display!=='none'}"
                 )
                 checks[f"search_{'hide' if hide else 'label'}_fixture"] = result
