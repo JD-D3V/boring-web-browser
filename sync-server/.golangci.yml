@@ -1,0 +1,30 @@
+# Go linting/formatting for sync-server. golangci-lint v2 reads this.
+#
+# Format:  golangci-lint fmt        (runs gofmt + goimports)
+# Check:   golangci-lint run
+# CI runs the same two commands.
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard        # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - misspell             # typos in comments and strings
+    - revive               # broader style lint on top of gofmt
+    - unconvert            # remove pointless type conversions
+    - bodyclose            # make sure HTTP response bodies get closed
+  exclusions:
+    generated: strict      # skip files marked "Code generated ... DO NOT EDIT."
+    paths:
+      - "protocol/.*\\.pb\\.go$"   # the generated sync protobufs — never lint these
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

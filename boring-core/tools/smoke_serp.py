@@ -19,7 +19,8 @@ def main():
         b.get("https://www.bing.com/search?q=vpn+deal")
         ran = b.run("return document.documentElement.dataset.boringSerp || ''")
         labeled = b.run(
-            "return document.querySelectorAll('[data-boring-labeled]').length")
+            "return document.querySelectorAll('[data-boring-labeled]').length"
+        )
         print("script ran:", ran == "1")
         print("labeled ad blocks on this load:", labeled)
         if ran == "1":

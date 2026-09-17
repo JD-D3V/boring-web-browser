@@ -37,7 +37,11 @@ def sync_tree(src_dir, dst_dir):
         for root, _dirs, files in os.walk(dst_dir):
             rel = os.path.relpath(root, dst_dir)
             for f in files:
-                s = os.path.join(src_dir, rel, f) if rel != "." else os.path.join(src_dir, f)
+                s = (
+                    os.path.join(src_dir, rel, f)
+                    if rel != "."
+                    else os.path.join(src_dir, f)
+                )
                 if not os.path.exists(s):
                     os.remove(os.path.join(root, f))
                     print("remove stale", os.path.join(rel, f))
@@ -57,17 +61,26 @@ def apply_patches(src):
     if not os.path.exists(series):
         return
     with open(series) as f:
-        names = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+        names = [
+            line.strip() for line in f if line.strip() and not line.startswith("#")
+        ]
     for name in names:
         patch = os.path.join(CORE, "patches", name)
         # Skip a patch that is already in.
-        r = subprocess.run(["git", "apply", "--reverse", "--check", patch],
-                           cwd=src, capture_output=True)
+        r = subprocess.run(
+            ["git", "apply", "--reverse", "--check", patch],
+            cwd=src,
+            capture_output=True,
+        )
         if r.returncode == 0:
             print("already applied", name)
             continue
-        r = subprocess.run(["git", "apply", "--whitespace=nowarn", patch],
-                           cwd=src, capture_output=True, text=True)
+        r = subprocess.run(
+            ["git", "apply", "--whitespace=nowarn", patch],
+            cwd=src,
+            capture_output=True,
+            text=True,
+        )
         if r.returncode != 0:
             print("FAILED to apply", name)
             print(r.stderr)
@@ -99,11 +112,14 @@ def restore(src):
     series = os.path.join(CORE, "patches", "series")
     if os.path.exists(series):
         with open(series) as f:
-            names = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+            names = [
+                line.strip() for line in f if line.strip() and not line.startswith("#")
+            ]
         for name in reversed(names):
             patch = os.path.join(CORE, "patches", name)
-            subprocess.run(["git", "apply", "--reverse", patch], cwd=src,
-                           capture_output=True)
+            subprocess.run(
+                ["git", "apply", "--reverse", patch], cwd=src, capture_output=True
+            )
     # Restore pristine copies.
     if os.path.isdir(PRISTINE):
         for root, _dirs, files in os.walk(PRISTINE):
@@ -141,8 +157,10 @@ def main():
 
     if not args.no_rust:
         build_rust(args.src)
-    sync_tree(os.path.join(CORE, "components", "boring"),
-              os.path.join(args.src, "components", "boring"))
+    sync_tree(
+        os.path.join(CORE, "components", "boring"),
+        os.path.join(args.src, "components", "boring"),
+    )
     # Stage the cargo build products where GN expects them.
     rust_out = os.path.join(CORE, "rust", "target", "release")
     lib_dir = os.path.join(args.src, "components", "boring", "adblock", "lib")

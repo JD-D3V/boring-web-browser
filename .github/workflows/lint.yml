@@ -1,0 +1,64 @@
+# Format and lint checks.
+#
+# These run on GitHub's free cloud runners, unlike build.yml, which needs the
+# self hosted machine because Chromium is far too big for a cloud runner.
+# Linting needs none of that, so it can run on every push and give an answer
+# in a minute or two.
+#
+# Tool versions are pinned. An unpinned formatter reformats the world the day
+# it updates, and then the check fails on code nobody touched.
+
+name: lint
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  cpp:
+    name: C++ (clang-format)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install clang-format==23.1.0
+      - name: Check formatting
+        run: |
+          find boring-core/components/boring \
+            \( -name '*.cc' -o -name '*.h' \) -print0 \
+            | xargs -0 clang-format --dry-run --Werror
+
+  rust:
+    name: Rust (fmt + clippy)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: boring-core/rust
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup component add rustfmt clippy
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+
+  go:
+    name: Go (golangci-lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache-dependency-path: sync-server/go.sum
+      - uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.13.2
+          working-directory: sync-server
+
+  python:
+    name: Python (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install ruff==0.16.5
+      - run: ruff format --check .
+      - run: ruff check .

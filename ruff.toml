@@ -1,0 +1,17 @@
+# Python linting/formatting for boring-core/tools. `ruff` reads this.
+#
+# Format:  ruff format .
+# Check:   ruff check .        (add --fix to auto-fix what it safely can)
+# CI runs `ruff format --check .` and `ruff check .`.
+target-version = "py312"
+line-length = 88
+
+[lint]
+select = [
+  "E", "W",   # pycodestyle — style + whitespace
+  "F",        # pyflakes — real bugs (unused imports, undefined names)
+  "I",        # isort — import ordering
+  "UP",       # pyupgrade — keep syntax modern for 3.12
+  "B",        # flake8-bugbear — common gotchas
+  "SIM",      # flake8-simplify — simpler equivalents
+]

@@ -52,8 +52,7 @@ def main():
 
         # Passkeys: the browser must offer the WebAuthn interface.
         b.get("https://example.com")
-        has_webauthn = b.run(
-            "return typeof window.PublicKeyCredential === 'function'")
+        has_webauthn = b.run("return typeof window.PublicKeyCredential === 'function'")
         print("passkeys supported (WebAuthn present):", has_webauthn)
         if not has_webauthn:
             failures.append("WebAuthn is missing, so passkeys cannot work")

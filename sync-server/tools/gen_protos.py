@@ -57,10 +57,13 @@ def main():
     # the bundled protobuf copy.
     well_known = os.path.join(args.src, "third_party", "protobuf", "src")
 
-    cmd = [protoc, "--proto_path=" + args.src,
-           "--proto_path=" + well_known,
-           "--go_out=" + OUT_DIR,
-           "--go_opt=" + ",".join(opts)] + rel_names
+    cmd = [
+        protoc,
+        "--proto_path=" + args.src,
+        "--proto_path=" + well_known,
+        "--go_out=" + OUT_DIR,
+        "--go_opt=" + ",".join(opts),
+    ] + rel_names
     print("running protoc ...")
     result = subprocess.run(cmd)
     if result.returncode != 0:
@@ -70,11 +73,11 @@ def main():
     nested = os.path.join(OUT_DIR, *PROTO_DIR.split("/"))
     if os.path.isdir(nested):
         for name in os.listdir(nested):
-            os.replace(os.path.join(nested, name),
-                       os.path.join(OUT_DIR, name))
+            os.replace(os.path.join(nested, name), os.path.join(OUT_DIR, name))
         # Remove the now empty folders.
-        for root, dirs, _files in os.walk(os.path.join(OUT_DIR, "components"),
-                                          topdown=False):
+        for root, _dirs, _files in os.walk(
+            os.path.join(OUT_DIR, "components"), topdown=False
+        ):
             os.rmdir(root)
     count = len([f for f in os.listdir(OUT_DIR) if f.endswith(".pb.go")])
     print("wrote", count, "Go files into", OUT_DIR)

@@ -49,8 +49,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--installer", required=True)
     ap.add_argument("--version", required=True)
-    ap.add_argument("--base-url", required=True,
-                    help="where the files are hosted, with no trailing slash")
+    ap.add_argument(
+        "--base-url",
+        required=True,
+        help="where the files are hosted, with no trailing slash",
+    )
     ap.add_argument("--out", required=True)
     ap.add_argument("--notes", default=DEFAULT_NOTES)
     args = ap.parse_args()
@@ -69,8 +72,9 @@ def main():
         version=escape(args.version),
         filename=escape(os.path.basename(args.installer)),
         size=size,
-        date=datetime.datetime.now(datetime.timezone.utc).strftime(
-            "%a, %d %b %Y %H:%M:%S +0000"),
+        date=datetime.datetime.now(datetime.UTC).strftime(
+            "%a, %d %b %Y %H:%M:%S +0000"
+        ),
         notes=args.notes,
     )
 

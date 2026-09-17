@@ -35,16 +35,18 @@ def main():
         # With no page waiting, the summary panel must stay out of the
         # way. It only appears after the user asks for a summary.
         hidden = b.run(
-            "return document.getElementById('ask')"
-            ".classList.contains('hidden')")
+            "return document.getElementById('ask').classList.contains('hidden')"
+        )
         print("summary panel hidden when nothing waiting:", hidden)
         if not hidden:
             failures.append("the summary panel showed with nothing waiting")
 
         # Pick the local option and save.
-        b.run("document.getElementById('p-ollama').click();"
-              "document.getElementById('model').value = 'llama3.2';"
-              "document.getElementById('save').click();")
+        b.run(
+            "document.getElementById('p-ollama').click();"
+            "document.getElementById('model').value = 'llama3.2';"
+            "document.getElementById('save').click();"
+        )
         time.sleep(1)
 
         # The note must name where the text would go.
@@ -63,8 +65,10 @@ def main():
             failures.append("the setting was not kept")
 
         # Put it back to off so the profile is left alone.
-        b.run("document.getElementById('p-off').click();"
-              "document.getElementById('save').click();")
+        b.run(
+            "document.getElementById('p-off').click();"
+            "document.getElementById('save').click();"
+        )
         time.sleep(1)
 
     if failures:

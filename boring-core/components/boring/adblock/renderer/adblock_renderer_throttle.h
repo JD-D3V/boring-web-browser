@@ -7,12 +7,12 @@
 #include <vector>
 
 #include "base/memory/weak_ptr.h"
-#include "net/http/http_request_headers.h"
-#include "url/gurl.h"
 #include "components/boring/adblock/mojom/adblock.mojom.h"
 #include "mojo/public/cpp/bindings/pending_remote.h"
 #include "mojo/public/cpp/bindings/remote.h"
+#include "net/http/http_request_headers.h"
 #include "third_party/blink/public/common/loader/url_loader_throttle.h"
+#include "url/gurl.h"
 
 namespace boring {
 

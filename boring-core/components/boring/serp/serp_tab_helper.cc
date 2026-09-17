@@ -29,8 +29,7 @@ namespace {
 // for its own scripts. We work it out here rather than include that
 // header, because this component sits below the chrome layer. If that
 // list ever changes order, change this line with it.
-constexpr int32_t kBoringWorldId =
-    content::ISOLATED_WORLD_ID_CONTENT_END + 3;
+constexpr int32_t kBoringWorldId = content::ISOLATED_WORLD_ID_CONTENT_END + 3;
 
 // The selectors cover the ad blocks Google and Bing use today. The
 // script watches for new results because both sites update the page in
@@ -40,23 +39,23 @@ constexpr char kScript[] = R"((function() {
   window.__boringSerp = true;
   document.documentElement.dataset.boringSerp = '1';
   var hide = %HIDE%;
-  var sels = ['#tads', '#bottomads', 'div[data-text-ad]',
+  var adSelectors = ['#tads', '#bottomads', 'div[data-text-ad]',
               '.b_ad', '.b_adTop', '.b_adBottom', 'li.b_ad',
               '.b_adLastChild'];
   function apply() {
-    sels.forEach(function(s) {
-      document.querySelectorAll(s).forEach(function(el) {
-        if (hide) { el.style.display = 'none'; return; }
-        if (el.dataset.boringLabeled) return;
-        el.dataset.boringLabeled = '1';
-        el.style.outline = '3px solid #c5221f';
-        el.style.borderRadius = '8px';
+    adSelectors.forEach(function(selector) {
+      document.querySelectorAll(selector).forEach(function(adBlock) {
+        if (hide) { adBlock.style.display = 'none'; return; }
+        if (adBlock.dataset.boringLabeled) return;
+        adBlock.dataset.boringLabeled = '1';
+        adBlock.style.outline = '3px solid #c5221f';
+        adBlock.style.borderRadius = '8px';
         var tag = document.createElement('div');
         tag.textContent = 'Sponsored result (paid advertisement)';
         tag.style.cssText = 'background:#c5221f;color:#fff;' +
             'font:bold 13px system-ui;padding:4px 10px;' +
             'border-radius:6px 6px 0 0;';
-        el.prepend(tag);
+        adBlock.prepend(tag);
       });
     });
   }
@@ -69,9 +68,8 @@ bool IsSearchResultsPage(const GURL& url) {
   if (!url.SchemeIsHTTPOrHTTPS()) {
     return false;
   }
-  std::string domain =
-      net::registry_controlled_domains::GetDomainAndRegistry(
-          url, net::registry_controlled_domains::EXCLUDE_PRIVATE_REGISTRIES);
+  std::string domain = net::registry_controlled_domains::GetDomainAndRegistry(
+      url, net::registry_controlled_domains::EXCLUDE_PRIVATE_REGISTRIES);
   bool google = domain.rfind("google.", 0) == 0;
   bool bing = domain == "bing.com";
   if (!google && !bing) {
@@ -97,13 +95,12 @@ void SerpTabHelper::DocumentOnLoadCompletedInPrimaryMainFrame() {
       user_prefs::UserPrefs::Get(contents->GetBrowserContext());
   bool hide =
       IsSeniorSafeMode(pref_service) ||
-      (pref_service &&
-       pref_service->GetBoolean(prefs::kHideSponsoredResults));
+      (pref_service && pref_service->GetBoolean(prefs::kHideSponsoredResults));
   std::string script(kScript);
   std::string marker = "%HIDE%";
-  size_t pos = script.find(marker);
-  if (pos != std::string::npos) {
-    script.replace(pos, marker.size(), hide ? "true" : "false");
+  size_t marker_pos = script.find(marker);
+  if (marker_pos != std::string::npos) {
+    script.replace(marker_pos, marker.size(), hide ? "true" : "false");
   }
   contents->GetPrimaryMainFrame()->ExecuteJavaScriptInIsolatedWorld(
       base::UTF8ToUTF16(script), base::NullCallback(), kBoringWorldId);

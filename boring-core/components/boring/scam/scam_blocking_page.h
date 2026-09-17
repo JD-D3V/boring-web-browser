@@ -17,7 +17,8 @@ namespace boring {
 // The full page warning wall shown before a known scam or phishing site
 // loads. Plain language, one safe way out, and a small continue link
 // that Senior Safe Mode removes.
-class ScamBlockingPage : public security_interstitials::SecurityInterstitialPage {
+class ScamBlockingPage
+    : public security_interstitials::SecurityInterstitialPage {
  public:
   static const security_interstitials::SecurityInterstitialPage::TypeID
       kTypeForTesting;

@@ -25,25 +25,34 @@ import zipfile
 WIDEVINE_ID = "oimompecagnajdejgnnjijobebaeigek"
 CHECK_URL = "https://update.googleapis.com/service/update2/json"
 
-DEFAULT_USER_DATA = os.path.join(os.environ.get("LOCALAPPDATA", ""),
-                                 "Chromium", "User Data")
+DEFAULT_USER_DATA = os.path.join(
+    os.environ.get("LOCALAPPDATA", ""), "Chromium", "User Data"
+)
 
 
 def find_package():
     """Ask the update service where the current CDM package lives."""
-    body = json.dumps({"request": {
-        "protocol": "3.1",
-        "acceptformat": "crx3",
-        "updater": "chromiumcrx",
-        "updaterversion": "138.0.0.0",
-        "prodversion": "138.0.0.0",
-        "os": {"platform": "Windows", "arch": "x86_64"},
-        "arch": "x64",
-        "app": [{"appid": WIDEVINE_ID, "version": "0.0.0.0",
-                 "updatecheck": {}}],
-    }}).encode()
-    req = urllib.request.Request(CHECK_URL, data=body, headers={
-        "Content-Type": "application/json", "User-Agent": "Mozilla/5.0"})
+    body = json.dumps(
+        {
+            "request": {
+                "protocol": "3.1",
+                "acceptformat": "crx3",
+                "updater": "chromiumcrx",
+                "updaterversion": "138.0.0.0",
+                "prodversion": "138.0.0.0",
+                "os": {"platform": "Windows", "arch": "x86_64"},
+                "arch": "x64",
+                "app": [
+                    {"appid": WIDEVINE_ID, "version": "0.0.0.0", "updatecheck": {}}
+                ],
+            }
+        }
+    ).encode()
+    req = urllib.request.Request(
+        CHECK_URL,
+        data=body,
+        headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"},
+    )
     text = urllib.request.urlopen(req).read().decode()
     # The reply starts with a junk line that protects against script tags.
     text = text.split("\n", 1)[1] if text.startswith(")]}'") else text
@@ -52,8 +61,9 @@ def find_package():
     check = app["updatecheck"]
     if check.get("status") != "ok":
         sys.exit("update check failed: " + json.dumps(check))
-    urls = [u["codebase"] for u in check["urls"]["url"]
-            if u["codebase"].startswith("https")]
+    urls = [
+        u["codebase"] for u in check["urls"]["url"] if u["codebase"].startswith("https")
+    ]
     package = check["manifest"]["packages"]["package"][0]
     return urls[0] + package["name"], package["hash_sha256"]
 
@@ -70,6 +80,7 @@ def main():
     data = urllib.request.urlopen(req).read()
     print("got", len(data), "bytes")
     import hashlib
+
     if hashlib.sha256(data).hexdigest() != sha256:
         sys.exit("download hash does not match, stopping")
 

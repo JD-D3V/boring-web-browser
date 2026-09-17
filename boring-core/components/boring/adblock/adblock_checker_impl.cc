@@ -46,8 +46,8 @@ void AdblockCheckerImpl::Check(const GURL& url,
                                const GURL& initiator,
                                const std::string& request_type,
                                CheckCallback callback) {
-  std::move(callback).Run(AdblockService::GetInstance()->ShouldBlock(
-      url, initiator, request_type));
+  std::move(callback).Run(
+      AdblockService::GetInstance()->ShouldBlock(url, initiator, request_type));
 }
 
 void AdblockCheckerImpl::Clone(

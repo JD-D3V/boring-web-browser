@@ -1,0 +1,10 @@
+# C++ formatting for boring-core.
+#
+# Our C++ compiles inside the Chromium tree, so we format exactly like
+# Chromium. clang-format ships the "Chromium" style built in, so this file
+# is deliberately tiny on purpose — don't add house rules that would drift
+# from upstream and make the monthly rebase harder.
+#
+# Format a file:   clang-format -i path/to/file.cc
+# Editors:         turn on "format on save" using clang-format.
+BasedOnStyle: Chromium

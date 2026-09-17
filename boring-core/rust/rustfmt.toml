@@ -1,0 +1,17 @@
+# Rust formatting for the shared core. `cargo fmt` reads this.
+#
+# Only settings that differ from rustfmt's defaults belong here. Restating a
+# default just means it silently disagrees with the tool after an upgrade.
+#
+# Run `cargo fmt` before every commit; CI runs `cargo fmt --check`.
+
+# `cargo fmt` takes this from Cargo.toml, but a bare `rustfmt` call would
+# otherwise assume 2015 and mangle the file. Keep the two in step.
+edition = "2021"
+
+# The repo is developed on Windows. Without this, files pick up CRLF and
+# every later diff is noise.
+newline_style = "Unix"
+
+use_field_init_shorthand = true
+use_try_shorthand = true

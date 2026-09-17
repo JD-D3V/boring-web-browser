@@ -20,9 +20,13 @@ fn cstr<'a>(p: *const c_char) -> Option<&'a str> {
 }
 
 /// Build an engine from filter list text (one or more lists joined with
-/// newlines). Returns null on failure. The caller owns the handle.
+/// newlines). Returns null on failure. The caller owns the handle and
+/// must give it back to `boring_adblock_free`.
+///
+/// # Safety
+/// `rules` must point to `len` readable bytes.
 #[no_mangle]
-pub extern "C" fn boring_adblock_new(rules: *const u8, len: usize) -> *mut EngineHandle {
+pub unsafe extern "C" fn boring_adblock_new(rules: *const u8, len: usize) -> *mut EngineHandle {
     let result = catch_unwind(|| {
         let bytes = unsafe { std::slice::from_raw_parts(rules, len) };
         let text = String::from_utf8_lossy(bytes);
@@ -35,11 +39,17 @@ pub extern "C" fn boring_adblock_new(rules: *const u8, len: usize) -> *mut Engin
 }
 
 /// Returns 1 when the request should be blocked, 0 otherwise.
+///
+/// # Safety
+/// `handle` must be null, or an engine from `boring_adblock_new` that has
+/// not been freed. The three string arguments must be null or valid
+/// NUL-terminated C strings.
+///
 /// request_type uses the adblock list names: script, image, stylesheet,
 /// document, subdocument, xmlhttprequest, font, media, websocket, ping,
 /// other.
 #[no_mangle]
-pub extern "C" fn boring_adblock_check(
+pub unsafe extern "C" fn boring_adblock_check(
     handle: *const EngineHandle,
     url: *const c_char,
     source_url: *const c_char,
@@ -74,8 +84,13 @@ pub extern "C" fn boring_adblock_check(
     result.unwrap_or(0)
 }
 
+/// Frees an engine.
+///
+/// # Safety
+/// `handle` must be null, or an engine from `boring_adblock_new` that has
+/// not already been freed. It must not be used afterwards.
 #[no_mangle]
-pub extern "C" fn boring_adblock_free(handle: *mut EngineHandle) {
+pub unsafe extern "C" fn boring_adblock_free(handle: *mut EngineHandle) {
     if !handle.is_null() {
         drop(unsafe { Box::from_raw(handle) });
     }
@@ -87,8 +102,13 @@ pub struct ScamList(std::collections::HashSet<String>);
 
 /// Builds a blocklist from text with one host per line. Lines starting
 /// with # are comments. A "127.0.0.1 host" hosts file layout also works.
+/// The caller owns the list and must give it back to
+/// `boring_scamlist_free`.
+///
+/// # Safety
+/// `text` must point to `len` readable bytes.
 #[no_mangle]
-pub extern "C" fn boring_scamlist_new(text: *const u8, len: usize) -> *mut ScamList {
+pub unsafe extern "C" fn boring_scamlist_new(text: *const u8, len: usize) -> *mut ScamList {
     let result = catch_unwind(|| {
         let bytes = unsafe { std::slice::from_raw_parts(text, len) };
         let text = String::from_utf8_lossy(bytes);
@@ -114,8 +134,12 @@ pub extern "C" fn boring_scamlist_new(text: *const u8, len: usize) -> *mut ScamL
 }
 
 /// Returns 1 when the host, or any parent domain of it, is on the list.
+///
+/// # Safety
+/// `handle` must be null, or a list from `boring_scamlist_new` that has
+/// not been freed. `host` must be null or a valid NUL-terminated C string.
 #[no_mangle]
-pub extern "C" fn boring_scamlist_contains(
+pub unsafe extern "C" fn boring_scamlist_contains(
     handle: *const ScamList,
     host: *const c_char,
 ) -> c_int {
@@ -142,16 +166,25 @@ pub extern "C" fn boring_scamlist_contains(
     result.unwrap_or(0)
 }
 
+/// Frees a blocklist.
+///
+/// # Safety
+/// `handle` must be null, or a list from `boring_scamlist_new` that has
+/// not already been freed. It must not be used afterwards.
 #[no_mangle]
-pub extern "C" fn boring_scamlist_free(handle: *mut ScamList) {
+pub unsafe extern "C" fn boring_scamlist_free(handle: *mut ScamList) {
     if !handle.is_null() {
         drop(unsafe { Box::from_raw(handle) });
     }
 }
 
 /// Returns the number of hosts on the list. Used for logging.
+///
+/// # Safety
+/// `handle` must be null, or a list from `boring_scamlist_new` that has
+/// not been freed.
 #[no_mangle]
-pub extern "C" fn boring_scamlist_size(handle: *const ScamList) -> usize {
+pub unsafe extern "C" fn boring_scamlist_size(handle: *const ScamList) -> usize {
     if handle.is_null() {
         return 0;
     }
