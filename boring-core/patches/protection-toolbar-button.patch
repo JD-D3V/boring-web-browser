@@ -1,0 +1,69 @@
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+@@ -94,6 +94,7 @@
+ #include "chrome/browser/ui/views/toolbar/app_menu_control.h"
+ #include "chrome/browser/ui/views/toolbar/avatar_toolbar_button_interface.h"
+ #include "chrome/browser/ui/views/toolbar/back_forward_button.h"
++#include "chrome/browser/ui/views/toolbar/boring_protection_button.h"
+ #include "chrome/browser/ui/views/toolbar/browser_app_menu_button.h"
+ #include "chrome/browser/ui/views/toolbar/chrome_labs/chrome_labs_coordinator.h"
+ #include "chrome/browser/ui/views/toolbar/home_button.h"
+@@ -528,6 +529,11 @@
+     }
+   }
+ 
++  // boring: the shield sits just right of the address bar, where the
++  // state of the page you are on belongs. It opens the Protection page.
++  boring_protection_ =
++      AddChildView(std::make_unique<BoringProtectionButton>(browser_));
++
+   // Only show the Battery Saver button when it is not controlled by the OS. On
+   // ChromeOS the battery icon in the shelf shows the same information.
+   if (!performance_manager::user_tuning::IsBatterySaverModeManagedByOS() &&
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.h
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.h
+@@ -48,6 +48,7 @@
+ class AvatarToolbarButton;
+ class AvatarToolbarButtonInterface;
+ class BatterySaverButton;
++class BoringProtectionButton;
+ class BrowserAppMenuButton;
+ class Browser;
+ class ExtensionsToolbarButton;
+@@ -379,6 +380,8 @@
+   raw_ptr<ExtensionsToolbarDesktop> extensions_container_ = nullptr;
+   raw_ptr<ToolbarDivider> toolbar_divider_ = nullptr;
+   raw_ptr<BatterySaverButton> battery_saver_button_ = nullptr;
++  // boring: the shield that says whether blocking is really working.
++  raw_ptr<BoringProtectionButton> boring_protection_ = nullptr;
+   raw_ptr<PerformanceInterventionButton> performance_intervention_button_ =
+       nullptr;
+   raw_ptr<PinnedToolbarActionsContainer> pinned_toolbar_actions_container_ =
+--- a/chrome/browser/ui/views/toolbar/BUILD.gn
++++ b/chrome/browser/ui/views/toolbar/BUILD.gn
+@@ -14,6 +14,7 @@
+     "app_menu.h",
+     "app_menu_control.h",
+     "back_forward_button.h",
++    "boring_protection_button.h",
+     "browser_app_menu_button.h",
+     "chrome_labs/chrome_labs_bubble_view.h",
+     "chrome_labs/chrome_labs_coordinator.h",
+@@ -113,6 +114,7 @@
+     "ai_overlay_toolbar_button.cc",
+     "app_menu.cc",
+     "back_forward_button.cc",
++    "boring_protection_button.cc",
+     "browser_app_menu_button.cc",
+     "chrome_labs/chrome_labs_bubble_view.cc",
+     "chrome_labs/chrome_labs_coordinator.cc",
+@@ -240,6 +242,9 @@
+     "//chrome/common:chrome_features",
+     "//chrome/common:constants",
+     "//components/autofill/core/common:features",
++    "//components/boring/adblock:browser",
++    "//components/boring/core",
++    "//components/boring/scam",
+     "//components/feature_engagement/public",
+     "//components/omnibox/browser",
+     "//components/password_manager/content/common",
