@@ -1,0 +1,120 @@
+--- a/ui/webui/resources/cr_elements/cr_shared_vars.css
++++ b/ui/webui/resources/cr_elements/cr_shared_vars.css
+@@ -197,24 +197,24 @@
+      the color pipeline. */
+   --cr-fallback-color-outline: rgb(116, 119, 117);
+ 
+-  --cr-fallback-color-primary: rgb(11, 87, 208);
++  --cr-fallback-color-primary: rgb(23, 107, 91);
+   --cr-fallback-color-on-primary: rgb(255, 255, 255);
+ 
+-  --cr-fallback-color-primary-container: rgb(211, 227, 253);
+-  --cr-fallback-color-on-primary-container: rgb(4, 30, 73);
+-
+-  --cr-fallback-color-secondary-container: rgb(194, 231, 255);
+-  --cr-fallback-color-on-secondary-container: rgb(0, 29, 53);
++  --cr-fallback-color-primary-container: rgb(215, 236, 228);
++  --cr-fallback-color-on-primary-container: rgb(9, 43, 37);
++
++  --cr-fallback-color-secondary-container: rgb(206, 232, 223);
++  --cr-fallback-color-on-secondary-container: rgb(9, 43, 37);
+ 
+   --cr-fallback-color-neutral-container: rgb(242, 242, 242);
+   --cr-fallback-color-neutral-outline: rgb(199, 199, 199);
+ 
+   --cr-fallback-color-surface: rgb(255, 255, 255);
+-  --cr-fallback-color-surface1: rgb(248, 250, 253);
+-  --cr-fallback-color-surface2: rgb(243, 246, 252);
+-  --cr-fallback-color-surface3: rgb(239, 243, 250);
+-  --cr-fallback-color-surface4: rgb(237, 242, 250);
+-  --cr-fallback-color-surface5: rgb(234, 240, 249);
++  --cr-fallback-color-surface1: rgb(250, 249, 246);
++  --cr-fallback-color-surface2: rgb(247, 246, 242);
++  --cr-fallback-color-surface3: rgb(244, 243, 238);
++  --cr-fallback-color-surface4: rgb(242, 241, 236);
++  --cr-fallback-color-surface5: rgb(239, 238, 233);
+   --cr-fallback-color-on-surface-rgb: 31, 31, 31;
+   --cr-fallback-color-on-surface: rgb(var(--cr-fallback-color-on-surface-rgb));
+ 
+@@ -223,18 +223,18 @@
+ 
+   --cr-fallback-color-on-surface-subtle: rgb(71, 71, 71);
+ 
+-  --cr-fallback-color-inverse-primary: rgb(168, 199, 250);
++  --cr-fallback-color-inverse-primary: rgb(146, 212, 187);
+   --cr-fallback-color-inverse-surface: rgb(48, 48, 48);
+   --cr-fallback-color-inverse-on-surface: rgb(242, 242, 242);
+ 
+-  --cr-fallback-color-tonal-container: rgb(211, 227, 253);
+-  --cr-fallback-color-on-tonal-container: rgb(4, 30, 73);
+-
+-  --cr-fallback-color-tonal-outline: rgb(168, 199, 250);
++  --cr-fallback-color-tonal-container: rgb(215, 236, 228);
++  --cr-fallback-color-on-tonal-container: rgb(9, 43, 37);
++
++  --cr-fallback-color-tonal-outline: rgb(168, 205, 193);
+ 
+   --cr-fallback-color-error: rgb(179, 38, 30);
+ 
+-  --cr-fallback-color-divider: rgb(211, 227, 253);
++  --cr-fallback-color-divider: rgb(216, 221, 215);
+ 
+   --cr-fallback-color-state-hover-on-prominent_: rgba(253, 252, 251, .1);
+ 
+@@ -243,11 +243,11 @@
+       var(--cr-fallback-color-state-on-subtle-rgb_), .06);
+   --cr-fallback-color-state-ripple-neutral-on-subtle_: rgba(
+       var(--cr-fallback-color-state-on-subtle-rgb_), .08);
+-  --cr-fallback-color-state-ripple-primary-rgb_: 124, 172, 248;
++  --cr-fallback-color-state-ripple-primary-rgb_: 106, 178, 158;
+   --cr-fallback-color-state-ripple-primary_: rgba(
+       var(--cr-fallback-color-state-ripple-primary-rgb_), 0.32);
+ 
+-  --cr-fallback-color-base-container: rgb(236, 239, 247);
++  --cr-fallback-color-base-container: rgb(240, 239, 234);
+ 
+   --cr-fallback-color-disabled-background: rgba(
+       var(--cr-fallback-color-on-surface-rgb), .12);
+@@ -306,12 +306,12 @@
+   html {
+     /* Colors */
+     --cr-fallback-color-outline: rgb(142, 145, 143);
+-    --cr-fallback-color-primary: rgb(168, 199, 250);
+-    --cr-fallback-color-on-primary: rgb(6, 46, 111);
+-    --cr-fallback-color-primary-container: rgb(8, 66, 160);
+-    --cr-fallback-color-on-primary-container: rgb(211, 227, 253);
+-    --cr-fallback-color-secondary-container: rgb(0, 74, 119);
+-    --cr-fallback-color-on-secondary-container: rgb(194, 231, 255);
++    --cr-fallback-color-primary: rgb(146, 212, 187);
++    --cr-fallback-color-on-primary: rgb(9, 43, 37);
++    --cr-fallback-color-primary-container: rgb(21, 74, 63);
++    --cr-fallback-color-on-primary-container: rgb(215, 236, 228);
++    --cr-fallback-color-secondary-container: rgb(26, 66, 58);
++    --cr-fallback-color-on-secondary-container: rgb(206, 232, 223);
+     --cr-fallback-color-neutral-container: rgb(40, 40, 40);
+     --cr-fallback-color-neutral-outline: rgb(117, 117, 117);
+     --cr-fallback-color-surface: rgb(31, 31, 31);
+@@ -324,11 +324,11 @@
+     --cr-fallback-color-surface-variant: rgb(68, 71, 70);
+     --cr-fallback-color-on-surface-variant: rgb(196, 199, 197);
+     --cr-fallback-color-on-surface-subtle: rgb(199, 199, 199);
+-    --cr-fallback-color-inverse-primary: rgb(11, 87, 208);
++    --cr-fallback-color-inverse-primary: rgb(23, 107, 91);
+     --cr-fallback-color-inverse-surface: rgb(227, 227, 227);
+     --cr-fallback-color-inverse-on-surface: rgb(31, 31, 31);
+-    --cr-fallback-color-tonal-container: rgb(0, 74, 119);
+-    --cr-fallback-color-on-tonal-container: rgb(194, 231, 255);
++    --cr-fallback-color-tonal-container: rgb(26, 66, 58);
++    --cr-fallback-color-on-tonal-container: rgb(206, 232, 223);
+     --cr-fallback-color-tonal-outline: rgb(4, 125, 183);
+     --cr-fallback-color-error: rgb(242, 184, 181);
+     --cr-fallback-color-divider: rgb(94, 94, 94);
+@@ -338,7 +338,7 @@
+         var(--cr-fallback-color-state-on-subtle-rgb_), .10);
+     --cr-fallback-color-state-ripple-neutral-on-subtle_: rgba(
+         var(--cr-fallback-color-state-on-subtle-rgb_), .16);
+-    --cr-fallback-color-state-ripple-primary-rgb_: 76, 141, 246;
++    --cr-fallback-color-state-ripple-primary-rgb_: 74, 150, 130;
+     --cr-fallback-color-base-container: rgba(40, 40, 40, 1);
+ 
+     --cr-card-background-color: var(--google-grey-900-white-4-percent);

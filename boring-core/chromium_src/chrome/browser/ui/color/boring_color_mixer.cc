@@ -19,6 +19,7 @@ struct Palette {
   SkColor muted;    // Text and icons that are not the point.
   SkColor line;     // Edges and separators.
   SkColor accent;   // The one colour with a job: focus and selection.
+  SkColor tint;     // A wash of the accent, behind accented things.
 };
 
 constexpr Palette kLight = {SkColorSetRGB(0xe8, 0xe7, 0xe2),
@@ -27,13 +28,14 @@ constexpr Palette kLight = {SkColorSetRGB(0xe8, 0xe7, 0xe2),
                             SkColorSetRGB(0x24, 0x2e, 0x2d),
                             SkColorSetRGB(0x5d, 0x69, 0x66),
                             SkColorSetRGB(0xd8, 0xdd, 0xd7),
-                            SkColorSetRGB(0x17, 0x6b, 0x5b)};
+                            SkColorSetRGB(0x17, 0x6b, 0x5b),
+                            SkColorSetRGB(0xd7, 0xec, 0xe4)};
 
 constexpr Palette kDark = {
     SkColorSetRGB(0x13, 0x18, 0x17), SkColorSetRGB(0x17, 0x1f, 0x1d),
     SkColorSetRGB(0x25, 0x2e, 0x2b), SkColorSetRGB(0xe8, 0xed, 0xe7),
     SkColorSetRGB(0xad, 0xb9, 0xb2), SkColorSetRGB(0x41, 0x4e, 0x47),
-    SkColorSetRGB(0x92, 0xd4, 0xbb)};
+    SkColorSetRGB(0x92, 0xd4, 0xbb), SkColorSetRGB(0x24, 0x3f, 0x38)};
 
 // The seed colour we register as the default. Anyone who picks their own
 // colour, or grey, in Customize Chrome gets Chromium's palette instead of
@@ -103,4 +105,15 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   // One accent, used where something is focused or selected.
   mixer[ui::kColorFocusableBorderFocused] = {p.accent};
   mixer[kColorOmniboxResultsIconSelected] = {p.accent};
+
+  // Chromium's own pages are painted from this same colour provider.
+  // Without these, settings and history keep Chromium's blue and the
+  // browser reads as two products stuck together.
+  mixer[ui::kColorSysPrimary] = {p.accent};
+  mixer[ui::kColorSysOnPrimary] = {dark ? p.window : SK_ColorWHITE};
+  mixer[ui::kColorSysPrimaryContainer] = {p.tint};
+  mixer[ui::kColorSysOnPrimaryContainer] = {p.ink};
+  mixer[ui::kColorSysStateFocusRing] = {p.accent};
+  mixer[ui::kColorLinkForegroundDefault] = {p.accent};
+  mixer[ui::kColorCheckboxForegroundChecked] = {p.accent};
 }
