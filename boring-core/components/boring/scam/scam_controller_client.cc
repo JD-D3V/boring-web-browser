@@ -7,6 +7,8 @@
 #include "components/boring/scam/scam_service.h"
 #include "components/security_interstitials/content/settings_page_helper.h"
 #include "components/security_interstitials/core/metrics_helper.h"
+#include "content/public/browser/browser_context.h"
+#include "content/public/browser/web_contents.h"
 
 namespace boring {
 
@@ -32,13 +34,14 @@ ScamControllerClient::ScamControllerClient(content::WebContents* web_contents,
           "en-US",
           GURL("about:blank"),
           /*settings_page_helper=*/nullptr),
-      request_url_(request_url) {}
+      request_url_(request_url),
+      context_(web_contents ? web_contents->GetBrowserContext() : nullptr) {}
 
 ScamControllerClient::~ScamControllerClient() = default;
 
 void ScamControllerClient::Proceed() {
   ScamService::GetInstance()->AllowHostForSession(
-      std::string(request_url_.host()));
+      context_, std::string(request_url_.host()));
   Reload();
 }
 

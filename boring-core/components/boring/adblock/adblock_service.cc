@@ -6,13 +6,16 @@
 #include <utility>
 
 #include "base/command_line.h"
+#include "base/files/file.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/logging.h"
+#include "base/memory/ref_counted.h"
 #include "base/no_destructor.h"
 #include "base/path_service.h"
 #include "base/task/thread_pool.h"
+#include "base/time/time.h"
 #include "components/boring/adblock/adblock_ffi.h"
 #include "url/gurl.h"
 
@@ -27,7 +30,23 @@ constexpr base::FilePath::CharType kListFile[] =
 
 constexpr char kDisableSwitch[] = "disable-boring-adblock";
 
+// How often the file is looked at again. Long enough to cost nothing
+// per request, short enough that refreshed lists are picked up without
+// restarting the browser.
+constexpr base::TimeDelta kCheckInterval = base::Minutes(30);
+
 }  // namespace
+
+AdblockEngine::AdblockEngine(void* handle) : handle_(handle) {}
+
+AdblockEngine::~AdblockEngine() {
+  if (!handle_) {
+    return;
+  }
+  if (const BoringLibrary* lib = GetBoringLibrary()) {
+    lib->adblock_free(handle_);
+  }
+}
 
 // static
 AdblockService* AdblockService::GetInstance() {
@@ -43,51 +62,127 @@ bool AdblockService::IsDisabled() {
 }
 
 void AdblockService::EnsureLoading() {
-  bool expected = false;
-  if (!load_started_.compare_exchange_strong(expected, true)) {
+  const int64_t now_us =
+      base::Time::Now().ToDeltaSinceWindowsEpoch().InMicroseconds();
+
+  if (!load_started_.exchange(true)) {
+    last_checked_us_.store(now_us, std::memory_order_relaxed);
+    base::ThreadPool::PostTask(
+        FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
+        base::BindOnce(&AdblockService::LoadOnBackgroundThread,
+                       base::Unretained(this)));
     return;
   }
+
+  // Already loaded once. Look for newer lists now and then, rate
+  // limited so this never touches the disk on a per request path.
+  int64_t last = last_checked_us_.load(std::memory_order_relaxed);
+  if (now_us - last < kCheckInterval.InMicroseconds()) {
+    return;
+  }
+  if (!last_checked_us_.compare_exchange_strong(last, now_us,
+                                                std::memory_order_relaxed)) {
+    return;  // Another thread is already doing the check.
+  }
   base::ThreadPool::PostTask(
-      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
       base::BindOnce(&AdblockService::LoadOnBackgroundThread,
                      base::Unretained(this)));
 }
 
 void AdblockService::LoadOnBackgroundThread() {
+  auto fail = [this](const std::string& why) {
+    base::AutoLock lock(lock_);
+    // A failed refresh leaves the engine already in use alone. Only
+    // report blocking as off when there is genuinely nothing loaded.
+    if (!engine_) {
+      status_ = Status::kFailed;
+      status_message_ = why;
+    }
+  };
+
   base::FilePath dir;
   if (!base::PathService::Get(base::DIR_MODULE, &dir)) {
-    LOG(ERROR) << "boring adblock: no module dir";
+    LOG(ERROR) << "boring adblock: cannot find the browser folder, ad and "
+                  "tracker blocking is OFF";
+    fail("cannot find the browser folder");
     return;
   }
   base::FilePath path = dir.Append(kListDir).Append(kListFile);
+
+  base::File::Info info;
+  if (!base::GetFileInfo(path, &info)) {
+    LOG(ERROR) << "boring adblock: no filter list at " << path
+               << ", ad and tracker blocking is OFF";
+    fail("the filter list file is missing");
+    return;
+  }
+  const int64_t mtime_us =
+      info.last_modified.ToDeltaSinceWindowsEpoch().InMicroseconds();
+  {
+    base::AutoLock lock(lock_);
+    if (engine_ && mtime_us == loaded_mtime_us_) {
+      return;  // Nothing has changed since we read it.
+    }
+  }
+
   std::string rules;
   if (!base::ReadFileToString(path, &rules) || rules.empty()) {
-    LOG(WARNING) << "boring adblock: no filter list at " << path
-                 << ", blocking is off";
+    LOG(ERROR) << "boring adblock: filter list at " << path
+               << " is empty or unreadable, ad and tracker blocking is OFF";
+    fail("the filter list is empty or unreadable");
     return;
   }
   const BoringLibrary* lib = GetBoringLibrary();
   if (!lib) {
+    LOG(ERROR) << "boring adblock: the engine did not load, ad and tracker "
+                  "blocking is OFF";
+    fail("the engine did not load");
     return;
   }
-  void* engine = lib->adblock_new(
+  void* handle = lib->adblock_new(
       reinterpret_cast<const unsigned char*>(rules.data()), rules.size());
-  if (!engine) {
-    LOG(ERROR) << "boring adblock: engine failed to build";
+  if (!handle) {
+    LOG(ERROR) << "boring adblock: engine failed to build, ad and tracker "
+                  "blocking is OFF";
+    fail("the filter lists could not be read");
     return;
   }
-  engine_.store(engine, std::memory_order_release);
+
+  auto built = base::MakeRefCounted<AdblockEngine>(handle);
+  {
+    base::AutoLock lock(lock_);
+    engine_ = std::move(built);
+    loaded_mtime_us_ = mtime_us;
+    status_ = Status::kReady;
+    status_message_.clear();
+  }
   VLOG(1) << "boring adblock: ready, " << rules.size() << " bytes of rules";
 }
 
+scoped_refptr<AdblockEngine> AdblockService::current() const {
+  base::AutoLock lock(lock_);
+  return engine_;
+}
+
 bool AdblockService::IsReady() const {
-  return engine_.load(std::memory_order_acquire) != nullptr;
+  return status() == Status::kReady;
+}
+
+AdblockService::Status AdblockService::status() const {
+  base::AutoLock lock(lock_);
+  return status_;
+}
+
+std::string AdblockService::status_message() const {
+  base::AutoLock lock(lock_);
+  return status_message_;
 }
 
 bool AdblockService::ShouldBlock(const GURL& url,
                                  const GURL& initiator,
                                  const std::string& request_type) {
-  void* engine = engine_.load(std::memory_order_acquire);
+  scoped_refptr<AdblockEngine> engine = current();
   if (!engine) {
     return false;
   }
@@ -99,8 +194,8 @@ bool AdblockService::ShouldBlock(const GURL& url,
     return false;
   }
   const std::string source = initiator.is_valid() ? initiator.spec() : "";
-  return lib->adblock_check(engine, url.spec().c_str(), source.c_str(),
-                            request_type.c_str()) == 1;
+  return lib->adblock_check(engine->handle(), url.spec().c_str(),
+                            source.c_str(), request_type.c_str()) == 1;
 }
 
 // static

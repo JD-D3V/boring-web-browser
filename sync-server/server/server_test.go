@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"google.golang.org/protobuf/proto"
@@ -35,7 +36,7 @@ func post(t *testing.T, h http.Handler, msg *pb.ClientToServerMessage,
 	}
 	req := httptest.NewRequest(http.MethodPost, "/v1/command/",
 		bytes.NewReader(body))
-	req.Header.Set("Authorization", "Bearer testchain")
+	req.Header.Set("Authorization", tokenHeader(testToken))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -189,7 +190,7 @@ func TestChainsAreSeparate(t *testing.T) {
 	})
 	req := httptest.NewRequest(http.MethodPost, "/v1/command/",
 		bytes.NewReader(body))
-	req.Header.Set("Authorization", "Bearer chain-a")
+	req.Header.Set("Authorization", tokenHeader("chain-a-0123456789abcdef"))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
@@ -205,7 +206,7 @@ func TestChainsAreSeparate(t *testing.T) {
 	})
 	req2 := httptest.NewRequest(http.MethodPost, "/v1/command/",
 		bytes.NewReader(body2))
-	req2.Header.Set("Authorization", "Bearer chain-b")
+	req2.Header.Set("Authorization", tokenHeader("chain-b-0123456789abcdef"))
 	rec2 := httptest.NewRecorder()
 	h.ServeHTTP(rec2, req2)
 	raw, _ := io.ReadAll(rec2.Body)
@@ -216,4 +217,104 @@ func TestChainsAreSeparate(t *testing.T) {
 	if got := len(resp.GetGetUpdates().GetEntries()); got != 0 {
 		t.Fatalf("one chain could see another chain's items: %d", got)
 	}
+}
+
+// ---- Authentication ----
+
+// A token long enough to be accepted. Real ones come from the browser.
+const testToken = "test-chain-0123456789abcdef"
+
+func tokenHeader(token string) string { return "Bearer " + token }
+
+// commitAs sends one commit using the given Authorization header value
+// (empty means send no header at all) and returns the status code.
+func commitAs(t *testing.T, h http.Handler, auth string) int {
+	t.Helper()
+	body, _ := proto.Marshal(&pb.ClientToServerMessage{
+		Share:           proto.String(""),
+		MessageContents: pb.ClientToServerMessage_COMMIT.Enum(),
+		Commit: &pb.CommitMessage{
+			Entries: []*pb.SyncEntity{bookmark("x")},
+		},
+	})
+	req := httptest.NewRequest(http.MethodPost, "/v1/command/",
+		bytes.NewReader(body))
+	if auth != "" {
+		req.Header.Set("Authorization", auth)
+	}
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	return rec.Code
+}
+
+func TestRequestWithoutTokenIsRejected(t *testing.T) {
+	h := newTestServer(t)
+	if got := commitAs(t, h, ""); got != http.StatusUnauthorized {
+		t.Fatalf("no token should be refused, got status %d", got)
+	}
+}
+
+func TestShortTokenIsRejected(t *testing.T) {
+	h := newTestServer(t)
+	if got := commitAs(t, h, tokenHeader("tooshort")); got != http.StatusUnauthorized {
+		t.Fatalf("short token should be refused, got status %d", got)
+	}
+}
+
+// The token must not be accepted from the query string: it would end up
+// in server logs and proxy logs.
+func TestQueryParameterTokenIsRejected(t *testing.T) {
+	h := newTestServer(t)
+	body, _ := proto.Marshal(&pb.ClientToServerMessage{
+		Share:           proto.String(""),
+		MessageContents: pb.ClientToServerMessage_COMMIT.Enum(),
+	})
+	req := httptest.NewRequest(http.MethodPost,
+		"/v1/command/?client_id="+testToken, bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("query string token should be refused, got %d", rec.Code)
+	}
+}
+
+// Two different tokens must never share a chain. These two are the case
+// the old scheme got wrong: it stripped punctuation, so both became
+// "alicetoken0123456789" and the second person read the first's data.
+func TestSimilarTokensDoNotShareAChain(t *testing.T) {
+	a := "alicetoken0123456789"
+	b := "alice.token.0123456789"
+
+	idA, err := chainID(withToken(a))
+	if err != nil {
+		t.Fatalf("token a refused: %v", err)
+	}
+	idB, err := chainID(withToken(b))
+	if err != nil {
+		t.Fatalf("token b refused: %v", err)
+	}
+	if idA == idB {
+		t.Fatalf("two different tokens landed on the same chain: %s", idA)
+	}
+}
+
+// The chain id must not contain the token itself, since it is used as a
+// file name on disk.
+func TestChainIDDoesNotLeakTheToken(t *testing.T) {
+	id, err := chainID(withToken(testToken))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(id, "test-chain") {
+		t.Fatalf("chain id contains the raw token: %s", id)
+	}
+	if len(id) != 64 {
+		t.Fatalf("want a 64 character digest, got %d", len(id))
+	}
+}
+
+func withToken(token string) *http.Request {
+	req := httptest.NewRequest(http.MethodPost, "/v1/command/", nil)
+	req.Header.Set("Authorization", tokenHeader(token))
+	return req
 }

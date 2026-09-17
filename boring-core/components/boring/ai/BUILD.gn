@@ -22,4 +22,9 @@ static_library("ai") {
     "//services/network/public/mojom",
     "//url",
   ]
+
+  # DPAPI, used to encrypt the AI key before it is written to the profile.
+  if (is_win) {
+    libs = [ "crypt32.lib" ]
+  }
 }

@@ -10,6 +10,7 @@
 #include "components/boring/scam/scam_blocking_page.h"
 #include "components/boring/scam/scam_service.h"
 #include "components/security_interstitials/content/security_interstitial_tab_helper.h"
+#include "content/public/browser/browser_context.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "net/base/net_errors.h"
@@ -61,12 +62,15 @@ ScamNavigationThrottle::Check() {
     return content::NavigationThrottle::PROCEED;
   }
   const GURL& url = handle->GetURL();
-  if (!ScamService::GetInstance()->ShouldBlock(url)) {
+  content::WebContents* contents = handle->GetWebContents();
+  content::BrowserContext* context =
+      contents ? contents->GetBrowserContext() : nullptr;
+  if (!ScamService::GetInstance()->ShouldBlock(context, url)) {
     return content::NavigationThrottle::PROCEED;
   }
 
   std::unique_ptr<ScamBlockingPage> page =
-      ScamBlockingPage::Create(handle->GetWebContents(), url);
+      ScamBlockingPage::Create(contents, url);
   std::string html = page->GetHTMLContents();
   security_interstitials::SecurityInterstitialTabHelper::AssociateBlockingPage(
       handle, std::move(page));

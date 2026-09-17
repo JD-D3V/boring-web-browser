@@ -8,10 +8,12 @@
 #include "base/functional/bind.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
+#include "base/memory/ptr_util.h"
 #include "base/strings/strcat.h"
 #include "base/values.h"
 #include "components/boring/ai/ai_prefs.h"
 #include "components/prefs/pref_service.h"
+#include "content/public/browser/browser_context.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
@@ -40,14 +42,17 @@ bool BuildRequest(const std::string& provider,
                   const std::string& text,
                   GURL* url,
                   std::string* body,
-                  std::string* auth_header) {
+                  std::string* auth_name,
+                  std::string* auth_value) {
   const std::string model = prefs->GetString(prefs::kModel);
-  const std::string key = prefs->GetString(prefs::kApiKey);
+  const std::string key = GetApiKey(prefs);
   const std::string prompt = base::StrCat({kInstruction, text});
 
   if (provider == "ollama") {
     GURL base(prefs->GetString(prefs::kOllamaUrl));
-    if (!base.is_valid()) {
+    // Only ever speak http or https here. Without this a typo like a
+    // file: or chrome: address would be handed to the loader.
+    if (!base.is_valid() || !base.SchemeIsHTTPOrHTTPS()) {
       return false;
     }
     *url = base.Resolve("/api/generate");
@@ -59,13 +64,14 @@ bool BuildRequest(const std::string& provider,
   }
 
   if (provider == "gemini") {
-    if (key.empty()) {
+    if (key.empty() || !IsPlausibleApiKey(key)) {
       return false;
     }
     const std::string name = model.empty() ? "gemini-2.0-flash" : model;
     *url = GURL("https://generativelanguage.googleapis.com/v1beta/models/" +
                 name + ":generateContent");
-    *auth_header = "x-goog-api-key: " + key;
+    *auth_name = "x-goog-api-key";
+    *auth_value = key;
     base::DictValue part;
     part.Set("text", prompt);
     base::ListValue parts;
@@ -80,7 +86,7 @@ bool BuildRequest(const std::string& provider,
   }
 
   // The rest all speak the same shape as OpenAI's chat endpoint.
-  if (key.empty()) {
+  if (key.empty() || !IsPlausibleApiKey(key)) {
     return false;
   }
   if (provider == "openai") {
@@ -92,7 +98,8 @@ bool BuildRequest(const std::string& provider,
   } else {
     return false;
   }
-  *auth_header = "Authorization: Bearer " + key;
+  *auth_name = "Authorization";
+  *auth_value = "Bearer " + key;
 
   base::DictValue message;
   message.Set("role", "user");
@@ -162,10 +169,25 @@ std::string ReadAnswer(const std::string& provider, const std::string& body) {
 
 }  // namespace
 
+namespace {
+// Key for the per profile copy kept on the browser context.
+constexpr char kUserDataKey[] = "boring_ai_summary_service";
+}  // namespace
+
 // static
-AiSummaryService* AiSummaryService::GetInstance() {
-  static base::NoDestructor<AiSummaryService> instance;
-  return instance.get();
+AiSummaryService* AiSummaryService::GetForBrowserContext(
+    content::BrowserContext* context) {
+  if (!context) {
+    return nullptr;
+  }
+  auto* service =
+      static_cast<AiSummaryService*>(context->GetUserData(kUserDataKey));
+  if (!service) {
+    auto owned = base::WrapUnique(new AiSummaryService());
+    service = owned.get();
+    context->SetUserData(kUserDataKey, std::move(owned));
+  }
+  return service;
 }
 
 AiSummaryService::AiSummaryService() = default;
@@ -205,8 +227,10 @@ void AiSummaryService::Send(
 
   GURL url;
   std::string body;
-  std::string auth_header;
-  if (!BuildRequest(provider_, prefs, text_, &url, &body, &auth_header) ||
+  std::string auth_name;
+  std::string auth_value;
+  if (!BuildRequest(provider_, prefs, text_, &url, &body, &auth_name,
+                    &auth_value) ||
       !url.is_valid()) {
     error_ = "The AI settings are not filled in yet.";
     Finish(State::kFailed);
@@ -243,10 +267,8 @@ void AiSummaryService::Send(
   request->url = url;
   request->method = "POST";
   request->credentials_mode = network::mojom::CredentialsMode::kOmit;
-  if (!auth_header.empty()) {
-    size_t colon = auth_header.find(": ");
-    request->headers.SetHeader(auth_header.substr(0, colon),
-                               auth_header.substr(colon + 2));
+  if (!auth_name.empty()) {
+    request->headers.SetHeader(auth_name, auth_value);
   }
 
   loader_ = network::SimpleURLLoader::Create(std::move(request), annotation);
@@ -258,12 +280,16 @@ void AiSummaryService::Send(
   loader_->DownloadToString(
       loader_factory.get(),
       base::BindOnce(
-          [](AiSummaryService* self, std::optional<std::string> response) {
-            self->OnResponse(response ? std::make_unique<std::string>(
-                                            std::move(*response))
-                                      : nullptr);
+          [](base::WeakPtr<AiSummaryService> self,
+             std::optional<std::string> response) {
+            if (!self) {
+              return;
+            }
+            self->OnResponse(
+                response ? std::make_unique<std::string>(std::move(*response))
+                         : nullptr);
           },
-          base::Unretained(this)),
+          weak_factory_.GetWeakPtr()),
       kMaxResponseBytes);
 }
 

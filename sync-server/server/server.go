@@ -9,7 +9,9 @@ package server
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -31,6 +33,7 @@ type Server struct {
 	store *store.Store
 }
 
+// New returns a server that keeps its chains in s.
 func New(s *store.Store) *Server {
 	return &Server{store: s}
 }
@@ -39,39 +42,48 @@ func New(s *store.Store) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/v1/command/", s.handleCommand)
-	mux.HandleFunc("/v1/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("ok"))
+	mux.HandleFunc("/v1/health", func(w http.ResponseWriter, _ *http.Request) {
+		// A failed write means the caller hung up. There is nobody left
+		// to tell.
+		_, _ = w.Write([]byte("ok"))
 	})
 	return mux
 }
 
+// The shortest bearer token we will accept. The token is the only
+// thing standing between one person's chain and everyone else's, so a
+// short one is refused rather than quietly trusted.
+const minTokenLength = 16
+
+// ErrNoToken is returned when a request carries no usable bearer token.
+var ErrNoToken = errors.New("missing or too short bearer token")
+
 // chainID works out which sync chain this request belongs to. The
-// browser sends a bearer token that the devices in one chain share. We
-// never look inside it beyond using it as a name.
-func chainID(r *http.Request) string {
+// browser sends a bearer token that the devices in one chain share.
+//
+// The token is a secret, so it is never used as a name directly. We
+// hash it and use the digest instead. That buys three things: a fixed
+// length, file name safe id; no way for two different tokens to land on
+// the same chain; and the raw token never reaches the disk.
+//
+// A request without a usable token gets no chain at all. There is
+// deliberately no shared fallback chain: an unauthenticated request
+// must not be able to read or write anybody's data.
+func chainID(r *http.Request) (string, error) {
 	auth := r.Header.Get("Authorization")
-	token := strings.TrimSpace(strings.TrimPrefix(auth, "Bearer"))
-	if token == "" {
-		token = r.URL.Query().Get("client_id")
+	const prefix = "Bearer "
+	if len(auth) <= len(prefix) || !strings.EqualFold(auth[:len(prefix)], prefix) {
+		return "", ErrNoToken
 	}
-	if token == "" {
-		return "default"
+	token := strings.TrimSpace(auth[len(prefix):])
+	if len(token) < minTokenLength {
+		return "", ErrNoToken
 	}
-	sum := make([]byte, 0, len(token))
-	for _, c := range []byte(token) {
-		// Keep it to characters that are safe in a file name.
-		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-			(c >= '0' && c <= '9') || c == '-' || c == '_' {
-			sum = append(sum, c)
-		}
-	}
-	if len(sum) == 0 {
-		return "default"
-	}
-	if len(sum) > 64 {
-		sum = sum[:64]
-	}
-	return string(sum)
+	// Hashing the whole token means every distinct token gets its own
+	// chain. The old scheme stripped punctuation and truncated, so
+	// "alice.1" and "alice1" collided into one chain.
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:]), nil
 }
 
 func newBirthday() string {
@@ -98,7 +110,14 @@ func (s *Server) handleCommand(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := chainID(r)
+	id, err := chainID(r)
+	if err != nil {
+		// No token, no data. Say so plainly and send nothing back.
+		w.Header().Set("WWW-Authenticate", "Bearer")
+		http.Error(w, "a bearer token is required", http.StatusUnauthorized)
+		return
+	}
+
 	birthday := s.store.Birthday(id)
 	if birthday == "" {
 		birthday = newBirthday()
@@ -147,7 +166,9 @@ func writeResponse(w http.ResponseWriter, resp *pb.ClientToServerResponse) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Write(out)
+	if _, err := w.Write(out); err != nil {
+		log.Printf("could not send reply: %v", err)
+	}
 }
 
 func (s *Server) commit(id string, msg *pb.CommitMessage) *pb.CommitResponse {
@@ -190,7 +211,6 @@ func (s *Server) commit(id string, msg *pb.CommitMessage) *pb.CommitResponse {
 				ResponseType: pb.CommitResponse_SUCCESS.Enum(),
 				IdString:     proto.String(item.ID),
 				Version:      proto.Int64(item.Version),
-				Mtime:        proto.Int64(item.Mtime),
 			})
 	}
 	return resp

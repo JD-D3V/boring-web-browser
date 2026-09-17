@@ -8,9 +8,14 @@
 
 #include "base/functional/callback.h"
 #include "base/memory/scoped_refptr.h"
-#include "base/no_destructor.h"
+#include "base/memory/weak_ptr.h"
+#include "base/supports_user_data.h"
 
 class PrefService;
+
+namespace content {
+class BrowserContext;
+}  // namespace content
 
 namespace network {
 class SharedURLLoaderFactory;
@@ -26,20 +31,30 @@ namespace ai {
 // page aside as "waiting". Nothing is sent anywhere until the person
 // looks at where it would go and says send. That is what makes the
 // honest label real rather than decoration.
-class AiSummaryService {
+//
+// There is one of these per profile, kept on the browser context. It is
+// deliberately not a singleton: the page text held here is the content
+// of something the person was reading, and an incognito window must not
+// share that with the ordinary window, in either direction. Holding it
+// on the context also means the text goes away when the profile does.
+class AiSummaryService : public base::SupportsUserData::Data {
  public:
   enum class State {
-    kNothing,   // no page is waiting
-    kWaiting,   // a page is ready, nothing sent yet
-    kWorking,   // sent, waiting for an answer
-    kDone,      // there is a summary to read
-    kFailed,    // something went wrong
+    kNothing,  // no page is waiting
+    kWaiting,  // a page is ready, nothing sent yet
+    kWorking,  // sent, waiting for an answer
+    kDone,     // there is a summary to read
+    kFailed,   // something went wrong
   };
 
-  static AiSummaryService* GetInstance();
+  // Returns the service for this profile, making it on first use.
+  // Null only when context is null.
+  static AiSummaryService* GetForBrowserContext(
+      content::BrowserContext* context);
 
   AiSummaryService(const AiSummaryService&) = delete;
   AiSummaryService& operator=(const AiSummaryService&) = delete;
+  ~AiSummaryService() override;
 
   // Puts a page aside, ready to be sent if the person agrees. Replaces
   // anything already waiting.
@@ -65,10 +80,7 @@ class AiSummaryService {
   size_t text_length() const { return text_.size(); }
 
  private:
-  friend class base::NoDestructor<AiSummaryService>;
-
   AiSummaryService();
-  ~AiSummaryService();
 
   void OnResponse(std::unique_ptr<std::string> body);
   void Finish(State state);
@@ -83,6 +95,8 @@ class AiSummaryService {
 
   base::RepeatingClosure on_change_;
   std::unique_ptr<network::SimpleURLLoader> loader_;
+
+  base::WeakPtrFactory<AiSummaryService> weak_factory_{this};
 };
 
 }  // namespace ai

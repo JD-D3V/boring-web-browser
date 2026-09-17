@@ -32,6 +32,11 @@ static_library("browser") {
     "//url",
   ]
   data_deps = [ ":adblock_dll" ]
+
+  # WinVerifyTrust, used to check the engine is signed before loading it.
+  if (is_win) {
+    libs = [ "wintrust.lib" ]
+  }
 }
 
 static_library("renderer") {
