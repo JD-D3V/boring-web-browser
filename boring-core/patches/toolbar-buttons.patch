@@ -1,17 +1,22 @@
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
-@@ -94,6 +94,7 @@
+@@ -94,6 +94,8 @@
  #include "chrome/browser/ui/views/toolbar/app_menu_control.h"
  #include "chrome/browser/ui/views/toolbar/avatar_toolbar_button_interface.h"
  #include "chrome/browser/ui/views/toolbar/back_forward_button.h"
 +#include "chrome/browser/ui/views/toolbar/boring_protection_button.h"
++#include "chrome/browser/ui/views/toolbar/boring_reader_button.h"
  #include "chrome/browser/ui/views/toolbar/browser_app_menu_button.h"
  #include "chrome/browser/ui/views/toolbar/chrome_labs/chrome_labs_coordinator.h"
  #include "chrome/browser/ui/views/toolbar/home_button.h"
-@@ -528,6 +529,11 @@
+@@ -528,6 +530,15 @@
      }
    }
  
++  // boring: reader view, next to the shield. It hides itself on pages
++  // that have no article in them, so it is never a dead control.
++  boring_reader_ = AddChildView(std::make_unique<BoringReaderButton>(browser_));
++
 +  // boring: the shield sits just right of the address bar, where the
 +  // state of the page you are on belongs. It opens the Protection page.
 +  boring_protection_ =
@@ -20,50 +25,79 @@
    // Only show the Battery Saver button when it is not controlled by the OS. On
    // ChromeOS the battery icon in the shelf shows the same information.
    if (!performance_manager::user_tuning::IsBatterySaverModeManagedByOS() &&
+@@ -1186,6 +1197,7 @@
+     reload_control->SetDevToolsStatus(
+         chrome::IsDebuggerAttachedToCurrentTab(browser_));
+   }
++
+ }
+ 
+ bool ToolbarView::UpdateSecurityState() {
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.h
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.h
-@@ -48,6 +48,7 @@
+@@ -48,6 +48,8 @@
  class AvatarToolbarButton;
  class AvatarToolbarButtonInterface;
  class BatterySaverButton;
 +class BoringProtectionButton;
++class BoringReaderButton;
  class BrowserAppMenuButton;
  class Browser;
  class ExtensionsToolbarButton;
-@@ -379,6 +380,8 @@
+@@ -379,6 +381,10 @@
    raw_ptr<ExtensionsToolbarDesktop> extensions_container_ = nullptr;
    raw_ptr<ToolbarDivider> toolbar_divider_ = nullptr;
    raw_ptr<BatterySaverButton> battery_saver_button_ = nullptr;
 +  // boring: the shield that says whether blocking is really working.
 +  raw_ptr<BoringProtectionButton> boring_protection_ = nullptr;
++  // boring: shows itself only on pages with an article in them.
++  raw_ptr<BoringReaderButton> boring_reader_ = nullptr;
    raw_ptr<PerformanceInterventionButton> performance_intervention_button_ =
        nullptr;
    raw_ptr<PinnedToolbarActionsContainer> pinned_toolbar_actions_container_ =
 --- a/chrome/browser/ui/views/toolbar/BUILD.gn
 +++ b/chrome/browser/ui/views/toolbar/BUILD.gn
-@@ -14,6 +14,7 @@
+@@ -14,6 +14,8 @@
      "app_menu.h",
      "app_menu_control.h",
      "back_forward_button.h",
 +    "boring_protection_button.h",
++    "boring_reader_button.h",
      "browser_app_menu_button.h",
      "chrome_labs/chrome_labs_bubble_view.h",
      "chrome_labs/chrome_labs_coordinator.h",
-@@ -113,6 +114,7 @@
+@@ -113,6 +115,8 @@
      "ai_overlay_toolbar_button.cc",
      "app_menu.cc",
      "back_forward_button.cc",
 +    "boring_protection_button.cc",
++    "boring_reader_button.cc",
      "browser_app_menu_button.cc",
      "chrome_labs/chrome_labs_bubble_view.cc",
      "chrome_labs/chrome_labs_coordinator.cc",
-@@ -240,6 +242,9 @@
+@@ -175,6 +179,7 @@
+     "//chrome/browser:resources",
+     "//chrome/browser/actor/ui/task_list_bubble:controller",
+     "//chrome/browser/bookmarks",
++    "//chrome/browser/dom_distiller",
+     "//chrome/browser/extensions",
+     "//chrome/browser/external_protocol",
+     "//chrome/browser/feedback",
+@@ -240,11 +245,17 @@
      "//chrome/common:chrome_features",
      "//chrome/common:constants",
      "//components/autofill/core/common:features",
 +    "//components/boring/adblock:browser",
 +    "//components/boring/core",
++    "//components/boring/reader",
 +    "//components/boring/scam",
++    "//components/dom_distiller/content/browser",
      "//components/feature_engagement/public",
      "//components/omnibox/browser",
      "//components/password_manager/content/common",
+     "//components/performance_manager",
+     "//components/safe_browsing/core/common",
++    "//components/tabs:public",
+     "//components/send_tab_to_self",
+     "//components/sessions",
+     "//components/signin/public/base:signin_buildflags",
