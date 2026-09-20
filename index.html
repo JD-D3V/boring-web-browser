@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Boring Browser. A deliberately simple Chromium-based Windows browser. Preview release information, privacy and download safety.">
+  <title>Boring Browser — Just a Browser.</title>
+  <link rel="icon" href="brand.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="wrap header">
+    <a class="wordmark" href="./"><img src="brand.svg" alt="" width="36" height="36">boring browser</a>
+    <nav aria-label="Main navigation"><a href="#download">Download</a><a href="#details">Before you try it</a><a href="privacy.html">Privacy &amp; notices</a></nav>
+  </header>
+  <main id="main">
+    <section class="wrap hero">
+      <div><p class="eyebrow">AN INDEPENDENT BROWSER / WINDOWS EDITION</p>
+        <h1>Just a Browser.</h1>
+        <p class="tagline">Find what you came for.</p>
+        <p class="intro">Open a tab. Read something. Get on with your day. A Windows browser built on ungoogled-chromium, with ad and tracker blocking built in.</p>
+        <a class="button" href="#download">View release status <span aria-hidden="true">↗</span></a>
+        <p class="small">Independent project by JD. Experimental preview in preparation.</p>
+      </div>
+      <aside class="brand-card" aria-label="A note from the maker"><div class="note-top"><span>FIELD NOTE / 001</span><img src="brand.svg" width="54" height="54" alt="Boring Browser’s blackletter B logo"></div><p class="maker-note">The browser should be the least interesting part of your afternoon.</p><p>Not the article. Not the project you’re working on. Just the thing around it.</p><div class="note-bottom"><span>That’s the idea.</span><span>— JD</span></div><small>One independent project. Still a work in progress.</small></aside>
+    </section>
+    <section id="download" class="wrap release" aria-labelledby="release-title">
+      <div><p class="eyebrow">RELEASE DESK / NOT RELEASED</p><h2 id="release-title">Not quite<br>off the press.</h2><p>The Windows preview is being prepared. Testing comes before the download button.</p><button disabled>Download not available yet</button><p class="small">No old build. No mystery installer. The verified files will go here.</p></div>
+      <dl><div><dt>Platform</dt><dd>Windows x64 · exact supported versions pending testing</dd></div><div><dt>Version &amp; release date</dt><dd>Not released</dd></div><div><dt>Publisher signature</dt><dd>Not verified for a final candidate</dd></div><div><dt>Checksums</dt><dd>Published with the final files</dd></div><div><dt>Browser updates</dt><dd>No automatic updater in v1</dd></div></dl>
+    </section>
+    <section id="details" class="wrap details"><p class="eyebrow">READ BEFORE INSTALLING / KEEP FOR REFERENCE</p><h2>The small print.<br><em>In a readable size.</em></h2>
+      <div class="detail-grid"><article><h3>Not your daily browser yet</h3><p>Use a separate test profile. Keep a maintained browser for sensitive accounts and important work. On school-managed devices, ask your IT administrator before installing.</p></article><article><h3>No scam-site database in v1</h3><p>URLhaus and OpenPhish data are excluded from v1. Ad blocking and popup protection do not replace malware or phishing protection.</p></article><article><h3>Updates need your attention</h3><p>Without automatic browser updates, you must check for new releases and update manually. Stop using a withdrawn or outdated preview. No maintenance timetable is promised yet.</p></article><article><h3>Windows warnings matter</h3><p>An unsigned or unfamiliar build may trigger a warning. Don’t disable Defender or SmartScreen. Signing, when available, identifies a publisher; it does not guarantee safety.</p></article></div>
+      <details><summary>How will I check a download?</summary><p>Use only the official release linked here once available. Compare its exact filename and SHA-256 with the published checksum file. In PowerShell:</p><pre><code>Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\Downloads\EXACT-FILENAME.exe'</code></pre><p>A matching hash confirms matching bytes, not that the software is harmless or the download site uncompromised. Read the release’s signing status and known issues before running it.</p></details>
+      <details><summary>Will streaming and every website work?</summary><p>Compatibility is still being tested. Widevine is not bundled, so DRM-dependent services may not work. Blocking can also break individual sites. Final release notes will list tested behavior and unresolved issues.</p></details>
+      <details><summary>Where do I report a problem?</summary><p><a href="report.html">Report a problem</a> to JD by email, including security or privacy concerns. Never send passwords, API keys, school records or browser profiles. This independent project does not offer guaranteed support.</p></details>
+    </section>
+  </main>
+  <footer class="wrap"><span>boring browser · Made by <a href="https://github.com/JD-D3V">JD</a></span><a href="report.html">Report a problem</a><a href="privacy.html">Privacy, licences &amp; preview notices</a></footer>
+</body>
+</html>
