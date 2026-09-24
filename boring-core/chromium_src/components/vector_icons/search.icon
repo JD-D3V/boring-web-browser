@@ -1,0 +1,11 @@
+// Copyright 2026 boring. BSD style license.
+
+// The magnifier from the V2 icon family (icons.js "search"): a stroked
+// circle and a short handle, on the same 24 grid. Used for the
+// search-type row icon in the omnibox suggestion list.
+
+CANVAS_DIMENSIONS, 24,
+STROKE, 1.7,
+CIRCLE, 10.5, 10.5, 6.5,
+MOVE_TO, 16, 16,
+LINE_TO, 21, 21,

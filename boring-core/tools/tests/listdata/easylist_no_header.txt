@@ -1,0 +1,3 @@
+! Title: a filter list with no header
+||ads.example.invalid^
+||tracker.example.invalid^

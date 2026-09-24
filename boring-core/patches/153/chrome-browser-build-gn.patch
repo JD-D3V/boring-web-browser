@@ -1,0 +1,35 @@
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -836,6 +836,13 @@ source_set("core") {
+   sources = [
+     "about_flags.cc",
+     "after_startup_task_utils.cc",
++    # boring: the chrome/browser halves of components/boring/privacy and
++    # components/boring/search, built
++    # here rather than as a target of its own, which this target would
++    # then have to depend on while //components/boring already depends
++    # on nothing above it.
++    "boring/privacy_bridge.cc",
++    "boring/search_engines_bridge.cc",
+     "browser_about_handler.cc",
+     "browser_process_impl.cc",
+     "chrome_browser_field_trials.cc",
+@@ -1111,6 +1118,17 @@ source_set("core") {
+     "//components/application_locale_storage",
+     "//components/assist_ranker",
+     "//components/blocked_content",
++    "//components/boring/adblock:browser",
++    "//components/boring/adblock/mojom",
++    "//components/boring/ai",
++    "//components/boring/core",
++    "//components/boring/lists",
++    "//components/boring/newtab",
++    "//components/boring/popunder",
++    "//components/boring/privacy",
++    "//components/boring/scam",
++    "//components/boring/search",
++    "//components/boring/webstore",
+     "//components/breadcrumbs/core",
+     "//components/breadcrumbs/core:status",
+     "//components/browser_actuator/public",

@@ -7,12 +7,14 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
 #include "base/sequence_checker.h"
+#include "base/time/time.h"
 #include "components/boring/lists/list_paths.h"
 #include "url/gurl.h"
 
@@ -30,7 +32,7 @@ namespace boring {
 //
 // Lists are baked in when the browser is built, so without this they
 // only ever get older: the ad rules stop matching new ad servers, and
-// the scam list misses the sites people are actually being sent to this
+// a stale list misses what people are actually being sent to this
 // week. That is a safety failure rather than a cosmetic one, which is
 // why it is on by default.
 //
@@ -41,14 +43,40 @@ namespace boring {
 // small manifest is read at most once a day, and a list is downloaded
 // only when its hash says it actually changed.
 //
+// The manifest has to be signed by a key this browser was built with
+// before anything in it is believed. The hashes in it catch a file that
+// arrived corrupted; they say nothing about who wrote the manifest, and
+// whoever can replace the lists on the release host can replace the
+// manifest that describes them.
+//
 // Lives on the UI thread. Disk reads, hashing and writes go to the
 // thread pool.
 class ListUpdater {
  public:
+  // How the last finished check went. Read off the disk, so it is the
+  // same answer after a restart.
+  struct Status {
+    // When the last check finished, null when none ever has.
+    base::Time checked_at;
+    // Manifest version in use, 0 when no check has applied one.
+    int version = 0;
+    // The publisher said it built this bundle without one of its
+    // sources. The lists are real but thinner than usual.
+    bool degraded = false;
+    // One word for how the last check ended: ok, network, signature,
+    // manifest, content or stale. Empty when none has finished.
+    std::string outcome;
+  };
+
   static ListUpdater* GetInstance();
 
   ListUpdater(const ListUpdater&) = delete;
   ListUpdater& operator=(const ListUpdater&) = delete;
+
+  // What the last check did. Looks at the disk, so call this somewhere
+  // blocking is allowed. Anything showing how fresh the lists are
+  // should say what this says and not what it hopes.
+  static Status ReadStatus();
 
   // Fetches newer lists if there are any and it is time to look. Does
   // nothing when updates are off, when a check is already running, or
@@ -65,8 +93,13 @@ class ListUpdater {
   // unless --boring-list-url points somewhere else for a test.
   static GURL GetFeedUrl();
 
-  // True unless the person turned updates off in Protection, or the
-  // command line did.
+  // False while this build trusts no real publishing key. Lists then
+  // change only when a newer version of the browser is installed, and
+  // nothing is asked for.
+  static bool CanUpdate();
+
+  // True unless this build cannot update, the person turned updates off
+  // in Protection, or the command line did.
   static bool IsEnabled(const PrefService* prefs);
 
  private:
@@ -84,6 +117,10 @@ class ListUpdater {
     std::string scam_sha256;
     // Manifest version the last check applied, 0 when there was none.
     int version = 0;
+    // Whether that bundle was a degraded one. Carried forward when a
+    // check fails, so the recorded state keeps describing the lists
+    // actually on disk rather than quietly calling them complete.
+    bool degraded = false;
   };
 
   // One list the manifest offers that we do not already have.
@@ -106,20 +143,29 @@ class ListUpdater {
                        std::string sha256,
                        int64_t size,
                        std::string body);
-  // Notes that a check happened, and which version it saw.
-  static void RecordCheck(int version);
+  // Notes that a check happened, which version it saw and how it went.
+  static void RecordCheck(int version, bool degraded, std::string outcome);
 
   void OnLookedAtDisk(Local local);
   void OnManifest(std::optional<std::string> body);
+  void OnManifestSignature(std::optional<std::string> body);
+  // Reads a manifest whose signature has already been checked.
+  void ApplyManifest();
   void FetchNextList();
   void OnListDownloaded(std::optional<std::string> body);
   void OnListSaved(bool saved);
+  // Ends the check, recording why. Every path out goes through here.
+  void FinishWith(std::string_view outcome);
   void Finish();
 
   scoped_refptr<network::SharedURLLoaderFactory> factory_;
   std::unique_ptr<network::SimpleURLLoader> loader_;
   Local local_;
   std::vector<Wanted> wanted_;
+  // The manifest as it arrived, held while its signature is fetched.
+  // Kept as the bytes that were served, because that is what was
+  // signed, and re-encoding them would check a different thing.
+  std::string manifest_;
   size_t next_ = 0;
   bool running_ = false;
   // True once this check has actually gone to the network. Only then is
@@ -130,6 +176,12 @@ class ListUpdater {
   bool all_saved_ = true;
   // Version of the manifest being applied, written down once it is.
   int version_ = 0;
+  // What the verified manifest said about its own sources. False until
+  // a manifest has been verified, so a check that never got that far
+  // cannot claim to know anything about the bundle.
+  bool degraded_ = false;
+  // One word for how this check ended, written down when it does.
+  std::string outcome_;
 
   SEQUENCE_CHECKER(sequence_checker_);
 

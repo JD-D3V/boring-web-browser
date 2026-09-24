@@ -1,0 +1,30 @@
+--- a/chrome/browser/importer/BUILD.gn
++++ b/chrome/browser/importer/BUILD.gn
+@@ -60,6 +60,7 @@
+     "//chrome/common/importer:interfaces",
+     "//components/bookmarks/browser",
+     "//components/bookmarks/common",
++    "//components/boring/importer",
+     "//components/favicon/core",
+     "//components/password_manager/core/browser:password_form",
+     "//components/password_manager/core/browser/password_store:password_store_interface",
+--- a/chrome/utility/BUILD.gn
++++ b/chrome/utility/BUILD.gn
+@@ -136,9 +136,16 @@
+         "importer/ie_importer_win.h",
+         "importer/nss_decryptor_win.cc",
+         "importer/nss_decryptor_win.h",
++
++        # boring: the Chrome and Edge importer, one of these.
++        "//components/boring/importer/chromium_importer.cc",
++        "//components/boring/importer/chromium_importer.h",
+       ]
+ 
+-      deps += [ "//services/proxy_resolver_win" ]
++      deps += [
++        "//components/boring/importer",
++        "//services/proxy_resolver_win",
++      ]
+     }
+     deps += [
+       "//chrome/common:mojo_bindings",

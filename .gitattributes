@@ -1,0 +1,2 @@
+# Bundled extension files stay byte-exact (pinned by hash).
+boring-core/components/boring/webstore/chromium-web-store/** -text

@@ -8,9 +8,7 @@ setting came back. Also checks the page starts with AI turned off.
 import sys
 import time
 
-from drive import Browser
-
-PROFILE = r"E:\ung\testprofile"
+from drive import Browser, PROFILE
 
 
 def main():

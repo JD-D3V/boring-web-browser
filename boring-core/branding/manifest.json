@@ -1,0 +1,411 @@
+{
+  "generator": "boring-core/tools/export_brand.py",
+  "status": "approved",
+  "final_asset_available": true,
+  "final_asset_note": "JD approved this B on 2026-09-19, from the review render in artifacts/brand-review/unifrakturcook-b.png. The glyph is UnifrakturCook Bold under the SIL Open Font License 1.1, archived with its licence under branding/source/, so these outputs are cleared for distribution. Do not change the approved shape without another review.",
+  "inputs": [
+    {
+      "path": "branding/source/UnifrakturCook-Bold.ttf",
+      "role": "glyph outline source: UnifrakturCook Bold, copyright 2010 j. 'mach' wust and 2009 Peter Wiegel, SIL Open Font License 1.1. Approved by JD on 2026-09-19. Redistributable, and the licence ships beside it.",
+      "sha256": "ea002fa9c65f1a612af100e00d87ab65f16381f450020ec3d021f3dbf79a6dcd"
+    },
+    {
+      "path": "branding/source/UnifrakturCook-OFL.txt",
+      "role": "SIL Open Font License 1.1 for UnifrakturCook Bold, kept with the font as the licence requires",
+      "sha256": "99d2f30e282d6174af8ff68597f58bb53c0dcb2b104a4c1b8d19da49021d00d3"
+    },
+    {
+      "path": "branding/source/chromium_doc.ico",
+      "role": "Chromium's chromium_doc.ico (BSD), page silhouette kept",
+      "sha256": "4e0036343c5b7964fb5c1829a0a0900e9b94acc0ebd1b1fc841f146d42b078ff"
+    },
+    {
+      "path": "branding/source/chromium_pdf.ico",
+      "role": "Chromium's chromium_pdf.ico (BSD), page and PDF label kept",
+      "sha256": "11087e79da52996f752829bb49c564a02120948eac23fe50a7a0ae5e5b33b536"
+    }
+  ],
+  "masters": {
+    "tile": {
+      "path": "branding/master/b-tile.svg",
+      "sha256": "d3dec47b589729ee699def1dd6616c19fbfad940431efa749b40dac98333fd87"
+    },
+    "glyph": {
+      "path": "branding/master/b-glyph.svg",
+      "sha256": "1cf850f4ad1646c766936a1a077fad3dbd51e7de536a59cbf234326c8d9df6c7"
+    }
+  },
+  "geometry": {
+    "source": "design/v2/brand-preview.svg",
+    "box": 64,
+    "plate": {
+      "x": 2.0,
+      "y": 2.0,
+      "w": 60.0,
+      "h": 60.0,
+      "rx": 17.0,
+      "fill": "#176b5b"
+    },
+    "glyph": {
+      "char": "B",
+      "font_size": 49.0,
+      "anchor": "middle",
+      "anchor_x": 30.0,
+      "baseline_y": 48.0,
+      "fill": "#faf9f6",
+      "bounds": [
+        13.168,
+        11.274,
+        45.779,
+        47.713
+      ],
+      "glyph_id": 37,
+      "advance_units": 1451,
+      "units_per_em": 2048,
+      "text_start_x": 12.641846
+    }
+  },
+  "size_tweaks": {
+    "16": {
+      "plate": [
+        0.0,
+        0.0,
+        64.0,
+        64.0,
+        13.0
+      ],
+      "glyph_scale": 1.25,
+      "glyph_gamma": 0.7,
+      "note": "derived from the same master outline; plate fills the canvas, glyph scaled about the centre of its bounds, glyph coverage raised to glyph_gamma"
+    },
+    "20": {
+      "plate": [
+        0.0,
+        0.0,
+        64.0,
+        64.0,
+        14.0
+      ],
+      "glyph_scale": 1.2,
+      "glyph_gamma": 0.75,
+      "note": "derived from the same master outline; plate fills the canvas, glyph scaled about the centre of its bounds, glyph coverage raised to glyph_gamma"
+    },
+    "24": {
+      "plate": [
+        0.0,
+        0.0,
+        64.0,
+        64.0,
+        15.0
+      ],
+      "glyph_scale": 1.14,
+      "glyph_gamma": 0.8,
+      "note": "derived from the same master outline; plate fills the canvas, glyph scaled about the centre of its bounds, glyph coverage raised to glyph_gamma"
+    }
+  },
+  "raster": {
+    "fill_rule": "nonzero",
+    "coverage": "exact horizontal spans, 32 sub-rows per pixel (16 above 128 px)",
+    "blend": "premultiplied source-over in sRGB",
+    "ico": "BMP32 + AND mask below 256 px, PNG at 256 (as Chromium's own icons)",
+    "zlib_runtime": "1.3.1"
+  },
+  "outputs": [
+    {
+      "path": "branding/master/b-tile.svg",
+      "chromium_dest": null,
+      "use": "master: plate + B, 64 box",
+      "size": "64x64 viewBox",
+      "bytes": 1092,
+      "sha256": "d3dec47b589729ee699def1dd6616c19fbfad940431efa749b40dac98333fd87"
+    },
+    {
+      "path": "branding/master/b-glyph.svg",
+      "chromium_dest": null,
+      "use": "master: B only, currentColor",
+      "size": "64x64 viewBox",
+      "bytes": 1031,
+      "sha256": "1cf850f4ad1646c766936a1a077fad3dbd51e7de536a59cbf234326c8d9df6c7"
+    },
+    {
+      "path": "components/boring/branding/brand_mark.h",
+      "chromium_dest": "components/boring/branding/brand_mark.h (synced by apply.py)",
+      "use": "kBrandTileSvg / kBrandGlyphSvg, byte-identical to the masters",
+      "size": null,
+      "bytes": 2943,
+      "sha256": "272d2d539191d5d13c5cce82b4ff3b6ba51ae16e2f50c40e23adc20c269e703d"
+    },
+    {
+      "path": "chromium_src/chrome/app/theme/chromium/product_logo.svg",
+      "chromium_dest": "chrome/app/theme/chromium/product_logo.svg",
+      "use": "IDR_PRODUCT_LOGO_SVG (intro, profile picker, default-browser and search-engine-choice pages), copy of the tile master",
+      "size": "64x64 viewBox",
+      "bytes": 1092,
+      "sha256": "d3dec47b589729ee699def1dd6616c19fbfad940431efa749b40dac98333fd87"
+    },
+    {
+      "path": "chromium_src/chrome/app/theme/chromium/product_logo_animation.svg",
+      "chromium_dest": "chrome/app/theme/chromium/product_logo_animation.svg",
+      "use": "IDR_PRODUCT_LOGO_ANIMATION_SVG (chrome://intro), static copy of the tile master",
+      "size": "64x64 viewBox",
+      "bytes": 1092,
+      "sha256": "d3dec47b589729ee699def1dd6616c19fbfad940431efa749b40dac98333fd87"
+    },
+    {
+      "path": "chromium_src/components/omnibox/browser/vector_icons/product_chrome_refresh_old.icon",
+      "chromium_dest": "components/omnibox/browser/vector_icons/product_chrome_refresh_old.icon",
+      "use": "omnibox::kProductChromeRefreshOldIcon: location chip for chrome:// pages (rounded icons off, our default), app menu Set as default, infobars, omnibox actions/pedals, chrome:// suggestions",
+      "size": null,
+      "bytes": 1233,
+      "sha256": "2b3f9e022bf19854bc554409a78c1176498db59f58197e6a1341bf1d5fbf7698"
+    },
+    {
+      "path": "chromium_src/components/omnibox/browser/vector_icons/chrome_product.icon",
+      "chromium_dest": "components/omnibox/browser/vector_icons/chrome_product.icon",
+      "use": "omnibox::kChromeProductIcon: the same slots when rounded icons are on",
+      "size": null,
+      "bytes": 2283,
+      "sha256": "b9dcd8103a8f32cd8c2132cb71617283df62c12538ab6bf5e661860a7a769e27"
+    },
+    {
+      "path": "chromium_src/components/omnibox/browser/vector_icons/product_old.icon",
+      "chromium_dest": "components/omnibox/browser/vector_icons/product_old.icon",
+      "use": "omnibox::kProductOldIcon: autofill popup product row",
+      "size": null,
+      "bytes": 2269,
+      "sha256": "aeb0f85f56556b6d212064e897702811bf0112fc327406265af2ad7195ebfe57"
+    },
+    {
+      "path": "chromium_src/components/vector_icons/chromium/product.icon",
+      "chromium_dest": "components/vector_icons/chromium/product.icon",
+      "use": "vector_icons::kProductIcon (branding_path_component=chromium): autofill AI first-run and plus-address dialogs",
+      "size": null,
+      "bytes": 2283,
+      "sha256": "b9dcd8103a8f32cd8c2132cb71617283df62c12538ab6bf5e661860a7a769e27"
+    },
+    {
+      "path": "chromium_src/components/vector_icons/chromium/product_refresh.icon",
+      "chromium_dest": "components/vector_icons/chromium/product_refresh.icon",
+      "use": "vector_icons::kProductRefreshIcon: infobars when rounded icons are on",
+      "size": null,
+      "bytes": 2283,
+      "sha256": "b9dcd8103a8f32cd8c2132cb71617283df62c12538ab6bf5e661860a7a769e27"
+    },
+    {
+      "path": "chromium_src/chrome/app/theme/chromium/win/chromium.ico",
+      "chromium_dest": "chrome/app/theme/chromium/win/chromium.ico",
+      "use": "IDR_MAINFRAME in chrome_exe.rc and chrome_dll.rc: exe, window, taskbar, Alt-Tab, shortcuts; frames 16,20,24,32,40,48,64,96,128,256",
+      "size": "multi-frame ICO",
+      "bytes": 156651,
+      "sha256": "63680599c91af0f45130413b3903f791648014945552d6714b5f13697d18cc5d"
+    },
+    {
+      "path": "chromium_src/chrome/app/theme/chromium/win/chromium_doc.ico",
+      "chromium_dest": "chrome/app/theme/chromium/win/chromium_doc.ico",
+      "use": "document association icon, Chromium page kept, emblem swapped for the B tile; frames 16,32,48,256",
+      "size": "multi-frame ICO",
+      "bytes": 41019,
+      "sha256": "570f6b9f35a09dd66f8335982fbfa3d9ad3770babdb8f132a0b60eb0bbba11de"
+    },
+    {
+      "path": "chromium_src/chrome/app/theme/chromium/win/chromium_pdf.ico",
+      "chromium_dest": "chrome/app/theme/chromium/win/chromium_pdf.ico",
+      "use": "document association icon, Chromium page kept, emblem swapped for the B tile; frames 16,32,48,256",
+      "size": "multi-frame ICO",
+      "bytes": 40876,
+      "sha256": "9d19b157cbb035206d7b86aa4b8471e678e35d2fea8e28652c73a448bd4481ca"
+    },
+    {
+      "path": "chromium_src/chrome/app/theme/chromium/win/tiles/Logo.png",
+      "chromium_dest": "chrome/app/theme/chromium/win/tiles/Logo.png",
+      "use": "VisualElements Square150x150Logo, 600x600, plate at 190..410",
+      "size": "600x600",
+      "bytes": 9285,
+      "sha256": "9d7cae7c4f3121169603fa9670eb7da65fc25930c1f965e2094610dab19c9a52"
+    },
+    {
+      "path": "chromium_src/chrome/app/theme/chromium/win/tiles/SmallLogo.png",
+      "chromium_dest": "chrome/app/theme/chromium/win/tiles/SmallLogo.png",
+      "use": "VisualElements Square70x70/44x44Logo, 176x176, plate at 29..147",
+      "size": "176x176",
+      "bytes": 3945,
+      "sha256": "78e1c6503a2c7fef2fa11996682b1f7a783acf5458a269fd7228aad6bd77bfae"
+    },
+    {
+      "path": "chromium_src/chrome/app/theme/chromium/product_logo_16.png",
+      "chromium_dest": "chrome/app/theme/chromium/product_logo_16.png",
+      "use": "IDR_PRODUCT_LOGO_16 / _SHORTCUTS (unscaled), 16x16",
+      "size": "16x16",
+      "bytes": 532,
+      "sha256": "894d312ded57a360019a8673bc13833c7492f96ef78029c3aa28f3b644a2c960"
+    },
+    {
+      "path": "chromium_src/chrome/app/theme/chromium/product_logo_24.png",
+      "chromium_dest": "chrome/app/theme/chromium/product_logo_24.png",
+      "use": "IDR_PRODUCT_LOGO_24 / _SHORTCUTS (unscaled), 24x24",
+      "size": "24x24",
+      "bytes": 735,
+      "sha256": "b498d50d67feda15135f44665744095775cf0b9c2e97218b65315372f1313cfd"
+    },
+    {
+      "path": "chromium_src/chrome/app/theme/chromium/product_logo_48.png",
+      "chromium_dest": "chrome/app/theme/chromium/product_logo_48.png",
+      "use": "IDR_PRODUCT_LOGO_48 / _SHORTCUTS (unscaled), 48x48",
+      "size": "48x48",
+      "bytes": 1400,
+      "sha256": "bd2c53f9ad6ab812fc67d22d696bb1b8042565d0c1697d0b497e569bb88c0096"
+    },
+    {
+      "path": "chromium_src/chrome/app/theme/chromium/product_logo_64.png",
+      "chromium_dest": "chrome/app/theme/chromium/product_logo_64.png",
+      "use": "IDR_PRODUCT_LOGO_64 / _SHORTCUTS (unscaled), 64x64",
+      "size": "64x64",
+      "bytes": 1861,
+      "sha256": "f3bc4a12893a6b149e7bfbba9aee5cd97f044fcb923477122166eee1d87fab74"
+    },
+    {
+      "path": "chromium_src/chrome/app/theme/chromium/product_logo_128.png",
+      "chromium_dest": "chrome/app/theme/chromium/product_logo_128.png",
+      "use": "IDR_PRODUCT_LOGO_128 / _SHORTCUTS (unscaled), 128x128",
+      "size": "128x128",
+      "bytes": 3733,
+      "sha256": "43283740000221fa649f7e6b656d1fd33d565b756ef078eed58b61e06ca815de"
+    },
+    {
+      "path": "chromium_src/chrome/app/theme/chromium/product_logo_256.png",
+      "chromium_dest": "chrome/app/theme/chromium/product_logo_256.png",
+      "use": "IDR_PRODUCT_LOGO_256 / _SHORTCUTS (unscaled), 256x256",
+      "size": "256x256",
+      "bytes": 7917,
+      "sha256": "a912b6cbc9451f4a93f6d2a052c6806274a1ef3a737b7be9b93302e5ce6c500c"
+    },
+    {
+      "path": "chromium_src/chrome/app/theme/default_100_percent/chromium/product_logo_16.png",
+      "chromium_dest": "chrome/app/theme/default_100_percent/chromium/product_logo_16.png",
+      "use": "IDR_PRODUCT_LOGO_16 at 100%, 16x16",
+      "size": "16x16",
+      "bytes": 532,
+      "sha256": "894d312ded57a360019a8673bc13833c7492f96ef78029c3aa28f3b644a2c960"
+    },
+    {
+      "path": "chromium_src/chrome/app/theme/default_100_percent/chromium/product_logo_32.png",
+      "chromium_dest": "chrome/app/theme/default_100_percent/chromium/product_logo_32.png",
+      "use": "IDR_PRODUCT_LOGO_32 at 100%, 32x32",
+      "size": "32x32",
+      "bytes": 947,
+      "sha256": "50f7f2060b2c976c811cafec0e16728137b986c6cd9189e4b155a2a3b162c279"
+    },
+    {
+      "path": "chromium_src/chrome/app/theme/default_100_percent/chromium/product_logo_name_22.png",
+      "chromium_dest": "chrome/app/theme/default_100_percent/chromium/product_logo_name_22.png",
+      "use": "IDR_PRODUCT_LOGO_NAME_22 at 100%, 97x22, B tile only (no wordmark)",
+      "size": "97x22",
+      "bytes": 756,
+      "sha256": "223ea0741ce23007acf136c2ff2f06727349a527856093c08e0460d55a8c8876"
+    },
+    {
+      "path": "chromium_src/chrome/app/theme/default_100_percent/chromium/product_logo_name_22_white.png",
+      "chromium_dest": "chrome/app/theme/default_100_percent/chromium/product_logo_name_22_white.png",
+      "use": "IDR_PRODUCT_LOGO_NAME_22_WHITE at 100%, 97x22, B tile only (no wordmark)",
+      "size": "97x22",
+      "bytes": 756,
+      "sha256": "223ea0741ce23007acf136c2ff2f06727349a527856093c08e0460d55a8c8876"
+    },
+    {
+      "path": "chromium_src/components/resources/default_100_percent/chromium/product_logo.png",
+      "chromium_dest": "components/resources/default_100_percent/chromium/product_logo.png",
+      "use": "IDR_PRODUCT_LOGO (chrome://version) at 100%, 171x32, B tile only",
+      "size": "171x32",
+      "bytes": 1129,
+      "sha256": "4304c305668db069993bf379b4377cc8c1d80d1b4b11d5c3b7035c99e48e435b"
+    },
+    {
+      "path": "chromium_src/components/resources/default_100_percent/chromium/product_logo_white.png",
+      "chromium_dest": "components/resources/default_100_percent/chromium/product_logo_white.png",
+      "use": "IDR_PRODUCT_LOGO_WHITE (chrome://version) at 100%, 171x32, B tile only",
+      "size": "171x32",
+      "bytes": 1129,
+      "sha256": "4304c305668db069993bf379b4377cc8c1d80d1b4b11d5c3b7035c99e48e435b"
+    },
+    {
+      "path": "chromium_src/components/resources/default_100_percent/chromium/favicon_product.png",
+      "chromium_dest": "components/resources/default_100_percent/chromium/favicon_product.png",
+      "use": "IDR_PRODUCT_FAVICON at 100% (chrome://version and, via branding-resources.patch, the boring pages), 16x16",
+      "size": "16x16",
+      "bytes": 532,
+      "sha256": "894d312ded57a360019a8673bc13833c7492f96ef78029c3aa28f3b644a2c960"
+    },
+    {
+      "path": "chromium_src/chrome/app/theme/default_100_percent/common/favicon_settings.png",
+      "chromium_dest": "chrome/app/theme/default_100_percent/common/favicon_settings.png",
+      "use": "IDR_SETTINGS_FAVICON at 100% (chrome://settings incl. About tab favicon; its only consumer is settings_utils.cc), 16x16",
+      "size": "16x16",
+      "bytes": 532,
+      "sha256": "894d312ded57a360019a8673bc13833c7492f96ef78029c3aa28f3b644a2c960"
+    },
+    {
+      "path": "chromium_src/chrome/app/theme/default_200_percent/chromium/product_logo_16.png",
+      "chromium_dest": "chrome/app/theme/default_200_percent/chromium/product_logo_16.png",
+      "use": "IDR_PRODUCT_LOGO_16 at 200%, 32x32",
+      "size": "32x32",
+      "bytes": 947,
+      "sha256": "50f7f2060b2c976c811cafec0e16728137b986c6cd9189e4b155a2a3b162c279"
+    },
+    {
+      "path": "chromium_src/chrome/app/theme/default_200_percent/chromium/product_logo_32.png",
+      "chromium_dest": "chrome/app/theme/default_200_percent/chromium/product_logo_32.png",
+      "use": "IDR_PRODUCT_LOGO_32 at 200%, 64x64",
+      "size": "64x64",
+      "bytes": 1861,
+      "sha256": "f3bc4a12893a6b149e7bfbba9aee5cd97f044fcb923477122166eee1d87fab74"
+    },
+    {
+      "path": "chromium_src/chrome/app/theme/default_200_percent/chromium/product_logo_name_22.png",
+      "chromium_dest": "chrome/app/theme/default_200_percent/chromium/product_logo_name_22.png",
+      "use": "IDR_PRODUCT_LOGO_NAME_22 at 200%, 194x44, B tile only (no wordmark)",
+      "size": "194x44",
+      "bytes": 1563,
+      "sha256": "7cba8629a479181b9147a1da7221c8417e568da919eb6e2a52cac6133b90c20c"
+    },
+    {
+      "path": "chromium_src/chrome/app/theme/default_200_percent/chromium/product_logo_name_22_white.png",
+      "chromium_dest": "chrome/app/theme/default_200_percent/chromium/product_logo_name_22_white.png",
+      "use": "IDR_PRODUCT_LOGO_NAME_22_WHITE at 200%, 194x44, B tile only (no wordmark)",
+      "size": "194x44",
+      "bytes": 1563,
+      "sha256": "7cba8629a479181b9147a1da7221c8417e568da919eb6e2a52cac6133b90c20c"
+    },
+    {
+      "path": "chromium_src/components/resources/default_200_percent/chromium/product_logo.png",
+      "chromium_dest": "components/resources/default_200_percent/chromium/product_logo.png",
+      "use": "IDR_PRODUCT_LOGO (chrome://version) at 200%, 342x64, B tile only",
+      "size": "342x64",
+      "bytes": 2352,
+      "sha256": "11a5975aaffdad236ff397aa0feb23a5f5382419799d7b81d4af1da0191eee60"
+    },
+    {
+      "path": "chromium_src/components/resources/default_200_percent/chromium/product_logo_white.png",
+      "chromium_dest": "components/resources/default_200_percent/chromium/product_logo_white.png",
+      "use": "IDR_PRODUCT_LOGO_WHITE (chrome://version) at 200%, 342x64, B tile only",
+      "size": "342x64",
+      "bytes": 2352,
+      "sha256": "11a5975aaffdad236ff397aa0feb23a5f5382419799d7b81d4af1da0191eee60"
+    },
+    {
+      "path": "chromium_src/components/resources/default_200_percent/chromium/favicon_product.png",
+      "chromium_dest": "components/resources/default_200_percent/chromium/favicon_product.png",
+      "use": "IDR_PRODUCT_FAVICON at 200% (chrome://version and, via branding-resources.patch, the boring pages), 32x32",
+      "size": "32x32",
+      "bytes": 947,
+      "sha256": "50f7f2060b2c976c811cafec0e16728137b986c6cd9189e4b155a2a3b162c279"
+    },
+    {
+      "path": "chromium_src/chrome/app/theme/default_200_percent/common/favicon_settings.png",
+      "chromium_dest": "chrome/app/theme/default_200_percent/common/favicon_settings.png",
+      "use": "IDR_SETTINGS_FAVICON at 200% (chrome://settings incl. About tab favicon; its only consumer is settings_utils.cc), 32x32",
+      "size": "32x32",
+      "bytes": 947,
+      "sha256": "50f7f2060b2c976c811cafec0e16728137b986c6cd9189e4b155a2a3b162c279"
+    }
+  ]
+}

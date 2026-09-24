@@ -1,59 +1,202 @@
 --- a/chrome/browser/resources/settings/settings_menu/settings_menu.html
 +++ b/chrome/browser/resources/settings/settings_menu/settings_menu.html
-@@ -17,7 +17,8 @@
-         min-width: fit-content;
+@@ -4,6 +4,21 @@
+         display: block;
+         padding-bottom: 5px; /* Prevents focus outlines from being cropped. */
+         padding-top: 8px;
++        --boring-ink: #242e2d;
++        --boring-muted: #5d6966;
++        --boring-line: #d8ddd7;
++        --boring-accent: #176b5b;
++        --boring-soft: #e5f1eb;
++      }
++
++      @media (prefers-color-scheme: dark) {
++        :host {
++          --boring-ink: #e8ede7;
++          --boring-muted: #adb9b2;
++          --boring-line: #414e47;
++          --boring-accent: #92d4bb;
++          --boring-soft: #273f35;
++        }
        }
  
--      #extensionsLink > .cr-icon {
-+      #extensionsLink > .cr-icon,
-+      .boring-link > .cr-icon {
-         height: var(--cr-icon-size);
-         margin-inline-end: 14px;  /* 16px - 2px from margin for outline. */
-         width: var(--cr-icon-size);
-@@ -42,7 +43,8 @@
-     </style>
+       :host * {
+@@ -11,10 +26,15 @@
+       }
  
-     <div role="navigation">
--      <cr-menu-selector id="menu" selectable="a:not(#extensionsLink)"
-+      <cr-menu-selector id="menu"
-+          selectable="a:not(#extensionsLink):not(.boring-link)"
+       #menu {
+-        color: var(--google-grey-700);
++        color: var(--boring-ink);
+         display: flex;
+         flex-direction: column;
+-        min-width: fit-content;
++        /* max-content, not fit-content: the sidebar (#left, settings_ui.html)
++           is asked to grow to fit the longest label rather than let one
++           wrap, so the menu's own minimum has to reflect its real content
++           width instead of clamping to whatever width it happens to be
++           given. */
++        min-width: max-content;
+       }
+ 
+       #extensionsLink > .cr-icon {
+@@ -23,20 +43,98 @@
+         width: var(--cr-icon-size);
+       }
+ 
++      /* boring: no leading icons in the nav. The visible label is still
++         the accessible name, so hiding these loses nothing. */
++      .cr-nav-menu-item > cr-icon {
++        display: none;
++      }
++
++      .cr-nav-menu-item {
++        --cr-nav-menu-item-color: var(--boring-ink);
++        --cr-nav-menu-item-color-selected: var(--boring-accent);
++        --cr-nav-menu-item-background-color-hover: var(--boring-soft);
++        --cr-nav-menu-item-background-color-selected: var(--boring-soft);
++        border-radius: 9px;
++        border-start-start-radius: 9px;
++        border-start-end-radius: 9px;
++        border-end-start-radius: 9px;
++        border-end-end-radius: 9px;
++        font-size: 13px;
++        font-weight: 400;
++        margin-block-end: 5px;
++        margin-inline-end: 0;
++        margin-inline-start: 0;
++        min-height: unset;
++        padding-block-end: 11px;
++        padding-block-start: 11px;
++        padding-inline-end: 12px;
++        padding-inline-start: 12px;
++        white-space: nowrap;
++        width: 100%;
++      }
++
++      .cr-nav-menu-item[selected] {
++        font-weight: 600;
++      }
++
++      /* boring: cr-nav-menu-item-style's own :focus rule (not included via
++         settings-shared here, so cr-shared-style's [selectable]:focus-visible
++         accent ring never reaches this file) leaves the browser's native
++         outline showing, which renders as a plain dark ring instead of our
++         accent. Keyboard focus should never be invisible or default-styled. */
++      .cr-nav-menu-item:focus-visible {
++        outline: 2px solid var(--boring-accent);
++        outline-offset: 2px;
++      }
++
++      @media (forced-colors: active) {
++        .cr-nav-menu-item:focus-visible {
++          outline-color: Highlight;
++        }
++      }
++
++      /* boring: small group caption after the browser's own categories,
++         as in the V2 design. Hidden in the narrow horizontal strip. */
++      .nav-group {
++        color: var(--boring-muted);
++        font-size: 10px;
++        font-weight: 600;
++        letter-spacing: 0.12em;
++        margin: 22px 12px 8px;
++        text-transform: uppercase;
++        white-space: nowrap;
++      }
++
+       .menu-separator {
+-        /* Per bettes@, this is different from the other separator lines. */
+-        border-bottom: 1px solid rgba(0, 0, 0, 0.08);
++        border-bottom: 1px solid var(--boring-line);
+         margin-bottom: 8px;
+         margin-top: 8px;
+       }
+ 
+-      @media (prefers-color-scheme: dark) {
++      /* boring: the demo's narrow settings breakpoint (same 800px as
++         settings_ui.html's #main and UI_V1_DEMO_CONTRACT.md), turning the
++         vertical list into a horizontal scrolling strip of pills. This only
++         changes how the menu lays out its own items; whether it's actually
++         visible at this width (instead of the stock hidden-sidebar-plus-
++         drawer pattern) is settings_ui.html's call, see for-D1.md. */
++      @media (max-width: 800px) {
+         #menu {
+-          color: var(--cr-primary-text-color);
+-        }
+-
+-        .menu-separator {
+-          border-bottom: var(--cr-separator-line);  /* override */
++          flex-direction: row;
++          gap: 8px;
++          /* Let the row shrink below its content width so overflow-x can
++             actually scroll, instead of forcing the sidebar wider. */
++          min-width: 0;
++          overflow-x: auto;
++        }
++
++        .cr-nav-menu-item {
++          flex-shrink: 0;
++          margin-block-end: 0;
++          width: auto;
++        }
++
++        .nav-group {
++          display: none;
+         }
+       }
+     </style>
+@@ -45,6 +143,38 @@
+       <cr-menu-selector id="menu" selectable="a:not(#extensionsLink)"
            attr-for-selected="href" on-iron-activate="onSelectorActivate_"
            on-click="onLinkClick_" selected-attribute="selected">
++        <!-- boring: Protection first, where people look for it. -->
++        <a role="menuitem" id="protection" href="/protection"
++            class="cr-nav-menu-item"
++            hidden="[[!pageVisibility_.protection]]">
++          Protection
++          <cr-ripple></cr-ripple>
++        </a>
++        <!-- boring: the browser's own categories come first, in the
++             order of the V2 design, then a caption, then Chromium's
++             categories in their usual order. Every route is kept. -->
++        <a role="menuitem" id="appearance" href="/appearance"
++            hidden="[[!pageVisibility_.appearance]]"
++            class="cr-nav-menu-item">
++          <cr-icon icon="settings:palette"></cr-icon>
++          $i18n{appearancePageTitle}
++          <cr-ripple></cr-ripple>
++        </a>
++        <a role="menuitem" id="reading" href="/reading"
++            class="cr-nav-menu-item"
++            hidden="[[!pageVisibility_.reading]]">
++          Reading
++          <cr-ripple></cr-ripple>
++        </a>
++        <a role="menuitem" id="summaries" href="/summaries"
++            class="cr-nav-menu-item"
++            hidden="[[!pageVisibility_.summaries]]">
++          Page summaries
++          <cr-ripple></cr-ripple>
++        </a>
++        <div class="nav-group" role="separator" aria-label="Your browser">
++          Your browser
++        </div>
          <a role="menuitem"
-@@ -65,6 +67,24 @@
-                 pageVisibility_.yourSavedInfo, pageVisibility_.autofill)]]">
-           <cr-icon icon="settings:assignment"></cr-icon>
-           $i18n{autofillPageTitle}
-+          <cr-ripple></cr-ripple>
-+        </a>
-+        <!-- boring: our own pages, where people look for them. They open
-+             in a tab of their own, like Extensions. -->
-+        <a role="menuitem" id="boringProtectionLink"
-+            class="cr-nav-menu-item boring-link"
-+            href="chrome://boring-protection" target="_blank">
-+          <cr-icon icon="settings20:shield"></cr-icon>
-+          <span>Protection</span>
-+          <div class="cr-icon icon-external"></div>
-+          <cr-ripple></cr-ripple>
-+        </a>
-+        <a role="menuitem" id="boringAiLink"
-+            class="cr-nav-menu-item boring-link"
-+            href="chrome://boring-ai" target="_blank">
-+          <cr-icon icon="settings20:insight-spark"></cr-icon>
-+          <span>AI summaries</span>
-+          <div class="cr-icon icon-external"></div>
+             id="people" href="/people" hidden="[[!pageVisibility_.people]]"
+             class="cr-nav-menu-item">
+@@ -87,13 +217,6 @@
+             class="cr-nav-menu-item">
+           <cr-icon icon="settings20:magic"></cr-icon>
+           $i18n{aiPageTitle}
+-          <cr-ripple></cr-ripple>
+-        </a>
+-        <a role="menuitem" id="appearance" href="/appearance"
+-            hidden="[[!pageVisibility_.appearance]]"
+-            class="cr-nav-menu-item">
+-          <cr-icon icon="settings:palette"></cr-icon>
+-          $i18n{appearancePageTitle}
            <cr-ripple></cr-ripple>
          </a>
-         <a role="menuitem" href="/privacy"
---- a/chrome/browser/resources/settings/settings_menu/settings_menu.ts
-+++ b/chrome/browser/resources/settings/settings_menu/settings_menu.ts
-@@ -127,7 +127,8 @@
-    * accessibility purposes, taps are handled separately.
-    */
-   private onLinkClick_(event: Event) {
--    if ((event.target as HTMLElement).matches('a:not(#extensionsLink)')) {
-+    if ((event.target as HTMLElement)
-+            .matches('a:not(#extensionsLink):not(.boring-link)')) {
-       event.preventDefault();
-     }
-   }
+         <a role="menuitem" href="/search" class="cr-nav-menu-item">

@@ -11,6 +11,7 @@
 #include "base/values.h"
 #include "components/boring/ai/ai_prefs.h"
 #include "components/boring/ai/ai_summary_service.h"
+#include "components/boring/branding/brand_mark.h"
 #include "components/prefs/pref_service.h"
 #include "components/user_prefs/user_prefs.h"
 #include "content/public/browser/browser_context.h"
@@ -32,66 +33,83 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <title>AI summaries</title>
+<link rel="icon" type="image/svg+xml" href="brand.svg">
 <style>
   :root { color-scheme: light dark;
     --surface: light-dark(#faf9f6, #1c2422);
     --paper: light-dark(#ffffff, #252e2b);
     --ink: light-dark(#242e2d, #e8ede7);
     --muted: light-dark(#5d6966, #adb9b2);
+    /* Field edges need 3:1 against the panel; --line is too faint. */
+    --field: light-dark(#7d8985, #8b9891);
     --line: light-dark(#d8ddd7, #414e47);
-    /* Edges of things you can type in or press. Dark enough to find
-       against the white panel, which --line is not. */
-    --field: light-dark(#7d8783, #83908a);
     --accent: light-dark(#176b5b, #92d4bb);
     --soft: light-dark(#e5f1eb, #273f35);
+    --warning: light-dark(#9e3e24, #ffb69c);
+    --warning-soft: light-dark(#fbebe4, #412f28);
   }
   * { box-sizing: border-box; }
-  body { font: 15px/1.6 system-ui, sans-serif; margin: 0;
+  body { font: 14px/1.6 "Segoe UI", system-ui, sans-serif; margin: 0;
          background: var(--surface); color: var(--ink);
          padding: 3em 1.5em; display: flex; justify-content: center; }
-  .page { width: 40em; max-width: 100%; }
-  h1 { font-size: 1.6em; margin: 0 0 0.2em; }
-  fieldset { border: 1px solid var(--line); background: var(--paper);
-             border-radius: 10px; margin: 1.5em 0; padding: 1.2em 1.4em; }
-  legend { font-weight: 600; padding: 0 0.4em; }
-  label.row { display: block; margin: 0.6em 0; }
-  input[type=text], input[type=password], select {
-    border: 1px solid var(--field);
-    background: var(--paper); color: var(--ink);
-    border-radius: 8px; font: inherit; margin-top: 0.3em;
-    padding: 0.55em 0.7em; width: 100%; }
-  .radio { align-items: flex-start; display: flex; gap: 0.6em;
-           margin: 0.7em 0; }
-  .radio input { margin-top: 0.35em; }
-  .radio .what { font-weight: 600; }
-  .why { color: var(--muted); font-size: 0.9em; }
-  button { background: var(--accent); border: none; border-radius: 8px;
-           color: var(--surface); cursor: pointer; font: inherit;
-           padding: 0.65em 1.4em; }
-  button:hover { filter: brightness(0.94); }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
-  input[type=radio] { accent-color: var(--accent); }
-  .note { background: var(--soft); border-radius: 10px;
-          margin-top: 1.5em; padding: 1em 1.2em; }
-  .saved { color: var(--accent); margin-inline-start: 1em; }
-  .bad { color: light-dark(#9e3e24, #ffb69c); }
-  button.no { background: transparent; border: 1px solid var(--field);
-              color: inherit; }
+  .page { width: 46em; max-width: 100%; }
+  h1 { letter-spacing: -0.045em; font-weight: 550; line-height: 1.1;
+       margin: 0 0 0.3em; }
+  h2 { font-size: 1rem; letter-spacing: -0.01em; margin: 0 0 0.8em; }
+  .muted { color: var(--muted); }
+  .eyebrow { text-transform: uppercase; letter-spacing: 0.16em;
+             font-size: 10px; font-weight: 650; color: var(--accent);
+             margin-bottom: 22px; }
+  .panel { border: 1px solid var(--line); background: var(--paper);
+           border-radius: 12px; padding: 1.3em 1.5em; margin: 0 0 1.2em; }
+  .field-row { display: block; margin: 0.6em 0; font-size: 13px;
+               font-weight: 600; }
+  input[type=text], input[type=password] {
+    border: 1px solid var(--field); background: var(--paper);
+    color: var(--ink); border-radius: 6px; font: inherit; font-weight: normal;
+    margin-top: 0.4em; padding: 0.6em 0.8em; width: 100%; height: 40px; }
+  .radio { align-items: flex-start; display: flex; gap: 0.7em;
+           margin: 0.8em 0; cursor: pointer; }
+  .radio input { margin-top: 0.3em; accent-color: var(--accent); }
+  .radio .what { font-weight: 600; font-size: 13px; }
+  .why { color: var(--muted); font-size: 0.85em; }
+  .warn-text { color: var(--warning); font-size: 12px; margin: 0.6em 0 0; }
+  .saved { color: var(--accent); font-weight: 600; font-size: 13px;
+           margin-inline-start: 1em; }
+  .primary, .secondary, .text-button {
+    min-height: 40px; padding: 10px 18px; border-radius: 7px;
+    font-weight: 600; font-size: 13px; border: none; cursor: pointer;
+    font-family: inherit; }
+  .primary { background: var(--accent); color: var(--surface); }
+  .primary:hover { filter: brightness(0.92); }
+  .secondary { border: 1px solid var(--line); background: var(--paper);
+               color: var(--ink); }
+  .secondary:hover { background: var(--soft); }
+  .text-button { background: none; color: var(--accent); padding: 8px 0;
+                 text-align: left; min-height: 0; }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px;
+             align-items: center; }
+  .information { padding: 16px 18px; background: var(--soft);
+                 border-radius: 8px; color: var(--ink); font-size: 13px;
+                 line-height: 1.6; margin-top: 24px; }
+  .warning-note { background: var(--warning-soft); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .hidden { display: none; }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden;
              clip-path: inset(50%); white-space: nowrap; }
-  #ask { border: 1px solid var(--line); background: var(--paper);
-         border-radius: 12px;
-         margin-bottom: 2em; padding: 1.2em 1.4em; }
-  #ask h2 { font-size: 1.15em; margin: 0 0 0.4em; }
-  #ask .page-name { font-weight: 600; word-break: break-all; }
-  #ask .going { background: var(--soft); border-radius: 8px;
-                margin: 0.9em 0; padding: 0.8em 1em; }
-  #ask .buttons { display: flex; flex-wrap: wrap; gap: 0.8em; margin-top: 1em; }
-  #summary { white-space: pre-wrap; overflow-wrap: anywhere; }
+  #ask h1 { font-size: 34px; }
+  #ask .summary-source { border-bottom: 1px solid var(--line);
+                          padding-bottom: 22px; margin-bottom: 26px; }
+  #ask .summary-source p { font-size: 12px; color: var(--muted);
+                            margin: 4px 0 0; }
+  #ask .summary-destination { background: var(--soft); padding: 20px;
+                               border-radius: 9px; margin: 24px 0; }
+  #ask .summary-destination p { margin: 8px 0 0; font-size: 13px; }
+  #summary { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 16px; }
   #summary-settings { margin-bottom: 1.5em; }
   @media (forced-colors: active) {
-    button { border: 1px solid ButtonText; }
+    button, input, select { border: 1px solid ButtonText; }
+    .primary { background: Highlight; color: HighlightText; }
   }
 </style>
 </head>
@@ -101,13 +119,16 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   <!-- Says what the summary is doing. Kept apart from #ask, which is
        rebuilt on every change and would repeat itself if it spoke. -->
   <div id="summary-status" class="sr-only" role="status"></div>
-  <button class="no hidden" id="summary-settings" aria-expanded="false"
+  <button class="secondary hidden" id="summary-settings" aria-expanded="false"
       aria-controls="settings-panel">Settings</button>
   <section id="settings-panel">
-  <h1 id="settings-heading" tabindex="-1">AI summaries</h1>
+  <div class="eyebrow">Only when you ask</div>
+  <h1 id="settings-heading" tabindex="-1">Page summaries</h1>
+  <p class="muted" style="margin: 0 0 1.6em;">Choose a service. Nothing is
+  sent until you ask.</p>
 
-  <fieldset>
-    <legend>Service</legend>
+  <div class="panel">
+    <h2>Service</h2>
     <div class="radio">
       <input type="radio" name="provider" id="p-off" value="off">
       <label for="p-off"><span class="what">Off</span></label>
@@ -132,38 +153,40 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
       <input type="radio" name="provider" id="p-groq" value="groq">
       <label for="p-groq"><span class="what">Groq</span></label>
     </div>
-  </fieldset>
+  </div>
 
-  <fieldset id="local-box">
-    <legend>Ollama</legend>
-    <label class="row">Address
+  <div class="panel" id="local-box">
+    <h2>Ollama</h2>
+    <label class="field-row">Address
       <input type="text" id="ollama-url" placeholder="http://localhost:11434">
     </label>
-  </fieldset>
+  </div>
 
-  <fieldset id="key-box">
-    <legend>API key</legend>
-    <label class="row">Key
+  <div class="panel" id="key-box">
+    <h2>API key</h2>
+    <label class="field-row">Key
       <input type="password" id="api-key" placeholder="Paste your key"
           aria-describedby="key-bad">
     </label>
     <p class="why">Stored encrypted on this device.</p>
-    <p id="key-bad" class="bad hidden">Key not saved: it contains spaces or
-    invalid characters.</p>
-    <button class="no" id="forget-key">Remove key</button>
-  </fieldset>
+    <p id="key-bad" class="warn-text hidden">Key not saved: it contains
+    spaces or invalid characters.</p>
+    <button class="secondary" id="forget-key">Remove key</button>
+  </div>
 
-  <fieldset>
-    <legend>Model</legend>
-    <label class="row">Name
+  <div class="panel">
+    <h2>Model</h2>
+    <label class="field-row">Name
       <input type="text" id="model" placeholder="llama3.2">
     </label>
-  </fieldset>
+  </div>
 
-  <button id="save">Save</button><span id="saved" class="saved"
-      role="status"></span>
+  <div class="actions">
+    <button class="primary" id="save">Save</button>
+    <span id="saved" class="saved" role="status"></span>
+  </div>
 
-  <div class="note" id="dest-note"></div>
+  <div class="information" id="dest-note"></div>
   </section>
 </div>
 <script src="ai.js"></script>
@@ -317,17 +340,22 @@ function showSummaryState(s) {
   // another machine is named as such rather than called local.
   var name = s.destination || PROVIDER_NAMES[s.provider] ||
              'the service you picked';
-  var heading = summaryNode('h2', '');
+  box.append(summaryNode('div', 'Only when you ask', 'eyebrow'));
+  var heading = summaryNode('h1', '');
   heading.id = 'summary-heading';
   heading.tabIndex = -1;
-  box.append(heading, summaryNode('div', s.title || s.url || '', 'page-name'));
+  box.append(heading);
+  var source = summaryNode('div', '', 'summary-source');
+  source.append(summaryNode('strong', s.title || 'This page'));
+  source.append(summaryNode('p', s.url || ''));
+  box.append(source);
   function addButton(label, id, secondary, action) {
-    var buttons = box.querySelector('.buttons');
+    var buttons = box.querySelector('.actions');
     if (!buttons) {
-      buttons = summaryNode('div', '', 'buttons');
+      buttons = summaryNode('div', '', 'actions');
       box.append(buttons);
     }
-    var button = summaryNode('button', label, secondary ? 'no' : '');
+    var button = summaryNode('button', label, secondary ? 'secondary' : 'primary');
     button.type = 'button';
     button.id = id;
     button.addEventListener('click', action);
@@ -335,12 +363,21 @@ function showSummaryState(s) {
   }
 
   if (s.state === 'waiting') {
-    heading.textContent = s.local ? 'Summarise this page?'
+    heading.textContent = s.local ? 'Summarize this page?'
                                   : 'Send this page to ' + name + '?';
-    box.append(summaryNode('div', (s.local ? 'Runs on this computer. ' : '') +
-        'About ' + (s.textLength || 0).toLocaleString('en') + ' characters.',
-        'going'));
-    addButton('Summarise', 'do-send', false, function() {
+    var dest = summaryNode('div', '', 'summary-destination');
+    dest.append(summaryNode('strong',
+        s.local ? 'Runs on this computer' : 'Destination: ' + name));
+    dest.append(summaryNode('p',
+        (s.local ? 'Nothing leaves this computer. '
+                 : 'The page text will leave your device and be sent to ' +
+                       name + '. ') +
+        'About ' + (s.textLength || 0).toLocaleString('en') +
+        ' characters would be shared.'));
+    box.append(dest);
+    box.append(summaryNode('p',
+        'Nothing has been sent. You can cancel and keep reading.', 'muted'));
+    addButton('Send and summarize', 'do-send', false, function() {
       chrome.send('sendSummary');
       chrome.send('getSummaryState');
     });
@@ -348,7 +385,8 @@ function showSummaryState(s) {
       chrome.send('forgetSummary');
     });
   } else if (s.state === 'working') {
-    heading.textContent = 'Summarising';
+    heading.textContent = 'Summarizing';
+    box.append(summaryNode('p', 'This can take a few seconds.', 'muted'));
   } else if (s.state === 'done') {
     heading.textContent = 'Summary';
     var result = summaryNode('div', s.summary || '');
@@ -359,7 +397,14 @@ function showSummaryState(s) {
     });
   } else if (s.state === 'failed') {
     heading.textContent = 'Summary failed';
-    box.append(summaryNode('p', s.error || 'The service could not be reached.'));
+    var note = document.createElement('div');
+    note.className = 'information warning-note';
+    note.append(summaryNode('strong', 'The service could not be reached.'));
+    note.append(document.createElement('br'));
+    note.append(document.createTextNode(s.error ||
+        'Your article is still here. Check the service settings before ' +
+        'trying again.'));
+    box.append(note);
     addButton('Close', 'do-cancel', true, function() {
       chrome.send('forgetSummary');
     });
@@ -370,7 +415,7 @@ function showSummaryState(s) {
   if (s.state !== previous) {
     var said = {
       waiting: heading.textContent,
-      working: 'Summarising',
+      working: 'Summarizing',
       done: 'Summary ready',
       failed: 'Summary failed'
     };
@@ -569,16 +614,25 @@ class AiMessageHandler : public content::WebUIMessageHandler {
 };
 
 bool ShouldHandle(const std::string& path) {
-  // Only the page itself and its script. Anything else is not ours.
-  return path.empty() || path == "ai.js";
+  // Only the page itself, its script and its tab icon. Anything else is
+  // not ours.
+  return path.empty() || path == "ai.js" || path == "brand.svg";
 }
 
 void Handle(const std::string& path,
             content::WebUIDataSource::GotDataCallback callback) {
   // The script is served as its own file. Serving it inline would break
   // the page's security rules, which we are not going to weaken.
-  std::string body =
-      path == "ai.js" ? std::string(kScript) : std::string(kPage);
+  // brand.svg is the tab icon; its type comes from the .svg ending
+  // (WebUIDataSourceImpl::GetMimeType).
+  std::string body;
+  if (path == "ai.js") {
+    body = kScript;
+  } else if (path == "brand.svg") {
+    body = branding::kBrandTileSvg;
+  } else {
+    body = kPage;
+  }
   std::move(callback).Run(
       base::MakeRefCounted<base::RefCountedString>(std::move(body)));
 }

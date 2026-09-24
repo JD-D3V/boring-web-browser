@@ -13,7 +13,13 @@
 #include <windows.h>
 
 #include <softpub.h>
+#include <wincrypt.h>
 #include <wintrust.h>
+
+#include <string>
+#include <vector>
+
+#include "components/boring/adblock/buildflags.h"
 #endif
 
 namespace boring {
@@ -54,16 +60,107 @@ bool HasTrustedSignature(const base::FilePath& path) {
   return status == ERROR_SUCCESS;
 }
 
-// A signed browser demands a signed engine. An unsigned browser is a
-// developer build, where insisting on a signature would only stop the
-// thing working before a certificate exists. If we cannot tell, we ask
-// for the signature: the safe answer is the strict one.
-bool ShouldRequireSignature() {
+// Reads the name on the certificate a file was signed with, the way
+// Windows would show it in the file's properties.
+//
+// A trusted signature on its own says only that somebody Windows
+// trusts signed this file, and anybody can buy a certificate that
+// Windows trusts. What we care about is whether *we* signed it, so the
+// name has to come back out and be compared.
+std::wstring SignerName(const base::FilePath& path) {
+  HCERTSTORE store = nullptr;
+  HCRYPTMSG message = nullptr;
+  DWORD encoding = 0;
+  DWORD content_type = 0;
+  DWORD format_type = 0;
+  if (!::CryptQueryObject(CERT_QUERY_OBJECT_FILE, path.value().c_str(),
+                          CERT_QUERY_CONTENT_FLAG_PKCS7_SIGNED_EMBED,
+                          CERT_QUERY_FORMAT_FLAG_BINARY, 0, &encoding,
+                          &content_type, &format_type, &store, &message,
+                          nullptr)) {
+    return std::wstring();
+  }
+
+  std::wstring name;
+  DWORD size = 0;
+  if (::CryptMsgGetParam(message, CMSG_SIGNER_INFO_PARAM, 0, nullptr, &size) &&
+      size >= sizeof(CMSG_SIGNER_INFO)) {
+    std::vector<uint8_t> buffer(size);
+    if (::CryptMsgGetParam(message, CMSG_SIGNER_INFO_PARAM, 0, buffer.data(),
+                           &size)) {
+      const auto* signer =
+          reinterpret_cast<const CMSG_SIGNER_INFO*>(buffer.data());
+      // The signature names the certificate by issuer and serial
+      // number; the certificate itself travels in the same blob.
+      CERT_INFO wanted = {};
+      wanted.Issuer = signer->Issuer;
+      wanted.SerialNumber = signer->SerialNumber;
+      PCCERT_CONTEXT cert = ::CertFindCertificateInStore(
+          store, encoding, 0, CERT_FIND_SUBJECT_CERT, &wanted, nullptr);
+      if (cert) {
+        const DWORD length = ::CertGetNameStringW(
+            cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, nullptr, nullptr, 0);
+        if (length > 1) {
+          name.resize(length);
+          ::CertGetNameStringW(cert, CERT_NAME_SIMPLE_DISPLAY_TYPE, 0, nullptr,
+                               name.data(), length);
+          name.resize(length - 1);  // Drop the terminator.
+        }
+        ::CertFreeCertificateContext(cert);
+      }
+    }
+  }
+
+  ::CryptMsgClose(message);
+  ::CertCloseStore(store, 0);
+  return name;
+}
+
+bool SameSigner(const std::wstring& a, const std::wstring& b) {
+  return !a.empty() && a.size() == b.size() &&
+         ::CompareStringOrdinal(a.c_str(), static_cast<int>(a.size()),
+                                b.c_str(), static_cast<int>(b.size()),
+                                /*bIgnoreCase=*/TRUE) == CSTR_EQUAL;
+}
+
+// Who the engine has to be signed by, or empty when the build does not
+// know. A release build is told at compile time, so the answer cannot
+// be changed by editing anything on the machine the browser runs on.
+std::wstring ExpectedSigner() {
+  const std::string configured = BUILDFLAG(BORING_SIGNING_SUBJECT);
+  if (!configured.empty()) {
+    return std::wstring(configured.begin(), configured.end());
+  }
+  // Nothing configured, so fall back to whoever signed the browser.
+  // That still shuts out every other trusted signer, and it keeps a
+  // build working before a certificate exists.
   base::FilePath self;
   if (!base::PathService::Get(base::FILE_EXE, &self)) {
-    return true;
+    return std::wstring();
   }
-  return HasTrustedSignature(self);
+  return HasTrustedSignature(self) ? SignerName(self) : std::wstring();
+}
+
+// True when the engine may be loaded.
+//
+// The old rule was "a signed browser demands a signed engine", which
+// meant deleting the browser's own signature turned the check off. A
+// release build now requires the signature outright.
+bool EngineMayBeLoaded(const base::FilePath& engine) {
+  const std::wstring expected = ExpectedSigner();
+  if (expected.empty()) {
+    if (BUILDFLAG(BORING_REQUIRE_SIGNED_ENGINE)) {
+      LOG(ERROR) << "boring: this build requires a signed engine but the "
+                 << "browser itself is not signed by a publisher we can "
+                 << "name, refusing to load the engine";
+      return false;
+    }
+    return true;  // Developer build, no certificate anywhere.
+  }
+  if (!HasTrustedSignature(engine)) {
+    return false;
+  }
+  return SameSigner(expected, SignerName(engine));
 }
 
 #endif  // BUILDFLAG(IS_WIN)
@@ -96,12 +193,11 @@ struct Loaded {
 
 #if BUILDFLAG(IS_WIN)
     // The engine runs in the browser process, outside the sandbox, so
-    // whoever controls this file controls the browser. In a signed
-    // build it must be signed too.
-    if (ShouldRequireSignature() && !HasTrustedSignature(path)) {
-      LOG(ERROR) << "boring: " << kLibraryName << " is not signed by a "
-                 << "trusted publisher, refusing to load it. Protections "
-                 << "are off.";
+    // whoever controls this file controls the browser.
+    if (!EngineMayBeLoaded(path)) {
+      LOG(ERROR) << "boring: " << kLibraryName << " is not signed by the "
+                 << "publisher this browser was signed by, refusing to "
+                 << "load it. Protections are off.";
       return;
     }
 #endif

@@ -1,0 +1,73 @@
+--- a/chrome/browser/favicon/favicon_utils.cc
++++ b/chrome/browser/favicon/favicon_utils.cc
+@@ -180,10 +180,27 @@ void SaveFaviconEvenIfInIncognito(content::WebContents* contents) {
+                                favicon_status.image);
+ }
+ 
+-bool ShouldThemifyFavicon(GURL url) {
++namespace {
++
++// boring: browser-owned pages whose favicon is the B mark (a teal plate).
++// The plate is the brand colour, so it is never recoloured: the contrast
++// check would otherwise turn it into a solid white square on dark tabs.
++bool IsBoringBrandFaviconUrl(const GURL& url) {
+   if (!url.SchemeIs(content::kChromeUIScheme)) {
+     return false;
+   }
++  return url.host() == chrome::kChromeUISettingsHost ||
++         url.host() == "boring-newtab" || url.host() == "boring-protection" ||
++         url.host() == "boring-ai" || url.host() == "boring-welcome";
++}
++
++}  // namespace
++
++bool ShouldThemifyFavicon(GURL url) {
++  if (!url.SchemeIs(content::kChromeUIScheme) ||
++      IsBoringBrandFaviconUrl(url)) {
++    return false;
++  }
+   return url.host() != chrome::kChromeUIAppLauncherPageHost &&
+          url.host() != chrome::kChromeUIHelpHost &&
+          url.host() != chrome::kChromeUIVersionHost &&
+@@ -197,6 +214,13 @@ bool ShouldThemifyFaviconForEntry(content::NavigationEntry* entry) {
+   const GURL& virtual_url = entry->GetVirtualURL();
+   const GURL& actual_url = entry->GetURL();
+ 
++  // boring: our new tab page may commit as chrome://boring-newtab under a
++  // chrome://newtab virtual URL (or the reverse); either way it is the B.
++  if (IsBoringBrandFaviconUrl(virtual_url) ||
++      IsBoringBrandFaviconUrl(actual_url)) {
++    return false;
++  }
++
+   if (ShouldThemifyFavicon(virtual_url)) {
+     return true;
+   }
+--- a/chrome/browser/profiles/profile_shortcut_manager_win.cc
++++ b/chrome/browser/profiles/profile_shortcut_manager_win.cc
+@@ -78,7 +78,8 @@ const int kMaxProfileShortcutFileNameLength = 64;
+ // Incrementing this number will cause profile icons to be regenerated on
+ // profile startup (it should be incremented whenever the product/avatar icons
+ // change, etc).
+-const int kCurrentProfileIconVersion = 10;
++// boring: 11 since chromium.ico became the B mark.
++const int kCurrentProfileIconVersion = 11;
+ 
+ bool disabled_for_unit_tests = false;
+ bool disable_unpinning_for_unit_tests = false;
+--- a/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_controller_factory.cc
+@@ -406,6 +406,13 @@ base::RefCountedMemory* ChromeWebUIControllerFactory::GetFaviconResourceBytes(
+     return VersionUI::GetFaviconResourceBytes(scale_factor);
+   }
+ 
++  // boring: our own pages show the product favicon (the B mark).
++  if (page_url.host() == "boring-newtab" ||
++      page_url.host() == "boring-protection" ||
++      page_url.host() == "boring-ai" || page_url.host() == "boring-welcome") {
++    return VersionUI::GetFaviconResourceBytes(scale_factor);
++  }
++
+   if (page_url.host() == chrome::kChromeUIBookmarksHost) {
+     return BookmarksUI::GetFaviconResourceBytes(scale_factor);
+   }

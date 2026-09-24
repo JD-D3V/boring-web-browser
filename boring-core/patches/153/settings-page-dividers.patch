@@ -1,0 +1,324 @@
+--- a/chrome/browser/resources/settings/ai_page/offer_writing_help_page.html
++++ b/chrome/browser/resources/settings/ai_page/offer_writing_help_page.html
+@@ -12,8 +12,20 @@
+     flex-direction: column;
+   }
+ 
++  /* Same content-box divider hooks as settings-restyle.patch's .hr/.cr-row
++   * (cr_shared_style_lit.css): border-top is the byte-for-byte original
++   * fallback everywhere the two vars aren't set; chrome://settings turns
++   * the border off and an inset, content-box-painted background line on
++   * instead (settings_restyle's settings_section.html/settings_subpage.css
++   * set the vars), so the divider starts at this row's own padding edge -
++   * where its text is - instead of its outer edge. */
+   #disabledSitesList > div:not(:first-child) {
+-    border-top: var(--cr-separator-line);
++    background-image: var(--cr-row-divider-background, none);
++    background-origin: content-box;
++    background-position: top;
++    background-repeat: no-repeat;
++    background-size: 100% var(--cr-separator-height);
++    border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+   }
+ 
+   cr-icon {
+--- a/chrome/browser/resources/settings/appearance_page/appearance_page.css
++++ b/chrome/browser/resources/settings/appearance_page/appearance_page.css
+@@ -33,8 +33,18 @@
+   margin-inline-start: 0;
+ }
+ 
++/* Content-box divider hooks, see settings-restyle.patch's .hr/.cr-row
++ * (cr_shared_style_lit.css) for the full explanation: byte-for-byte
++ * the old flush border-top by default, inset to this row's own text
++ * when settings-restyle's settings-section/settings-subpage scope
++ * turns the two vars on. */
+ #toolbarRow {
+-  border-top: var(--cr-separator-line);
++  background-image: var(--cr-row-divider-background, none);
++  background-origin: content-box;
++  background-position: top center;
++  background-repeat: no-repeat;
++  background-size: calc(100% - 2 * var(--cr-section-padding)) var(--cr-separator-height);
++  border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+ }
+ 
+ .indented-toggles,
+--- a/chrome/browser/resources/settings/autofill_page/passwords_shared.css
++++ b/chrome/browser/resources/settings/autofill_page/passwords_shared.css
+@@ -22,8 +22,19 @@
+   padding-block-start: 16px;
+ }
+ 
++/* Content-box divider hooks, see settings-restyle.patch's .hr/.cr-row
++ * (cr_shared_style_lit.css) for the full explanation: byte-for-byte the
++ * old flush border-top by default (this file is also used from dialogs,
++ * which never set the two vars), inset to this row's own text when
++ * settings-restyle's settings-section/settings-subpage scope turns them
++ * on. */
+ .list-with-header > div:first-of-type {
+-  border-top: var(--cr-separator-line);
++  background-image: var(--cr-row-divider-background, none);
++  background-origin: content-box;
++  background-position: top;
++  background-repeat: no-repeat;
++  background-size: 100% var(--cr-separator-height);
++  border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+ }
+ 
+ .website-column {
+--- a/chrome/browser/resources/settings/autofill_page/payments/payments_list.html
++++ b/chrome/browser/resources/settings/autofill_page/payments/payments_list.html
+@@ -8,9 +8,19 @@
+       /**
+        * Add a separator line between consecutive non-empty payment method
+        * lists to display as a continuation of the previous list.
++       * Content-box divider hooks, see settings-restyle.patch's .hr/.cr-row
++       * (cr_shared_style_lit.css) for the full explanation: byte-for-byte
++       * the old flush border-top by default, inset to this row's own text
++       * when settings-restyle's settings-section/settings-subpage scope
++       * turns the two vars on.
+        */
+       .vertical-list:has(.payment-method) ~ .vertical-list:has(.payment-method) {
+-        border-top: var(--cr-separator-line);
++        background-image: var(--cr-row-divider-background, none);
++        background-origin: content-box;
++        background-position: top;
++        background-repeat: no-repeat;
++        background-size: 100% var(--cr-separator-height);
++        border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+         width: 100%;
+       }
+     </style>
+--- a/chrome/browser/resources/settings/autofill_page/payments/payments_page.html
++++ b/chrome/browser/resources/settings/autofill_page/payments/payments_page.html
+@@ -14,8 +14,19 @@
+     padding-inline-start: 20px;
+   }
+ 
++  /* Content-box divider hooks, see settings-restyle.patch's .hr/.cr-row
++   * (cr_shared_style_lit.css) for the full explanation: byte-for-byte the
++   * old flush border-top by default (fallback resolves to the same
++   * "1px solid var(--cr-separator-color)" as before), inset to this row's
++   * own text when settings-restyle's settings-section/settings-subpage
++   * scope turns the two vars on. */
+   .settings-card > * + * {
+-    border-top: 1px solid var(--cr-separator-color);
++    background-image: var(--cr-row-divider-background, none);
++    background-origin: content-box;
++    background-position: top;
++    background-repeat: no-repeat;
++    background-size: 100% var(--cr-separator-height);
++    border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+   }
+ </style>
+ <settings-subpage page-title="$i18n{paymentsTitle}"
+--- a/chrome/browser/resources/settings/on_startup_page/startup_urls_page.css
++++ b/chrome/browser/resources/settings/on_startup_page/startup_urls_page.css
+@@ -10,8 +10,18 @@
+  * #include=settings-shared-lit action-link-lit cr-scrollable-lit
+  * #css_wrapper_metadata_end */
+ 
++/* Content-box divider hooks, see settings-restyle.patch's .hr/.cr-row
++ * (cr_shared_style_lit.css) for the full explanation: byte-for-byte
++ * the old flush border-top by default, inset to this row's own text
++ * when settings-restyle's settings-section/settings-subpage scope
++ * turns the two vars on. */
+ #editOptions > div {
+-  border-top: var(--cr-separator-line);
++  background-image: var(--cr-row-divider-background, none);
++  background-origin: content-box;
++  background-position: top;
++  background-repeat: no-repeat;
++  background-size: 100% var(--cr-separator-height);
++  border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+ }
+ 
+ #outer {
+--- a/chrome/browser/resources/settings/people_page/sync_controls.css
++++ b/chrome/browser/resources/settings/people_page/sync_controls.css
+@@ -10,8 +10,21 @@
+  * #include=cr-shared-style-lit settings-shared-lit
+  * #css_wrapper_metadata_end */
+ 
++/* Content-box divider hooks, see settings-restyle.patch's .hr/.cr-row
++ * (cr_shared_style_lit.css) for the full explanation: byte-for-byte
++ * the old flush border-top by default, inset to this row's own text
++ * when settings-restyle's settings-section/settings-subpage scope
++ * turns the two vars on. #sync-data-types is class="list-frame", so
++ * these .list-item children are already uniformly shifted by its
++ * padding - the standard (non-calc) pattern applies here, not the
++ * #toolbarRow one. */
+ #sync-data-types .list-item:not([hidden]) ~ .list-item:not([hidden]) {
+-  border-top: var(--cr-separator-line);
++  background-image: var(--cr-row-divider-background, none);
++  background-origin: content-box;
++  background-position: top;
++  background-repeat: no-repeat;
++  background-size: 100% var(--cr-separator-height);
++  border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+ }
+ 
+ .list-item {
+--- a/chrome/browser/resources/settings/people_page/sync_page.css
++++ b/chrome/browser/resources/settings/people_page/sync_page.css
+@@ -29,9 +29,24 @@
+   --cr-input-width: var(--cr-default-input-max-width);
+ }
+ 
++/* Content-box divider hooks, see settings-restyle.patch's .hr/.cr-row
++ * (cr_shared_style_lit.css) for the full explanation: byte-for-byte
++ * the old flush borders by default, inset to this row's own text
++ * when settings-restyle's settings-section/settings-subpage scope
++ * turns the two vars on. #existingPassphrase carries its own
++ * padding (below), so the standard (non-calc) pattern applies here,
++ * not the #toolbarRow one; needs both edges since it has both a top
++ * and a bottom divider. */
+ #existingPassphrase {
+-  border-bottom: var(--cr-separator-line);
+-  border-top: var(--cr-separator-line);
++  background-image: var(--cr-row-divider-background, none),
++      var(--cr-row-divider-background, none);
++  background-origin: content-box, content-box;
++  background-position: top, bottom;
++  background-repeat: no-repeat, no-repeat;
++  background-size: 100% var(--cr-separator-height),
++      100% var(--cr-separator-height);
++  border-bottom: var(--cr-row-divider-border, var(--cr-separator-line));
++  border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+   /* This particular list frame is not indented. */
+   padding-inline-start: var(--cr-section-padding);
+ }
+--- a/chrome/browser/resources/settings/performance_page/tab_discard/exception_list.css
++++ b/chrome/browser/resources/settings/performance_page/tab_discard/exception_list.css
+@@ -20,8 +20,19 @@
+   flex-direction: column;
+ }
+ 
++/* Content-box divider hooks, see settings-restyle.patch's .hr/.cr-row
++ * (cr_shared_style_lit.css) for the full explanation: byte-for-byte the
++ * old flush border-top by default (this list is also used from a
++ * dialog, which never sets the two vars), inset to this row's own text
++ * when settings-restyle's settings-section/settings-subpage scope turns
++ * them on. */
+ #outer > tab-discard-exception-entry:not(:first-of-type) {
+-  border-top: var(--cr-separator-line);
++  background-image: var(--cr-row-divider-background, none);
++  background-origin: content-box;
++  background-position: top;
++  background-repeat: no-repeat;
++  background-size: 100% var(--cr-separator-height);
++  border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+ }
+ 
+ #expandButton {
+--- a/chrome/browser/resources/settings/search_page/search_engines_list.css
++++ b/chrome/browser/resources/settings/search_page/search_engines_list.css
+@@ -39,8 +39,18 @@
+   margin-inline-end: 40px;
+ }
+ 
++/* Content-box divider hooks, see settings-restyle.patch's .hr/.cr-row
++ * (cr_shared_style_lit.css) for the full explanation: byte-for-byte
++ * the old flush border-top by default, inset to this row's own text
++ * when settings-restyle's settings-section/settings-subpage scope
++ * turns the two vars on. */
+ settings-search-engine-entry {
+-  border-top: var(--cr-separator-line);
++  background-image: var(--cr-row-divider-background, none);
++  background-origin: content-box;
++  background-position: top;
++  background-repeat: no-repeat;
++  background-size: 100% var(--cr-separator-height);
++  border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+ }
+ 
+ :host([fixed-height]) #container {
+--- a/chrome/browser/resources/settings/search_page/search_engines_page.css
++++ b/chrome/browser/resources/settings/search_page/search_engines_page.css
+@@ -10,6 +10,16 @@
+  * #include=cr-shared-style-lit settings-shared-lit
+  * #css_wrapper_metadata_end */
+ 
++/* Content-box divider hooks, see settings-restyle.patch's .hr/.cr-row
++ * (cr_shared_style_lit.css) for the full explanation: byte-for-byte the
++ * old flush border-top by default, inset to this row's own text when
++ * settings-restyle's settings-section/settings-subpage scope turns the
++ * two vars on. */
+ settings-omnibox-extension-entry {
+-  border-top: var(--cr-separator-line);
++  background-image: var(--cr-row-divider-background, none);
++  background-origin: content-box;
++  background-position: top;
++  background-repeat: no-repeat;
++  background-size: 100% var(--cr-separator-height);
++  border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+ }
+--- a/chrome/browser/resources/settings/autofill_page/account_card.html
++++ b/chrome/browser/resources/settings/autofill_page/account_card.html
+@@ -7,9 +7,19 @@
+         width: 40px;
+       }
+ 
++      /* Content-box divider hooks, see settings-restyle.patch's .hr/.cr-row
++       * (cr_shared_style_lit.css) for the full explanation: byte-for-byte
++       * the old flush border-top by default, inset to this row's own text
++       * when settings-restyle's settings-section/settings-subpage scope
++       * turns the two vars on. */
+       cr-link-row {
+         --cr-link-row-icon-width: 40px;
+-        border-top: var(--cr-separator-line);
++        background-image: var(--cr-row-divider-background, none);
++        background-origin: content-box;
++        background-position: top;
++        background-repeat: no-repeat;
++        background-size: 100% var(--cr-separator-height);
++        border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+       }
+ 
+       settings-sync-account-control[showing-promo]::part(banner) {
+--- a/chrome/browser/resources/settings/autofill_page/collapsible_autofill_settings_card.html
++++ b/chrome/browser/resources/settings/autofill_page/collapsible_autofill_settings_card.html
+@@ -3,12 +3,40 @@
+     border-inline-end: var(--cr-separator-line);
+   }
+ 
++  /* Content-box divider hooks, see settings-restyle.patch's .hr/.cr-row
++   * (cr_shared_style_lit.css) for the full explanation: byte-for-byte the
++   * old flush border-top by default, inset to this row's own text when
++   * settings-restyle's settings-section/settings-subpage scope turns the
++   * two vars on. (#header-text's border-inline-end above is a vertical
++   * rule, not a row divider, and is left as-is.)
++   *
++   * #expandedContent (a cr-collapse) is itself an unpadded wrapper -
++   * confirmed live (chrome://settings/autofill, card expanded):
++   * getComputedStyle(el).paddingInlineStart was 0px, while its first real
++   * content (a cr-link-row or settings-toggle-button, both with their
++   * own 20px padding) sits well inside that. Content-box on
++   * #expandedContent itself would compute against its own zero padding,
++   * i.e. flush, same bug as appearance_page.html's #toolbarRow. Same fix:
++   * an explicit calc-based inset instead. #optInAuthenticationToggle below
++   * is a settings-toggle-button directly - confirmed live, its own
++   * paddingInlineStart is 20px - so content-box already works there and
++   * it's untouched. */
+   #expandedContent {
+-    border-top: var(--cr-separator-line);
++    background-image: var(--cr-row-divider-background, none);
++    background-origin: content-box;
++    background-position: top center;
++    background-repeat: no-repeat;
++    background-size: calc(100% - 2 * var(--cr-section-padding)) var(--cr-separator-height);
++    border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+   }
+ 
+   #optInAuthenticationToggle {
+-    border-top: var(--cr-separator-line);
++    background-image: var(--cr-row-divider-background, none);
++    background-origin: content-box;
++    background-position: top;
++    background-repeat: no-repeat;
++    background-size: 100% var(--cr-separator-height);
++    border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+   }
+ </style>
+ 

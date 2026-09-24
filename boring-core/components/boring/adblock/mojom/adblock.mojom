@@ -10,8 +10,10 @@ import "url/mojom/url.mojom";
 interface AdblockChecker {
   // request_type uses the filter list names: script, image, stylesheet,
   // subdocument, xmlhttprequest, font, media, websocket, ping, other.
-  Check(url.mojom.Url url, url.mojom.Url initiator, string request_type)
-      => (bool block);
+  // top_frame_url is the page in the tab, empty when the renderer cannot
+  // tell; it decides whether the person turned blocking off there.
+  Check(url.mojom.Url url, url.mojom.Url initiator, string request_type,
+        url.mojom.Url top_frame_url) => (bool block);
 
   // Binds another checker, used when a throttle provider is cloned for
   // a new worker thread.

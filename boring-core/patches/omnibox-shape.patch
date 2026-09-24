@@ -34,3 +34,16 @@
  }
  
  // static
+@@ -1564,7 +1571,11 @@
+     background_color_ = gfx::Tween::ColorValueBetween(opacity, normal, hovered);
+   }
+ 
+-  SkColor border_color = SK_ColorTRANSPARENT;
++  // boring: the address bar is a field, and a field has an edge. Chromium
++  // leaves it borderless and relies on a fill that differs from the
++  // toolbar; ours is page white on a band that is nearly white, so
++  // without this line there is nothing to see.
++  SkColor border_color = color_provider->GetColor(kColorLocationBarBorder);
+   if (high_contrast) {
+     // High contrast schemes get a border stroke even on a rounded omnibox.
+     border_color =

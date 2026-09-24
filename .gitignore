@@ -30,8 +30,14 @@ __pycache__/
 # Rust build output
 boring-core/rust/target/
 
-# Saved copies of original Chromium files (local cache, not source)
+# Downloaded third party binaries, fetched by tools/get_winsparkle.py
+# and pinned by hash there. Not ours to keep in git.
+boring-core/third_party/winsparkle/
+
+# Saved copies of original Chromium files (local cache, not source).
+# One store per source tree, named after the Chromium version in it.
 boring-core/.pristine/
+boring-core/.pristine-*/
 
 # Env / secrets
 .env
@@ -44,12 +50,24 @@ secrets*
 /artifacts/
 
 # Local notes and working docs, deliberately kept off the published repo.
-# The readme is the only markdown that ships.
+# The readme and the docs/portfolio pages are the only markdown that ships.
 *.md
 !/README.md
+!/docs/portfolio/
+!/docs/portfolio/**
+# The artwork's licence and provenance. This one ships because a
+# checkout holds the font it describes, and the licence on that font
+# asks for the credit to travel with it.
+!/boring-core/branding/BRANDING.md
 
 # Local tool settings for other coding assistants.
 /.codex/
 
 # Output from unrelated local tasks, never part of the browser.
 /outputs/
+
+# Page snapshots left by the Playwright MCP tooling during local UI review.
+/.playwright-mcp/
+
+# Download cache for get_chromium_web_store.py (pinned by hash).
+/boring-core/third_party/chromium-web-store/

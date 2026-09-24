@@ -1,0 +1,54 @@
+--- a/chrome/browser/ui/views/chrome_layout_provider.cc
++++ b/chrome/browser/ui/views/chrome_layout_provider.cc
+@@ -48,7 +48,14 @@
+   switch (metric) {
+     case views::INSETS_DIALOG:
+     case views::INSETS_DIALOG_SUBSECTION: {
+-      return gfx::Insets::VH(20, 20);
++      // boring: 24 DIP, matching the reference's popover padding. This is
++      // the shared content margin for dialogs and bubbles that don't set
++      // their own (DialogDelegate::GetContentsInsets() and
++      // BubbleDialogDelegateView both read INSETS_DIALOG when no
++      // per-instance margins were set), so it reaches the app menu's
++      // fallback layout, the downloads bubble, page info and the
++      // bookmark bubble without touching each one's own controller.
++      return gfx::Insets::VH(24, 24);
+     }
+     case views::INSETS_DIALOG_FOOTNOTE: {
+       return gfx::Insets::TLBR(10, 20, 15, 20);
+@@ -97,6 +104,20 @@
+   DCHECK_GE(metric, views::VIEWS_DISTANCE_START);
+   DCHECK_LT(metric, views::VIEWS_DISTANCE_MAX);
+ 
++  switch (metric) {
++    case views::DISTANCE_DIALOG_CONTENT_MARGIN_TOP_TEXT:
++    case views::DISTANCE_DIALOG_CONTENT_MARGIN_BOTTOM_TEXT:
++      // boring: 24 DIP top and bottom, matching the reference's uniform
++      // popover padding and INSETS_DIALOG's 24 DIP left/right above
++      // (BubbleDialogDelegate combines this with INSETS_DIALOG in
++      // LayoutProvider::GetDialogInsetsForContentType() for its default
++      // contents margins), instead of Chromium's asymmetric 8-top /
++      // 16-bottom text margins.
++      return 24;
++    default:
++      break;
++  }
++
+   if (metric < views::VIEWS_DISTANCE_END) {
+     return LayoutProvider::GetDistanceMetric(metric);
+   }
+--- a/chrome/browser/ui/views/page_info/page_info_view_factory.h
++++ b/chrome/browser/ui/views/page_info/page_info_view_factory.h
+@@ -26,7 +26,11 @@
+                       bool allow_extended_site_info);
+ 
+   // Bubble width constraints.
+-  static constexpr int kMinBubbleWidth = 320;
++  // boring: 370, matching the reference's popover width, as a floor
++  // rather than a fixed width; page info's own content still grows it
++  // past this for pages with more to say (permissions, cookies, etc.),
++  // same as kMaxBubbleWidth already allowed.
++  static constexpr int kMinBubbleWidth = 370;
+   static constexpr int kMaxBubbleWidth = 1000;
+ 
+   DECLARE_CLASS_ELEMENT_IDENTIFIER_VALUE(kBackButtonElementId);

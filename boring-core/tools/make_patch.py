@@ -13,7 +13,7 @@ import sys
 
 CORE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.environ.get("BORING_SRC", r"E:\ung\build\src")
-PRISTINE = os.path.join(CORE, ".pristine")
+import pristine  # noqa: E402
 
 
 def main():
@@ -25,7 +25,9 @@ def main():
     chunks = []
     for relpath in sys.argv[2:]:
         rel = relpath.replace("\\", "/")
-        keep = os.path.join(PRISTINE, rel.replace("/", os.sep))
+        keep = os.path.join(
+            pristine.store_for(src), rel.replace("/", os.sep)
+        )
         cur = os.path.join(SRC, rel.replace("/", os.sep))
         if not os.path.exists(keep):
             sys.exit("no pristine copy for " + rel + "; run snapshot.py first")

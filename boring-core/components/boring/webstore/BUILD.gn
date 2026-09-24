@@ -1,0 +1,35 @@
+# Copyright 2026 boring. BSD style license.
+
+# Chromium Web Store (NeverDecaf, MIT), shipped beside chrome.dll and
+# installed into each profile once. chromium-web-store/ and the two
+# generated files next to it come from
+# boring-core/tools/get_chromium_web_store.py; run it again rather than
+# editing them.
+
+import("//components/boring/webstore/chromium_web_store.gni")
+
+static_library("webstore") {
+  sources = [
+    "bundled_web_store.cc",
+    "bundled_web_store.h",
+    "chromium_web_store_version.h",
+  ]
+  deps = [
+    "//base",
+    "//components/pref_registry",
+    "//components/prefs",
+    "//components/user_prefs",
+    "//content/public/browser",
+    "//extensions/browser",
+    "//extensions/common",
+    "//extensions/common:mojom",
+  ]
+  data_deps = [ ":extension_files" ]
+}
+
+# out\boring\chromium-web-store\..., the layout the packaging patch
+# copies into the version folder.
+copy("extension_files") {
+  sources = chromium_web_store_files
+  outputs = [ "$root_out_dir/boring/{{source_target_relative}}" ]
+}

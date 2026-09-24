@@ -1,0 +1,48 @@
+################################################################
+# abuse.ch URLhaus Host file                                   #
+# Last updated: 2026-09-19 21:37:25 (UTC)                      #
+#                                                              #
+# Terms Of Use: https://urlhaus.abuse.ch/api/                  #
+################################################################
+#
+127.0.0.1	host000.example.invalid
+127.0.0.1	host001.example.invalid
+127.0.0.1	host002.example.invalid
+127.0.0.1	host003.example.invalid
+127.0.0.1	host004.example.invalid
+127.0.0.1	host005.example.invalid
+127.0.0.1	host006.example.invalid
+127.0.0.1	host007.example.invalid
+127.0.0.1	host008.example.invalid
+127.0.0.1	host009.example.invalid
+127.0.0.1	host010.example.invalid
+127.0.0.1	host011.example.invalid
+127.0.0.1	host012.example.invalid
+127.0.0.1	host013.example.invalid
+127.0.0.1	host014.example.invalid
+127.0.0.1	host015.example.invalid
+127.0.0.1	host016.example.invalid
+127.0.0.1	host017.example.invalid
+127.0.0.1	host018.example.invalid
+127.0.0.1	host019.example.invalid
+127.0.0.1	host020.example.invalid
+127.0.0.1	host021.example.invalid
+127.0.0.1	host022.example.invalid
+127.0.0.1	host023.example.invalid
+127.0.0.1	host024.example.invalid
+127.0.0.1	host025.example.invalid
+127.0.0.1	host026.example.invalid
+127.0.0.1	host027.example.invalid
+127.0.0.1	host028.example.invalid
+127.0.0.1	host029.example.invalid
+127.0.0.1	host030.example.invalid
+127.0.0.1	host031.example.invalid
+127.0.0.1	host032.example.invalid
+127.0.0.1	host033.example.invalid
+127.0.0.1	host034.example.invalid
+127.0.0.1	host035.example.invalid
+127.0.0.1	host036.example.invalid
+127.0.0.1	host037.example.invalid
+127.0.0.1	host038.example.invalid
+127.0.0.1	host039.example.invalid
+127.0.0.

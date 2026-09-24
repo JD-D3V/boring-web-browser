@@ -1,0 +1,27 @@
+# Copyright 2026 boring. BSD style license.
+
+# GetPrivacyState() is declared here and defined in
+# chrome/browser/boring/privacy_bridge.cc. See privacy_state.h.
+#
+# tracking_params.cc is adapted from brave-core and stays under the
+# MPL-2.0, see its header. Everything else here is ours.
+static_library("privacy") {
+  sources = [
+    "privacy_state.h",
+    "tracking_param_throttle.cc",
+    "tracking_param_throttle.h",
+    "tracking_params.cc",
+    "tracking_params.h",
+  ]
+  deps = [
+    "//base",
+    "//components/boring/core",
+    "//components/prefs",
+    "//components/user_prefs",
+    "//content/public/browser",
+    "//content/public/common",
+    "//net",
+    "//ui/base",
+    "//url",
+  ]
+}

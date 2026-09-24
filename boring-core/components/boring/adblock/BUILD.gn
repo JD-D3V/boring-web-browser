@@ -1,5 +1,33 @@
 # Copyright 2026 boring. BSD style license.
 
+import("//build/buildflag_header.gni")
+
+declare_args() {
+  # A release build must refuse to load an engine that is not signed,
+  # and the refusal must not be something an attacker can switch off by
+  # deleting a signature. A developer build cannot require one, because
+  # there is no certificate on a developer's machine. So the strict rule
+  # is a build setting the release job turns on, not something worked
+  # out at runtime from the browser's own state.
+  boring_require_signed_engine = false
+
+  # The exact name on the certificate we sign with, as Windows displays
+  # it, for example "JD Software Ltd". When this is set the engine must
+  # be signed by that publisher and nobody else. Left empty, the engine
+  # only has to be signed by whoever signed the browser, which still
+  # shuts out any other trusted signer but cannot tell a release
+  # certificate from a test one.
+  boring_signing_subject = ""
+}
+
+buildflag_header("buildflags") {
+  header = "buildflags.h"
+  flags = [
+    "BORING_REQUIRE_SIGNED_ENGINE=$boring_require_signed_engine",
+    "BORING_SIGNING_SUBJECT=\"$boring_signing_subject\"",
+  ]
+}
+
 # The Rust ad block engine is built by cargo (boring-core/rust) into a
 # DLL that apply.py copies into lib/ here. We do not link against it.
 # adblock_ffi.cc loads it by hand at first use, in the browser process
@@ -20,11 +48,18 @@ static_library("browser") {
     "adblock_service.h",
     "adblock_throttle.cc",
     "adblock_throttle.h",
+    "blocking_off_sites.cc",
+    "blocking_off_sites.h",
   ]
   deps = [
+    ":buildflags",
     "//base",
     "//components/boring/adblock/mojom",
+    "//components/boring/core",
     "//components/boring/lists",
+    "//components/prefs",
+    "//components/user_prefs",
+    "//content/public/browser",
     "//mojo/public/cpp/bindings",
     "//net",
     "//services/network/public/cpp",
@@ -34,9 +69,13 @@ static_library("browser") {
   ]
   data_deps = [ ":adblock_dll" ]
 
-  # WinVerifyTrust, used to check the engine is signed before loading it.
+  # WinVerifyTrust checks the engine is signed before we load it, and
+  # crypt32 reads back who signed it.
   if (is_win) {
-    libs = [ "wintrust.lib" ]
+    libs = [
+      "crypt32.lib",
+      "wintrust.lib",
+    ]
   }
 }
 
@@ -52,6 +91,7 @@ static_library("renderer") {
     "//net",
     "//services/network/public/cpp",
     "//services/network/public/mojom",
+    "//third_party/blink/public:blink",
     "//third_party/blink/public/common",
     "//url",
   ]

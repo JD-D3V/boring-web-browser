@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "base/command_line.h"
+#include "components/boring/core/boring_capabilities.h"
 #include "components/boring/scam/scam_blocking_page.h"
 #include "components/boring/scam/scam_service.h"
 #include "components/security_interstitials/content/security_interstitial_tab_helper.h"
@@ -24,6 +25,11 @@ constexpr char kDisableSwitch[] = "disable-boring-scam-protection";
 // static
 void ScamNavigationThrottle::MaybeCreateAndAdd(
     content::NavigationThrottleRegistry& registry) {
+  // No list ships in this version, so there is nothing to check a
+  // navigation against. Do not load, do not warn, do not pretend.
+  if (!kScamBlockingAvailable) {
+    return;
+  }
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(kDisableSwitch)) {
     return;
   }

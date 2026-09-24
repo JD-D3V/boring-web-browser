@@ -10,14 +10,14 @@ import sys
 
 CORE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.environ.get("BORING_SRC", r"E:\ung\build\src")
-PRISTINE = os.path.join(CORE, ".pristine")
+import pristine  # noqa: E402
 
 
 def main():
     for relpath in sys.argv[1:]:
         relpath = relpath.replace("/", os.sep)
         orig = os.path.join(SRC, relpath)
-        keep = os.path.join(PRISTINE, relpath)
+        keep = os.path.join(pristine.store_for(src), relpath)
         if not os.path.exists(orig):
             sys.exit("no such file: " + orig)
         if os.path.exists(keep):

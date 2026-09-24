@@ -1,0 +1,18 @@
+--- a/chrome/browser/ui/bookmarks/bookmark_bar_controller.cc
++++ b/chrome/browser/ui/bookmarks/bookmark_bar_controller.cc
+@@ -294,10 +294,11 @@
+     return false;
+   }
+ 
+-  return std::any_of(
+-      tabs.begin(), tabs.end(), [](const tabs::TabInterface* tab) {
+-        return tab->GetContents() && IsShowingNTP(tab->GetContents());
+-      });
++  // boring: no bar that appears only on the new tab page. Our new tab is
++  // a quiet page with the person's own shortcuts on it, and a row that
++  // comes and goes as you move between tabs moves everything below it.
++  // Turning the bar on, with Ctrl+Shift+B, still shows it everywhere.
++  return false;
+ }
+ 
+ void BookmarkBarController::OnTabStripModelChanged(

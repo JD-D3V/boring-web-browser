@@ -1,0 +1,131 @@
+--- a/chrome/installer/mini_installer/chrome.release
++++ b/chrome/installer/mini_installer/chrome.release
+@@ -22,6 +22,45 @@
+ chrome_100_percent.pak: %(VersionDir)s\
+ chrome_child.dll: %(VersionDir)s\
+ chrome_elf.dll: %(VersionDir)s\
++# boring: the blocking engine and its lists, next to chrome.dll.
++boring_adblock.dll: %(VersionDir)s\
++# boring: the browser updater, see components/boring/update.
++WinSparkle.dll: %(VersionDir)s\
++boring\easylist.txt: %(VersionDir)s\boring\
++# boring: the licence and the third party notices, so somebody who
++# never opens chrome://credits can still read what this is built from.
++LICENSE: %(VersionDir)s\
++LICENSE-BoringBrowser.txt: %(VersionDir)s\
++NOTICES.html: %(VersionDir)s\
++NOTICES-rust.html: %(VersionDir)s\
++NOTICES-WinSparkle.txt: %(VersionDir)s\
++NOTICES-chromium-web-store.txt: %(VersionDir)s\
++NOTICES-hunspell-en-US.txt: %(VersionDir)s\
++# boring: the en-US spelling dictionary, used when Windows has no
++# English spelling data. DIR_APP_DICTIONARIES is beside chrome.dll.
++Dictionaries\en-US-10-1.bdic: %(VersionDir)s\Dictionaries\
++# boring: Chromium Web Store, installed into each profile from here.
++# One line per folder: each line copies files into one folder.
++boring\chromium-web-store\*.*: %(VersionDir)s\boring\chromium-web-store\
++boring\chromium-web-store\LICENSE*: %(VersionDir)s\boring\chromium-web-store\
++boring\chromium-web-store\_locales\de\messages.json: %(VersionDir)s\boring\chromium-web-store\_locales\de\
++boring\chromium-web-store\_locales\en\messages.json: %(VersionDir)s\boring\chromium-web-store\_locales\en\
++boring\chromium-web-store\_locales\es\messages.json: %(VersionDir)s\boring\chromium-web-store\_locales\es\
++boring\chromium-web-store\_locales\es-419\messages.json: %(VersionDir)s\boring\chromium-web-store\_locales\es-419\
++boring\chromium-web-store\_locales\fr\messages.json: %(VersionDir)s\boring\chromium-web-store\_locales\fr\
++boring\chromium-web-store\_locales\it\messages.json: %(VersionDir)s\boring\chromium-web-store\_locales\it\
++boring\chromium-web-store\_locales\ko\messages.json: %(VersionDir)s\boring\chromium-web-store\_locales\ko\
++boring\chromium-web-store\_locales\no\messages.json: %(VersionDir)s\boring\chromium-web-store\_locales\no\
++boring\chromium-web-store\_locales\pl\messages.json: %(VersionDir)s\boring\chromium-web-store\_locales\pl\
++boring\chromium-web-store\_locales\pt_BR\messages.json: %(VersionDir)s\boring\chromium-web-store\_locales\pt_BR\
++boring\chromium-web-store\_locales\pt_PT\messages.json: %(VersionDir)s\boring\chromium-web-store\_locales\pt_PT\
++boring\chromium-web-store\_locales\ru\messages.json: %(VersionDir)s\boring\chromium-web-store\_locales\ru\
++boring\chromium-web-store\_locales\tr\messages.json: %(VersionDir)s\boring\chromium-web-store\_locales\tr\
++boring\chromium-web-store\_locales\zh_CN\messages.json: %(VersionDir)s\boring\chromium-web-store\_locales\zh_CN\
++boring\chromium-web-store\_locales\zh_TW\messages.json: %(VersionDir)s\boring\chromium-web-store\_locales\zh_TW\
++boring\chromium-web-store\assets\icon\*.*: %(VersionDir)s\boring\chromium-web-store\assets\icon\
++boring\chromium-web-store\scripts\*.*: %(VersionDir)s\boring\chromium-web-store\scripts\
++boring\chromium-web-store\sheets\*.*: %(VersionDir)s\boring\chromium-web-store\sheets\
+ chrome_pwa_launcher.exe: %(VersionDir)s\
+ chrome_renderer.dll: %(VersionDir)s\
+ chrome_wer.dll: %(VersionDir)s\
+--- a/chrome/tools/build/win/FILES.cfg
++++ b/chrome/tools/build/win/FILES.cfg
+@@ -63,6 +63,80 @@
+     'filegroup': ['default', 'symsrc'],
+     'optional': ['official'],
+   },
++  # boring: the blocking engine and its lists.
++  {
++    'filename': 'boring_adblock.dll',
++    'buildtype': ['official'],
++  },
++  # boring: the browser updater.
++  {
++    'filename': 'WinSparkle.dll',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'boring/easylist.txt',
++    'buildtype': ['official'],
++  },
++  # boring: the licence and the third party notices.
++  {
++    'filename': 'LICENSE',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'LICENSE-BoringBrowser.txt',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'NOTICES.html',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'NOTICES-rust.html',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'NOTICES-WinSparkle.txt',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'NOTICES-chromium-web-store.txt',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'NOTICES-hunspell-en-US.txt',
++    'buildtype': ['official'],
++  },
++  # boring: the en-US spelling dictionary.
++  {
++    'filename': 'Dictionaries/en-US-10-1.bdic',
++    'buildtype': ['official'],
++  },
++  # boring: Chromium Web Store. Files only: the zip writer cannot take
++  # a folder when the build sets a fixed timestamp.
++  {
++    'filename': 'boring/chromium-web-store/*.*',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'boring/chromium-web-store/LICENSE*',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'boring/chromium-web-store/_locales/*/messages.json',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'boring/chromium-web-store/assets/icon/*.*',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'boring/chromium-web-store/scripts/*.*',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'boring/chromium-web-store/sheets/*.*',
++    'buildtype': ['official'],
++  },
+   {
+     'filename': 'chrome_elf.dll',
+     'buildtype': ['official'],

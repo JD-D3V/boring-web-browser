@@ -1,0 +1,16 @@
+--- a/chrome/common/url_constants.h
++++ b/chrome/common/url_constants.h
+@@ -175,7 +175,12 @@
+     "chrome-untrusted://new-tab-page/";
+ 
+ // The URL for the Chromium project used in the About dialog.
+-inline constexpr char16_t kChromiumProjectURL[] = u"https://www.ch40m1um.qjz9zk/";
++// boring: ungoogled rewrites every Google address so the browser
++// cannot reach them on its own. This one is different: nothing ever
++// requests it, a person clicks it, and it is the link in the credit
++// the About page owes the Chromium project. Rewritten, the credit
++// points at a domain that does not exist, which is no credit at all.
++inline constexpr char16_t kChromiumProjectURL[] = u"https://www.chromium.org/";
+ #if BUILDFLAG(IS_CHROMEOS)
+ static_assert(std::u16string_view(kChromiumProjectURL) ==
+               ash::chrome_external_urls::kChromiumProjectURL);

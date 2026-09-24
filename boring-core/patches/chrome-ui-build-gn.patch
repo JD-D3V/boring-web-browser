@@ -1,9 +1,10 @@
 --- a/chrome/browser/ui/BUILD.gn
 +++ b/chrome/browser/ui/BUILD.gn
-@@ -713,6 +713,8 @@
+@@ -713,6 +713,9 @@
      "//components/blocked_content",
      "//components/bookmarks/browser",
      "//components/bookmarks/managed",
++    "//components/boring/core",
 +    "//components/boring/lists",
 +    "//components/boring/serp",
      "//components/breadcrumbs/core",

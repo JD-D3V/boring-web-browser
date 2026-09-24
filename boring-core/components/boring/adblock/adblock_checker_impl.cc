@@ -24,35 +24,49 @@ scoped_refptr<base::SequencedTaskRunner> CheckTaskRunner() {
   return *runner;
 }
 
-void BindOnTaskRunner(mojo::PendingReceiver<mojom::AdblockChecker> receiver) {
-  mojo::MakeSelfOwnedReceiver(std::make_unique<AdblockCheckerImpl>(),
-                              std::move(receiver));
+void BindOnTaskRunner(scoped_refptr<BlockingOffSites> off_sites,
+                      mojo::PendingReceiver<mojom::AdblockChecker> receiver) {
+  mojo::MakeSelfOwnedReceiver(
+      std::make_unique<AdblockCheckerImpl>(std::move(off_sites)),
+      std::move(receiver));
 }
 
 }  // namespace
 
 // static
 void AdblockCheckerImpl::Bind(
+    scoped_refptr<BlockingOffSites> off_sites,
     mojo::PendingReceiver<mojom::AdblockChecker> receiver) {
   AdblockService::GetInstance()->EnsureLoading();
   CheckTaskRunner()->PostTask(
-      FROM_HERE, base::BindOnce(&BindOnTaskRunner, std::move(receiver)));
+      FROM_HERE, base::BindOnce(&BindOnTaskRunner, std::move(off_sites),
+                                std::move(receiver)));
 }
 
-AdblockCheckerImpl::AdblockCheckerImpl() = default;
+AdblockCheckerImpl::AdblockCheckerImpl(
+    scoped_refptr<BlockingOffSites> off_sites)
+    : off_sites_(std::move(off_sites)) {}
 AdblockCheckerImpl::~AdblockCheckerImpl() = default;
 
 void AdblockCheckerImpl::Check(const GURL& url,
                                const GURL& initiator,
                                const std::string& request_type,
+                               const GURL& top_frame_url,
                                CheckCallback callback) {
+  // The switch that turns ad blocking off for this run has to reach
+  // page requests too, not only the browser side throttle.
+  if (AdblockService::IsDisabled() ||
+      (off_sites_ && off_sites_->IsOff(top_frame_url))) {
+    std::move(callback).Run(false);
+    return;
+  }
   std::move(callback).Run(
       AdblockService::GetInstance()->ShouldBlock(url, initiator, request_type));
 }
 
 void AdblockCheckerImpl::Clone(
     mojo::PendingReceiver<mojom::AdblockChecker> receiver) {
-  mojo::MakeSelfOwnedReceiver(std::make_unique<AdblockCheckerImpl>(),
+  mojo::MakeSelfOwnedReceiver(std::make_unique<AdblockCheckerImpl>(off_sites_),
                               std::move(receiver));
 }
 

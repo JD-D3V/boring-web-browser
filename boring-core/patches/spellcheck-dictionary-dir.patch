@@ -1,0 +1,14 @@
+--- a/chrome/common/chrome_paths.cc
++++ b/chrome/common/chrome_paths.cc
+@@ -281,7 +281,10 @@
+ #else
+       // TODO(crbug.com/40840089): Migrate Windows to use `DIR_USER_DATA` like
+       // other platforms.
+-      if (!base::PathService::Get(base::DIR_EXE, &cur)) {
++      // boring: beside chrome.dll rather than chrome.exe, so the dictionary
++      // we ship reaches it. The installer only moves chrome.exe and the
++      // version folder into place. In the zip both are the same folder.
++      if (!base::PathService::Get(base::DIR_MODULE, &cur)) {
+         return false;
+       }
+ #endif

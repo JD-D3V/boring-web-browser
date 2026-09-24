@@ -1,0 +1,16 @@
+// Copyright 2026 boring. BSD style license.
+
+// The downloads glyph from the V2 icon family (icons.js "downloads"): a
+// thin down arrow into an open tray, 24 grid scaled to this 20 canvas.
+
+CANVAS_DIMENSIONS, 20,
+STROKE, 1.42,
+MOVE_TO, 10, 2.5,
+LINE_TO, 10, 12.5,
+MOVE_TO, 5.83, 8.33,
+LINE_TO, 10, 12.5,
+LINE_TO, 14.17, 8.33,
+MOVE_TO, 4.17, 14.17,
+LINE_TO, 4.17, 17.5,
+LINE_TO, 15.83, 17.5,
+LINE_TO, 15.83, 14.17,

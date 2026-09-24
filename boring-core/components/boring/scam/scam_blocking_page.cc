@@ -19,7 +19,8 @@ namespace boring {
 namespace {
 
 // The page is written directly here, in plain language, with big text.
-// It stays calm on purpose, and shares its colours with the AI page.
+// It stays calm on purpose, and shares its colours with the AI and
+// protection pages.
 constexpr char kPageTop[] = R"HTML(<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -29,42 +30,66 @@ constexpr char kPageTop[] = R"HTML(<!DOCTYPE html>
 <style>
   :root { color-scheme: light dark;
     --surface: light-dark(#faf9f6, #1c2422);
+    --paper: light-dark(#ffffff, #252e2b);
     --ink: light-dark(#242e2d, #e8ede7);
     --muted: light-dark(#5d6966, #adb9b2);
+    --line: light-dark(#d8ddd7, #414e47);
     --accent: light-dark(#176b5b, #92d4bb);
+    --warning: light-dark(#9e3e24, #ffb69c);
+    --warning-soft: light-dark(#fbebe4, #412f28);
   }
   * { box-sizing: border-box; }
-  body { background: var(--surface); color: var(--ink); font-family: system-ui, sans-serif;
+  body { background: var(--surface); color: var(--ink);
+         font: 14px/1.6 "Segoe UI", system-ui, sans-serif;
          margin: 0; display: flex; min-height: 100vh; align-items: center;
          justify-content: center; }
-  .card { width: 40em; max-width: 100%; padding: 2.5em; }
-  h1 { font-size: 1.9em; margin: 0.5em 0; }
-  p { font-size: 1.15em; line-height: 1.6; }
-  .host { font-weight: bold; word-break: break-all; }
-  .safe { display: inline-block; background: var(--accent); color: var(--surface);
-          border: none; border-radius: 8px; font: inherit; font-size: 1.2em;
-          padding: 0.8em 1.6em; cursor: pointer; margin-top: 1em; }
-  .safe:hover { filter: brightness(0.94); }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
-  .continue { display: block; margin-top: 2.5em; font-size: 0.9em;
-              color: var(--muted); }
-  .continue a { color: var(--muted); text-underline-offset: 3px; }
-  .icon { font-size: 2em; width: 1.8em; height: 1.8em;
-          display: grid; place-items: center; border-radius: 12px;
-          background: light-dark(#fbebe4, #412f28);
-          color: light-dark(#9e3e24, #ffb69c); }
-  @media (max-width: 480px) { .card { padding: 1.5em; } }
-  @media (forced-colors: active) { .safe { border: 1px solid ButtonText; } }
+  .warning-page { max-width: 640px; width: 100%; margin: 65px auto;
+                  padding: 0 30px 35px; }
+  .warning-symbol { display: grid; place-items: center; font-size: 24px;
+                    color: var(--warning); background: var(--warning-soft);
+                    width: 52px; height: 52px; border-radius: 15px;
+                    margin-bottom: 26px; }
+  .eyebrow { text-transform: uppercase; letter-spacing: 0.16em;
+             font-size: 10px; font-weight: 650; color: var(--warning);
+             margin-bottom: 10px; }
+  h1 { font-size: 38px; letter-spacing: -0.045em; font-weight: 550;
+       line-height: 1.1; margin: 0 0 0.4em; }
+  p { color: var(--muted); font-size: 14px; line-height: 1.65;
+      margin: 0 0 1em; }
+  .host { font-size: 14px; padding: 14px 18px; border: 1px solid var(--line);
+          border-radius: 8px; background: var(--paper); color: var(--ink);
+          font-weight: 600; overflow-wrap: anywhere; margin: 0 0 1.2em; }
+  .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+  .primary { min-height: 40px; padding: 10px 18px; border-radius: 7px;
+             font-weight: 600; font-size: 13px; border: none;
+             cursor: pointer; font-family: inherit;
+             background: var(--accent); color: var(--surface); }
+  .primary:hover { filter: brightness(0.92); }
+  .text-button { background: none; border: none; color: var(--accent);
+                 font-weight: 600; padding: 8px 0; text-align: left;
+                 font-size: 13px; cursor: pointer; font-family: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  details { margin-top: 28px; font-size: 12px; color: var(--muted); }
+  summary { cursor: pointer; }
+  .panel-note { font-size: 12px; color: var(--muted); margin-top: 28px; }
+  @media (max-width: 480px) { .warning-page { padding: 0 22px 22px; } }
+  @media (forced-colors: active) {
+    button { border: 1px solid ButtonText; }
+    .primary { background: Highlight; color: HighlightText; }
+  }
 </style>
 </head>
 <body>
-<div class="card">
-<div class="icon" aria-hidden="true">!</div>
-<h1>This site looks dangerous</h1>
+<div class="warning-page">
+<div class="warning-symbol" aria-hidden="true">!</div>
+<div class="eyebrow">Site blocked</div>
+<h1>This site looks dangerous.</h1>
 )HTML";
 
 constexpr char kPageBottom[] = R"HTML(
-<button class="safe" onclick="goBack()">Go back</button>
+<div class="actions">
+<button class="primary" onclick="goBack()">Go back to safety</button>
+</div>
 %CONTINUE%
 </div>
 <script>
@@ -87,8 +112,15 @@ function proceedAnyway() {
 )HTML";
 
 constexpr char kContinueLink[] =
-    "<span class=\"continue\"><a href=\"#\" "
-    "onclick=\"return proceedAnyway()\">Continue anyway</a></span>";
+    "<details><summary>Why was this blocked?</summary>"
+    "<p>Its address matched the local blocklist. Lists can make "
+    "mistakes.</p>"
+    "<button type=\"button\" class=\"text-button\" "
+    "onclick=\"return proceedAnyway()\">Continue anyway</button></details>";
+
+constexpr char kSeniorNote[] =
+    "<p class=\"panel-note\">Senior Safe Mode is on. This site cannot be "
+    "opened from this warning.</p>";
 
 }  // namespace
 
@@ -125,11 +157,13 @@ ScamBlockingPage::~ScamBlockingPage() = default;
 std::string ScamBlockingPage::GetHTMLContents() {
   std::string host = base::EscapeForHTML(request_url().host());
   std::string body = base::StrCat(
-      {"<p>The site <span class=\"host\">", host,
-       "</span> is on a list of known scam and phishing sites.</p>"});
+      {"<p>The address is on a list of known scam or phishing sites. It "
+       "may try to steal your passwords, payment details, or money.</p>"
+       "<div class=\"host\">",
+       host, "</div>"});
   std::string bottom(kPageBottom);
   std::string marker = "%CONTINUE%";
-  std::string link = senior_safe_mode_ ? "" : kContinueLink;
+  std::string link = senior_safe_mode_ ? kSeniorNote : kContinueLink;
   size_t marker_pos = bottom.find(marker);
   if (marker_pos != std::string::npos) {
     bottom.replace(marker_pos, marker.size(), link);

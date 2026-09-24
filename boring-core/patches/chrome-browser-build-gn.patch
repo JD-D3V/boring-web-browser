@@ -1,6 +1,18 @@
 --- a/chrome/browser/BUILD.gn
 +++ b/chrome/browser/BUILD.gn
-@@ -1098,6 +1098,14 @@
+@@ -829,6 +829,11 @@
+   sources = [
+     "about_flags.cc",
+     "after_startup_task_utils.cc",
++    # boring: the chrome/browser half of components/boring/search, built
++    # here rather than as a target of its own, which this target would
++    # then have to depend on while //components/boring already depends
++    # on nothing above it.
++    "boring/search_engines_bridge.cc",
+     "browser_about_handler.cc",
+     "browser_process_impl.cc",
+     "chrome_browser_field_trials.cc",
+@@ -1098,6 +1103,16 @@
      "//components/application_locale_storage",
      "//components/assist_ranker",
      "//components/blocked_content",
@@ -12,6 +24,8 @@
 +    "//components/boring/newtab",
 +    "//components/boring/popunder",
 +    "//components/boring/scam",
++    "//components/boring/search",
++    "//components/boring/webstore",
      "//components/breadcrumbs/core",
      "//components/breadcrumbs/core:status",
      "//components/browser_apis/tab_drag/sessions",

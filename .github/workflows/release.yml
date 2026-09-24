@@ -4,8 +4,30 @@
 # public here: the release is a draft until someone reads it over and
 # presses Publish on the Releases page.
 #
-# Start it by hand from the Actions tab and give it a version, for
-# example 151.0.7922.173-beta.1.
+# Start it by hand from the Actions tab and give it a version: the
+# Chromium version and our kBoringRelease, for example 153.0.8010.52.1,
+# optionally with a suffix, 153.0.8010.52.1-beta. The same number names
+# the downloads (BoringBrowser_153.0.8010.52.1_installer_x64.exe) and is
+# what the updater compares.
+#
+# The update feed has to be signed with the update key, whose public
+# half is compiled into the browser. The path to the private key file on
+# this runner is the BORING_UPDATE_KEY_FILE secret. Without it the job
+# stops before building. The path is never printed. See
+# docs/release/RELEASE_PROCESS.md.
+#
+# Three things this job refuses to do, because each of them has shipped
+# a wrong binary somewhere before:
+#   - package a file it did not just build (every output is checked
+#     against the time the build started),
+#   - pick "the newest installer lying around" (the filename is worked
+#     out from the source and must match exactly once),
+#   - claim a version the binary does not carry (chrome.exe's own
+#     version metadata has to agree with the version asked for).
+#
+# Signing is wired in but optional. With no certificate configured the
+# job still produces a draft, and says UNSIGNED in the log and in the
+# release notes. See docs/release/SIGNING.md.
 
 name: release
 
@@ -13,12 +35,22 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to release, for example 151.0.7922.173-beta.1"
+        description: "Version to release, <chromium>.<kBoringRelease>, for example 153.0.8010.52.1"
         required: true
         type: string
+      allow_unchanged_outputs:
+        description: "Ship binaries ninja did not relink this run"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
+
+# Shared with build.yml, so the nightly build cannot start while a
+# release is part way through the one build tree on this machine.
+concurrency:
+  group: ung-build-tree
+  cancel-in-progress: false
 
 jobs:
   windows:
@@ -27,6 +59,30 @@ jobs:
     env:
       VERSION: ${{ inputs.version }}
       DIST: ${{ github.workspace }}\dist
+      UNG: E:\ung-153-47
+      OUT: E:\ung-153-47\build\src\out\Default
+      # The tools default to E:\ung; point them at the current tree.
+      BORING_OUT: E:\ung-153-47\build\src\out\Default
+      BORING_JOBLOCK: E:\ung-153-47\boring-build.lock
+      LOCK: ${{ github.workspace }}\boring-core\tools\joblock.py
+      SIGN: ${{ github.workspace }}\boring-core\tools\sign_windows.py
+      SIGN_LIST: E:\tmp\boring-sign-list.txt
+      # One token for the whole job, so its steps hand the claim on to
+      # each other and nothing else gets in between them.
+      LOCK_OWNER: gh-release-${{ github.run_id }}-${{ github.run_attempt }}
+      # sign_windows.py reads these. Empty when JD has not set them up,
+      # which is what the "if" on every signing step looks at.
+      BORING_SIGN_THUMBPRINT: ${{ secrets.BORING_SIGN_THUMBPRINT }}
+      BORING_SIGN_STORE: ${{ secrets.BORING_SIGN_STORE }}
+      BORING_SIGN_MACHINE_STORE: ${{ secrets.BORING_SIGN_MACHINE_STORE }}
+      BORING_SIGN_TIMESTAMP_URL: ${{ secrets.BORING_SIGN_TIMESTAMP_URL }}
+      # Path to the update key file on this runner, read by
+      # make_appcast.py from the environment so it never reaches a
+      # command line or the log.
+      BORING_UPDATE_KEY_FILE: ${{ secrets.BORING_UPDATE_KEY_FILE }}
+      # The one address every installed copy reads. Compiled into
+      # browser_updater.cc; it never mentions a version.
+      FEED_URL: https://jd-d3v.github.io/boring-web-browser/appcast.xml
     steps:
       - name: Check out our files
         uses: actions/checkout@v4
@@ -34,76 +90,359 @@ jobs:
       - name: Check the version looks like one
         shell: pwsh
         run: |
-          if ($env:VERSION -notmatch '^\d+\.\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$') {
-            throw "Version '$env:VERSION' should look like 151.0.7922.173-beta.1"
+          if ($env:VERSION -notmatch '^\d+\.\d+\.\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$') {
+            throw "Version '$env:VERSION' should look like 153.0.8010.52.1 or 153.0.8010.52.1-beta"
           }
+
+      # Before hours of building: a release without a signed feed is
+      # refused at the end anyway, so find out now.
+      - name: Check the update key is there
+        shell: pwsh
+        run: |
+          if (-not $env:BORING_UPDATE_KEY_FILE) {
+            throw "BORING_UPDATE_KEY_FILE is not set, so the update feed cannot be signed. See docs/release/RELEASE_PROCESS.md."
+          }
+          if (-not (Test-Path -LiteralPath $env:BORING_UPDATE_KEY_FILE -PathType Leaf)) {
+            throw "the update key file named by BORING_UPDATE_KEY_FILE is not on this runner (is the drive plugged in?)"
+          }
+          $tool = Join-Path $env:GITHUB_WORKSPACE 'boring-core\third_party\winsparkle\winsparkle-tool.exe'
+          if (-not (Test-Path -LiteralPath $tool)) {
+            python boring-core\tools\get_winsparkle.py
+            if ($LASTEXITCODE -ne 0) { throw "get_winsparkle.py failed" }
+          }
+          Write-Host "update key file found"
+
+      - name: Say whether this build will be signed
+        shell: pwsh
+        run: |
+          if ($env:BORING_SIGN_THUMBPRINT) {
+            "SIGNED=yes" | Out-File $env:GITHUB_ENV -Append -Encoding ascii
+            Write-Host "Signing with the certificate thumbprint in BORING_SIGN_THUMBPRINT."
+          } else {
+            "SIGNED=no" | Out-File $env:GITHUB_ENV -Append -Encoding ascii
+            Write-Host "############################################################"
+            Write-Host "#  UNSIGNED BUILD. No signing certificate is configured.   #"
+            Write-Host "#  Windows will say the publisher is unknown.              #"
+            Write-Host "#  See docs/release/SIGNING.md.                            #"
+            Write-Host "############################################################"
+          }
+
+      - name: Take the build tree
+        shell: cmd
+        run: python "%LOCK%" --claim --owner "%LOCK_OWNER%" --lease 43200 --wait 1800 --job "release.yml %VERSION%"
 
       - name: Put boring-core into the build tree
         shell: cmd
-        run: python boring-core\tools\apply.py
+        run: python "%LOCK%" --owner "%LOCK_OWNER%" --job apply -- python boring-core\tools\apply.py --src E:\ung-153-47\build\src --patch-set 153
 
-      - name: Refresh the filter lists and the scam blocklist
+      - name: Refresh the filter lists
         shell: cmd
-        run: |
-          python boring-core\tools\get_filterlists.py
-          python boring-core\tools\get_scamlist.py
+        run: python "%LOCK%" --owner "%LOCK_OWNER%" --job filterlists -- python boring-core\tools\get_filterlists.py
 
+      # Everything we ship has to be newer than this moment, or it came
+      # from some earlier build and we do not know what is in it.
+      - name: Note when the build starts
+        shell: pwsh
+        run: |
+          $now = [DateTime]::UtcNow
+          "BUILD_STARTED_TICKS=$($now.Ticks)" | Out-File $env:GITHUB_ENV -Append -Encoding ascii
+          "BUILD_STARTED=$($now.ToString('u'))" | Out-File $env:GITHUB_ENV -Append -Encoding ascii
+
+      # cmd does not stop at the first failing line and reports only the
+      # last one, so every line that can fail says so itself.
       - name: Build
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+          call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
           set TMP=E:\tmp
           set TEMP=E:\tmp
-          cd /d E:\ung
-          python3 build.py --ci
+          cd /d %UNG% || exit /b 1
+          python "%LOCK%" --owner "%LOCK_OWNER%" --job "ninja build" -- python3 build.py --ci || exit /b 1
+
+      - name: Check the build produced what it should have
+        shell: pwsh
+        run: |
+          $started = [long]$env:BUILD_STARTED_TICKS
+          $needed = @(
+            'chrome.exe', 'chrome.dll', 'chrome_elf.dll',
+            'boring_adblock.dll', 'setup.exe', 'mini_installer.exe'
+          )
+          $stale = @()
+          foreach ($name in $needed) {
+            $path = Join-Path $env:OUT $name
+            if (-not (Test-Path -LiteralPath $path)) {
+              throw "the build did not produce $path"
+            }
+            $written = (Get-Item -LiteralPath $path).LastWriteTimeUtc
+            Write-Host ("{0,-22} {1:u}" -f $name, $written)
+            if ($written.Ticks -lt $started) { $stale += $name }
+          }
+          if ($stale.Count -gt 0) {
+            $list = $stale -join ', '
+            if ('${{ inputs.allow_unchanged_outputs }}' -eq 'true') {
+              Write-Host "::warning::shipping files ninja did not relink: $list"
+            } else {
+              throw ("These are older than this build started, so they came " +
+                "from an earlier one: $list. Re-run with " +
+                "allow_unchanged_outputs if that is genuinely what you want.")
+            }
+          }
+
+      # The name on the download, the version in the update feed and the
+      # version inside chrome.exe all have to be the same number.
+      - name: Check the version metadata agrees
+        shell: pwsh
+        run: |
+          $versionFile = Join-Path $env:UNG 'build\src\chrome\VERSION'
+          $parts = @{}
+          foreach ($line in Get-Content -LiteralPath $versionFile) {
+            $key, $value = $line -split '=', 2
+            $parts[$key] = $value
+          }
+          $chromium = "$($parts.MAJOR).$($parts.MINOR).$($parts.BUILD).$($parts.PATCH)"
+
+          $chromeExe = Join-Path $env:OUT 'chrome.exe'
+          $info = (Get-Item -LiteralPath $chromeExe).VersionInfo
+          $built = "$($info.FileMajorPart).$($info.FileMinorPart)." +
+            "$($info.FileBuildPart).$($info.FilePrivatePart)"
+          Write-Host "chrome/VERSION      $chromium"
+          Write-Host "chrome.exe          $built"
+          Write-Host "asked for           $env:VERSION"
+
+          if ($built -ne $chromium) {
+            throw "chrome.exe is $built but the source says $chromium"
+          }
+          # The compiled version, then our release number, then an
+          # optional suffix. A plain StartsWith would let 151.0.7922.1731
+          # through. rename_release.py checks the release number itself
+          # against boring_release.h.
+          if ($env:VERSION -notmatch ('^' + [regex]::Escape($chromium) + '\.\d+(-[0-9A-Za-z.]+)?$')) {
+            throw "version '$env:VERSION' is not the compiled $chromium followed by our release number"
+          }
+
+          $argsGn = Get-Content -LiteralPath (Join-Path $env:OUT 'args.gn') -Raw
+          if ($argsGn -notmatch 'target_cpu\s*=\s*"x64"') {
+            throw "this job only releases x64, but args.gn does not say x64"
+          }
+
+          # package.py builds its filenames out of these three, so we do
+          # the same rather than guessing at whatever is in build\.
+          $releaseRev = (Get-Content -LiteralPath (Join-Path $env:UNG 'ungoogled-chromium\revision.txt') -Raw).Trim()
+          $packRev = (Get-Content -LiteralPath (Join-Path $env:UNG 'revision.txt') -Raw).Trim()
+          $stem = "ungoogled-chromium_$chromium-$releaseRev.$packRev"
+          "CHROMIUM_VERSION=$chromium" | Out-File $env:GITHUB_ENV -Append -Encoding ascii
+          "EXPECTED_INSTALLER=${stem}_installer_x64.exe" | Out-File $env:GITHUB_ENV -Append -Encoding ascii
+          "EXPECTED_ZIP=${stem}_windows_x64.zip" | Out-File $env:GITHUB_ENV -Append -Encoding ascii
 
       # A release that fails its own checks does not get made.
       - name: Check the browser works
         shell: cmd
-        run: python boring-core\tools\smoke_all.py
+        run: python "%LOCK%" --owner "%LOCK_OWNER%" --job smoke -- python boring-core\tools\smoke_all.py
+
+      - name: List the files to sign
+        shell: pwsh
+        run: |
+          # Our own build outputs only. The Microsoft and vendor
+          # redistributables next to them already carry their publisher's
+          # signature, and re-signing would throw that away.
+          $required = @(
+            'chrome.exe', 'chrome.dll', 'chrome_elf.dll', 'boring_adblock.dll',
+            'setup.exe'
+          )
+          $alsoIfPresent = @(
+            'chrome_proxy.exe', 'chrome_pwa_launcher.exe', 'chrome_wer.dll',
+            'chromedriver.exe', 'notification_helper.exe', 'elevation_service.exe',
+            'elevated_tracing_service.exe', 'libEGL.dll', 'libGLESv2.dll',
+            'vk_swiftshader.dll', 'vulkan-1.dll'
+          )
+          $lines = @('# Files signed before the installer is packed.')
+          foreach ($name in $required) {
+            $path = Join-Path $env:OUT $name
+            if (-not (Test-Path -LiteralPath $path)) { throw "missing $path" }
+            $lines += $path
+          }
+          foreach ($name in $alsoIfPresent) {
+            $path = Join-Path $env:OUT $name
+            if (Test-Path -LiteralPath $path) { $lines += $path }
+          }
+          New-Item -ItemType Directory -Force (Split-Path $env:SIGN_LIST) | Out-Null
+          Set-Content -LiteralPath $env:SIGN_LIST -Value $lines -Encoding ascii
+          Write-Host "$($lines.Count - 1) files to sign"
+
+      - name: Show what signing would do
+        if: env.BORING_SIGN_THUMBPRINT == ''
+        shell: cmd
+        run: python "%SIGN%" --dry-run --from-manifest "%SIGN_LIST%"
+
+      # Before packaging, because mini_installer carries copies of these
+      # inside it. Signing them afterwards would leave the copies people
+      # actually install unsigned.
+      - name: Sign the browser files
+        if: env.BORING_SIGN_THUMBPRINT != ''
+        shell: cmd
+        run: python "%LOCK%" --owner "%LOCK_OWNER%" --job sign -- python "%SIGN%" --from-manifest "%SIGN_LIST%"
+
+      - name: Repack the installer around the signed files
+        if: env.BORING_SIGN_THUMBPRINT != ''
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+          set TMP=E:\tmp
+          set TEMP=E:\tmp
+          set DEPOT_TOOLS_WIN_TOOLCHAIN=0
+          cd /d %UNG%\build\src || exit /b 1
+          python "%LOCK%" --owner "%LOCK_OWNER%" --job "repack installer" -- ninja -C out\Default mini_installer || exit /b 1
 
       - name: Package
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
-          cd /d E:\ung
-          python3 package.py
+          call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+          cd /d %UNG% || exit /b 1
+          python "%LOCK%" --owner "%LOCK_OWNER%" --job package -- python3 package.py || exit /b 1
 
-      - name: Name the files and write checksums and the update feed
+      # By the exact names package.py writes, and newer than the build.
+      # Nothing is copied yet: the installer is signed where it is first.
+      - name: Pick the files this build made, by name
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force $env:DIST | Out-Null
-          $installer = Get-ChildItem E:\ung\build\*_installer_x64.exe |
-            Sort-Object LastWriteTime | Select-Object -Last 1
-          $zip = Get-ChildItem E:\ung\build\*_windows_x64.zip |
-            Sort-Object LastWriteTime | Select-Object -Last 1
-          $base = "boring-web-browser-$env:VERSION-windows-x64"
-          Copy-Item $installer.FullName "$env:DIST\$base-installer.exe"
-          Copy-Item $zip.FullName "$env:DIST\$base.zip"
-          Get-ChildItem $env:DIST -File | ForEach-Object {
-            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
-          } | Set-Content -Encoding ascii "$env:DIST\SHA256SUMS.txt"
+          $started = [long]$env:BUILD_STARTED_TICKS
+          function Find-Exactly($expected) {
+            $found = @(Get-ChildItem -LiteralPath (Join-Path $env:UNG 'build') `
+              -File -Filter $expected)
+            if ($found.Count -ne 1) {
+              throw "expected exactly one $expected in $env:UNG\build, found $($found.Count)"
+            }
+            if ($found[0].LastWriteTimeUtc.Ticks -lt $started) {
+              throw "$($found[0].Name) is older than this build, it is left over"
+            }
+            return $found[0].FullName
+          }
+          "PKG_INSTALLER=$(Find-Exactly $env:EXPECTED_INSTALLER)" | Out-File $env:GITHUB_ENV -Append -Encoding ascii
+          "PKG_ZIP=$(Find-Exactly $env:EXPECTED_ZIP)" | Out-File $env:GITHUB_ENV -Append -Encoding ascii
+
+      # After packaging, because the installer did not exist before it,
+      # and before the copy and the checksums, because signing changes
+      # the bytes.
+      - name: Sign the installer
+        if: env.BORING_SIGN_THUMBPRINT != ''
+        shell: cmd
+        run: python "%SIGN%" "%PKG_INSTALLER%"
+
+      - name: Check the signatures
+        if: env.BORING_SIGN_THUMBPRINT != ''
+        shell: cmd
+        run: python "%SIGN%" --verify "%PKG_INSTALLER%" "%OUT%\chrome.exe" "%OUT%\boring_adblock.dll"
+
+      # Copies, never moves, to BoringBrowser_<chromium>.<release>_*,
+      # refusing if chrome/VERSION or boring_release.h disagree with the
+      # file names or with the version typed in, and writes
+      # SHA256SUMS.txt from the copies. The header is the one in the
+      # build tree, the one the browser was compiled with.
+      - name: Name the release files and write the checksums
+        shell: pwsh
+        run: |
+          if (Test-Path -LiteralPath $env:DIST) { Remove-Item -Recurse -Force -LiteralPath $env:DIST }
+          python boring-core\tools\rename_release.py `
+            --installer $env:PKG_INSTALLER `
+            --zip $env:PKG_ZIP `
+            --version-file (Join-Path $env:UNG 'build\src\chrome\VERSION') `
+            --release-header (Join-Path $env:UNG 'build\src\components\boring\core\boring_release.h') `
+            --expect-version $env:VERSION `
+            --out $env:DIST `
+            --env-out $env:GITHUB_ENV
+          if ($LASTEXITCODE -ne 0) { throw "rename_release.py failed" }
+
+      - name: Write down what this was built from
+        shell: pwsh
+        run: |
+          function Get-Sha($folder) {
+            if (-not (Test-Path -LiteralPath (Join-Path $folder '.git'))) { return 'not a git checkout' }
+            $sha = git -C $folder rev-parse HEAD 2>$null
+            if ($LASTEXITCODE -ne 0 -or -not $sha) { return 'unknown' }
+            return $sha.Trim()
+          }
+          $info = [ordered]@{
+            version = $env:VERSION
+            boring_version = $env:BORING_VERSION
+            chromium_version = $env:CHROMIUM_VERSION
+            boring_release = [int]$env:BORING_RELEASE
+            boring_sha = $env:GITHUB_SHA
+            boring_ref = $env:GITHUB_REF
+            ungoogled_sha = Get-Sha $env:UNG
+            ungoogled_chromium_sha = Get-Sha (Join-Path $env:UNG 'ungoogled-chromium')
+            packaged_as = $env:EXPECTED_INSTALLER
+            installer = Split-Path -Leaf $env:RELEASE_INSTALLER
+            target_cpu = 'x64'
+            build_started_utc = $env:BUILD_STARTED
+            packaged_utc = [DateTime]::UtcNow.ToString('u')
+            signed = ($env:SIGNED -eq 'yes')
+            workflow_run = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+          }
+          $json = $info | ConvertTo-Json -Depth 3
+          Set-Content -LiteralPath "$env:DIST\build-info.json" -Value $json -Encoding utf8
+          Write-Host $json
+          "UNG_SHA=$($info.ungoogled_sha)" | Out-File $env:GITHUB_ENV -Append -Encoding ascii
+
+      # Last, so the signature covers the exact bytes people download.
+      # make_appcast.py runs winsparkle-tool sign with the key file named
+      # by BORING_UPDATE_KEY_FILE (read from the environment, never
+      # printed), then checks the signature against kUpdateKey in the
+      # browser_updater.cc this build was compiled from. A feed that
+      # would be refused by every installed copy is never written.
+      #
+      # Two addresses, on purpose. The enclosure points at this
+      # version's own release, which is where the installer is. The feed
+      # address is the fixed one compiled into the browser. Putting
+      # appcast.xml there (gh-pages) is a publication, so it is done by
+      # hand, not here. See docs/release/RELEASE_PROCESS.md.
+      - name: Sign the update and write the feed
+        shell: pwsh
+        run: |
           python boring-core\tools\make_appcast.py `
-            --installer "$env:DIST\$base-installer.exe" `
-            --version $env:VERSION `
+            --installer $env:RELEASE_INSTALLER `
+            --version $env:CHROMIUM_VERSION `
+            --release $env:BORING_RELEASE `
             --base-url "https://github.com/${{ github.repository }}/releases/download/v$env:VERSION" `
+            --feed-url $env:FEED_URL `
+            --require-signature `
+            --check-key-from (Join-Path $env:UNG 'build\src\components\boring\update\browser_updater.cc') `
             --out "$env:DIST\appcast.xml"
+          if ($LASTEXITCODE -ne 0) { throw "make_appcast.py failed" }
 
       - name: Make the draft release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          $signing = if ($env:SIGNED -eq 'yes') {
+            "- The installer is signed. Windows may still warn until the download builds a reputation."
+          } else {
+            "- **UNSIGNED BUILD.** The installer has no code signing certificate, so Windows will say the publisher is unknown. Check the download against SHA256SUMS.txt. (The update feed is still signed with our update key.)"
+          }
           $notes = @"
           This is a beta.
 
-          - The installer is not signed yet, so Windows will say the publisher is unknown. Check the download against SHA256SUMS.txt.
+          $signing
           - Streaming services that need Widevine DRM (Netflix and similar) do not play in this build.
           - Scam and ad blocking lists are the ones current on the day of this build.
 
-          Built from $env:GITHUB_SHA.
+          Built from:
+          - boring-web-browser $env:GITHUB_SHA
+          - ungoogled-chromium checkout $env:UNG_SHA
+          - Chromium $env:CHROMIUM_VERSION
+
+          build-info.json has the same details in one file.
           "@
           gh release create "v$env:VERSION" --draft --prerelease `
             --title "Beta $env:VERSION" --notes $notes `
             --target $env:GITHUB_SHA `
             (Get-ChildItem $env:DIST -File).FullName
+          if ($LASTEXITCODE -ne 0) { throw "gh release create failed" }
+
+      # Best effort. The lease runs out on its own, so a job that dies
+      # before this point does not wedge the tree.
+      - name: Give the build tree back
+        if: always()
+        continue-on-error: true
+        shell: cmd
+        run: python "%LOCK%" --release --owner "%LOCK_OWNER%"

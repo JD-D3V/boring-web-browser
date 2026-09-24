@@ -1,0 +1,13 @@
+--- a/chrome/browser/ui/BUILD.gn
++++ b/chrome/browser/ui/BUILD.gn
+@@ -771,6 +771,10 @@
+     "//components/affiliations/core/browser:affiliations",
+     "//components/autofill/content/browser",
+     "//components/autofill/core/common:credit_card_number_validation",
++    "//components/boring/core",
++    "//components/boring/lists",
++    "//components/boring/serp",
++    "//components/boring/update",
+     "//components/breadcrumbs/core:status",
+     "//components/browser_sync",
+     "//components/captive_portal/content",

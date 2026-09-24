@@ -1,0 +1,59 @@
+--- a/components/bookmarks/browser/bookmark_utils.cc
++++ b/components/bookmarks/browser/bookmark_utils.cc
+@@ -450,8 +450,14 @@
+ }
+
+ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
++  // boring: off in a fresh profile. `BookmarkBarController::
++  // ShouldShowBookmarkBar()` treats this pref as an always-show
++  // override (see bookmark-bar.patch), so leaving Chromium's default of
++  // true here put a second row under the toolbar on every page, not
++  // just the new tab page, before a single bookmark existed. Settings
++  // still flips it, same as Ctrl+Shift+B.
+   registry->RegisterBooleanPref(
+-      prefs::kShowBookmarkBar, true,
++      prefs::kShowBookmarkBar, false,
+       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+   // `BookmarkBarVisibilityState::kOnlyShowOnNtp` is equivalent to
+   // `kShowBookmarkBar` set to false.
+--- a/chrome/browser/ui/tabs/tab_strip_prefs.cc
++++ b/chrome/browser/ui/tabs/tab_strip_prefs.cc
+@@ -21,7 +21,16 @@
+ namespace tabs {
+
+ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
+-  registry->RegisterBooleanPref(prefs::kTabSearchPinnedToTabstrip, true);
++  // boring: the chevron at the head of the tab strip starts unpinned.
++  // TabStripComboButton (chrome/browser/ui/views/tabs/shared/
++  // tab_strip_combo_button.cc) still creates the button; it just stays
++  // hidden until pinned, so the tab search bubble keeps a real anchor
++  // and Ctrl+Shift+A still works: it shows the button for as long as
++  // the bubble is open (see OnBubbleInitializing()/show_tab_search_
++  // ephemerally_), then hides it again a couple of seconds after close.
++  // Right-clicking it and choosing "Pin" restores the always-visible
++  // button.
++  registry->RegisterBooleanPref(prefs::kTabSearchPinnedToTabstrip, false);
+   registry->RegisterBooleanPref(prefs::kOrganizerPanelPinnedToTabstrip, true);
+   registry->RegisterBooleanPref(
+       prefs::kEverythingMenuPinnedToTabstrip,
+--- a/chrome/browser/ui/toolbar/toolbar_pref_names.cc
++++ b/chrome/browser/ui/toolbar/toolbar_pref_names.cc
+@@ -23,6 +23,18 @@
+     default_pinned_actions.Append(chrome_labs_action.value());
+   }
+
++  // boring: the downloads button is pinned from the start, same
++  // mechanism as Customize Chrome's "pin to toolbar" (a real,
++  // supported, working control here, not a fake always-visible icon),
++  // so it reads like the reference instead of appearing only once a
++  // download exists. Unpinning it from the toolbar's own right-click
++  // menu still works.
++  const std::optional<std::string>& show_downloads_action =
++      actions::ActionIdMap::ActionIdToString(kActionShowDownloads);
++  if (show_downloads_action.has_value()) {
++    default_pinned_actions.Append(show_downloads_action.value());
++  }
++
+   if (base::FeatureList::IsEnabled(
+           features::kTabsFromOtherDevicesSidePanelPinnedByDefault)) {
+     const std::optional<std::string>& tabs_from_other_devices_action =

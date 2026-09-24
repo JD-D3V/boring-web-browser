@@ -7,7 +7,9 @@ static_library("welcome") {
   ]
   deps = [
     "//base",
+    "//components/boring/branding",
     "//components/boring/core",
+    "//components/boring/importer",
     "//components/prefs",
     "//components/user_prefs",
     "//content/public/browser",

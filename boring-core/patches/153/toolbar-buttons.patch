@@ -1,0 +1,184 @@
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+@@ -96,6 +96,8 @@
+ #include "chrome/browser/ui/views/toolbar/app_menu_control.h"
+ #include "chrome/browser/ui/views/toolbar/avatar_toolbar_button_interface.h"
+ #include "chrome/browser/ui/views/toolbar/back_forward_button.h"
++#include "chrome/browser/ui/views/toolbar/boring_protection_button.h"
++#include "chrome/browser/ui/views/toolbar/boring_reader_button.h"
+ #include "chrome/browser/ui/views/toolbar/browser_app_menu_button.h"
+ #include "chrome/browser/ui/views/toolbar/chrome_labs/chrome_labs_coordinator.h"
+ #include "chrome/browser/ui/views/toolbar/home_button.h"
+@@ -524,6 +526,15 @@
+     }
+   }
+
++  // boring: reader view, next to the shield. It hides itself on pages
++  // that have no article in them, so it is never a dead control.
++  boring_reader_ = AddChildView(std::make_unique<BoringReaderButton>(browser_));
++
++  // boring: the shield sits just right of the address bar, where the
++  // state of the page you are on belongs. It opens the Protection page.
++  boring_protection_ =
++      AddChildView(std::make_unique<BoringProtectionButton>(browser_));
++
+   // Only show the Battery Saver button when it is not controlled by the OS. On
+   // ChromeOS the battery icon in the shelf shows the same information.
+   if (!performance_manager::user_tuning::IsBatterySaverModeManagedByOS() &&
+@@ -579,6 +581,13 @@
+     avatar_ = AddChildView(std::make_unique<AvatarToolbarButton>(browser_));
+     bool show_avatar_toolbar_button =
+         AvatarToolbarButtonInterface::CanShowForProfile(browser_->GetProfile());
++
++    // boring: there is nothing to sign in to, so a profile button on
++    // every window is a control with nothing behind it. It stays for the
++    // windows where it says something, incognito and guest, and
++    // --show-avatar-button still overrides this either way.
++    show_avatar_toolbar_button = browser_->GetProfile()->IsIncognitoProfile() ||
++                                 browser_->GetProfile()->IsGuestSession();
+
+     const std::string sab_value = base::CommandLine::ForCurrentProcess()->
+                                   GetSwitchValueASCII("show-avatar-button");
+@@ -1189,6 +1207,7 @@
+     reload_control->SetDevToolsStatus(
+         chrome::IsDebuggerAttachedToCurrentTab(browser_));
+   }
++
+ }
+
+ bool ToolbarView::UpdateSecurityState() {
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.h
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.h
+@@ -49,6 +49,8 @@
+ class AvatarToolbarButton;
+ class AvatarToolbarButtonInterface;
+ class BatterySaverButton;
++class BoringProtectionButton;
++class BoringReaderButton;
+ class BrowserAppMenuButton;
+ class Browser;
+ class ExtensionsToolbarButton;
+@@ -386,6 +388,10 @@
+   raw_ptr<ExtensionsToolbarDesktop> extensions_container_ = nullptr;
+   raw_ptr<ToolbarDivider> toolbar_divider_ = nullptr;
+   raw_ptr<BatterySaverButton> battery_saver_button_ = nullptr;
++  // boring: the shield that says whether blocking is really working.
++  raw_ptr<BoringProtectionButton> boring_protection_ = nullptr;
++  // boring: shows itself only on pages with an article in them.
++  raw_ptr<BoringReaderButton> boring_reader_ = nullptr;
+   raw_ptr<PerformanceInterventionButton> performance_intervention_button_ =
+       nullptr;
+   raw_ptr<PinnedToolbarActionsContainer> pinned_toolbar_actions_container_ =
+--- a/chrome/browser/ui/views/toolbar/BUILD.gn
++++ b/chrome/browser/ui/views/toolbar/BUILD.gn
+@@ -14,8 +14,10 @@
+     "app_menu.h",
+     "app_menu_control.h",
+     "app_menu_dynamic_helper.h",
+     "avatar_toolbar_button_interface.h",
+     "back_forward_button.h",
++    "boring_protection_button.h",
++    "boring_reader_button.h",
+     "browser_app_menu_button.h",
+     "chrome_labs/chrome_labs_bubble_view.h",
+     "chrome_labs/chrome_labs_coordinator.h",
+@@ -121,8 +123,10 @@
+     "ai_overlay_toolbar_button.cc",
+     "app_menu.cc",
+     "app_menu_dynamic_helper.cc",
+     "avatar_toolbar_button_interface.cc",
+     "back_forward_button.cc",
++    "boring_protection_button.cc",
++    "boring_reader_button.cc",
+     "browser_app_menu_button.cc",
+     "chrome_labs/chrome_labs_bubble_view.cc",
+     "chrome_labs/chrome_labs_coordinator.cc",
+@@ -186,6 +190,7 @@
+     "//chrome/browser/actor/ui/task_list_bubble:controller",
+     "//chrome/browser/actor/ui/task_list_bubble:ui",
+     "//chrome/browser/bookmarks",
++    "//chrome/browser/dom_distiller",
+     "//chrome/browser/extensions",
+     "//chrome/browser/external_protocol",
+     "//chrome/browser/feedback",
+@@ -260,11 +265,17 @@
+     "//chrome/common:chrome_features",
+     "//chrome/common:constants",
+     "//components/autofill/core/common:features",
++    "//components/boring/adblock:browser",
++    "//components/boring/core",
++    "//components/boring/reader",
++    "//components/boring/scam",
++    "//components/dom_distiller/content/browser",
+     "//components/feature_engagement/public",
+     "//components/omnibox/browser",
+     "//components/password_manager/content/common",
+     "//components/performance_manager",
+     "//components/safe_browsing/core/common",
++    "//components/tabs:public",
+     "//components/send_tab_to_self",
+     "//components/sessions",
+     "//components/signin/public/base:signin_buildflags",
+--- a/chrome/browser/ui/layout_constants.cc
++++ b/chrome/browser/ui/layout_constants.cc
+@@ -74,7 +74,8 @@
+     case LayoutConstant::kLocationBarTrailingDecorationInnerPadding:
+       return touch_ui ? 3 : 8;
+     case LayoutConstant::kLocationBarHeight:
+-      return touch_ui ? 36 : 34;
++      // boring: 38 DIP, matching the reference's address field.
++      return touch_ui ? 36 : 38;
+     // LINT.IfChange(LocationBarIconSize)
+     case LayoutConstant::kLocationBarIconSize:
+       return touch_ui ? 20 : 16;
+@@ -119,7 +120,8 @@
+     case LayoutConstant::kTabstripToolbarOverlap:
+       return 1;
+     case LayoutConstant::kToolbarButtonHeight:
+-      return touch_ui ? 48 : 34;
++      // boring: 36 DIP, matching the reference's square icon buttons.
++      return touch_ui ? 48 : 36;
+     case LayoutConstant::kToolbarButtonIconSize:
+       return touch_ui ? kDefaultTouchableIconSize
+                       : kDefaultIconSizeChromeRefresh;
+@@ -136,7 +138,9 @@
+     case LayoutConstant::kToolbarIconDefaultMargin:
+       return touch_ui ? 0 : 2;
+     case LayoutConstant::kLocationBarMargin:
+-      return touch_ui ? 12 : 9;
++      // boring: 10 DIP either side of the address field, matching the
++      // reference's toolbar.
++      return touch_ui ? 12 : 10;
+     case LayoutConstant::kSidePanelInset:
+       return 8;
+     case LayoutConstant::kPageInfoIconSize:
+@@ -208,7 +212,10 @@
+     }
+
+     case TOOLBAR_BUTTON:
+-      return gfx::Insets(touch_ui ? 12 : 7);
++      // boring: 8 DIP of padding around the 20 DIP glyph, so the button
++      // itself lands on 36 DIP square (see kToolbarButtonHeight above,
++      // which ToolbarButton::GetTargetSize() derives from this).
++      return gfx::Insets(touch_ui ? 12 : 8);
+
+     case BROWSER_APP_MENU_CHIP_PADDING:
+       if (touch_ui) {
+--- a/chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.cc
++++ b/chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.cc
+@@ -169,6 +169,15 @@
+               GetLayoutConstant(LayoutConstant::kToolbarIconDefaultMargin),
+           0, GetLayoutConstant(LayoutConstant::kToolbarDividerSpacing)));
+   toolbar_divider_ = AddChildView(std::move(toolbar_divider));
++  // boring: no divider between the pinned actions (the downloads button,
++  // by default) and whatever comes after them. It is purely decorative:
++  // ReorderChildView() below only keeps it positioned at the tail of the
++  // pinned buttons as they change, which is harmless on an invisible
++  // view, and it is not a drop target for reordering pinned actions.
++  // IsChildIncludedInLayout() (see PinnedToolbarActionsContainerLayout)
++  // skips invisible children entirely, so this also reclaims its space
++  // rather than leaving a gap.
++  toolbar_divider_->SetVisible(false);
+
+   // Initialize the pinned action buttons.
+   action_view_controller_ = std::make_unique<views::ActionViewController>();

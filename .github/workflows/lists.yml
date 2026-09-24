@@ -24,6 +24,12 @@ on:
 permissions:
   contents: write
 
+# One publisher at a time. Two runs uploading to the same reused tag
+# could leave a manifest describing files from the other run.
+concurrency:
+  group: lists-publish
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -31,6 +37,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       DIST: ${{ github.workspace }}/dist
+      PREV: ${{ github.workspace }}/previous
     steps:
       - name: Check out our files
         uses: actions/checkout@v4
@@ -40,9 +47,37 @@ jobs:
         with:
           python-version: "3.12"
 
+      # The runner starts empty every time, so without this the tool has
+      # nothing to compare against and every run looks like a first run.
+      # The check that refuses a bundle which lost most of its entries
+      # only works if the previous bundle is here to be lost from.
+      - name: Fetch the bundle that is published now
+        run: |
+          mkdir -p "$PREV"
+          if gh release view lists >/dev/null 2>&1; then
+            gh release download lists -D "$PREV" --clobber || true
+            ls -l "$PREV"
+          else
+            echo "no lists release yet, this is the first run"
+          fi
+
       - name: Build the bundle
         working-directory: boring-core/tools
-        run: python publish_lists.py --out "$DIST"
+        env:
+          # The private half of the list signing key. Without it the
+          # tool stops rather than publishing something no browser will
+          # accept. See artifacts/release-readiness/JD_CHECKLIST.md.
+          BORING_LIST_SIGNING_KEY: ${{ secrets.BORING_LIST_SIGNING_KEY }}
+        run: python publish_lists.py --out "$DIST" --previous "$PREV"
+
+      # publish_lists.py checks its own output before it returns. This
+      # only catches the case where it wrote nothing at all, which would
+      # otherwise upload an empty bundle over a good one.
+      - name: Check the bundle is there
+        run: |
+          test -s "$DIST/lists.json" || { echo "no manifest in $DIST"; exit 1; }
+          test -s "$DIST/lists.json.sig" || { echo "no signature in $DIST"; exit 1; }
+          ls -l "$DIST"
 
       - name: Make the lists release if it is not there yet
         run: |

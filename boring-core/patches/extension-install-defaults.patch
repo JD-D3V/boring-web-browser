@@ -1,0 +1,41 @@
+--- a/chrome/browser/extensions/extension_management.cc
++++ b/chrome/browser/extensions/extension_management.cc
+@@ -311,9 +311,12 @@
+     const GURL& referrer_url) const {
+   const base::CommandLine& command_line =
+       *base::CommandLine::ForCurrentProcess();
+-  if (command_line.HasSwitch("extension-mime-request-handling") &&
++  // boring: with no choice made in chrome://flags, a .crx from any site
++  // goes to the install prompt, as "Always prompt for install" does. The
++  // prompt still has to be accepted; nothing installs silently.
++  if (!command_line.HasSwitch("extension-mime-request-handling") ||
+       command_line.GetSwitchValueASCII("extension-mime-request-handling") ==
+-      "always-prompt-for-install") {
++          "always-prompt-for-install") {
+     return true;
+   }
+   // No allowed install sites specified, disallow by default.
+--- a/chrome/browser/extensions/extension_service.cc
++++ b/chrome/browser/extensions/extension_service.cc
+@@ -67,6 +67,7 @@
+ #include "chrome/common/extensions/extension_constants.h"
+ #include "chrome/common/pref_names.h"
+ #include "chrome/common/url_constants.h"
++#include "components/boring/webstore/bundled_web_store.h"
+ #include "components/crx_file/id_util.h"
+ #include "components/policy/core/common/policy_pref_names.h"
+ #include "components/supervised_user/core/browser/supervised_user_preferences.h"
+@@ -376,6 +377,13 @@
+   delayed_install_manager_->FinishInstallationsDelayedByShutdown();
+   SetReadyAndNotifyListeners();
+ 
++  // boring: give this profile the Chromium Web Store that ships with the
++  // browser, once, and keep it at the shipped version. Removed stays
++  // removed. See components/boring/webstore.
++  if (extension_registrar_->extensions_enabled()) {
++    boring::webstore::MaybeInstallBundledWebStore(profile_);
++  }
++
+   extension_registrar_->UninstallMigratedExtensions(
+       kObsoleteComponentExtensionIds);
+ 

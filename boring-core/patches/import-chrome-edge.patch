@@ -1,0 +1,73 @@
+--- a/components/user_data_importer/common/importer_type.h
++++ b/components/user_data_importer/common/importer_type.h
+@@ -27,6 +27,9 @@
+   TYPE_BOOKMARKS_FILE = 5,  // Identifies a 'bookmarks.html' file.
+ #if BUILDFLAG(IS_WIN)
+   TYPE_EDGE = 6,
++  // boring: Google Chrome and today's Microsoft Edge, which keep their
++  // data the same way. See components/boring/importer.
++  TYPE_CHROMIUM = 7,
+ #endif
+ };
+ 
+--- a/chrome/common/importer/profile_import_process_param_traits_macros.h
++++ b/chrome/common/importer/profile_import_process_param_traits_macros.h
+@@ -23,7 +23,7 @@
+ #if BUILDFLAG(IS_WIN)
+ IPC_ENUM_TRAITS_MIN_MAX_VALUE(user_data_importer::ImporterType,
+                               user_data_importer::TYPE_UNKNOWN,
+-                              user_data_importer::TYPE_EDGE)
++                              user_data_importer::TYPE_CHROMIUM)
+ #else
+ IPC_ENUM_TRAITS_MIN_MAX_VALUE(user_data_importer::ImporterType,
+                               user_data_importer::TYPE_UNKNOWN,
+--- a/chrome/browser/importer/importer_uma.cc
++++ b/chrome/browser/importer/importer_uma.cc
+@@ -47,6 +47,9 @@
+     case user_data_importer::TYPE_EDGE:
+       metrics_type = IMPORTER_METRICS_EDGE;
+       break;
++    // boring: no bucket of its own. Metrics are never sent anyway.
++    case user_data_importer::TYPE_CHROMIUM:
++      break;
+ #endif
+     case user_data_importer::TYPE_FIREFOX:
+       metrics_type = IMPORTER_METRICS_FIREFOX3;
+--- a/chrome/browser/importer/importer_list.cc
++++ b/chrome/browser/importer/importer_list.cc
+@@ -25,6 +25,7 @@
+ 
+ #if BUILDFLAG(IS_WIN)
+ #include "chrome/common/importer/edge_importer_utils_win.h"
++#include "components/boring/importer/chromium_profiles.h"
+ #endif
+ 
+ namespace {
+@@ -168,6 +169,8 @@
+   // The first run import will automatically take settings from the first
+   // profile detected, which should be the user's current default.
+ #if BUILDFLAG(IS_WIN)
++  // boring: Chrome and Edge first, where most people are coming from.
++  boring::DetectChromiumProfiles(&profiles);
+   if (shell_integration::IsFirefoxDefaultBrowser()) {
+     DetectFirefoxProfiles(locale, &profiles);
+     DetectBuiltinWindowsProfiles(&profiles);
+--- a/chrome/utility/importer/importer_creator.cc
++++ b/chrome/utility/importer/importer_creator.cc
+@@ -13,6 +13,7 @@
+ #include "chrome/common/importer/edge_importer_utils_win.h"
+ #include "chrome/utility/importer/edge_importer_win.h"
+ #include "chrome/utility/importer/ie_importer_win.h"
++#include "components/boring/importer/chromium_importer.h"
+ #endif
+ 
+ #if BUILDFLAG(IS_MAC)
+@@ -33,6 +34,8 @@
+       if (IsEdgeFavoritesLegacyMode())
+         return new IEImporter();
+       return new EdgeImporter();
++    case user_data_importer::TYPE_CHROMIUM:
++      return new ChromiumImporter();
+ #endif
+     case user_data_importer::TYPE_BOOKMARKS_FILE:
+       return new BookmarksFileImporter();

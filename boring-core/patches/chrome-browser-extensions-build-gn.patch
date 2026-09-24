@@ -1,0 +1,10 @@
+--- a/chrome/browser/extensions/BUILD.gn
++++ b/chrome/browser/extensions/BUILD.gn
+@@ -566,6 +566,7 @@
+     "//chrome/common",
+     "//components/bookmarks/browser",
+     "//components/bookmarks/managed",
++    "//components/boring/webstore",
+     "//components/content_settings/core/browser",
+     "//components/content_settings/core/browser:cookie_settings",
+     "//components/contextual_search:prefs",

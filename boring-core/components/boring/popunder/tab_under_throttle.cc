@@ -7,6 +7,9 @@
 #include "base/command_line.h"
 #include "base/logging.h"
 #include "components/blocked_content/popup_opener_tab_helper.h"
+#include "components/boring/core/boring_prefs.h"
+#include "components/user_prefs/user_prefs.h"
+#include "content/public/browser/browser_context.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "net/base/net_errors.h"
@@ -72,6 +75,11 @@ content::NavigationThrottle::ThrottleCheckResult TabUnderThrottle::Check() {
   const GURL& target = handle->GetURL();
   if (current.is_valid() &&
       url::Origin::Create(current).IsSameOriginWith(target)) {
+    return content::NavigationThrottle::PROCEED;
+  }
+  // The person turned blocking off for the site doing it.
+  if (IsBlockingOffForSite(
+          user_prefs::UserPrefs::Get(contents->GetBrowserContext()), current)) {
     return content::NavigationThrottle::PROCEED;
   }
   VLOG(1) << "boring: blocked tab under navigation to " << target;

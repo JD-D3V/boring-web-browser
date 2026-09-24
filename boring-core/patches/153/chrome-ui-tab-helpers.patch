@@ -1,0 +1,43 @@
+diff --git a/chrome/browser/ui/tab_helpers.cc b/chrome/browser/ui/tab_helpers.cc
+--- a/chrome/browser/ui/tab_helpers.cc
++++ b/chrome/browser/ui/tab_helpers.cc
+@@ -109,6 +109,10 @@
++#include "chrome/browser/lifetime/application_lifetime.h"
+ #include "chrome/common/chrome_switches.h"
+ #include "components/blocked_content/popup_blocker_tab_helper.h"
+ #include "components/blocked_content/popup_opener_tab_helper.h"
++#include "components/boring/lists/list_updater.h"
++#include "components/boring/serp/serp_tab_helper.h"
++#include "components/boring/update/browser_updater.h"
+ #include "components/breadcrumbs/core/breadcrumbs_status.h"
+ #include "components/captive_portal/core/buildflags.h"
+ #include "components/client_hints/browser/client_hints_web_contents_observer.h"
+@@ -154,6 +158,7 @@
+ #include "components/ukm/content/source_url_recorder.h"
+ #include "components/webapps/browser/installable/installable_manager.h"
+ #include "components/webapps/browser/installable/ml_installability_promoter.h"
++#include "content/public/browser/storage_partition.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/common/buildflags.h"
+ #include "extensions/buildflags/buildflags.h"
+@@ -559,6 +564,20 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents,
+   blocked_content::PopupOpenerTabHelper::CreateForWebContents(
+       web_contents, base::DefaultTickClock::GetInstance(),
+       HostContentSettingsMapFactory::GetForProfile(profile));
++  boring::SerpTabHelper::CreateForWebContents(web_contents);
++  // Opening a tab is a quiet moment to see whether the blocking lists
++  // have been replaced. Not in incognito: this has nothing to do with
++  // what is being browsed and should not ride on a session that is
++  // meant to disappear.
++  if (!profile->IsOffTheRecord()) {
++    boring::ListUpdater::GetInstance()->MaybeCheck(
++        profile->GetPrefs(), profile->GetDefaultStoragePartition()
++                                 ->GetURLLoaderFactoryForBrowserProcess());
++  }
++  // The browser updater starts with the first tab of the session and
++  // then keeps its own schedule. It closes the browser the normal way
++  // when an update has been downloaded, checked and started.
++  boring::BrowserUpdater::StartOnce(base::BindRepeating(&chrome::AttemptExit));
+   if (predictors::LoadingPredictorFactory::GetForProfile(profile)) {
+     predictors::LoadingPredictorTabHelper::CreateForWebContents(web_contents);
+   }

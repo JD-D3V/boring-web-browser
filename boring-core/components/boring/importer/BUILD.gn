@@ -1,0 +1,14 @@
+# Copyright 2026 boring. BSD style license.
+
+# Finds Chrome and Edge profiles for the import dialog and the welcome
+# page. The importer itself (chromium_importer.cc) runs in the profile
+# import utility process with Chromium's other importers, so it is
+# compiled as part of //chrome/utility rather than here.
+static_library("importer") {
+  sources = [
+    "chromium_profiles.cc",
+    "chromium_profiles.h",
+  ]
+  public_deps = [ "//components/user_data_importer/common" ]
+  deps = [ "//base" ]
+}

@@ -8,12 +8,17 @@ static_library("protection") {
   deps = [
     "//base",
     "//components/boring/adblock:browser",
+    "//components/boring/branding",
     "//components/boring/core",
     "//components/boring/lists",
+    "//components/boring/privacy",
     "//components/boring/scam",
+    "//components/boring/update",
     "//components/prefs",
     "//components/user_prefs",
     "//content/public/browser",
     "//content/public/common",
+    "//extensions/browser",
+    "//extensions/common",
   ]
 }

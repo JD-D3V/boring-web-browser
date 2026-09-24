@@ -1,0 +1,39 @@
+diff --git a/chrome/browser/ui/webui/chrome_web_ui_configs.cc b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -61,6 +61,10 @@
+ #include "chrome/browser/ui/webui/ungoogled_first_run.h"
+ #include "chrome/browser/ui/webui/usb_internals/usb_internals_ui.h"
+ #include "chrome/browser/ui/webui/version/version_ui.h"
++#include "components/boring/ai/ai_ui.h"
++#include "components/boring/newtab/newtab_ui.h"
++#include "components/boring/protection/protection_ui.h"
++#include "components/boring/welcome/welcome_ui.h"
+ #include "components/enterprise/buildflags/buildflags.h"
+ #include "components/safe_browsing/buildflags.h"
+ #include "components/security_interstitials/content/connection_help_ui.h"
+@@ -252,6 +256,10 @@ void RegisterChromeWebUIConfigs() {
+ #endif  // BUILDFLAG(IS_CHROMEOS)
+ 
+   auto& map = content::WebUIConfigMap::GetInstance();
++  map.AddWebUIConfig(std::make_unique<boring::ai::BoringAiUIConfig>());
++  map.AddWebUIConfig(std::make_unique<boring::BoringProtectionUIConfig>());
++  map.AddWebUIConfig(std::make_unique<boring::BoringNewTabUIConfig>());
++  map.AddWebUIConfig(std::make_unique<boring::BoringWelcomeUIConfig>());
+   map.AddWebUIConfig(std::make_unique<AccessibilityUIConfig>());
+   map.AddWebUIConfig(std::make_unique<AutofillInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<BluetoothInternalsUIConfig>());
+diff --git a/chrome/browser/ui/webui/BUILD.gn b/chrome/browser/ui/webui/BUILD.gn
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -100,6 +100,10 @@ source_set("configs") {
+     "//chrome/browser/ui/webui/translate_internals",
+     "//chrome/browser/ui/webui/usb_internals",
+     "//chrome/browser/ui/webui/version",
++    "//components/boring/ai",
++    "//components/boring/newtab",
++    "//components/boring/protection",
++    "//components/boring/welcome",
+     "//components/compose:buildflags",
+     "//components/lens:buildflags",
+     "//components/notebooks/internals/webui",

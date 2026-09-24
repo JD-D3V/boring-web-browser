@@ -1,0 +1,79 @@
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -333,6 +333,7 @@
+ #include "components/subresource_filter/content/browser/content_subresource_filter_throttle_manager.h"
+ #include "components/supervised_user/core/common/features.h"
+ #include "components/translate/core/common/translate_switches.h"
++#include "components/ungoogled/ungoogled_switches.h"
+ #include "components/user_prefs/user_prefs.h"
+ #include "components/variations/variations_associated_data.h"
+ #include "components/variations/variations_switches.h"
+@@ -2958,6 +2959,19 @@
+       for (auto& part : extra_parts_) {
+         part->AppendExtraRendererCommandLineSwitches(command_line, *process);
+       }
++      // boring: fingerprint noise for this profile's pages, unless it
++      // was turned off on the Protection page.
++      const PrefService* boring_prefs =
++          Profile::FromBrowserContext(process->GetBrowserContext())
++              ->GetPrefs();
++      if (boring_prefs &&
++          boring_prefs->GetBoolean(boring::prefs::kFingerprintNoise)) {
++        command_line->AppendSwitch(switches::kFingerprintingClientRectsNoise);
++        command_line->AppendSwitch(
++            switches::kFingerprintingCanvasMeasureTextNoise);
++        command_line->AppendSwitch(
++            switches::kFingerprintingCanvasImageDataNoise);
++      }
+     }
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
+diff --git a/chrome/browser/net/default_dns_over_https_config_source.cc b/chrome/browser/net/default_dns_over_https_config_source.cc
+--- a/chrome/browser/net/default_dns_over_https_config_source.cc
++++ b/chrome/browser/net/default_dns_over_https_config_source.cc
+@@ -26,10 +26,22 @@ DefaultDnsOverHttpsConfigSource::DefaultDnsOverHttpsConfigSource(
+   // Changing prefs or defaults after registering change callbacks could
+   // result in reentrancy and mess up registration between this code and
+   // NetworkService creation.
++  // boring: secure DNS through Quad9 (https://quad9.net), a Swiss
++  // non-profit resolver that refuses to resolve known malware and
++  // phishing domains. This is the browser's malicious site protection:
++  // no blocklist is shipped or downloaded, the resolver simply does not
++  // answer for those names. Secure mode, not automatic, so a network
++  // cannot quietly fall back to a resolver that does not filter, and so
++  // Settings shows the provider actually in use. Settings, Privacy and
++  // security, Security, "Use secure DNS" changes or turns it off, and
++  // Chromium still turns it off by itself on managed machines.
+   if (set_up_pref_defaults) {
+     local_state->SetDefaultPrefValue(prefs::kDnsOverHttpsMode,
+                                      base::Value(SecureDnsConfig::ModeToString(
+-                                         net::SecureDnsMode::kOff)));
++                                         net::SecureDnsMode::kSecure)));
++    local_state->SetDefaultPrefValue(
++        prefs::kDnsOverHttpsTemplates,
++        base::Value("https://dns.quad9.net/dns-query"));
+   }
+ }
+ 
+diff --git a/chrome/browser/ui/browser_ui_prefs.cc b/chrome/browser/ui/browser_ui_prefs.cc
+--- a/chrome/browser/ui/browser_ui_prefs.cc
++++ b/chrome/browser/ui/browser_ui_prefs.cc
+@@ -220,11 +220,16 @@ void RegisterBrowserUserPrefs(user_prefs::PrefRegistrySyncable* registry) {
+                                 false);
+ #endif
+ 
++  // boring: "Always use secure connections" is on from the start, in
++  // its balanced setting: pages load over HTTPS when the site offers it,
++  // and a warning appears before a public site is loaded without it.
++  // Settings, Privacy and security, Security still turns it off or to
++  // strict.
+   registry->RegisterBooleanPref(
+-      prefs::kHttpsOnlyModeEnabled, false,
++      prefs::kHttpsOnlyModeEnabled, true,
+       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+   registry->RegisterBooleanPref(
+-      prefs::kHttpsFirstBalancedMode, false,
++      prefs::kHttpsFirstBalancedMode, true,
+       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+   registry->RegisterBooleanPref(prefs::kHttpsFirstModeBundleToastQueued, false);
+   registry->RegisterBooleanPref(

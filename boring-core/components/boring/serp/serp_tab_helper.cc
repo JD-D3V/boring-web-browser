@@ -44,6 +44,27 @@ constexpr char kScript[] = R"((function() {
               '.b_ad', '.b_adTop', '.b_adBottom', 'li.b_ad',
               '.b_adLastChild', 'li[data-layout="ad"]',
               'li[data-layout^="products"]'];
+  // The chip is styled through the style property rather than a
+  // stylesheet, because a search page's content security policy can
+  // refuse a style element we add. Colours follow the page's scheme and
+  // are reapplied if the scheme changes.
+  var dark = window.matchMedia && window.matchMedia(
+      '(prefers-color-scheme: dark)');
+  function styleChip(tag) {
+    var night = dark && dark.matches;
+    tag.style.cssText = 'display:inline-block;margin:0 0 6px 0;' +
+        'padding:2px 8px;border-radius:6px;letter-spacing:.02em;' +
+        'font:600 12px/1.45 system-ui,-apple-system,sans-serif;' +
+        'vertical-align:baseline;background:' +
+        (night ? '#273f35' : '#e5f1eb') + ';color:' +
+        (night ? '#adb9b2' : '#5d6966') + ';';
+  }
+  if (dark && dark.addEventListener) {
+    dark.addEventListener('change', function() {
+      document.querySelectorAll('.boring-sponsored-chip')
+          .forEach(styleChip);
+    });
+  }
   function apply() {
     adSelectors.forEach(function(selector) {
       document.querySelectorAll(selector).forEach(function(adBlock) {
@@ -53,13 +74,12 @@ constexpr char kScript[] = R"((function() {
         if (hide) { adBlock.style.display = 'none'; return; }
         if (adBlock.dataset.boringLabeled) return;
         adBlock.dataset.boringLabeled = '1';
-        adBlock.style.outline = '3px solid #c5221f';
-        adBlock.style.borderRadius = '8px';
-        var tag = document.createElement('div');
+        // A quiet chip, not a warning. The ad block itself is left
+        // exactly as the site drew it.
+        var tag = document.createElement('span');
+        tag.className = 'boring-sponsored-chip';
         tag.textContent = 'Sponsored';
-        tag.style.cssText = 'background:#c5221f;color:#fff;' +
-            'font:bold 13px system-ui;padding:4px 10px;' +
-            'border-radius:6px 6px 0 0;';
+        styleChip(tag);
         adBlock.prepend(tag);
       });
     });

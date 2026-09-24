@@ -1,0 +1,7 @@
+[Adblock Plus 2.0]
+! Title: pretend easylist
+! Version: 202609192137
+||ads.example.invalid^
+||tracker.example.invalid^$third-party
+example.invalid##.ad-slot
+@@||good.example.invalid^$document

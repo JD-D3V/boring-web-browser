@@ -8,6 +8,9 @@
 #include "net/base/net_errors.h"
 #include "net/url_request/redirect_info.h"
 #include "services/network/public/cpp/resource_request.h"
+#include "third_party/blink/public/platform/web_security_origin.h"
+#include "third_party/blink/public/web/web_frame.h"
+#include "third_party/blink/public/web/web_local_frame.h"
 #include "url/gurl.h"
 #include "url/origin.h"
 
@@ -51,8 +54,22 @@ const char* TypeFor(network::mojom::RequestDestination destination,
 }  // namespace
 
 AdblockRendererThrottle::AdblockRendererThrottle(
-    mojo::PendingRemote<mojom::AdblockChecker> checker)
-    : pending_checker_(std::move(checker)) {}
+    mojo::PendingRemote<mojom::AdblockChecker> checker,
+    const GURL& top_frame_url)
+    : pending_checker_(std::move(checker)), top_frame_url_(top_frame_url) {}
+
+// static
+GURL AdblockRendererThrottle::TopFrameUrlFor(
+    const blink::LocalFrameToken& frame_token) {
+  blink::WebLocalFrame* frame =
+      blink::WebLocalFrame::FromFrameToken(frame_token);
+  if (!frame || !frame->Top()) {
+    return GURL();
+  }
+  // The top frame's origin is replicated to every process with a frame
+  // in the page, so this works from a cross site frame too.
+  return url::Origin(frame->Top()->GetSecurityOrigin()).GetURL();
+}
 
 AdblockRendererThrottle::~AdblockRendererThrottle() = default;
 
@@ -97,9 +114,14 @@ void AdblockRendererThrottle::WillStartRequest(
                    ? request->request_initiator->GetURL()
                    : GURL();
   request_type_ = TypeFor(request->destination, request->url);
+  // Workers have no frame to ask. Their first party site is the page in
+  // the tab when they are first party, and null, so blocked, otherwise.
+  if (!top_frame_url_.is_valid() && !request->site_for_cookies.IsNull()) {
+    top_frame_url_ = request->site_for_cookies.RepresentativeUrl();
+  }
   *defer = true;
   waiting_ = true;
-  checker_->Check(request->url, initiator_, request_type_,
+  checker_->Check(request->url, initiator_, request_type_, top_frame_url_,
                   base::BindOnce(&AdblockRendererThrottle::OnResult,
                                  weak_factory_.GetWeakPtr()));
 }
@@ -119,6 +141,7 @@ void AdblockRendererThrottle::WillRedirectRequest(
   *defer = true;
   waiting_ = true;
   checker_->Check(redirect_info->new_url, initiator_, request_type_,
+                  top_frame_url_,
                   base::BindOnce(&AdblockRendererThrottle::OnResult,
                                  weak_factory_.GetWeakPtr()));
 }

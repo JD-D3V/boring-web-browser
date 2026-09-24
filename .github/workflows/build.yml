@@ -6,6 +6,12 @@
 # The build takes hours, so this does not run on every push. Start it by
 # hand from the Actions tab, or let the nightly run pick up the day's
 # changes.
+#
+# There is one build tree on that machine, E:\ung-153-47, and two things
+# writing into it at once ruin it quietly. Two guards keep that from
+# happening: the concurrency group below, which queues this workflow
+# behind release.yml, and joblock.py, which a build JD starts by hand at
+# a developer prompt also takes. See docs/release/RELEASE_PROCESS.md.
 
 name: build
 
@@ -20,49 +26,82 @@ on:
     # Every day at 03:00 UTC, when the machine is likely free.
     - cron: "0 3 * * *"
 
+# This job builds and checks, it never publishes, so its token has no
+# business writing anything. The runner is the machine that will hold
+# the signing certificate, so its jobs get the least it can be given.
+permissions:
+  contents: read
+
+# Shared with release.yml on purpose. Never cancel a running build: a
+# half killed ninja run leaves the tree in a state the next job has to
+# clean up by hand.
+concurrency:
+  group: ung-build-tree
+  cancel-in-progress: false
+
 jobs:
   desktop:
     runs-on: [self-hosted, windows, chromium-build]
     timeout-minutes: 600
+    env:
+      # One token for the whole job, so its steps hand the claim on to
+      # each other and nobody else gets in between them.
+      LOCK_OWNER: gh-build-${{ github.run_id }}-${{ github.run_attempt }}
+      LOCK: ${{ github.workspace }}\boring-core\tools\joblock.py
+      # The tools default to E:\ung; point them at the current tree.
+      BORING_OUT: E:\ung-153-47\build\src\out\Default
+      BORING_JOBLOCK: E:\ung-153-47\boring-build.lock
     steps:
       - name: Check out our files
         uses: actions/checkout@v4
 
+      - name: Take the build tree
+        shell: cmd
+        run: python "%LOCK%" --claim --owner "%LOCK_OWNER%" --lease 43200 --wait 1800 --job "build.yml run ${{ github.run_number }}"
+
       - name: Put boring-core into the build tree
         shell: cmd
-        run: python boring-core\tools\apply.py
+        run: python "%LOCK%" --owner "%LOCK_OWNER%" --job apply -- python boring-core\tools\apply.py --src E:\ung-153-47\build\src --patch-set 153
 
-      - name: Refresh the filter lists and the scam blocklist
+      - name: Refresh the filter lists
         shell: cmd
-        run: |
-          python boring-core\tools\get_filterlists.py
-          python boring-core\tools\get_scamlist.py
+        run: python "%LOCK%" --owner "%LOCK_OWNER%" --job filterlists -- python boring-core\tools\get_filterlists.py
 
+      # cmd does not stop at the first failing line and reports only the
+      # last one, so every line that can fail says so itself.
       - name: Build
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+          call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
           set TMP=E:\tmp
           set TEMP=E:\tmp
-          cd /d E:\ung
-          python3 build.py --ci
+          cd /d E:\ung-153-47 || exit /b 1
+          python "%LOCK%" --owner "%LOCK_OWNER%" --job "ninja build" -- python3 build.py --ci || exit /b 1
 
       - name: Check the browser still works
         shell: cmd
-        run: python boring-core\tools\smoke_all.py
+        run: python "%LOCK%" --owner "%LOCK_OWNER%" --job smoke -- python boring-core\tools\smoke_all.py
 
       - name: Package
         if: ${{ inputs.package }}
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
-          cd /d E:\ung
-          python3 package.py
+          call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
+          cd /d E:\ung-153-47 || exit /b 1
+          python "%LOCK%" --owner "%LOCK_OWNER%" --job package -- python3 package.py || exit /b 1
 
       - name: Keep the installer
         if: ${{ inputs.package }}
         uses: actions/upload-artifact@v4
         with:
           name: windows-installer
-          path: E:\ung\build\*_installer_x64.exe
+          path: E:\ung-153-47\build\*_installer_x64.exe
           if-no-files-found: error
+
+      # Best effort. The lease runs out on its own, so a job that dies
+      # before this point does not wedge the tree.
+      - name: Give the build tree back
+        if: always()
+        continue-on-error: true
+        shell: cmd
+        run: python "%LOCK%" --release --owner "%LOCK_OWNER%"

@@ -3,23 +3,30 @@
 #include "components/boring/lists/list_updater.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <string_view>
 #include <utility>
+#include <vector>
 
+#include "base/base64.h"
 #include "base/command_line.h"
+#include "base/containers/span.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/json/json_reader.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
 #include "base/values.h"
+#include "components/boring/core/boring_capabilities.h"
 #include "components/boring/core/boring_prefs.h"
 #include "components/prefs/pref_service.h"
 #include "crypto/sha2.h"
+#include "crypto/signature_verifier.h"
 #include "net/base/load_flags.h"
 #include "net/base/url_util.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
@@ -38,10 +45,20 @@ constexpr char kDefaultFeedUrl[] =
     "https://github.com/JD-D3V/boring-web-browser/releases/download/lists/";
 
 constexpr char kManifestName[] = "lists.json";
+constexpr char kManifestSignatureName[] = "lists.json.sig";
+
+// The only signature algorithm we accept. Named in the signature file
+// so a future one can be added without a browser mistaking the two.
+constexpr char kSignatureAlgorithm[] = "ecdsa-p256-sha256";
 
 // Read lists from somewhere else, which is how the smoke test drives
 // this without touching the real host.
 constexpr char kFeedUrlSwitch[] = "boring-list-url";
+// Trust one more manifest signing key, given as the base64 of its
+// SubjectPublicKeyInfo. Honoured only for a feed on this machine, the
+// same rule the feed address itself follows, so nothing on the network
+// can talk a browser into trusting a key of its choosing.
+constexpr char kTestKeySwitch[] = "boring-list-key";
 // Turn updates off for one run, without changing anyone's setting.
 constexpr char kDisableSwitch[] = "disable-boring-list-updates";
 // Look now, whatever the lists say about their own age. Only the
@@ -50,11 +67,49 @@ constexpr char kDisableSwitch[] = "disable-boring-list-updates";
 constexpr char kCheckNowSwitch[] = "boring-check-lists-now";
 
 // A file whose timestamp is when we last looked and whose contents are
-// the version we saw. One plain file rather than a state format, so
-// there is nothing that can drift out of step with the lists.
+// what we saw. One plain file rather than a state format, so there is
+// nothing that can drift out of step with the lists.
 constexpr base::FilePath::CharType kMarkerFile[] =
     FILE_PATH_LITERAL("last-check");
-constexpr std::string_view kMarkerVersionKey = "version=";
+constexpr std::string_view kMarkerVersionKey = "version";
+constexpr std::string_view kMarkerDegradedKey = "degraded";
+constexpr std::string_view kMarkerOutcomeKey = "outcome";
+
+// How a check ended. One word each, written to the marker file so the
+// browser can say what happened rather than guess from the lists'
+// timestamps.
+constexpr std::string_view kOutcomeOk = "ok";
+constexpr std::string_view kOutcomeNetwork = "network";
+constexpr std::string_view kOutcomeSignature = "signature";
+constexpr std::string_view kOutcomeManifest = "manifest";
+constexpr std::string_view kOutcomeContent = "content";
+constexpr std::string_view kOutcomeStale = "stale";
+
+// A key the browser will believe a manifest from, as the base64 of its
+// SubjectPublicKeyInfo and the name it goes by. The name is the first
+// 16 hex characters of the SHA-256 of that same DER, so a manifest can
+// say which key signed it and a browser can say which key it trusted.
+//
+// There is room for more than one on purpose. A rotation ships as a
+// build carrying both the old and the new key; once every published
+// bundle is signed by the new one, a later build drops the old. A key
+// that has to be revoked is removed the same way.
+struct TrustedKey {
+  std::string_view id;
+  std::string_view spki_base64;
+};
+
+// TODO(JD): replace this placeholder with the real publishing key
+// before the beta. Generate it off the network, keep the private half
+// out of the repo, and paste the key id and base64 SPKI that
+// publish_lists.py --gen-test-key prints for its own key here.
+//
+// Until that happens every manifest fails this check and no browser
+// updates its lists. That is the safe direction to fail in: people
+// keep the lists they already have. It is not the shipping state.
+constexpr TrustedKey kTrustedKeys[] = {
+    {"0000000000000000", "REPLACE-WITH-THE-REAL-PUBLISHING-KEY"},
+};
 
 // While the lists in use are younger than this, nothing is asked for at
 // all, so a browser installed this week never says a word.
@@ -63,9 +118,11 @@ constexpr base::TimeDelta kFreshEnough = base::Days(7);
 // Once they are old enough to be worth replacing, look this often.
 constexpr base::TimeDelta kCheckInterval = base::Days(1);
 
-// The manifest is a few hundred bytes and the lists a few megabytes.
-// These are what we refuse to read, not what we expect.
+// The manifest is a few hundred bytes, its signature under two, and
+// the lists a few megabytes. These are what we refuse to read, not
+// what we expect.
 constexpr size_t kMaxManifestBytes = 64 * 1024;
+constexpr size_t kMaxSignatureBytes = 8 * 1024;
 constexpr size_t kMaxListBytes = 32 * 1024 * 1024;
 
 std::string HashOfString(std::string_view data) {
@@ -86,27 +143,131 @@ base::FilePath MarkerPath() {
   return dir.empty() ? base::FilePath() : dir.Append(kMarkerFile);
 }
 
-// The manifest version the last check applied, or 0 when there is none
-// on record.
-int LastVersionApplied() {
+// What the marker file says, empty when there is none.
+std::string ReadMarker() {
   std::string text;
   const base::FilePath path = MarkerPath();
   if (path.empty() || !base::ReadFileToStringWithMaxSize(path, &text, 1024)) {
-    return 0;
+    return std::string();
   }
-  const size_t start = text.find(kMarkerVersionKey);
-  if (start == std::string::npos) {
-    return 0;
+  return text;
+}
+
+// One "key=value" line from the marker file, empty when it is absent.
+// Whole lines, not a search through the text: searching would let one
+// key's name be found inside another's.
+std::string MarkerValue(std::string_view text, std::string_view key) {
+  for (std::string_view line : base::SplitStringPiece(
+           text, "\n", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY)) {
+    if (line.size() > key.size() && line.starts_with(key) &&
+        line[key.size()] == '=') {
+      return std::string(line.substr(key.size() + 1));
+    }
   }
-  std::string_view rest =
-      std::string_view(text).substr(start + kMarkerVersionKey.size());
-  const size_t end = rest.find('\n');
-  if (end != std::string_view::npos) {
-    rest = rest.substr(0, end);
+  return std::string();
+}
+
+// The name a key goes by, so a manifest can say which one signed it.
+std::string KeyIdFor(base::span<const uint8_t> spki) {
+  return base::HexEncodeLower(crypto::SHA256Hash(spki)).substr(0, 16);
+}
+
+// The extra key a test may name on the command line, empty when there
+// is none to honour.
+std::vector<uint8_t> TestKey() {
+  const base::CommandLine* command_line =
+      base::CommandLine::ForCurrentProcess();
+  if (!command_line->HasSwitch(kTestKeySwitch)) {
+    return {};
   }
-  int version = 0;
-  base::StringToInt(base::TrimWhitespaceASCII(rest, base::TRIM_ALL), &version);
-  return version;
+  // Same rule as the feed address: anything but the built in default
+  // is honoured only for a server on this machine. Without this, a
+  // shortcut with an extra switch on it would be enough to make a
+  // browser trust somebody else's lists.
+  if (!net::IsLocalhost(ListUpdater::GetFeedUrl())) {
+    return {};
+  }
+  const std::optional<std::vector<uint8_t>> spki =
+      base::Base64Decode(command_line->GetSwitchValueASCII(kTestKeySwitch));
+  return spki.value_or(std::vector<uint8_t>());
+}
+
+// The SubjectPublicKeyInfo of the key with this name, empty when we do
+// not trust a key by that name.
+std::vector<uint8_t> TrustedKeyNamed(std::string_view id) {
+  for (const TrustedKey& key : kTrustedKeys) {
+    if (key.id != id) {
+      continue;
+    }
+    const std::optional<std::vector<uint8_t>> spki =
+        base::Base64Decode(key.spki_base64);
+    if (spki) {
+      return *spki;
+    }
+  }
+  const std::vector<uint8_t> test_key = TestKey();
+  if (!test_key.empty() && KeyIdFor(test_key) == id) {
+    return test_key;
+  }
+  return {};
+}
+
+// True when some manifest could pass the signature check at all. With
+// only the placeholder built in, none can, so asking for one is a
+// request that is certain to be thrown away.
+bool HasUsableKey() {
+  for (const TrustedKey& key : kTrustedKeys) {
+    const std::optional<std::vector<uint8_t>> spki =
+        base::Base64Decode(key.spki_base64);
+    if (spki && !spki->empty() && KeyIdFor(*spki) == key.id) {
+      return true;
+    }
+  }
+  return !TestKey().empty();
+}
+
+// True when this manifest really was written by someone holding a key
+// this browser was built to trust.
+//
+// The manifest's own bytes are what is signed, so they are checked
+// before they are parsed. The signature file has to be read first to
+// find out which key to look up, but nothing in it is believed: a name
+// we do not know, or a signature that does not verify, both end here.
+bool ManifestIsSigned(const std::string& manifest,
+                      const std::string& signature_file) {
+  const std::optional<base::DictValue> parsed =
+      base::JSONReader::ReadDict(signature_file, base::JSON_PARSE_RFC);
+  if (!parsed) {
+    return false;
+  }
+  const std::string* algorithm = parsed->FindString("alg");
+  const std::string* key_id = parsed->FindString("key");
+  const std::string* signature_base64 = parsed->FindString("sig");
+  if (!algorithm || !key_id || !signature_base64 ||
+      *algorithm != kSignatureAlgorithm) {
+    return false;
+  }
+
+  const std::vector<uint8_t> spki = TrustedKeyNamed(*key_id);
+  if (spki.empty()) {
+    return false;
+  }
+  const std::optional<std::vector<uint8_t>> signature =
+      base::Base64Decode(*signature_base64);
+  if (!signature) {
+    return false;
+  }
+
+  // TODO(JD): crypto::SignatureVerifier is marked for removal upstream
+  // in favour of crypto/sign. Move to it on a Chromium roll that still
+  // has both, rather than on the one that drops this.
+  crypto::SignatureVerifier verifier;
+  if (!verifier.VerifyInit(crypto::SignatureVerifier::ECDSA_SHA256, *signature,
+                           spki)) {
+    return false;
+  }
+  verifier.VerifyUpdate(base::as_byte_span(manifest));
+  return verifier.VerifyFinal();
 }
 
 std::unique_ptr<network::SimpleURLLoader> MakeLoader(const GURL& url,
@@ -116,10 +277,9 @@ std::unique_ptr<network::SimpleURLLoader> MakeLoader(const GURL& url,
         semantics {
           sender: "boring blocking lists"
           description:
-            "Downloads the ad, tracker and scam blocking lists the "
-            "browser filters with, so that a browser installed months "
-            "ago still recognises the scam sites people are being sent "
-            "to today."
+            "Downloads the ad and tracker blocking lists the browser "
+            "filters with, so that a browser installed months ago "
+            "still recognises what is being served today."
           trigger:
             "Checked at most once a day, and only once the lists "
             "already in use are more than a week old. A list is "
@@ -188,7 +348,15 @@ GURL ListUpdater::GetFeedUrl() {
 }
 
 // static
+bool ListUpdater::CanUpdate() {
+  return HasUsableKey();
+}
+
+// static
 bool ListUpdater::IsEnabled(const PrefService* prefs) {
+  if (!CanUpdate()) {
+    return false;
+  }
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(kDisableSwitch)) {
     return false;
   }
@@ -206,6 +374,8 @@ void ListUpdater::MaybeCheck(
   running_ = true;
   asked_ = false;
   all_saved_ = true;
+  degraded_ = false;
+  outcome_.clear();
   factory_ = std::move(factory);
   base::ThreadPool::PostTaskAndReplyWithResult(
       FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
@@ -228,7 +398,9 @@ ListUpdater::Local ListUpdater::LookAtWhatWeHave() {
   // ask about. A missing list has no time at all, which counts as the
   // most urgent case rather than the freshest.
   const base::Time filters_at = GetWrittenAt(GetListPath(ListKind::kFilters));
-  const base::Time scam_at = GetWrittenAt(GetListPath(ListKind::kScam));
+  const base::Time scam_at = kScamBlockingAvailable
+                                 ? GetWrittenAt(GetListPath(ListKind::kScam))
+                                 : filters_at;
   if (!ignore_schedule && !filters_at.is_null() && !scam_at.is_null() &&
       now - std::min(filters_at, scam_at) < kFreshEnough) {
     return local;
@@ -242,9 +414,13 @@ ListUpdater::Local ListUpdater::LookAtWhatWeHave() {
   }
 
   local.worth_asking = true;
-  local.version = LastVersionApplied();
+  const std::string marker = ReadMarker();
+  base::StringToInt(MarkerValue(marker, kMarkerVersionKey), &local.version);
+  local.degraded = MarkerValue(marker, kMarkerDegradedKey) == "1";
   local.filters_sha256 = HashOfFile(GetDownloadedListPath(ListKind::kFilters));
-  local.scam_sha256 = HashOfFile(GetDownloadedListPath(ListKind::kScam));
+  if (kScamBlockingAvailable) {
+    local.scam_sha256 = HashOfFile(GetDownloadedListPath(ListKind::kScam));
+  }
   return local;
 }
 
@@ -268,31 +444,61 @@ void ListUpdater::OnLookedAtDisk(Local local) {
 
 void ListUpdater::OnManifest(std::optional<std::string> body) {
   loader_.reset();
+  if (!body) {
+    FinishWith(kOutcomeNetwork);
+    return;
+  }
+  // Hold the bytes exactly as served. They are what was signed, and
+  // nothing in them is looked at until the signature says who wrote
+  // them.
+  manifest_ = std::move(*body);
+  loader_ = MakeLoader(GetFeedUrl().Resolve(kManifestSignatureName),
+                       /*no_cache=*/true);
+  loader_->DownloadToString(factory_.get(),
+                            base::BindOnce(&ListUpdater::OnManifestSignature,
+                                           weak_factory_.GetWeakPtr()),
+                            kMaxSignatureBytes);
+}
+
+void ListUpdater::OnManifestSignature(std::optional<std::string> body) {
+  loader_.reset();
+  // A missing signature and a wrong one are the same answer. Either
+  // way this manifest is not one we can say came from us, so nothing
+  // changes and the version on disk stays where it is. Treated exactly
+  // like a download that did not arrive.
+  if (!body || !ManifestIsSigned(manifest_, *body)) {
+    FinishWith(kOutcomeSignature);
+    return;
+  }
+  ApplyManifest();
+}
+
+void ListUpdater::ApplyManifest() {
   // Strict JSON: this file is one we generate ourselves, so there is no
   // reason to accept comments or trailing commas in it.
-  std::optional<base::DictValue> parsed;
-  if (body) {
-    parsed = base::JSONReader::ReadDict(*body, base::JSON_PARSE_RFC);
-  }
+  const std::optional<base::DictValue> parsed =
+      base::JSONReader::ReadDict(manifest_, base::JSON_PARSE_RFC);
   if (!parsed) {
-    all_saved_ = false;
-    Finish();
+    FinishWith(kOutcomeManifest);
     return;
   }
   const std::optional<int> version = parsed->FindInt("version");
   const base::ListValue* files = parsed->FindList("files");
   if (!version || !files) {
-    all_saved_ = false;
-    Finish();
+    FinishWith(kOutcomeManifest);
     return;
   }
   // The publisher only ever counts up, so a manifest older than the one
   // already applied is a stale copy and must not walk us backwards.
   if (*version < local_.version) {
-    Finish();
+    FinishWith(kOutcomeStale);
     return;
   }
   version_ = *version;
+  // The publisher says so when it built a bundle without one of its
+  // sources. Passed on as it stands, so nothing downstream has to
+  // guess whether a thin list is thin on purpose.
+  degraded_ = parsed->FindBool("degraded").value_or(false);
 
   wanted_.clear();
   next_ = 0;
@@ -312,6 +518,11 @@ void ListUpdater::OnManifest(std::optional<std::string> body) {
     if (!kind) {
       continue;  // A list this version of the browser does not know.
     }
+    if (*kind == ListKind::kScam && !kScamBlockingAvailable) {
+      // This version ships no scam list and must not start using one
+      // an update feed happens to offer.
+      continue;
+    }
     const std::string& have = *kind == ListKind::kFilters
                                   ? local_.filters_sha256
                                   : local_.scam_sha256;
@@ -325,7 +536,9 @@ void ListUpdater::OnManifest(std::optional<std::string> body) {
 
 void ListUpdater::FetchNextList() {
   if (next_ >= wanted_.size()) {
-    Finish();
+    // Everything the manifest offered is either already here or has
+    // just been put in place, so this version is the one in use.
+    FinishWith(kOutcomeOk);
     return;
   }
   const Wanted& wanted = wanted_[next_];
@@ -340,8 +553,7 @@ void ListUpdater::FetchNextList() {
 void ListUpdater::OnListDownloaded(std::optional<std::string> body) {
   loader_.reset();
   if (!body) {
-    all_saved_ = false;
-    Finish();
+    FinishWith(kOutcomeNetwork);
     return;
   }
   const Wanted& wanted = wanted_[next_];
@@ -371,6 +583,10 @@ bool ListUpdater::SaveList(ListKind kind,
   const base::FilePath path = dir.AppendASCII(ListFileName(kind));
   const base::FilePath part = path.AddExtensionASCII(".part");
   if (!base::WriteFile(part, body)) {
+    // A write that ran out of room leaves part of a file behind, and
+    // the next run would write over it anyway, but a stray .part in
+    // the folder reads like a half finished update to anyone looking.
+    base::DeleteFile(part);
     return false;
   }
   // Into place in one step, so a browser reading the list never finds
@@ -384,8 +600,9 @@ bool ListUpdater::SaveList(ListKind kind,
 
 void ListUpdater::OnListSaved(bool saved) {
   if (!saved) {
-    all_saved_ = false;
-    Finish();
+    // What arrived was not what the manifest promised, or it could not
+    // be put in place. Either way the list in use is left alone.
+    FinishWith(kOutcomeContent);
     return;
   }
   ++next_;
@@ -393,7 +610,7 @@ void ListUpdater::OnListSaved(bool saved) {
 }
 
 // static
-void ListUpdater::RecordCheck(int version) {
+void ListUpdater::RecordCheck(int version, bool degraded, std::string outcome) {
   const base::FilePath dir = GetDownloadedListDir();
   if (dir.empty() || !base::CreateDirectory(dir)) {
     return;
@@ -401,8 +618,39 @@ void ListUpdater::RecordCheck(int version) {
   const std::string text = base::StrCat(
       {"# The time on this file is when the browser last looked for newer "
        "lists.\n",
-       kMarkerVersionKey, base::NumberToString(version), "\n"});
+       kMarkerVersionKey, "=", base::NumberToString(version), "\n",
+       kMarkerDegradedKey, "=", degraded ? "1" : "0", "\n", kMarkerOutcomeKey,
+       "=", outcome, "\n"});
   base::WriteFile(dir.Append(kMarkerFile), text);
+}
+
+// static
+ListUpdater::Status ListUpdater::ReadStatus() {
+  Status status;
+  const base::FilePath path = MarkerPath();
+  if (path.empty()) {
+    return status;
+  }
+  const std::string text = ReadMarker();
+  if (text.empty()) {
+    return status;
+  }
+  status.checked_at = GetWrittenAt(path);
+  base::StringToInt(MarkerValue(text, kMarkerVersionKey), &status.version);
+  status.degraded = MarkerValue(text, kMarkerDegradedKey) == "1";
+  status.outcome = MarkerValue(text, kMarkerOutcomeKey);
+  return status;
+}
+
+void ListUpdater::FinishWith(std::string_view outcome) {
+  // Anything other than a clean finish leaves the version on record at
+  // the one still on disk, so a check that stopped part way through is
+  // picked up again tomorrow instead of being written down as done.
+  if (outcome != kOutcomeOk) {
+    all_saved_ = false;
+  }
+  outcome_ = std::string(outcome);
+  Finish();
 }
 
 void ListUpdater::Finish() {
@@ -414,13 +662,19 @@ void ListUpdater::Finish() {
     base::ThreadPool::PostTask(
         FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
         base::BindOnce(&ListUpdater::RecordCheck,
-                       all_saved_ ? version_ : local_.version));
+                       all_saved_ ? version_ : local_.version,
+                       all_saved_ ? degraded_ : local_.degraded,
+                       outcome_.empty() ? std::string(kOutcomeOk) : outcome_));
   }
   loader_.reset();
   factory_.reset();
   local_ = Local();
   wanted_.clear();
+  manifest_.clear();
   next_ = 0;
+  version_ = 0;
+  degraded_ = false;
+  outcome_.clear();
   asked_ = false;
   running_ = false;
 }

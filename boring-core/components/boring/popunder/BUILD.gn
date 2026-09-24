@@ -8,6 +8,9 @@ static_library("popunder") {
   deps = [
     "//base",
     "//components/blocked_content",
+    "//components/boring/core",
+    "//components/prefs",
+    "//components/user_prefs",
     "//content/public/browser",
     "//net",
     "//url",

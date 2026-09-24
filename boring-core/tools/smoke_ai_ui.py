@@ -11,6 +11,7 @@ import tempfile
 from pathlib import Path
 
 from drive import Browser
+from smoke_newtab import ICON_LOADS
 
 OUT = Path(__file__).resolve().parents[2] / "artifacts/ui-implemented"
 
@@ -27,7 +28,7 @@ CONTRAST = r"""
   }
   var box = document.getElementById('api-key');
   var a = lum(getComputedStyle(box).borderTopColor);
-  var b = lum(getComputedStyle(box.closest('fieldset')).backgroundColor);
+  var b = lum(getComputedStyle((box.closest('fieldset, .panel') || document.body)).backgroundColor);
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 """
 
@@ -64,6 +65,10 @@ def main():
             "return !document.getElementById('settings-panel')"
             ".classList.contains('hidden')"
         )
+        icon = b.run_async(ICON_LOADS)
+        checks["tab icon brand.svg loads"] = icon == "ok"
+        if icon != "ok":
+            print("  icon:", icon)
         b.screenshot(str(OUT / "ai-settings-light.png"))
 
         # A rejected key must not be reported as saved.
@@ -114,12 +119,12 @@ def main():
                 }
                 b.run("window.loadSummaryState(arguments[0])", [fixture])
                 checks[f"{theme}/{state} renders"] = b.run(
-                    "return !!document.querySelector('#ask h2') && "
+                    "return !!document.querySelector('#ask h1') && "
                     "!document.getElementById('ask').classList.contains('hidden')"
                 )
                 checks[f"{theme}/{state} treats content as text"] = b.run(
                     "return !document.querySelector('#ask img, #ask script, #ask b')"
-                    " && document.querySelector('#ask .page-name')"
+                    " && document.querySelector('#ask .summary-source strong')"
                     ".textContent===arguments[0]",
                     [fixture["title"]],
                 )
@@ -145,11 +150,11 @@ def main():
             "local:false,textLength:4200})"
         )
         checks["consent names external destination"] = b.run(
-            "return document.querySelector('#ask h2').textContent"
+            "return document.querySelector('#ask h1').textContent"
             ".includes('Send this page to Google Gemini?')"
         )
         checks["consent gives the character count"] = b.run(
-            "return document.querySelector('.going').textContent"
+            "return document.querySelector('.summary-destination').textContent"
             ".includes('About 4,200 characters')"
         )
         checks["new state takes focus and is announced"] = b.run(

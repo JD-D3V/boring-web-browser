@@ -25,7 +25,21 @@
    // Only show the Battery Saver button when it is not controlled by the OS. On
    // ChromeOS the battery icon in the shelf shows the same information.
    if (!performance_manager::user_tuning::IsBatterySaverModeManagedByOS() &&
-@@ -1186,6 +1197,7 @@
+@@ -583,6 +594,13 @@
+         AddChildView(std::make_unique<AvatarToolbarButton>(browser_view_));
+     bool show_avatar_toolbar_button =
+         AvatarToolbarButtonInterface::CanShowForProfile(browser_->profile());
++
++    // boring: there is nothing to sign in to, so a profile button on
++    // every window is a control with nothing behind it. It stays for the
++    // windows where it says something, incognito and guest, and
++    // --show-avatar-button still overrides this either way.
++    show_avatar_toolbar_button = browser_->profile()->IsIncognitoProfile() ||
++                                 browser_->profile()->IsGuestSession();
+ 
+     const std::string sab_value = base::CommandLine::ForCurrentProcess()->
+                                   GetSwitchValueASCII("show-avatar-button");
+@@ -1186,6 +1204,7 @@
      reload_control->SetDevToolsStatus(
          chrome::IsDebuggerAttachedToCurrentTab(browser_));
    }
@@ -101,3 +115,66 @@
      "//components/send_tab_to_self",
      "//components/sessions",
      "//components/signin/public/base:signin_buildflags",
+--- a/chrome/browser/ui/layout_constants.cc
++++ b/chrome/browser/ui/layout_constants.cc
+@@ -74,7 +74,8 @@
+     case LayoutConstant::kLocationBarTrailingDecorationInnerPadding:
+       return touch_ui ? 3 : 8;
+     case LayoutConstant::kLocationBarHeight:
+-      return touch_ui ? 36 : 34;
++      // boring: 38 DIP, matching the reference's address field.
++      return touch_ui ? 36 : 38;
+     // LINT.IfChange(LocationBarIconSize)
+     case LayoutConstant::kLocationBarIconSize:
+       return touch_ui ? 20 : 16;
+@@ -119,7 +120,8 @@
+     case LayoutConstant::kTabstripToolbarOverlap:
+       return 1;
+     case LayoutConstant::kToolbarButtonHeight:
+-      return touch_ui ? 48 : 34;
++      // boring: 36 DIP, matching the reference's square icon buttons.
++      return touch_ui ? 48 : 36;
+     case LayoutConstant::kToolbarButtonIconSize:
+       return touch_ui ? kDefaultTouchableIconSize
+                       : kDefaultIconSizeChromeRefresh;
+@@ -136,7 +138,9 @@
+     case LayoutConstant::kToolbarIconDefaultMargin:
+       return touch_ui ? 0 : 2;
+     case LayoutConstant::kLocationBarMargin:
+-      return touch_ui ? 12 : 9;
++      // boring: 10 DIP either side of the address field, matching the
++      // reference's toolbar.
++      return touch_ui ? 12 : 10;
+     case LayoutConstant::kSidePanelInset:
+       return 8;
+     case LayoutConstant::kPageInfoIconSize:
+@@ -208,7 +212,10 @@
+     }
+ 
+     case TOOLBAR_BUTTON:
+-      return gfx::Insets(touch_ui ? 12 : 7);
++      // boring: 8 DIP of padding around the 20 DIP glyph, so the button
++      // itself lands on 36 DIP square (see kToolbarButtonHeight above,
++      // which ToolbarButton::GetTargetSize() derives from this).
++      return gfx::Insets(touch_ui ? 12 : 8);
+ 
+     case BROWSER_APP_MENU_CHIP_PADDING:
+       if (touch_ui) {
+--- a/chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.cc
++++ b/chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.cc
+@@ -169,6 +169,15 @@
+               GetLayoutConstant(LayoutConstant::kToolbarIconDefaultMargin),
+           0, GetLayoutConstant(LayoutConstant::kToolbarDividerSpacing)));
+   toolbar_divider_ = AddChildView(std::move(toolbar_divider));
++  // boring: no divider between the pinned actions (the downloads button,
++  // by default) and whatever comes after them. It is purely decorative:
++  // ReorderChildView() below only keeps it positioned at the tail of the
++  // pinned buttons as they change, which is harmless on an invisible
++  // view, and it is not a drop target for reordering pinned actions.
++  // IsChildIncludedInLayout() (see PinnedToolbarActionsContainerLayout)
++  // skips invisible children entirely, so this also reclaims its space
++  // rather than leaving a gap.
++  toolbar_divider_->SetVisible(false);
+ 
+   // Initialize the pinned action buttons.
+   action_view_controller_ = std::make_unique<views::ActionViewController>();

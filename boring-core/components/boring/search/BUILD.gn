@@ -1,0 +1,12 @@
+# Copyright 2026 boring. BSD style license.
+
+# The two functions this target declares are defined in
+# chrome/browser/boring/search_engines_bridge.cc, which is built into
+# chrome/browser. See search_engines.h. The header only forward declares
+# content::BrowserContext, so this target needs nothing of its own.
+static_library("search") {
+  sources = [
+    "search_engines.cc",
+    "search_engines.h",
+  ]
+}

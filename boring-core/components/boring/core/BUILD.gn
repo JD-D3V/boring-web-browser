@@ -2,6 +2,7 @@
 
 static_library("core") {
   sources = [
+    "boring_capabilities.h",
     "boring_prefs.cc",
     "boring_prefs.h",
   ]
@@ -9,5 +10,11 @@ static_library("core") {
     "//base",
     "//components/pref_registry",
     "//components/prefs",
+    "//net",
+    "//url",
   ]
+
+  # Not code, but it has to land next to chrome.exe, and everything we
+  # build already reaches this target.
+  data_deps = [ "//components/boring/notices" ]
 }

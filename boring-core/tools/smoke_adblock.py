@@ -9,9 +9,8 @@ a rejection can only mean the request was blocked, not a CORS rule.
 import sys
 import time
 
-from drive import Browser
+from drive import Browser, PROFILE
 
-PROFILE = r"E:\ung\testprofile"
 
 FETCH = """
 var url = arguments[0];

@@ -8,7 +8,10 @@ static_library("newtab") {
   deps = [
     "//base",
     "//components/boring/adblock:browser",
+    "//components/boring/branding",
+    "//components/boring/core",
     "//components/boring/scam",
+    "//components/boring/search",
     "//components/pref_registry",
     "//components/prefs",
     "//components/user_prefs",

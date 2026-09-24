@@ -1,0 +1,12 @@
+// Copyright 2026 boring. BSD style license.
+
+// The forward arrow. Mirror of back_arrow_chrome_refresh_old.icon (V2
+// icons.js "forward", centred).
+
+CANVAS_DIMENSIONS, 20,
+STROKE, 1.42,
+MOVE_TO, 10, 4.17,
+LINE_TO, 15.83, 10,
+LINE_TO, 10, 15.83,
+MOVE_TO, 15.83, 10,
+LINE_TO, 4.17, 10,

@@ -1,0 +1,37 @@
+# Copyright 2026 boring. BSD style license.
+
+# Browser updates, through WinSparkle (https://winsparkle.org, MIT).
+# tools/get_winsparkle.py fetches the pinned release, and apply.py stages
+# WinSparkle.dll and its notices into lib/ here. We do not link against
+# it: browser_updater.cc loads it by hand, in the browser process only,
+# and only in a copy the installer put on the machine.
+
+assert(is_win)
+
+copy("winsparkle_dll") {
+  sources = [ "lib/WinSparkle.dll" ]
+  outputs = [ "$root_out_dir/WinSparkle.dll" ]
+}
+
+copy("winsparkle_notices") {
+  sources = [ "lib/NOTICES-WinSparkle.txt" ]
+  outputs = [ "$root_out_dir/NOTICES-WinSparkle.txt" ]
+}
+
+static_library("update") {
+  sources = [
+    "browser_updater.cc",
+    "browser_updater.h",
+  ]
+  deps = [
+    "//base",
+    "//components/boring/core",
+    "//components/version_info",
+    "//net",
+    "//url",
+  ]
+  data_deps = [
+    ":winsparkle_dll",
+    ":winsparkle_notices",
+  ]
+}

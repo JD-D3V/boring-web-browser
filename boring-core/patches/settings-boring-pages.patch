@@ -1,0 +1,692 @@
+--- a/chrome/browser/resources/settings/router.ts
++++ b/chrome/browser/resources/settings/router.ts
+@@ -52,6 +52,8 @@
+   PRIVACY_SANDBOX_FLEDGE: Route;
+   PRIVACY_SANDBOX_TOPICS: Route;
+   PRIVACY_SANDBOX_MANAGE_TOPICS: Route;
++  PROTECTION: Route;
++  READING: Route;
+   RESET: Route;
+   RESET_DIALOG: Route;
+   SAFETY_HUB: Route;
+@@ -116,6 +118,7 @@
+   SKILLS: Route;
+   SPELL_CHECK: Route;
+   SUGGESTIONS_FROM_GEMINI: Route;
++  SUMMARIES: Route;
+   SYNC: Route;
+   SYNC_ADVANCED: Route;
+   SYSTEM: Route;
+--- a/chrome/browser/resources/settings/route.ts
++++ b/chrome/browser/resources/settings/route.ts
+@@ -172,6 +172,13 @@
+ 
+   const visibility = pageVisibility || {};
+ 
++  // boring: our own pages. Titles are plain strings rather than
++  // $i18n{...} lookups since these are not upstream Chromium strings.
++  if (visibility.protection !== false) {
++    r.PROTECTION = r.BASIC.createSection('/protection', 'protection',
++        'Protection');
++  }
++
+   if (visibility.people !== false) {
+     r.PEOPLE = r.BASIC.createSection(
+         '/people', 'people', loadTimeData.getString('peoplePageTitle'));
+@@ -217,6 +224,15 @@
+     }
+   }
+ 
++  // boring: our own AI feature, kept apart from Chromium's r.AI section
++  // above since it is a different (and much smaller) thing: one page,
++  // backed by components/boring/ai, with its own setup flow at
++  // chrome://boring-ai.
++  if (visibility.summaries !== false) {
++    r.SUMMARIES = r.BASIC.createSection('/summaries', 'summaries',
++        'Page summaries');
++  }
++
+   if (visibility.appearance !== false) {
+     r.APPEARANCE = r.BASIC.createSection(
+         '/appearance', 'appearance',
+@@ -224,6 +240,12 @@
+     r.FONTS = r.APPEARANCE.createChild('/fonts');
+   }
+ 
++  // boring: reading sits with appearance in the nav, so its route is
++  // created here too.
++  if (visibility.reading !== false) {
++    r.READING = r.BASIC.createSection('/reading', 'reading', 'Reading');
++  }
++
+   if (loadTimeData.getBoolean('enableYourSavedInfoSettingsPage')) {
+     if (visibility.yourSavedInfo !== false) {
+       r.YOUR_SAVED_INFO = r.BASIC.createSection(
+--- a/chrome/browser/resources/settings/page_visibility.ts
++++ b/chrome/browser/resources/settings/page_visibility.ts
+@@ -20,6 +20,12 @@
+   people?: boolean;
+   performance?: boolean;
+   privacy?: boolean|PrivacyPageVisibility;
++  // boring: our own pages. Left out of the guest-mode overrides below on
++  // purpose, so Protection, Reading and Page summaries stay reachable even
++  // in a guest session.
++  protection?: boolean;
++  reading?: boolean;
++  summaries?: boolean;
+   reset?: boolean;
+   safetyHub?: boolean;
+   system?: boolean;
+--- a/chrome/browser/resources/settings/BUILD.gn
++++ b/chrome/browser/resources/settings/BUILD.gn
+@@ -87,6 +87,9 @@
+     "autofill_page/suggestions_from_gemini_subpage.ts",
+     "autofill_page/virtual_card_unenroll_dialog.ts",
+     "autofill_page/walletable_pass_detection_toggle.ts",
++    "boring_page/boring_protection_page.ts",
++    "boring_page/boring_reading_page.ts",
++    "boring_page/boring_summaries_page.ts",
+     "clear_browsing_data_dialog/clear_browsing_data_dialog.ts",
+     "clear_browsing_data_dialog/clear_browsing_data_time_picker.ts",
+     "clear_browsing_data_dialog/history_deletion_dialog.ts",
+--- a/chrome/browser/resources/settings/settings_main/settings_main.html
++++ b/chrome/browser/resources/settings/settings_main/settings_main.html
+@@ -56,6 +56,15 @@
+ 
+ <cr-view-manager id="switcher"
+     show-all$="[[shouldShowAll_(inSearchMode_, lastRoute_)]]">
++  <template is="dom-if" if="[[showPage_(pageVisibility_.protection)]]">
++    <div slot="view" id="protection">
++      <template is="dom-if" if="[[renderPlugin_(
++          routes_.PROTECTION, lastRoute_, inSearchMode_)]]">
++        <boring-protection-page prefs="{{prefs}}"></boring-protection-page>
++      </template>
++    </div>
++  </template>
++
+   <template is="dom-if" if="[[showPage_(pageVisibility_.people)]]">
+     <div slot="view" id="people">
+       <template is="dom-if" if="[[renderPlugin_(
+@@ -123,6 +132,15 @@
+     </div>
+   </template>
+ 
++  <template is="dom-if" if="[[showPage_(pageVisibility_.summaries)]]">
++    <div slot="view" id="summaries">
++      <template is="dom-if" if="[[renderPlugin_(
++          routes_.SUMMARIES, lastRoute_, inSearchMode_)]]">
++        <boring-summaries-page prefs="{{prefs}}"></boring-summaries-page>
++      </template>
++    </div>
++  </template>
++
+   <template is="dom-if" if="[[showPage_(pageVisibility_.appearance)]]">
+     <div slot="view" id="appearance">
+       <template is="dom-if" if="[[renderPlugin_(
+@@ -133,6 +151,15 @@
+       </template>
+     </div>
+   </template>
++
++  <template is="dom-if" if="[[showPage_(pageVisibility_.reading)]]">
++    <div slot="view" id="reading">
++      <template is="dom-if" if="[[renderPlugin_(
++          routes_.READING, lastRoute_, inSearchMode_)]]">
++        <boring-reading-page></boring-reading-page>
++      </template>
++    </div>
++  </template>
+ 
+   <div slot="view" id="search">
+     <template is="dom-if" if="[[renderPlugin_(
+--- a/chrome/browser/resources/settings/settings_main/settings_main.ts
++++ b/chrome/browser/resources/settings/settings_main/settings_main.ts
+@@ -14,6 +14,9 @@
+ import '../ai_page/ai_page_index.js';
+ import '../appearance_page/appearance_page_index.js';
+ import '../autofill_page/autofill_page_index.js';
++import '../boring_page/boring_protection_page.js';
++import '../boring_page/boring_reading_page.js';
++import '../boring_page/boring_summaries_page.js';
+ import '../on_startup_page/on_startup_page.js';
+ import '../people_page/people_page_index.js';
+ import '../performance_page/performance_page_index.js';
+--- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -210,6 +210,25 @@
+   }
+   s_allowlist = new PrefsUtil::TypedPrefMap();
+ 
++  // boring: our own prefs, exposed read/write so the real settings pages
++  // at chrome/browser/resources/settings/boring_page/ can bind to them
++  // with settings-toggle-button, the same way any other pref-backed
++  // control does. Written as literal strings rather than pulling in
++  // components/boring/core/boring_prefs.h and components/boring/ai/
++  // ai_prefs.h here, to avoid adding a new GN dependency edge onto this
++  // already broad target; the literals must stay in sync with those
++  // headers, where the real names are defined and registered.
++  //
++  // The AI API key (components/boring/ai/ai_prefs.h's kApiKey) is
++  // deliberately left out: settings only ever shows whether a provider is
++  // set up, never the key itself, and chrome://boring-ai is still the only
++  // place that reads or writes it.
++  (*s_allowlist)["boring.senior_safe_mode"] = settings_api::PrefType::kBoolean;
++  (*s_allowlist)["boring.hide_sponsored_results"] =
++      settings_api::PrefType::kBoolean;
++  (*s_allowlist)["boring.list_updates"] = settings_api::PrefType::kBoolean;
++  (*s_allowlist)["boring.ai.provider"] = settings_api::PrefType::kString;
++
+   // Miscellaneous
+   (*s_allowlist)[::embedder_support::kAlternateErrorPagesEnabled] =
+       settings_api::PrefType::kBoolean;
+--- a/chrome/browser/ui/webui/settings/settings_ui.cc
++++ b/chrome/browser/ui/webui/settings/settings_ui.cc
+@@ -110,6 +110,7 @@
+ #include "components/autofill/core/browser/permissions/autofill_ai/autofill_ai_permission_utils.h"
+ #include "components/autofill/core/common/autofill_features.h"
+ #include "components/autofill/core/common/autofill_payments_features.h"
++#include "components/boring/core/boring_prefs.h"
+ #include "components/browsing_data/core/features.h"
+ #include "components/commerce/core/commerce_feature_list.h"
+ #include "components/commerce/core/feature_utils.h"
+@@ -437,6 +438,13 @@
+       base::FeatureList::IsEnabled(
+           autofill::features::kYourSavedInfoSettingsPageShoppingIntegration));
+ 
++  // boring: whether Senior Safe Mode was turned on for this computer with
++  // the --senior-safe-mode command line switch, so the Protection page can
++  // show its toggle as on and locked rather than as an ordinary editable
++  // control it cannot actually change.
++  html_source->AddBoolean("boringSeniorForced",
++                          boring::IsSeniorSafeModeForced());
++
+   AddSettingsPageUIHandler(std::make_unique<AboutHandler>(profile));
+   AddSettingsPageUIHandler(std::make_unique<ResetSettingsHandler>(profile));
+ 
+diff --git a/chrome/browser/resources/settings/boring_page/boring_protection_page.html b/chrome/browser/resources/settings/boring_page/boring_protection_page.html
+new file mode 100644
+--- /dev/null
++++ b/chrome/browser/resources/settings/boring_page/boring_protection_page.html
+@@ -0,0 +1,68 @@
++    <style include="cr-shared-style settings-shared">
++      :host {
++        display: block;
++        --boring-ink: #242e2d;
++        --boring-muted: #5d6966;
++        --boring-line: #d8ddd7;
++        --boring-accent: #176b5b;
++        --boring-soft: #e5f1eb;
++      }
++
++      @media (prefers-color-scheme: dark) {
++        :host {
++          --boring-ink: #e8ede7;
++          --boring-muted: #adb9b2;
++          --boring-line: #414e47;
++          --boring-accent: #92d4bb;
++          --boring-soft: #273f35;
++        }
++      }
++
++      /* Lines up with the page heading and the rows below: settings-section
++         insets its own #header by --cr-section-padding, and settings-toggle-
++         button/cr-link-row inset themselves the same way, but a plain
++         slotted element like this one gets none of that for free. No
++         negative top margin here: this is the first thing inside
++         settings-section's #card, which in forced-colors mode paints an
++         actual border (var(--cr-border-hcm)) right at its own edge, and a
++         negative margin was pulling this text up onto that line. */
++      .boring-subline {
++        color: var(--boring-muted);
++        font-size: 13px;
++        margin: 0 0 4px;
++        padding-block-start: 4px;
++        padding-inline: var(--cr-section-padding);
++      }
++    </style>
++    <settings-section page-title="Protection" class="cr-centered-card-container">
++      <div class="boring-subline">Useful safeguards. Clear choices.</div>
++      <cr-link-row id="protectionDetailsRow" class="hr"
++          label="Protection status"
++          sub-label="Scam, ad and tracker blocking, and how current the lists are."
++          on-click="onProtectionDetailsClick_" external>
++      </cr-link-row>
++      <settings-toggle-button id="hideSponsoredToggle" class="hr"
++          checked="[[computeHideSponsoredChecked_(
++              prefs.boring.hide_sponsored_results.value,
++              isSeniorOn_(prefs.boring.senior_safe_mode.value,
++                  seniorForced_))]]"
++          disabled="[[isSeniorOn_(prefs.boring.senior_safe_mode.value,
++              seniorForced_)]]"
++          on-change="onHideSponsoredChange_"
++          label="Hide sponsored search results"
++          sub-label="Remove supported paid placements on Google and Bing. This does not remove every scam link.">
++      </settings-toggle-button>
++      <settings-toggle-button id="seniorToggle" class="hr"
++          checked="[[isSeniorOn_(prefs.boring.senior_safe_mode.value,
++              seniorForced_)]]"
++          disabled="[[seniorForced_]]"
++          on-change="onSeniorChange_"
++          label="Senior Safe Mode"
++          sub-label="[[computeSeniorSubLabel_(seniorForced_)]]">
++      </settings-toggle-button>
++      <settings-toggle-button id="listUpdatesToggle"
++          pref="{{prefs.boring.list_updates}}"
++          label="Keep blocking lists up to date"
++          sub-label="Checks for newer lists about once a week. No account, no cookie, nothing about you or the pages you visit.">
++      </settings-toggle-button>
++    </settings-section>
+diff --git a/chrome/browser/resources/settings/boring_page/boring_protection_page.ts b/chrome/browser/resources/settings/boring_page/boring_protection_page.ts
+new file mode 100644
+--- /dev/null
++++ b/chrome/browser/resources/settings/boring_page/boring_protection_page.ts
+@@ -0,0 +1,122 @@
++// Copyright 2026 boring. BSD style license.
++
++/**
++ * @fileoverview
++ * 'boring-protection-page' is the real settings page for scam, ad and
++ * tracker protection. The switches here bind to the actual boring.* prefs,
++ * never to simulated state. Live service status (whether the scam and ad
++ * lists actually loaded, and how old they are) already has a home at
++ * chrome://boring-protection, which polls the real blocking services; this
++ * page links there rather than re-implementing that polling, so nothing
++ * shown here can drift from what the browser is actually doing.
++ */
++import 'chrome://resources/cr_elements/cr_link_row/cr_link_row.js';
++import 'chrome://resources/cr_elements/cr_shared_style.css.js';
++import '../controls/settings_toggle_button.js';
++import '../settings_page/settings_section.js';
++import '../settings_shared.css.js';
++
++import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
++import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
++
++import {loadTimeData} from '../i18n_setup.js';
++import {getSearchManager} from '../search_settings.js';
++import type {SettingsPlugin} from '../settings_main/settings_plugin.js';
++
++import {getTemplate} from './boring_protection_page.html.js';
++
++const BoringProtectionPageElementBase = PrefsMixin(PolymerElement);
++
++export class BoringProtectionPageElement extends
++    BoringProtectionPageElementBase implements SettingsPlugin {
++  static get is() {
++    return 'boring-protection-page';
++  }
++
++  static get template() {
++    return getTemplate();
++  }
++
++  static get properties() {
++    return {
++      /**
++       * Set from the --senior-safe-mode command line switch. When true,
++       * Senior Safe Mode cannot be changed here, or anywhere else in the
++       * browser; see boring::IsSeniorSafeModeForced().
++       */
++      seniorForced_: {
++        type: Boolean,
++        value: () => loadTimeData.getBoolean('boringSeniorForced'),
++      },
++    };
++  }
++
++  declare private seniorForced_: boolean;
++
++  /**
++   * True when Senior Safe Mode is in effect, whether that came from the
++   * stored pref or from the command line switch.
++   */
++  private isSeniorOn_(seniorPref: boolean, seniorForced: boolean): boolean {
++    return seniorPref || seniorForced;
++  }
++
++  private computeSeniorSubLabel_(seniorForced: boolean): string {
++    if (seniorForced) {
++      return 'Turned on for this computer.';
++    }
++    return 'Hide sponsored results and remove the option to bypass known ' +
++        'scam warnings.';
++  }
++
++  private onSeniorChange_(e: CustomEvent<boolean>) {
++    if (this.seniorForced_) {
++      // Nothing on this computer can turn this back off, so a stray event
++      // should not try.
++      return;
++    }
++    this.setPrefValue('boring.senior_safe_mode', e.detail);
++  }
++
++  /**
++   * Senior Safe Mode also hides sponsored results, so the switch reads on
++   * even when the underlying pref is off. The stored pref is left alone:
++   * turning Senior Safe Mode back off later should not have quietly turned
++   * this one on for good.
++   */
++  private computeHideSponsoredChecked_(
++      hideSponsored: boolean, seniorOn: boolean): boolean {
++    return hideSponsored || seniorOn;
++  }
++
++  private onHideSponsoredChange_(e: CustomEvent<boolean>) {
++    if (this.isSeniorOn_(
++            this.getPref<boolean>('boring.senior_safe_mode').value,
++            this.seniorForced_)) {
++      // The toggle is disabled whenever Senior Safe Mode is on, so this
++      // should not be reachable. Guarding it anyway means a stray event can
++      // never overwrite the real pref with a forced display value.
++      return;
++    }
++    this.setPrefValue('boring.hide_sponsored_results', e.detail);
++  }
++
++  private onProtectionDetailsClick_() {
++    window.open('chrome://boring-protection');
++  }
++
++  // SettingsPlugin implementation
++  async searchContents(query: string) {
++    const searchRequest = await getSearchManager().search(query, this);
++    return searchRequest.getSearchResult();
++  }
++}
++
++declare global {
++  interface HTMLElementTagNameMap {
++    'boring-protection-page': BoringProtectionPageElement;
++  }
++}
++
++customElements.define(
++    BoringProtectionPageElement.is, BoringProtectionPageElement);
+diff --git a/chrome/browser/resources/settings/boring_page/boring_reading_page.html b/chrome/browser/resources/settings/boring_page/boring_reading_page.html
+new file mode 100644
+--- /dev/null
++++ b/chrome/browser/resources/settings/boring_page/boring_reading_page.html
+@@ -0,0 +1,61 @@
++    <style include="cr-shared-style settings-shared">
++      :host {
++        display: block;
++        --boring-ink: #242e2d;
++        --boring-muted: #5d6966;
++        --boring-soft: #e5f1eb;
++      }
++
++      @media (prefers-color-scheme: dark) {
++        :host {
++          --boring-ink: #e8ede7;
++          --boring-muted: #adb9b2;
++          --boring-soft: #273f35;
++        }
++      }
++
++      /* These are plain slotted elements inside settings-section, so each
++         one needs the same --cr-section-padding inset that the heading and
++         a real row control (settings-toggle-button, cr-link-row) already
++         give themselves, to keep text lined up down the page. The
++         information panel is a box rather than plain text, so it gets that
++         inset as a margin around the box instead of padding inside it. No
++         negative top margin on the subtitle: it's the first thing inside
++         settings-section's #card, which in forced-colors mode paints an
++         actual border right at its own edge, and a negative margin was
++         pulling this text up onto that line. */
++      .boring-subline {
++        color: var(--boring-muted);
++        font-size: 13px;
++        margin: 0 0 12px;
++        padding-block-start: 4px;
++        padding-inline: var(--cr-section-padding);
++      }
++
++      .boring-body {
++        color: var(--boring-ink);
++        font-size: 13px;
++        line-height: 1.6;
++        max-width: 480px;
++        padding-inline: var(--cr-section-padding);
++      }
++
++      .boring-information {
++        background: var(--boring-soft);
++        border-radius: 8px;
++        color: var(--boring-ink);
++        font-size: 13px;
++        line-height: 1.6;
++        margin-block-start: 24px;
++        margin-inline: var(--cr-section-padding);
++        padding: 16px 18px;
++      }
++    </style>
++    <settings-section page-title="Reading" class="cr-centered-card-container">
++      <div class="boring-subline">Comfortable text. Fewer distractions.</div>
++      <p class="boring-body">Reader view gives articles a clear layout, with
++        adjustable type and a consistent return to the original page.</p>
++      <div class="boring-information">Open it from the book icon that
++        appears in the toolbar once a page is worth reading, or right-click
++        the page and choose "Open in reader view".</div>
++    </settings-section>
+diff --git a/chrome/browser/resources/settings/boring_page/boring_reading_page.ts b/chrome/browser/resources/settings/boring_page/boring_reading_page.ts
+new file mode 100644
+--- /dev/null
++++ b/chrome/browser/resources/settings/boring_page/boring_reading_page.ts
+@@ -0,0 +1,45 @@
++// Copyright 2026 boring. BSD style license.
++
++/**
++ * @fileoverview
++ * 'boring-reading-page' explains reader view. There is no separate reader
++ * pref to bind to (see components/boring/reader): reader view is a toolbar
++ * button and a page context menu entry, not a setting, so this page has no
++ * toggles of its own. Adding an inert control here would be worse than
++ * having none.
++ */
++import 'chrome://resources/cr_elements/cr_shared_style.css.js';
++import '../settings_page/settings_section.js';
++import '../settings_shared.css.js';
++
++import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
++
++import {getSearchManager} from '../search_settings.js';
++import type {SettingsPlugin} from '../settings_main/settings_plugin.js';
++
++import {getTemplate} from './boring_reading_page.html.js';
++
++export class BoringReadingPageElement extends PolymerElement implements
++    SettingsPlugin {
++  static get is() {
++    return 'boring-reading-page';
++  }
++
++  static get template() {
++    return getTemplate();
++  }
++
++  // SettingsPlugin implementation
++  async searchContents(query: string) {
++    const searchRequest = await getSearchManager().search(query, this);
++    return searchRequest.getSearchResult();
++  }
++}
++
++declare global {
++  interface HTMLElementTagNameMap {
++    'boring-reading-page': BoringReadingPageElement;
++  }
++}
++
++customElements.define(BoringReadingPageElement.is, BoringReadingPageElement);
+diff --git a/chrome/browser/resources/settings/boring_page/boring_summaries_page.html b/chrome/browser/resources/settings/boring_page/boring_summaries_page.html
+new file mode 100644
+--- /dev/null
++++ b/chrome/browser/resources/settings/boring_page/boring_summaries_page.html
+@@ -0,0 +1,63 @@
++    <style include="cr-shared-style settings-shared">
++      :host {
++        display: block;
++        --boring-ink: #242e2d;
++        --boring-muted: #5d6966;
++        --boring-soft: #e5f1eb;
++      }
++
++      @media (prefers-color-scheme: dark) {
++        :host {
++          --boring-ink: #e8ede7;
++          --boring-muted: #adb9b2;
++          --boring-soft: #273f35;
++        }
++      }
++
++      /* A plain slotted element inside settings-section needs its own
++         --cr-section-padding inset to line text up with the heading and
++         with a real row control; .cr-row (used for the status row below)
++         already carries that inset itself. No negative top margin: this is
++         the first thing inside settings-section's #card, which in
++         forced-colors mode paints an actual border right at its own edge,
++         and a negative margin was pulling this text up onto that line. */
++      .boring-subline {
++        color: var(--boring-muted);
++        font-size: 13px;
++        margin: 0 0 4px;
++        padding-block-start: 4px;
++        padding-inline: var(--cr-section-padding);
++      }
++
++      #setUpButton {
++        margin-block-start: 20px;
++        margin-inline-start: var(--cr-section-padding);
++      }
++
++      .boring-information {
++        background: var(--boring-soft);
++        border-radius: 8px;
++        color: var(--boring-ink);
++        font-size: 13px;
++        line-height: 1.6;
++        margin-block-start: 24px;
++        margin-inline: var(--cr-section-padding);
++        padding: 16px 18px;
++      }
++    </style>
++    <settings-section page-title="Page summaries"
++        class="cr-centered-card-container">
++      <div class="boring-subline">Optional. Only when you ask.</div>
++      <div class="cr-row first">
++        <div class="cr-padded-text flex">Page summaries</div>
++        <div class="cr-secondary-text">
++          [[computeProviderLabel_(prefs.boring.ai.provider.value)]]
++        </div>
++      </div>
++      <cr-button id="setUpButton" on-click="onSetUpClick_">
++        Set up page summaries
++      </cr-button>
++      <div class="boring-information">
++        [[computeDestinationNote_(prefs.boring.ai.provider.value)]]
++      </div>
++    </settings-section>
+diff --git a/chrome/browser/resources/settings/boring_page/boring_summaries_page.ts b/chrome/browser/resources/settings/boring_page/boring_summaries_page.ts
+new file mode 100644
+--- /dev/null
++++ b/chrome/browser/resources/settings/boring_page/boring_summaries_page.ts
+@@ -0,0 +1,98 @@
++// Copyright 2026 boring. BSD style license.
++
++/**
++ * @fileoverview
++ * 'boring-summaries-page' shows the real, current page summaries provider
++ * and links to chrome://boring-ai, which keeps the actual provider, model
++ * and API key setup along with the existing consent flow. The API key
++ * itself is never exposed to settings; only the provider name is, and only
++ * to read it, never to change it from here.
++ */
++import 'chrome://resources/cr_elements/cr_button/cr_button.js';
++import 'chrome://resources/cr_elements/cr_shared_style.css.js';
++import '../settings_page/settings_section.js';
++import '../settings_shared.css.js';
++
++import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
++import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
++
++import {getSearchManager} from '../search_settings.js';
++import type {SettingsPlugin} from '../settings_main/settings_plugin.js';
++
++import {getTemplate} from './boring_summaries_page.html.js';
++
++// Matches the provider names ai_ui.cc's own setup screen uses, so the
++// label here never disagrees with the page it links to.
++const PROVIDER_ROW_NAMES: Record<string, string> = {
++  ollama: 'Ollama on this computer',
++  gemini: 'Google Gemini',
++  openai: 'OpenAI',
++  openrouter: 'OpenRouter',
++  groq: 'Groq',
++};
++
++// What DescribeDestination() in components/boring/ai/ai_prefs.cc calls each
++// service. The exact address (including whether a chosen Ollama address is
++// actually local) is only known and confirmed right before a summary is
++// sent, on the consent screen at chrome://boring-ai; this page does not
++// repeat that check.
++const PROVIDER_DESTINATION_NAMES: Record<string, string> = {
++  gemini: 'Google Gemini',
++  openai: 'OpenAI',
++  openrouter: 'OpenRouter',
++  groq: 'Groq',
++};
++
++const BoringSummariesPageElementBase = PrefsMixin(PolymerElement);
++
++export class BoringSummariesPageElement extends
++    BoringSummariesPageElementBase implements SettingsPlugin {
++  static get is() {
++    return 'boring-summaries-page';
++  }
++
++  static get template() {
++    return getTemplate();
++  }
++
++  private computeProviderLabel_(provider: string): string {
++    if (!provider || provider === 'off') {
++      return 'Off';
++    }
++    return PROVIDER_ROW_NAMES[provider] || 'Off';
++  }
++
++  private computeDestinationNote_(provider: string): string {
++    if (provider === 'ollama') {
++      return 'Summaries would run on your own computer. The exact ' +
++          'address is confirmed each time, right before anything is sent.';
++    }
++    const name = PROVIDER_DESTINATION_NAMES[provider];
++    if (name) {
++      return `Page text would be sent to ${name}. You are asked to ` +
++          'confirm this, with the exact destination named, before ' +
++          'anything is sent.';
++    }
++    return 'Nothing is sent anywhere. Page summaries are off until you ' +
++        'choose a service.';
++  }
++
++  private onSetUpClick_() {
++    window.open('chrome://boring-ai');
++  }
++
++  // SettingsPlugin implementation
++  async searchContents(query: string) {
++    const searchRequest = await getSearchManager().search(query, this);
++    return searchRequest.getSearchResult();
++  }
++}
++
++declare global {
++  interface HTMLElementTagNameMap {
++    'boring-summaries-page': BoringSummariesPageElement;
++  }
++}
++
++customElements.define(
++    BoringSummariesPageElement.is, BoringSummariesPageElement);
