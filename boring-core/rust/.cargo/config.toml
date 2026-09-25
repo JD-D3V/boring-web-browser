@@ -1,0 +1,6 @@
+# Link the C runtime into boring_adblock.dll. Without this the engine
+# imports VCRUNTIME140.dll, which a clean Windows does not have, and on
+# such a PC the browser cannot load it and ad blocking is silently off.
+# Chromium itself is built the same way.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

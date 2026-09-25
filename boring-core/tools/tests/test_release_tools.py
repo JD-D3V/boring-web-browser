@@ -317,7 +317,13 @@ class MakeAppcastTest(unittest.TestCase):
             ElementTree.parse(self.out).getroot().find("./channel/item/enclosure")
         )
         self.assertEqual(enclosure.get(SPARKLE + "version"), "153.0.8010.52.2")
-        self.assertEqual(enclosure.get(SPARKLE + "shortVersionString"), "153.0.8010.52")
+        # WinSparkle shows this beside "you have <installed version>", and
+        # the browser reports its version with the release on the end. The
+        # Chromium version alone read as a downgrade: "153.0.8010.52 is
+        # now available (you have 153.0.8010.52.1)".
+        self.assertEqual(
+            enclosure.get(SPARKLE + "shortVersionString"), "153.0.8010.52.2"
+        )
 
     def test_a_release_feed_without_a_signature_is_refused(self):
         code, printed = self._run(

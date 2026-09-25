@@ -57,12 +57,12 @@ TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
     <description>Updates for Boring Browser</description>
     <language>en</language>
     <item>
-      <title>Version {version}</title>
+      <title>Version {build_version}</title>
       <pubDate>{date}</pubDate>
       <description><![CDATA[{notes}]]></description>
       <enclosure url="{base_url}/{filename}"
                  sparkle:version="{build_version}"
-                 sparkle:shortVersionString="{version}"
+                 sparkle:shortVersionString="{build_version}"
                  sparkle:os="windows"{extra}
                  length="{size}"
                  type="application/octet-stream" />
