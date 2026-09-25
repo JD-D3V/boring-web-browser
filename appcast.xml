@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Boring Browser updates</title>
+    <link>https://jd-d3v.github.io/boring-web-browser/appcast.xml</link>
+    <description>Updates for Boring Browser</description>
+    <language>en</language>
+    <item>
+      <title>Version 153.0.8010.52.1</title>
+      <pubDate>Fri, 25 Sep 2026 02:46:00 +0000</pubDate>
+      <description><![CDATA[<h2>What changed</h2>
+<p>Security fixes from the latest Chromium, plus our own changes. See
+the release notes on the project page.</p>]]></description>
+      <enclosure url="https://github.com/JD-D3V/boring-web-browser/releases/download/v153.0.8010.52.1/BoringBrowser_153.0.8010.52.1_installer_x64.exe"
+                 sparkle:version="153.0.8010.52.1"
+                 sparkle:shortVersionString="153.0.8010.52.1"
+                 sparkle:os="windows"
+                 sparkle:edSignature="qQQEYCrZuUAyDvnWFVlMutpWy/MYSciEta+IXzjPvyf6EgOmlerPu3Jo66dfWEXW5ErHAKvUsWZbcFWtznhWCQ=="
+                 length="129875968"
+                 type="application/octet-stream" />
+    </item>
+  </channel>
+</rss>
