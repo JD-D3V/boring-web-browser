@@ -52,6 +52,8 @@ static_library("browser") {
     "adblock_throttle.h",
     "blocking_off_sites.cc",
     "blocking_off_sites.h",
+    "cname_uncloaker.cc",
+    "cname_uncloaker.h",
     "cosmetic_filters_impl.cc",
     "cosmetic_filters_impl.h",
   ]
