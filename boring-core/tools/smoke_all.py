@@ -20,6 +20,10 @@ CHECKS = [
     # browser whose sandbox is still on.
     ("sandbox and site isolation", "smoke_sandbox.py"),
     ("ad and tracker blocking", "smoke_adblock.py"),
+    ("element hiding", "smoke_cosmetic.py"),
+    ("scriptlets", "smoke_scriptlet.py"),
+    ("redirect stubs", "smoke_redirect.py"),
+    ("cookie notices", "smoke_cookies.py"),
     ("scam warning and Senior Safe Mode", "smoke_scam.py"),
     ("Protection page", "smoke_protection.py"),
     ("blocking list updates", "smoke_lists.py"),

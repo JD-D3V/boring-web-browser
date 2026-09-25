@@ -75,6 +75,14 @@ REQUIRED = [
 REQUIRED_PROTECTION = [
     "boring_adblock.dll",
     "boring/easylist.txt",
+    # uBO's lists and the resources their scriptlets and redirects use.
+    # The installer skips a missing file without a word, so this is the
+    # only place a lost one gets noticed.
+    "boring/ubo.txt",
+    "boring/resources.json",
+    "boring/cookies.txt",
+    "boring/sources.json",
+    "boring/regional/index.json",
     # The browser updater. Without it an installed copy never hears of a
     # security fix, which is the same failure in slower motion.
     "WinSparkle.dll",
@@ -105,6 +113,12 @@ REQUIRED_NOTICES = [
     # The en-US spelling dictionary's notice (SCOWL). NOTICES.html names
     # the hunspell dictionaries with a licence for the other languages.
     "NOTICES-hunspell-en-US.txt",
+    # GPL-3.0 uBO lists, GPL-3.0 uBO scriptlets and redirects, and the
+    # Easylist Cookie List (CC BY 3.0). Each regional list carries its
+    # own NOTICES-regional-<id>.txt beside these.
+    "NOTICES-uAssets.txt",
+    "NOTICES-uBlock-resources.txt",
+    "NOTICES-easylist-cookie.txt",
 ]
 
 CORE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

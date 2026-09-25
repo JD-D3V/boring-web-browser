@@ -1,2 +1,7 @@
 # Bundled extension files stay byte-exact (pinned by hash).
 boring-core/components/boring/webstore/chromium-web-store/** -text
+# Patches are applied to the Chromium tree, which uses LF. With
+# core.autocrlf on, a checkout or a stash pop writes them with CRLF and
+# they stop applying, so keep them LF on every machine.
+*.patch text eol=lf
+patches/series text eol=lf

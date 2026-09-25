@@ -1,15 +1,16 @@
 --- a/chrome/browser/chrome_content_browser_client.cc
 +++ b/chrome/browser/chrome_content_browser_client.cc
-@@ -232,6 +232,8 @@
+@@ -232,6 +232,9 @@
  #include "components/autofill/core/common/autofill_features.h"
  #include "components/autofill/core/common/autofill_switches.h"
  #include "components/blocked_content/popup_blocker.h"
++#include "components/boring/adblock/adblock_redirect_proxy.h"
 +#include "components/boring/adblock/adblock_throttle.h"
 +#include "components/boring/core/boring_prefs.h"
  #include "components/captive_portal/core/buildflags.h"
  #include "components/content_settings/browser/page_specific_content_settings.h"
  #include "components/content_settings/browser/ui/javascript_optimizer_setting.h"
-@@ -6067,6 +6069,12 @@
+@@ -6067,6 +6070,12 @@
      result.push_back(std::move(signin_throttle));
    }
  
@@ -22,3 +23,16 @@
    return result;
  }
  
+@@ -6623,6 +6632,12 @@
+     network::mojom::URLLoaderFactoryOverridePtr* factory_override,
+     scoped_refptr<base::SequencedTaskRunner> navigation_response_task_runner,
+     bool is_for_network_service) {
++  // First in the chain, so a request answered with a $redirect stub is
++  // not seen by anything that could send it on.
++  boring::AdblockRedirectProxy::MaybeProxy(browser_context, render_process_id,
++                                           type, isolation_info,
++                                           factory_builder);
++
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+   auto* web_request_api =
+       extensions::BrowserContextKeyedAPIFactory<extensions::WebRequestAPI>::Get(

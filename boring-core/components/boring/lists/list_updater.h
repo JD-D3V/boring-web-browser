@@ -10,6 +10,7 @@
 #include <string_view>
 #include <vector>
 
+#include "base/containers/flat_map.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
@@ -111,10 +112,10 @@ class ListUpdater {
     // False when the lists in use are still fresh, or when the last
     // check was too recent to repeat. Nothing is sent in that case.
     bool worth_asking = false;
-    // Hash of each downloaded list we hold, empty when we hold none.
-    // A list whose hash already matches the manifest is not fetched.
-    std::string filters_sha256;
-    std::string scam_sha256;
+    // Hash of each downloaded list we hold; a kind we hold none of has
+    // no entry. A list whose hash already matches the manifest is not
+    // fetched.
+    base::flat_map<ListKind, std::string> held_sha256;
     // Manifest version the last check applied, 0 when there was none.
     int version = 0;
     // Whether that bundle was a degraded one. Carried forward when a

@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "components/boring/adblock/adblock_service.h"
 #include "net/http/http_request_headers.h"
 #include "third_party/blink/public/common/loader/url_loader_throttle.h"
 #include "url/gurl.h"
@@ -37,7 +38,7 @@ class AdblockThrottle : public blink::URLLoaderThrottle {
   // site otherwise. Empty when it cannot tell.
   static GURL TopFrameUrl(const network::ResourceRequest& request);
 
-  AdblockThrottle();
+  explicit AdblockThrottle(EnabledLists lists);
   ~AdblockThrottle() override;
 
   // blink::URLLoaderThrottle:
@@ -50,6 +51,12 @@ class AdblockThrottle : public blink::URLLoaderThrottle {
       network::HttpRequestHeadersUpdateParams* headers_update_params) override;
 
  private:
+  // Cancels when the engine says block. See the .cc for why a
+  // $redirect stub is not served here.
+  void CheckUrl(const GURL& url);
+
+  // The profile's optional lists, as they were when the request began.
+  const EnabledLists lists_;
   // Remembered from WillStartRequest for redirect checks.
   GURL initiator_;
   std::string request_type_;

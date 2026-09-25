@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Build the list bundle the browser downloads to keep its blocking fresh.
 
-The filter list is baked in when the browser is built, so on an installed
-copy it only gets older. This writes the same file plus a small signed
-manifest into a folder, ready to be uploaded to the release host.
+The filter lists are baked in when the browser is built, so on an
+installed copy they only get older. This writes the same files
+(easylist.txt, ubo.txt, cookies.txt and resources.json, built exactly
+as get_filterlists.py and get_ubo_resources.py build them) plus a small
+signed manifest into a folder, ready to be uploaded to the release host.
+Regional lists are not in the bundle: they change when a newer version
+of the browser is installed.
 
 No scam blocklist is published. No feed we use grants permission to
 redistribute its data this way, so v1 ships and publishes none; see
@@ -19,7 +23,9 @@ The manifest looks like this:
       "updated": "2026-09-17",
       "degraded": false,
       "files": [{"name": "easylist.txt", "size": 123, "sha256": "...",
-                 "entries": 138411}],
+                 "entries": 138411},
+                {"name": "ubo.txt", ...}, {"name": "cookies.txt", ...},
+                {"name": "resources.json", ..., "entries": 197}],
       "sources": [{"list": "easylist.txt", "name": "easylist", "ok": true,
                    "http_status": 200, "bytes": 2166195, "entries": 82279,
                    "reason": null}]
@@ -58,9 +64,15 @@ import subprocess
 import sys
 import tempfile
 
+import get_ubo_resources
 from get_filterlists import (
+    COOKIES,
+    UBO,
     BuildResult,
+    FeedError,
     build_filter_list,
+    build_output_list,
+    count_rules,
     fetch_url,
     parse_filter_list,
 )
@@ -160,11 +172,48 @@ def version_for(day: datetime.date) -> int:
     return (day - VERSION_EPOCH).days
 
 
+UBO_POLICY = Policy(
+    name="ubo.txt",
+    # 27,718 rules on 2026-09-25 across the four lists, with includes.
+    first_run_floor=10_000,
+    # Curated by hand like EasyList; a quarter gone is not a normal week.
+    healthy_shrink_floor=0.75,
+    # Never used: ubo.txt is published whole or not at all.
+    degraded_shrink_floor=0.75,
+)
+
+COOKIE_POLICY = Policy(
+    name="cookies.txt",
+    # 28,053 rules on 2026-09-25.
+    first_run_floor=10_000,
+    healthy_shrink_floor=0.75,
+    degraded_shrink_floor=0.75,
+)
+
+RESOURCES_NAME = "resources.json"
+
+
 def entries_in(name: str, text: str) -> int:
     """Real entries in a list's text, whichever list it is."""
     if name == SCAM_POLICY.name:
         return count_real_hosts(text)
+    if name in (UBO_POLICY.name, COOKIE_POLICY.name):
+        # uAssets lists carry no [Adblock] line, so only count.
+        return count_rules(text, 1)
+    if name == RESOURCES_NAME:
+        return len(json.loads(text))
     return parse_filter_list(text)
+
+
+def build_ubo_resources() -> tuple[str, int]:
+    """resources.json from the pinned uBO release, and how many it holds."""
+    try:
+        built = get_ubo_resources.build(
+            fetch_url, get_ubo_resources.default_node()
+        )
+    except (FeedError, get_ubo_resources.FormatError) as e:
+        raise RefusedError(f"{RESOURCES_NAME}: {e}") from e
+    return built.json_text(), len(built.resources)
 
 
 def read_previous(directory: str | None) -> dict | None:
@@ -415,12 +464,13 @@ def move_into_place(staging: str, out: str, names: list[str]) -> None:
         os.replace(pending, target)
 
 
-def build_bundle(args, fetch_filters, fetch_scam=None) -> int:
+def build_bundle(args, fetch_filters, fetch_scam=None, build_resources=None) -> int:
     """Builds, validates and publishes. Raises RefusedError to stop.
 
     fetch_scam is accepted and ignored: no scam list is published, and
     keeping the parameter means a caller that still passes one gets the
-    same refusal rather than a TypeError.
+    same refusal rather than a TypeError. build_resources returns the
+    text of resources.json and its count; tests hand in their own.
     """
     previous_dir = args.previous or args.out
     previous = read_previous(previous_dir)
@@ -438,6 +488,27 @@ def build_bundle(args, fetch_filters, fetch_scam=None) -> int:
         filters,
         previous_entries(previous, previous_dir, FILTER_POLICY.name),
     )
+
+    # uBO's lists and the cookie list go out whole or not at all, like
+    # the build does: half of them is a different list, not a thinner one.
+    extra = []
+    for policy, output in ((UBO_POLICY, UBO), (COOKIE_POLICY, COOKIES)):
+        build = build_output_list(output, fetch_filters)
+        for status in build.result.sources:
+            state = (
+                f"{status.entries} entries" if status.ok else f"FAILED, {status.reason}"
+            )
+            print(f"  {policy.name} {status.name}: {state}")
+        if not build.complete:
+            raise RefusedError(f"{policy.name}: {build.result.describe_failures()}")
+        check_coverage(
+            policy,
+            build.result,
+            previous_entries(previous, previous_dir, policy.name),
+        )
+        extra.append((policy, build.result))
+
+    resources_text, resources_count = (build_resources or build_ubo_resources)()
 
     today = datetime.date.today()
     version = args.version if args.version is not None else version_for(today)
@@ -457,6 +528,11 @@ def build_bundle(args, fetch_filters, fetch_scam=None) -> int:
 
         files = [
             write_file(staging, FILTER_POLICY.name, filters.text, filters.entries),
+            *(
+                write_file(staging, policy.name, result.text, result.entries)
+                for policy, result in extra
+            ),
+            write_file(staging, RESOURCES_NAME, resources_text, resources_count),
         ]
         confirm_on_disk(staging, files)
 
@@ -465,7 +541,14 @@ def build_bundle(args, fetch_filters, fetch_scam=None) -> int:
             "updated": today.isoformat(),
             "degraded": degraded,
             "files": files,
-            "sources": source_rows(FILTER_POLICY, filters),
+            "sources": [
+                *source_rows(FILTER_POLICY, filters),
+                *(
+                    row
+                    for policy, result in extra
+                    for row in source_rows(policy, result)
+                ),
+            ],
         }
         manifest_path = os.path.join(staging, MANIFEST_NAME)
         with open(manifest_path, "w", encoding="utf-8", newline="\n") as f:
@@ -544,7 +627,12 @@ def parse_args(argv: list[str] | None = None):
     return ap.parse_args(argv)
 
 
-def main(argv: list[str] | None = None, fetch_filters=None, fetch_scam=None) -> int:
+def main(
+    argv: list[str] | None = None,
+    fetch_filters=None,
+    fetch_scam=None,
+    build_resources=None,
+) -> int:
     """Runs a publication. The fetches are parameters so tests can stub them."""
     args = parse_args(argv)
     try:
@@ -556,6 +644,7 @@ def main(argv: list[str] | None = None, fetch_filters=None, fetch_scam=None) -> 
             args,
             fetch_filters or fetch_url,
             fetch_scam or fetch_url,
+            build_resources,
         )
     except RefusedError as e:
         print("not publishing:", e, file=sys.stderr)

@@ -5,10 +5,14 @@
 #include <algorithm>
 #include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "base/functional/bind.h"
 #include "base/memory/ref_counted_memory.h"
+#include "base/memory/weak_ptr.h"
 #include "base/scoped_observation.h"
+#include "base/task/thread_pool.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "components/boring/adblock/adblock_service.h"
@@ -16,12 +20,14 @@
 #include "components/boring/branding/brand_mark.h"
 #include "components/boring/core/boring_capabilities.h"
 #include "components/boring/core/boring_prefs.h"
+#include "components/boring/lists/list_paths.h"
 #include "components/boring/lists/list_updater.h"
 #include "components/boring/privacy/privacy_state.h"
 #include "components/boring/scam/scam_service.h"
 #include "components/boring/update/browser_updater.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
+#include "components/prefs/scoped_user_pref_update.h"
 #include "components/user_prefs/user_prefs.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/storage_partition.h"
@@ -121,6 +127,17 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
                   align-items: center; gap: 14px; padding: 6px 0;
                   font-size: 13px; }
   .site-list .secondary { min-height: 32px; padding: 6px 14px; }
+  .regional { border: none; border-top: 1px solid var(--line);
+              margin: 0; padding: 18px 0 10px; min-width: 0; }
+  .regional legend { float: left; width: 100%; padding: 0;
+                     font-size: 14px; font-weight: 600;
+                     margin-bottom: 8px; }
+  .regional > div { clear: both; }
+  .check-row { display: flex; align-items: center; gap: 10px;
+               padding: 6px 0; font-size: 13px; cursor: pointer; }
+  /* Real checkboxes, sized up and drawn in the page's accent. */
+  .check-row input { width: 18px; height: 18px; margin: 0; flex: none;
+                     accent-color: var(--accent); cursor: pointer; }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden;
              clip-path: inset(50%); white-space: nowrap; }
   @media (prefers-reduced-motion: reduce) {
@@ -188,6 +205,16 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
       nothing about you or the pages you visit.</p></span>
     <input class="switch" type="checkbox" id="list-updates">
   </label>
+
+  <label class="setting-row" for="hide-cookies">
+    <span><strong>Hide cookie notices</strong></span>
+    <input class="switch" type="checkbox" id="hide-cookies">
+  </label>
+
+  <fieldset class="regional" id="regional" hidden>
+    <legend>Regional lists</legend>
+    <div id="regional-lists"></div>
+  </fieldset>
 
   <div class="state-row">
     <div class="state-line"><strong>Browser updates</strong>
@@ -400,6 +427,37 @@ function showWebStore(state) {
       state === 'off' ? 'Off' : 'Removed';
 }
 
+// One real checkbox per regional list this build ships. Rebuilt only
+// when the set of lists changes, so a click does not lose focus.
+function showRegional(lists, chosen) {
+  var box = el('regional-lists');
+  el('regional').hidden = lists.length === 0;
+  var ids = lists.map(function(l) { return l.id; }).join();
+  if (box.dataset.ids !== ids) {
+    box.textContent = '';
+    box.dataset.ids = ids;
+    lists.forEach(function(list) {
+      var row = document.createElement('label');
+      row.className = 'check-row';
+      var check = document.createElement('input');
+      check.type = 'checkbox';
+      check.id = 'regional-' + list.id;
+      check.dataset.id = list.id;
+      check.addEventListener('change', function(e) {
+        chrome.send('setRegionalList', [list.id, e.target.checked]);
+        say(list.title + (e.target.checked ? ' on.' : ' off.'));
+      });
+      var name = document.createElement('span');
+      name.textContent = list.title;
+      row.append(check, name);
+      box.append(row);
+    });
+  }
+  box.querySelectorAll('input').forEach(function(check) {
+    check.checked = chosen.indexOf(check.dataset.id) !== -1;
+  });
+}
+
 var pollTimer = null;
 
 function load(s) {
@@ -440,6 +498,7 @@ function load(s) {
   showWebStore(s.webStore);
   showLists(s.listDays, s.listUpdates, s.listUpdatesAvailable);
   showConnections(s);
+  el('hide-cookies').checked = s.hideCookies;
   el('fingerprint').checked = s.fingerprint;
   el('strip-params').checked = s.stripParams;
   showUpdates(s.update, s.updateAuto, s.version);
@@ -527,7 +586,13 @@ el('list-updates').addEventListener('change', function(e) {
                        : 'Lists will not be updated.');
 });
 
+el('hide-cookies').addEventListener('change', function(e) {
+  chrome.send('setHideCookieNotices', [e.target.checked]);
+  say(e.target.checked ? 'Cookie notices hidden.' : 'Cookie notices shown.');
+});
+
 window.loadProtection = load;
+window.showRegional = showRegional;
 window.showOffSites = showOffSites;
 window.showWebStore = showWebStore;
 chrome.send('getProtection');
@@ -610,6 +675,14 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
         base::BindRepeating(&ProtectionMessageHandler::HandleSetListUpdates,
                             base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
+        "setHideCookieNotices",
+        base::BindRepeating(&ProtectionMessageHandler::HandleSetHideCookies,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "setRegionalList",
+        base::BindRepeating(&ProtectionMessageHandler::HandleSetRegionalList,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
         "setSiteBlocking",
         base::BindRepeating(&ProtectionMessageHandler::HandleSetSiteBlocking,
                             base::Unretained(this)));
@@ -626,6 +699,9 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     registrar_.Init(prefs);
     registrar_.Add(prefs::kBlockingOffSites,
                    base::BindRepeating(&ProtectionMessageHandler::SendOffSites,
+                                       base::Unretained(this)));
+    registrar_.Add(prefs::kBoringRegionalLists,
+                   base::BindRepeating(&ProtectionMessageHandler::SendRegional,
                                        base::Unretained(this)));
     if (extensions::ExtensionRegistry* registry = GetExtensionRegistry()) {
       extensions_observation_.Observe(registry);
@@ -732,6 +808,54 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     }
   }
 
+  // The shipped index is read once per page, off the UI thread.
+  void LoadRegionalIndex() {
+    if (regional_requested_) {
+      SendRegional();
+      return;
+    }
+    regional_requested_ = true;
+    base::ThreadPool::PostTaskAndReplyWithResult(
+        FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
+        base::BindOnce(&ReadRegionalIndex),
+        base::BindOnce(&ProtectionMessageHandler::OnRegionalIndex,
+                       weak_factory_.GetWeakPtr()));
+  }
+
+  void OnRegionalIndex(std::vector<RegionalListInfo> lists) {
+    regional_ = std::move(lists);
+    SendRegional();
+  }
+
+  bool ShipsRegionalList(const std::string& id) const {
+    return std::ranges::any_of(
+        regional_, [&id](const RegionalListInfo& l) { return l.id == id; });
+  }
+
+  // The lists this build ships, and which of them this profile chose.
+  // An id left in the pref by an older build that no longer ships it is
+  // not shown, and does nothing.
+  void SendRegional() {
+    if (!IsJavascriptAllowed()) {
+      return;
+    }
+    base::ListValue lists;
+    for (const RegionalListInfo& info : regional_) {
+      lists.Append(
+          base::DictValue().Set("id", info.id).Set("title", info.title));
+    }
+    base::ListValue chosen;
+    if (PrefService* prefs = GetPrefs()) {
+      for (const base::Value& id :
+           prefs->GetList(prefs::kBoringRegionalLists)) {
+        if (id.is_string() && ShipsRegionalList(id.GetString())) {
+          chosen.Append(id.GetString());
+        }
+      }
+    }
+    web_ui()->CallJavascriptFunctionUnsafe("showRegional", lists, chosen);
+  }
+
   void HandleGet(const base::ListValue& args) {
     // Opening this page is a good moment to make sure the lists are
     // loading, so the answer is about the lists and not about timing.
@@ -784,11 +908,14 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
             prefs && prefs->GetBoolean(prefs::kStripTrackingParams));
     out.Set("fingerprint",
             prefs && prefs->GetBoolean(prefs::kFingerprintNoise));
+    out.Set("hideCookies",
+            prefs && prefs->GetBoolean(prefs::kBoringHideCookieNotices));
     out.Set("update", UpdateStateName(BrowserUpdater::GetState()));
     out.Set("updateAuto", BrowserUpdater::IsAutomatic());
     out.Set("version", BrowserUpdater::BuildVersion());
     AllowJavascript();
     web_ui()->CallJavascriptFunctionUnsafe("loadProtection", out);
+    LoadRegionalIndex();
   }
 
   void HandleSetSenior(const base::ListValue& args) {
@@ -844,6 +971,37 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     HandleGet(args);
   }
 
+  void HandleSetHideCookies(const base::ListValue& args) {
+    PrefService* prefs = GetPrefs();
+    if (prefs && !args.empty() && args[0].is_bool()) {
+      prefs->SetBoolean(prefs::kBoringHideCookieNotices, args[0].GetBool());
+    }
+    HandleGet(args);
+  }
+
+  // [id, on]. Only ids this build ships are written to the pref.
+  void HandleSetRegionalList(const base::ListValue& args) {
+    PrefService* prefs = GetPrefs();
+    if (!prefs || args.size() != 2 || !args[0].is_string() ||
+        !args[1].is_bool() || !ShipsRegionalList(args[0].GetString())) {
+      SendRegional();
+      return;
+    }
+    const std::string& id = args[0].GetString();
+    const bool on = args[1].GetBool();
+    if (prefs->GetList(prefs::kBoringRegionalLists).contains(id) != on) {
+      ScopedListPrefUpdate update(prefs, prefs::kBoringRegionalLists);
+      if (on) {
+        update->Append(id);
+      } else {
+        update->EraseValue(base::Value(id));
+      }
+    }
+    // The pref observer repaints; this covers a request that changed
+    // nothing.
+    SendRegional();
+  }
+
   // [site, on]. Only turning blocking back on is offered here; a site is
   // added from the shield, on the site itself.
   void HandleSetSiteBlocking(const base::ListValue& args) {
@@ -863,6 +1021,10 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
   base::ScopedObservation<extensions::ExtensionRegistry,
                           extensions::ExtensionRegistryObserver>
       extensions_observation_{this};
+  // The regional lists this build ships, once read.
+  std::vector<RegionalListInfo> regional_;
+  bool regional_requested_ = false;
+  base::WeakPtrFactory<ProtectionMessageHandler> weak_factory_{this};
 };
 
 bool ShouldHandle(const std::string& path) {

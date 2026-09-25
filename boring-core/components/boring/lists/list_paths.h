@@ -4,17 +4,29 @@
 #define COMPONENTS_BORING_LISTS_LIST_PATHS_H_
 
 #include <optional>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include "base/files/file_path.h"
 #include "base/time/time.h"
 
 namespace boring {
 
-// The two lists the browser blocks with.
+// The lists the browser blocks with. Each is one file, kept under the
+// same name in both places a list can live.
 enum class ListKind {
-  kFilters,  // ad and tracker rules
-  kScam,     // scam and phishing hosts
+  kFilters,    // easylist.txt: EasyList and EasyPrivacy
+  kScam,       // scamlist.txt: scam and phishing hosts
+  kUbo,        // ubo.txt: uBlock filters, Quick fixes, Privacy, Unbreak
+  kCookies,    // cookies.txt: cookie notices, used only when asked for
+  kResources,  // resources.json: scriptlets and $redirect stubs
+};
+
+// Every kind, for code that has to go through them all.
+inline constexpr ListKind kAllListKinds[] = {
+    ListKind::kFilters, ListKind::kScam,      ListKind::kUbo,
+    ListKind::kCookies, ListKind::kResources,
 };
 
 // The file a list is kept in. The same name wherever it lives, and the
@@ -54,6 +66,40 @@ base::FilePath GetListPath(ListKind kind);
 // than anything we write down about it, so the two can never drift
 // apart. Looks at the disk.
 base::Time GetWrittenAt(const base::FilePath& path);
+
+// Regional lists live in a folder called regional, in both places, as
+// <id>.txt. A profile picks them by id (prefs::kBoringRegionalLists).
+
+// True for an id that is safe as a file name and as a pref value: 1 to
+// 32 characters of a-z, 0-9 and "-", not starting with "-". Nothing
+// else is ever turned into a path.
+bool IsValidRegionalListId(std::string_view id);
+
+// The copy of regional list `id` to read: whichever of the shipped and
+// the downloaded one was written last, as GetListPath() chooses. Empty
+// for an invalid id or when there is neither. Looks at the disk.
+base::FilePath GetRegionalListPath(std::string_view id);
+
+// The index of regional lists that shipped with the browser,
+// boring\regional\index.json: [{id, title, locales, licence, source}].
+base::FilePath GetRegionalIndexPath();
+
+// One entry of that index.
+struct RegionalListInfo {
+  RegionalListInfo();
+  RegionalListInfo(const RegionalListInfo&);
+  RegionalListInfo& operator=(const RegionalListInfo&);
+  ~RegionalListInfo();
+
+  std::string id;
+  std::string title;
+  std::vector<std::string> locales;
+};
+
+// The regional lists this build ships, in the index's order. Entries
+// with an invalid id or no title are left out; a missing or unreadable
+// index reads as none. Looks at the disk.
+std::vector<RegionalListInfo> ReadRegionalIndex();
 
 }  // namespace boring
 

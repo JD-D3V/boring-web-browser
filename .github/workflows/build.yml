@@ -67,6 +67,12 @@ jobs:
         shell: cmd
         run: python "%LOCK%" --owner "%LOCK_OWNER%" --job filterlists -- python boring-core\tools\get_filterlists.py
 
+      # uBO's scriptlets and redirect stubs, from a pinned uBO release.
+      # Needs node 22 on the runner.
+      - name: Build the scriptlet and redirect resources
+        shell: cmd
+        run: python "%LOCK%" --owner "%LOCK_OWNER%" --job resources -- python boring-core\tools\get_ubo_resources.py
+
       # cmd does not stop at the first failing line and reports only the
       # last one, so every line that can fail says so itself.
       - name: Build

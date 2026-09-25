@@ -47,6 +47,17 @@ inline constexpr char kStripTrackingParams[] = "boring.strip_tracking_params";
 // computer is not a choice for their other devices.
 inline constexpr char kBlockingOffSites[] = "boring.blocking_off_sites";
 
+// Also block with the Easylist Cookie List (boring\cookies.txt), which
+// hides cookie notices. Off by default: hiding a notice is not the same
+// as saying no, and some sites stop working until one is answered.
+inline constexpr char kBoringHideCookieNotices[] =
+    "boring.adblock.hide_cookie_notices";
+
+// Regional lists to block with as well, by id from
+// boring\regional\index.json (see IsValidRegionalListId()). Empty by
+// default. Per profile and never synced.
+inline constexpr char kBoringRegionalLists[] = "boring.adblock.regional_lists";
+
 }  // namespace prefs
 
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);

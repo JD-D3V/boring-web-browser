@@ -8,7 +8,20 @@ name = "boring_adblock"
 crate-type = ["cdylib"]
 
 [dependencies]
-adblock = "0.13.3"
+# "css-validation" sorts procedural rules such as :has-text() into
+# procedural_actions instead of passing them on as CSS selectors.
+# Without "single-thread", which is on by default: that feature makes the
+# engine share state through Rc and RefCell, and the browser checks
+# requests from several threads at once.
+adblock = { version = "0.13.3", default-features = false, features = [
+    "css-validation",
+    "embedded-domain-resolver",
+    "full-regex-handling",
+] }
+serde_json = "1"
+
+[dev-dependencies]
+base64 = "0.22"
 
 [profile.release]
 lto = true

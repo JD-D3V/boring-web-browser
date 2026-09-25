@@ -1,24 +1,36 @@
 --- a/chrome/browser/chrome_content_browser_client_receiver_bindings.cc
 +++ b/chrome/browser/chrome_content_browser_client_receiver_bindings.cc
-@@ -27,6 +27,9 @@
+@@ -27,6 +27,11 @@
  #include "chrome/common/buildflags.h"
  #include "chrome/common/chrome_features.h"
  #include "components/autofill/content/browser/content_autofill_driver_factory.h"
 +#include "components/boring/adblock/adblock_checker_impl.h"
++#include "components/boring/adblock/adblock_service.h"
 +#include "components/boring/adblock/blocking_off_sites.h"
++#include "components/boring/adblock/cosmetic_filters_impl.h"
 +#include "components/boring/adblock/mojom/adblock.mojom.h"
  #include "components/content_capture/browser/onscreen_content_provider.h"
  #include "components/metrics/call_stacks/call_stack_profile_collector.h"
  #include "components/offline_pages/buildflags/buildflags.h"
-@@ -219,6 +222,11 @@
+@@ -219,6 +224,21 @@
        content::GetUIThreadTaskRunner({});
    registry->AddInterface<metrics::mojom::CallStackProfileCollector>(
        base::BindRepeating(&metrics::CallStackProfileCollector::Create));
 +
-+  registry->AddInterface<boring::mojom::AdblockChecker>(base::BindRepeating(
-+      &boring::AdblockCheckerImpl::Bind,
-+      boring::BlockingOffSites::ForContext(
-+          render_process_host->GetBrowserContext())));
++  // Ad blocking for this renderer's profile: the sites with blocking
++  // turned off, and the optional lists it has chosen.
++  content::BrowserContext* boring_context =
++      render_process_host->GetBrowserContext();
++  scoped_refptr<boring::BlockingOffSites> boring_off_sites =
++      boring::BlockingOffSites::ForContext(boring_context);
++  scoped_refptr<boring::ProfileLists> boring_lists =
++      boring::ProfileLists::ForContext(boring_context);
++  registry->AddInterface<boring::mojom::AdblockChecker>(
++      base::BindRepeating(&boring::AdblockCheckerImpl::Bind,
++                          render_process_host->GetDeprecatedID(),
++                          boring_off_sites, boring_lists));
++  registry->AddInterface<boring::mojom::CosmeticFilters>(base::BindRepeating(
++      &boring::CosmeticFiltersImpl::Bind, boring_off_sites, boring_lists));
  
    if (NetBenchmarking::CheckBenchmarkingEnabled()) {
      Profile* profile =

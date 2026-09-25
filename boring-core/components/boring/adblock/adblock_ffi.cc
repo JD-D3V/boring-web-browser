@@ -214,6 +214,19 @@ struct Loaded {
         Bind(handle, "boring_adblock_new", &api.adblock_new) &&
         Bind(handle, "boring_adblock_check", &api.adblock_check) &&
         Bind(handle, "boring_adblock_free", &api.adblock_free) &&
+        Bind(handle, "boring_adblock_new_lists", &api.adblock_new_lists) &&
+        Bind(handle, "boring_resources_new", &api.resources_new) &&
+        Bind(handle, "boring_resources_count", &api.resources_count) &&
+        Bind(handle, "boring_resources_free", &api.resources_free) &&
+        Bind(handle, "boring_adblock_use_resources",
+             &api.adblock_use_resources) &&
+        Bind(handle, "boring_adblock_check_request",
+             &api.adblock_check_request) &&
+        Bind(handle, "boring_adblock_url_cosmetic_resources",
+             &api.adblock_url_cosmetic_resources) &&
+        Bind(handle, "boring_adblock_hidden_class_id_selectors",
+             &api.adblock_hidden_class_id_selectors) &&
+        Bind(handle, "boring_adblock_string_free", &api.adblock_string_free) &&
         Bind(handle, "boring_scamlist_new", &api.scamlist_new) &&
         Bind(handle, "boring_scamlist_contains", &api.scamlist_contains) &&
         Bind(handle, "boring_scamlist_free", &api.scamlist_free) &&

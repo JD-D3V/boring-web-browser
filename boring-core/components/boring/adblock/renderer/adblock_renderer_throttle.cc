@@ -123,7 +123,8 @@ void AdblockRendererThrottle::WillStartRequest(
   waiting_ = true;
   checker_->Check(request->url, initiator_, request_type_, top_frame_url_,
                   base::BindOnce(&AdblockRendererThrottle::OnResult,
-                                 weak_factory_.GetWeakPtr()));
+                                 weak_factory_.GetWeakPtr(),
+                                 /*at_start=*/true));
 }
 
 void AdblockRendererThrottle::WillRedirectRequest(
@@ -143,14 +144,35 @@ void AdblockRendererThrottle::WillRedirectRequest(
   checker_->Check(redirect_info->new_url, initiator_, request_type_,
                   top_frame_url_,
                   base::BindOnce(&AdblockRendererThrottle::OnResult,
-                                 weak_factory_.GetWeakPtr()));
+                                 weak_factory_.GetWeakPtr(),
+                                 /*at_start=*/false));
 }
 
-void AdblockRendererThrottle::OnResult(bool block) {
+void AdblockRendererThrottle::OnResult(
+    bool at_start,
+    bool block,
+    const std::optional<std::string>& redirect) {
   if (!waiting_) {
     return;
   }
   waiting_ = false;
+  // A throttle cannot serve a $redirect stub itself: it may not turn an
+  // http(s) request into a data: URL (NOTREACHED in
+  // ThrottlingURLLoader::Start), and InterceptResponse and
+  // UpdateDeferredResponseHead only work once the server has answered.
+  // So a request with a stub is let through, and the browser's
+  // AdblockRedirectProxy, which every request from this renderer passes
+  // on its way to the network, answers it with the stub instead.
+  //
+  // The browser only offers a stub when that proxy is in place for this
+  // renderer, so a missing proxy means a plain block, never the real
+  // file. And only when the request is starting: a server redirect is
+  // followed inside the loader already made, which the proxy never
+  // sees again, so a stub there is a plain block too.
+  if (block && at_start && redirect.has_value()) {
+    delegate_->Resume();
+    return;
+  }
   if (block) {
     delegate_->CancelWithError(net::ERR_BLOCKED_BY_CLIENT, "boring-adblock");
     return;

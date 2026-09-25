@@ -1,0 +1,44 @@
+# Copyright 2026 boring. BSD style license.
+
+# Cosmetic filtering in the renderer: element hiding, scriptlets and
+# procedural filters, applied per frame by CosmeticFilterAgent.
+
+# The isolated world script lives in plain .js files so node can test
+# them (test_procedural_filters.js); this turns them into a header.
+action("scripts") {
+  script = "embed_scripts.py"
+  sources = [
+    "cosmetic_filters.js",
+    "procedural_filters.js",
+  ]
+  outputs = [ "$target_gen_dir/cosmetic_scripts.h" ]
+  args = [
+    rebase_path(outputs[0], root_build_dir),
+    rebase_path("procedural_filters.js", root_build_dir),
+    rebase_path("cosmetic_filters.js", root_build_dir),
+  ]
+}
+
+static_library("cosmetic") {
+  sources = [
+    "cosmetic_css.cc",
+    "cosmetic_css.h",
+    "cosmetic_filter_agent.cc",
+    "cosmetic_filter_agent.h",
+  ]
+  public_deps = [
+    "//components/boring/adblock/mojom",
+    "//content/public/renderer",
+  ]
+  deps = [
+    ":scripts",
+    "//base",
+    "//components/boring/adblock:renderer",
+    "//gin",
+    "//mojo/public/cpp/bindings",
+    "//third_party/blink/public:blink",
+    "//third_party/blink/public/common",
+    "//url",
+    "//v8",
+  ]
+}

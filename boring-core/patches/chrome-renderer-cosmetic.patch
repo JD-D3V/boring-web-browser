@@ -1,0 +1,46 @@
+--- a/chrome/common/chrome_isolated_world_ids.h
++++ b/chrome/common/chrome_isolated_world_ids.h
+@@ -19,6 +19,9 @@ enum ChromeIsolatedWorldIDs {
+   // Isolated world ID for internal Chrome features.
+   ISOLATED_WORLD_ID_CHROME_INTERNAL,
+ 
++  // Isolated world ID for Boring Browser's cosmetic ad filters.
++  ISOLATED_WORLD_ID_BORING_COSMETIC,
++
+ #if BUILDFLAG(IS_MAC)
+   // Isolated world ID for AppleScript.
+   ISOLATED_WORLD_ID_APPLESCRIPT,
+--- a/chrome/renderer/chrome_content_renderer_client.cc
++++ b/chrome/renderer/chrome_content_renderer_client.cc
+@@ -78,6 +78,7 @@
+ #include "components/autofill/content/renderer/password_autofill_agent.h"
+ #include "components/autofill/content/renderer/password_generation_agent.h"
+ #include "components/autofill/core/common/autofill_features.h"
++#include "components/boring/adblock/cosmetic/cosmetic_filter_agent.h"
+ #include "components/commerce/content/renderer/commerce_web_extractor.h"
+ #include "components/content_capture/common/content_capture_features.h"
+ #include "components/content_capture/renderer/content_capture_sender.h"
+@@ -682,6 +683,11 @@ void ChromeContentRendererClient::RenderFrameCreated(
+ 
+   new NetErrorHelper(render_frame);
+ 
++  // Owned by |render_frame|. Checks for itself that the document is
++  // http or https.
++  new boring::CosmeticFilterAgent(render_frame,
++                                  ISOLATED_WORLD_ID_BORING_COSMETIC);
++
+   new security_interstitials::SecurityInterstitialPageControllerDelegateImpl(
+       render_frame);
+ 
+@@ -1410,6 +1416,11 @@ ChromeContentRendererClient::CreateSpeechRecognitionClient(
+ 
+ void ChromeContentRendererClient::RunScriptsAtDocumentStart(
+     content::RenderFrame* render_frame) {
++  // Ad block scriptlets go first, so they are in place before anything
++  // else can run in the page.
++  if (!boring::CosmeticFilterAgent::RunScriptsAtDocumentStart(render_frame)) {
++    return;  // |render_frame| is dead.
++  }
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+   extensions::ExtensionsRendererClient::Get()->RunScriptsAtDocumentStart(
+       render_frame);

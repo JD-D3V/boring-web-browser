@@ -91,6 +91,32 @@ def url_feed_bytes(count: int = 150, start: int = 90000) -> bytes:
 URLHAUS_SOURCE = ("urlhaus", URLHAUS_URL, get_scamlist.parse_hostfile)
 
 
+def listed_bytes(source, rules: int | None = None, tag: str = "u") -> bytes:
+    """A list in the uAssets style: a Title line, its licence line, rules."""
+    count = rules if rules is not None else source.min_rules * 2
+    lines = ["! Title: a pretend list", source.licence_line]
+    lines += [f"||{tag}{i}.example.invalid^$script" for i in range(count)]
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
+def output_answers(*outputs) -> dict:
+    """Healthy answers for every source of these output lists."""
+    answers = {}
+    for n, output in enumerate(outputs):
+        for m, source in enumerate(output.sources):
+            answers[source.url] = listed_bytes(source, tag=f"o{n}s{m}x")
+    return answers
+
+
+def stub_resources():
+    """resources.json as publish_lists expects it from its builder."""
+    text = json.dumps(
+        [{"name": "noop.js", "aliases": [], "kind": {"mime": "application/javascript"},
+          "content": ""}]
+    )
+    return text + "\n", 1
+
+
 @contextlib.contextmanager
 def permitted(*sources):
     """Runs a block with those scam feeds treated as cleared to use.
@@ -114,6 +140,7 @@ def healthy_answers() -> dict:
         EASYPRIVACY_URL: filter_bytes(tag="b"),
         URLHAUS_URL: hostfile_bytes(),
         OPENPHISH_URL: url_feed_bytes(),
+        **output_answers(get_filterlists.UBO, get_filterlists.COOKIES),
     }
 
 
@@ -385,7 +412,12 @@ class PublishPath(unittest.TestCase):
             argv += ["--previous", previous]
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            code = publish_lists.main(argv, fetch_filters=fetch, fetch_scam=fetch)
+            code = publish_lists.main(
+                argv,
+                fetch_filters=fetch,
+                fetch_scam=fetch,
+                build_resources=stub_resources,
+            )
         return code, out.getvalue() + err.getvalue()
 
     def read_manifest(self):
@@ -408,7 +440,10 @@ class PublishPath(unittest.TestCase):
         manifest = self.read_manifest()
         self.assertEqual(manifest["version"], 500)
         self.assertFalse(manifest["degraded"])
-        self.assertEqual({f["name"] for f in manifest["files"]}, {"easylist.txt"})
+        self.assertEqual(
+            {f["name"] for f in manifest["files"]},
+            {"easylist.txt", "ubo.txt", "cookies.txt", "resources.json"},
+        )
 
         for entry in manifest["files"]:
             with open(os.path.join(self.out, entry["name"]), "rb") as f:
@@ -416,7 +451,8 @@ class PublishPath(unittest.TestCase):
             self.assertEqual(len(data), entry["size"])
             self.assertEqual(hashlib.sha256(data).hexdigest(), entry["sha256"])
 
-        self.assertEqual(len(manifest["sources"]), 2)
+        # EasyList, EasyPrivacy, the four uAssets lists, the cookie list.
+        self.assertEqual(len(manifest["sources"]), 7)
         self.assertTrue(all(s["ok"] for s in manifest["sources"]))
         self.assertIn("without a signature", log)
 
@@ -595,6 +631,7 @@ class Signing(unittest.TestCase):
                 ["--out", self.out, "--sign-key", self.key, "--version", "500"],
                 fetch_filters=fetch,
                 fetch_scam=fetch,
+                build_resources=stub_resources,
             )
         self.assertEqual(code, 0)
 
@@ -642,6 +679,7 @@ class Signing(unittest.TestCase):
                 ["--out", self.out, "--version", "500"],
                 fetch_filters=fetch,
                 fetch_scam=fetch,
+                build_resources=stub_resources,
             )
         self.assertEqual(code, 0)
         self.assertTrue(

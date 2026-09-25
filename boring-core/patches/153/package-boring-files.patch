@@ -1,6 +1,6 @@
 --- a/chrome/installer/mini_installer/chrome.release
 +++ b/chrome/installer/mini_installer/chrome.release
-@@ -22,6 +22,45 @@
+@@ -22,6 +22,57 @@
  chrome_100_percent.pak: %(VersionDir)s\
  chrome_child.dll: %(VersionDir)s\
  chrome_elf.dll: %(VersionDir)s\
@@ -9,6 +9,12 @@
 +# boring: the browser updater, see components/boring/update.
 +WinSparkle.dll: %(VersionDir)s\
 +boring\easylist.txt: %(VersionDir)s\boring\
++boring\ubo.txt: %(VersionDir)s\boring\
++boring\cookies.txt: %(VersionDir)s\boring\
++boring\resources.json: %(VersionDir)s\boring\
++boring\sources.json: %(VersionDir)s\boring\
++boring\regional\*.txt: %(VersionDir)s\boring\regional\
++boring\regional\index.json: %(VersionDir)s\boring\regional\
 +# boring: the licence and the third party notices, so somebody who
 +# never opens chrome://credits can still read what this is built from.
 +LICENSE: %(VersionDir)s\
@@ -18,6 +24,12 @@
 +NOTICES-WinSparkle.txt: %(VersionDir)s\
 +NOTICES-chromium-web-store.txt: %(VersionDir)s\
 +NOTICES-hunspell-en-US.txt: %(VersionDir)s\
++# boring: the notices for the lists and the scriptlet resources,
++# written by tools/get_filterlists.py and tools/get_ubo_resources.py.
++NOTICES-uAssets.txt: %(VersionDir)s\
++NOTICES-uBlock-resources.txt: %(VersionDir)s\
++NOTICES-easylist-cookie.txt: %(VersionDir)s\
++NOTICES-regional-*.txt: %(VersionDir)s\
 +# boring: the en-US spelling dictionary, used when Windows has no
 +# English spelling data. DIR_APP_DICTIONARIES is beside chrome.dll.
 +Dictionaries\en-US-10-1.bdic: %(VersionDir)s\Dictionaries\
@@ -48,7 +60,7 @@
  chrome_wer.dll: %(VersionDir)s\
 --- a/chrome/tools/build/win/FILES.cfg
 +++ b/chrome/tools/build/win/FILES.cfg
-@@ -63,6 +63,80 @@
+@@ -63,6 +63,121 @@
      'filegroup': ['default', 'symsrc'],
      'optional': ['official'],
    },
@@ -64,6 +76,30 @@
 +  },
 +  {
 +    'filename': 'boring/easylist.txt',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'boring/ubo.txt',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'boring/cookies.txt',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'boring/resources.json',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'boring/sources.json',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'boring/regional/*.txt',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'boring/regional/index.json',
 +    'buildtype': ['official'],
 +  },
 +  # boring: the licence and the third party notices.
@@ -93,6 +129,23 @@
 +  },
 +  {
 +    'filename': 'NOTICES-hunspell-en-US.txt',
++    'buildtype': ['official'],
++  },
++  # boring: the notices for the lists and the scriptlet resources.
++  {
++    'filename': 'NOTICES-uAssets.txt',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'NOTICES-uBlock-resources.txt',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'NOTICES-easylist-cookie.txt',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'NOTICES-regional-*.txt',
 +    'buildtype': ['official'],
 +  },
 +  # boring: the en-US spelling dictionary.

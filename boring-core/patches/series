@@ -7,6 +7,7 @@ chrome-ui-tab-helpers.patch
 chrome-ui-build-gn.patch
 chrome-renderer-throttle-provider.patch
 chrome-renderer-build-gn.patch
+chrome-renderer-cosmetic.patch
 chrome-importer-build-gn.patch
 import-chrome-edge.patch
 reader-always-on.patch

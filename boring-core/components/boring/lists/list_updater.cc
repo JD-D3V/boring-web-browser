@@ -417,9 +417,14 @@ ListUpdater::Local ListUpdater::LookAtWhatWeHave() {
   const std::string marker = ReadMarker();
   base::StringToInt(MarkerValue(marker, kMarkerVersionKey), &local.version);
   local.degraded = MarkerValue(marker, kMarkerDegradedKey) == "1";
-  local.filters_sha256 = HashOfFile(GetDownloadedListPath(ListKind::kFilters));
-  if (kScamBlockingAvailable) {
-    local.scam_sha256 = HashOfFile(GetDownloadedListPath(ListKind::kScam));
+  for (ListKind kind : kAllListKinds) {
+    if (kind == ListKind::kScam && !kScamBlockingAvailable) {
+      continue;
+    }
+    std::string sha256 = HashOfFile(GetDownloadedListPath(kind));
+    if (!sha256.empty()) {
+      local.held_sha256[kind] = std::move(sha256);
+    }
   }
   return local;
 }
@@ -523,10 +528,9 @@ void ListUpdater::ApplyManifest() {
       // an update feed happens to offer.
       continue;
     }
-    const std::string& have = *kind == ListKind::kFilters
-                                  ? local_.filters_sha256
-                                  : local_.scam_sha256;
-    if (base::EqualsCaseInsensitiveASCII(have, *sha256)) {
+    const auto have = local_.held_sha256.find(*kind);
+    if (have != local_.held_sha256.end() &&
+        base::EqualsCaseInsensitiveASCII(have->second, *sha256)) {
       continue;  // Already holding exactly this one.
     }
     wanted_.push_back({*kind, base::ToLowerASCII(*sha256), *size});

@@ -139,6 +139,12 @@ jobs:
         shell: cmd
         run: python "%LOCK%" --owner "%LOCK_OWNER%" --job filterlists -- python boring-core\tools\get_filterlists.py
 
+      # uBO's scriptlets and redirect stubs, from a pinned uBO release.
+      # Needs node 22 on the runner.
+      - name: Build the scriptlet and redirect resources
+        shell: cmd
+        run: python "%LOCK%" --owner "%LOCK_OWNER%" --job resources -- python boring-core\tools\get_ubo_resources.py
+
       # Everything we ship has to be newer than this moment, or it came
       # from some earlier build and we do not know what is in it.
       - name: Note when the build starts

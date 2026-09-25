@@ -3,6 +3,7 @@
 #ifndef COMPONENTS_BORING_ADBLOCK_RENDERER_ADBLOCK_RENDERER_THROTTLE_H_
 #define COMPONENTS_BORING_ADBLOCK_RENDERER_ADBLOCK_RENDERER_THROTTLE_H_
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -19,7 +20,9 @@ namespace boring {
 
 // Renderer side throttle for page subresources (images, scripts, xhr
 // and so on). Pauses the request, asks the browser over mojo, then
-// resumes or cancels.
+// resumes or cancels. A request a $redirect rule matches is resumed
+// instead, for the browser's AdblockRedirectProxy to answer with the
+// stub; see OnResult().
 class AdblockRendererThrottle : public blink::URLLoaderThrottle {
  public:
   // `top_frame_url` is the page in the tab, or empty when not known
@@ -45,7 +48,10 @@ class AdblockRendererThrottle : public blink::URLLoaderThrottle {
 
  private:
   void BindIfNeeded();
-  void OnResult(bool block);
+  // `at_start` is false for a check made on a server redirect.
+  void OnResult(bool at_start,
+                bool block,
+                const std::optional<std::string>& redirect);
   void OnDisconnect();
 
   mojo::PendingRemote<mojom::AdblockChecker> pending_checker_;

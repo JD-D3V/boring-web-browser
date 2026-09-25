@@ -12,10 +12,42 @@ interface AdblockChecker {
   // subdocument, xmlhttprequest, font, media, websocket, ping, other.
   // top_frame_url is the page in the tab, empty when the renderer cannot
   // tell; it decides whether the person turned blocking off there.
+  //
+  // `redirect` is set only when `block` is: a data: URL holding the
+  // harmless stand-in a $redirect rule names, to serve instead of the
+  // blocked request.
   Check(url.mojom.Url url, url.mojom.Url initiator, string request_type,
-        url.mojom.Url top_frame_url) => (bool block);
+        url.mojom.Url top_frame_url) => (bool block, string? redirect);
 
   // Binds another checker, used when a throttle provider is cloned for
   // a new worker thread.
   Clone(pending_receiver<AdblockChecker> receiver);
+};
+
+// What to hide and run in one frame, from the cosmetic rules (##, #?#,
+// ##+js) of every list in use for the page.
+struct UrlCosmeticResources {
+  array<string> hide_selectors;
+  array<string> procedural_actions;  // adblock-rust JSON, one per entry
+  array<string> exceptions;
+  string injected_script;            // main world, document start
+  bool generichide;
+};
+
+// Cosmetic filtering for a renderer. Bound per render process, with the
+// profile, so it sees the sites with blocking turned off and the cookie
+// notice and regional list choices.
+interface CosmeticFilters {
+  // Null when blocking is off for top_frame_url or the engine is not ready.
+  // Sync because the scriptlets have to be in place before the page's
+  // own scripts run.
+  [Sync] GetUrlResources(url.mojom.Url frame_url, url.mojom.Url top_frame_url)
+      => (UrlCosmeticResources? resources);
+
+  // Generic hide rules (##.class, ###id) that match the given class names
+  // and ids, which are passed without the leading . or #. `exceptions`
+  // is the list from GetUrlResources.
+  GetHiddenClassIdSelectors(array<string> classes, array<string> ids,
+      array<string> exceptions, url.mojom.Url top_frame_url)
+      => (array<string> selectors);
 };
