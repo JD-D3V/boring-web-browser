@@ -99,16 +99,13 @@ struct TrustedKey {
   std::string_view spki_base64;
 };
 
-// TODO(JD): replace this placeholder with the real publishing key
-// before the beta. Generate it off the network, keep the private half
-// out of the repo, and paste the key id and base64 SPKI that
-// publish_lists.py --gen-test-key prints for its own key here.
-//
-// Until that happens every manifest fails this check and no browser
-// updates its lists. That is the safe direction to fail in: people
-// keep the lists they already have. It is not the shipping state.
+// JD's list publishing key, made 2026-09-25 (ECDSA P-256). The private
+// half stays with JD and is only ever handed to publish_lists.py by
+// path; this is the public half.
 constexpr TrustedKey kTrustedKeys[] = {
-    {"0000000000000000", "REPLACE-WITH-THE-REAL-PUBLISHING-KEY"},
+    {"9ae7a55e96128e93",
+     "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAExg3NJqnVcqheRyGhePcb7aIv/fX5VnrQ2nF"
+     "wcYfBFfFgX0C9u8OcB14zTJfuCfGjVK6aDo7VlKvDB4U8LSunvQ=="},
 };
 
 // While the lists in use are younger than this, nothing is asked for at
