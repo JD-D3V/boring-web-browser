@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Known issues · Boring Browser</title><link rel="icon" href="brand.svg" type="image/svg+xml"><link rel="stylesheet" href="styles.css"></head>
+<body><a class="skip" href="#main">Skip to content</a><header class="wrap header"><a class="wordmark" href="./"><img src="brand.svg" width="36" height="36" alt="">boring browser</a><nav aria-label="Main navigation"><a href="index.html#download">Download</a><a href="index.html#details">Before you try it</a><a href="privacy.html">Privacy &amp; notices</a></nav></header>
+<main id="main" class="wrap prose"><p class="eyebrow">RELEASE 1 / KNOWN ISSUES</p><h1>Known issues.</h1><p class="notice">Release 1 · 24 September 2026. Boring Browser 1 on Chromium 153.0.8010.52, Windows x64.</p>
+<h2>Install</h2><ul>
+<li>The installer is not signed. SmartScreen will show “Windows protected your PC”. Do not turn SmartScreen or Defender off to get past it.</li>
+<li>Tested on a clean Windows 11 24H2 (build 26100) in Windows Sandbox: installs for the current user without admin rights, adds Start menu and desktop shortcuts and an entry in Installed apps. Uninstalling removes the program, the shortcuts and the entry.</li>
+<li>Installed apps lists the publisher as “The Chromium Authors”.</li>
+<li>Uninstalling leaves your profile behind: bookmarks, history and settings stay in <code>%LOCALAPPDATA%\BoringBrowser\User Data</code>. Delete that folder to remove them.</li>
+</ul>
+<h2>Updates</h2><ul>
+<li>Updating from one release to the next was tested in Windows Sandbox with a throwaway test key, not our release key. The check, the prompt, the download, the signature check and starting the installer all worked, and an installer changed after signing, or signed by another key, was refused. But the test release had the same Chromium version as the installed one, and it did not replace the installed files. Release 2 waits until that is fixed and proven.</li>
+<li>If an update does not install, download the new version from the site and run it; your settings are kept.</li>
+<li>Only installed copies update. A copy run from the zip does not; install a new release yourself.</li>
+<li>If you turn the daily check off, you have to check for updates yourself on the Protection page.</li>
+<li>The installer is not signed, so an update may show a Windows warning too. Not confirmed: the test served the update from the same PC.</li>
+</ul>
+<h2>Blocking</h2><ul>
+<li>Dangerous sites are blocked only if Quad9 knows them. New sites get through.</li>
+<li>A blocked site shows as “not found”, not as a warning.</li>
+<li>Switching secure DNS away from Quad9, or turning it off, removes that protection.</li>
+<li>Secure DNS may be turned off on a managed network or when Windows uses a VPN or policy that sets its own DNS. Not tested.</li>
+<li>Blocking lists are fixed at build time. They do not update.</li>
+<li>Ad blocking can break parts of some sites.</li>
+</ul>
+<h2>Sites and media</h2><ul>
+<li>No Widevine. Netflix, Disney+, Spotify web and other DRM media will not play.</li>
+<li>Fingerprint noise can upset sites that read canvas pixels, such as some image editors or captchas. Turn it off on the Protection page.</li>
+<li>HTTPS-first can show a warning on sites that only work over HTTP.</li>
+</ul>
+<h2>Extensions, spelling and import</h2><ul>
+<li>Chrome Web Store extensions update only through the built-in store helper, not through Chromium. Not tested on a release build.</li>
+<li>If you remove the store helper, Web Store extensions stop getting updates until you add it back. Not tested on a release build.</li>
+<li>On a PC with Windows English spelling data, Windows’ checker does the work, so the bundled English (US) dictionary could not be proven to load. Tested on the build PC: misspelled words are marked, and the dictionary file is present and valid.</li>
+<li>Import reads Chrome and Edge only from their usual folders on this computer. Passwords and cookies are not imported. Tested with a test Chrome profile: bookmarks, history and search engines are offered and imported; passwords are not offered.</li>
+</ul>
+<h2>Search and summaries</h2><ul>
+<li>Sponsored results are hidden only on supported search pages.</li>
+<li>A remote summary provider receives the page text. Use a local one, or none, for private pages.</li>
+</ul>
+<h2>Not in this release</h2><p>Scam warning page, scam list, sync, Tor windows, code signing.</p>
+<h2>Found in testing</h2><p>Found and fixed before release, in the automated test pass on 153.0.8010.52: the new tab page could lose its search engine list, the toolbar shield did not tell screen readers its state, turning off ad blocking for a session missed some page requests, and removing tracking parameters could make a cross-site link look typed or trap the Back button. No open issue from that pass.</p>
+<p>Found in the clean machine test and fixed before release: the ad block engine needed the Visual C++ runtime, so on a PC without it, ad and tracker blocking was off. It now carries its own runtime, and blocking was checked on the clean install. The update prompt also showed the Chromium version without our release number, which read like a downgrade.</p>
+</main><footer class="wrap"><a href="index.html">Back to Boring Browser</a><span>Independent project by JD · Release 1</span></footer></body></html>

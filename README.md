@@ -10,8 +10,8 @@ defaults and a calmer UI. It is not a new engine.
 - Windows x64 only.
 - Not code signed. SmartScreen will warn. Do not turn it off; check the
   SHA-256 from the release page instead.
-- Downloads: <!-- FILL: link to the release page once the files are final. -->
-  not published yet.
+- Downloads: the [release 1 page](https://github.com/JD-D3V/boring-web-browser/releases/tag/v153.0.8010.52.1),
+  with the installer, the zip and `SHA256SUMS.txt`.
 
 ## On by default
 

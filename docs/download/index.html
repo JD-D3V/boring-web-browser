@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Boring Browser. A plain Windows browser built on ungoogled-chromium, with ad and tracker blocking on by default.">
+  <title>Boring Browser. Just a Browser.</title>
+  <link rel="icon" href="brand.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="wrap header">
+    <a class="wordmark" href="./"><img src="brand.svg" alt="" width="36" height="36">boring browser</a>
+    <nav aria-label="Main navigation"><a href="#download">Download</a><a href="#details">Before you try it</a><a href="privacy.html">Privacy &amp; notices</a></nav>
+  </header>
+  <main id="main">
+    <section class="wrap hero">
+      <div><p class="eyebrow">AN INDEPENDENT BROWSER / WINDOWS EDITION</p>
+        <h1>Just a Browser.</h1>
+        <p class="tagline">Find what you came for.</p>
+        <p class="intro">Open a tab. Read something. Get on with your day. A Windows browser built on ungoogled-chromium, with ad and tracker blocking built in.</p>
+        <a class="button" href="#download">View release status <span aria-hidden="true">↗</span></a>
+        <p class="small">Independent project by JD. Release 1, Windows x64.</p>
+      </div>
+      <aside class="brand-card" aria-label="A note from the maker"><div class="note-top"><span>FIELD NOTE / 001</span><img src="brand.svg" width="54" height="54" alt="Boring Browser’s blackletter B logo"></div><p class="maker-note">The browser should be the least interesting part of your afternoon.</p><p>Not the article. Not the project you’re working on. Just the thing around it.</p><div class="note-bottom"><span>That’s the idea.</span><span>JD</span></div><small>One independent project. Still a work in progress.</small></aside>
+    </section>
+    <section id="download" class="wrap release" aria-labelledby="release-title">
+      <div><p class="eyebrow">RELEASE DESK / RELEASE 1</p><h2 id="release-title">Release 1.</h2><p>Built on Chromium 153.</p><a class="button" href="https://github.com/JD-D3V/boring-web-browser/releases/download/v153.0.8010.52.1/BoringBrowser_153.0.8010.52.1_installer_x64.exe">Download the installer <span aria-hidden="true">↓</span></a><p class="small">Installer, 124 MB. Or the <a href="https://github.com/JD-D3V/boring-web-browser/releases/download/v153.0.8010.52.1/BoringBrowser_153.0.8010.52.1_windows_x64.zip">zip</a>, 194 MB, which does not update itself.</p><p class="small">Get it only from this page. Check the hash before you run it.</p></div>
+      <dl><div><dt>Platform</dt><dd>Windows x64 · tested on Windows 11 25H2 (build 26200), and installed, used and removed on a clean Windows 11 24H2 (build 26100) in Windows Sandbox</dd></div><div><dt>Release &amp; date</dt><dd>1 · 24 September 2026</dd></div><div><dt>Engine</dt><dd>Chromium 153.0.8010.52 (ungoogled-chromium 153.0.8010.52-1.1)</dd></div><div><dt>Publisher signature</dt><dd>Not signed. SmartScreen will warn.</dd></div><div><dt>Checksums</dt><dd><a href="https://github.com/JD-D3V/boring-web-browser/releases/download/v153.0.8010.52.1/SHA256SUMS.txt">SHA256SUMS.txt</a></dd></div><div><dt>Browser updates</dt><dd>Checks daily. Installs only with your OK and our signature. Installed copies only.</dd></div></dl>
+    </section>
+    <section id="details" class="wrap details"><p class="eyebrow">READ BEFORE INSTALLING / KEEP FOR REFERENCE</p><h2>The small print.<br><em>In a readable size.</em></h2>
+      <div class="detail-grid"><article><h3>On from the start</h3><p>Ad, tracker and pop-up blocking. HTTPS first. Quad9 secure DNS. Fingerprint noise on canvas, text and element sizes. Tracking parameters removed from links to other sites. WebRTC kept to proxied routes. DuckDuckGo search, with a picker on the new tab page.</p></article><article><h3>Dangerous sites, by name</h3><p>Quad9 refuses known malware and phishing sites, so they do not open. There is no warning page, and new or unreported sites get through. It does not replace Windows security.</p></article><article><h3>Extensions</h3><p>Chrome Web Store extensions install, and every install asks first. The store helper is built in and can be removed. It changes only with a browser update.</p></article><article><h3>Your things, your call</h3><p>Import bookmarks, history and search engines from Chrome or Edge. Never passwords or cookies. Spellcheck works without a download. Turn off blocking on one site from the toolbar shield.</p></article><article><h3>Senior Safe Mode</h3><p>One switch for a parent or grandparent. Sponsored search results stay hidden, and the browser asks before the mode can be turned off.</p></article><article><h3>Updates</h3><p>Checks our site once a day. A new release installs only after you agree, and only with our signature. Installed copies only; the zip does not update. Turn the check off on the Protection page.</p></article><article><h3>Windows will warn</h3><p>This build is not signed, so SmartScreen will warn. Don’t turn off Defender or SmartScreen. Check the hash instead.</p></article><article><h3>Not in release 1</h3><p>Scam warning page and scam list. Widevine, so no DRM video. Sync. Tor windows. Code signing.</p></article></div>
+      <details><summary>How do I check a download?</summary><p>Use only the official release linked here. Compare its exact filename and SHA-256 with the published checksum file. In PowerShell:</p><pre><code>Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\Downloads\EXACT-FILENAME.exe'</code></pre><p>A matching hash confirms matching bytes, not that the software is harmless or the download site uncompromised. Read the <a href="https://github.com/JD-D3V/boring-web-browser/releases/tag/v153.0.8010.52.1">release notes</a> before running it.</p></details>
+      <details><summary>Will streaming and every website work?</summary><p>Netflix and other DRM video will not play. Widevine is not in release 1. Blocking and fingerprint noise can break parts of some sites. Fingerprint noise has a switch on the Protection page. See the <a href="known-issues.html">known issues</a>.</p></details>
+      <details><summary>Where do I report a problem?</summary><p><a href="report.html">Report a problem</a> to JD by email, including security or privacy concerns. Never send passwords, API keys, school records or browser profiles. This independent project does not offer guaranteed support.</p></details>
+    </section>
+  </main>
+  <footer class="wrap"><span>boring browser · Made by <a href="https://github.com/JD-D3V">JD</a></span><a href="report.html">Report a problem</a><a href="privacy.html">Privacy, licences &amp; preview notices</a></footer>
+</body>
+</html>
