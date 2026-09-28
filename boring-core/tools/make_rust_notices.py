@@ -34,12 +34,32 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CORE = os.path.dirname(HERE)
 LOCK = os.path.join(CORE, "rust", "Cargo.lock")
 
+# Standard licence text for a crate that declares a licence in its
+# Cargo.toml but ships no licence file of its own in the published
+# package (flatbuffers, seahash, selectors on crates.io, checked
+# 2026-09-27). These are the licences' own standard texts, not
+# anything written for this project, kept next to this script so
+# `--fail-on-missing` has something to find.
+STANDARD_LICENCE_DIR = os.path.join(HERE, "licence_texts")
+STANDARD_LICENCE_FILES = {
+    "MIT": "MIT.txt",
+    "Apache-2.0": "APACHE-2.0.txt",
+    "MPL-2.0": "MPL-2.0.txt",
+}
+
 # Licence text lives in one of these, next to the crate's Cargo.toml.
 LICENCE_NAMES = (
-    "LICENSE", "LICENSE.txt", "LICENSE.md",
-    "LICENCE", "LICENCE.txt",
-    "LICENSE-MIT", "LICENSE-APACHE", "LICENSE-APACHE-2.0",
-    "COPYING", "COPYRIGHT", "NOTICE",
+    "LICENSE",
+    "LICENSE.txt",
+    "LICENSE.md",
+    "LICENCE",
+    "LICENCE.txt",
+    "LICENSE-MIT",
+    "LICENSE-APACHE",
+    "LICENSE-APACHE-2.0",
+    "COPYING",
+    "COPYRIGHT",
+    "NOTICE",
 )
 
 # A licence that obliges us to do more than name it.
@@ -91,6 +111,47 @@ def licence_of(path):
     return ""
 
 
+def crate_authors(path):
+    """The `authors` list from a crate's Cargo.toml, joined for a
+    copyright line. Empty if the field is absent, as newer crates
+    that moved authorship into a workspace or README often do."""
+    toml = os.path.join(path, "Cargo.toml") if path else None
+    if not toml or not os.path.isfile(toml):
+        return ""
+    with open(toml, encoding="utf-8", errors="replace") as fh:
+        text = fh.read()
+    m = re.search(r"^authors\s*=\s*\[(.*?)\]", text, re.M | re.S)
+    if not m:
+        return ""
+    names = re.findall(r'"([^"]*)"', m.group(1))
+    # Drop each author's <email>, keep the name.
+    names = [re.sub(r"\s*<[^>]*>\s*$", "", n).strip() for n in names]
+    return ", ".join(n for n in names if n)
+
+
+def standard_licence_text(licence_expr, authors):
+    """The licence's own standard text for `licence_expr`, for a crate
+    that ships none of its own. `licence_expr` may be an SPDX
+    combination like "MIT OR Apache-2.0"; the first id we have text
+    for wins. Returns (label, text) or None."""
+    if not licence_expr:
+        return None
+    for spdx_id in re.split(r"\s+(?:OR|AND)\s+|/", licence_expr):
+        spdx_id = spdx_id.strip()
+        fname = STANDARD_LICENCE_FILES.get(spdx_id)
+        if not fname:
+            continue
+        full = os.path.join(STANDARD_LICENCE_DIR, fname)
+        if not os.path.isfile(full):
+            continue
+        with open(full, encoding="utf-8") as fh:
+            text = fh.read()
+        text = text.replace("{copyright}", authors or "the copyright holders")
+        label = f"{spdx_id} standard text (not shipped in this crate's package)"
+        return (label, text)
+    return None
+
+
 def licence_texts(path):
     """Every licence file in the crate, as (filename, text)."""
     found = []
@@ -99,7 +160,10 @@ def licence_texts(path):
     for entry in sorted(os.listdir(path)):
         base = entry.split(".")[0].upper()
         if entry.upper() in (n.upper() for n in LICENCE_NAMES) or base in (
-            "LICENSE", "LICENCE", "COPYING", "NOTICE"
+            "LICENSE",
+            "LICENCE",
+            "COPYING",
+            "NOTICE",
         ):
             full = os.path.join(path, entry)
             if os.path.isfile(full):
@@ -140,12 +204,17 @@ def main():
         lic = licence_of(path) if path else ""
         texts = licence_texts(path)
         if not texts:
-            missing.append(f"{name} {version}")
+            fallback = standard_licence_text(lic, crate_authors(path))
+            if fallback:
+                texts = [fallback]
+            else:
+                missing.append(f"{name} {version}")
         rows.append((name, version, lic, texts))
 
     reciprocal = [
-        (n, v, l) for n, v, l, _ in rows
-        if any(tag in (l or "").upper() for tag in RECIPROCAL)
+        (n, v, lic)
+        for n, v, lic, _ in rows
+        if any(tag in (lic or "").upper() for tag in RECIPROCAL)
     ]
 
     parts = [
@@ -179,17 +248,19 @@ def main():
             "release is a decision for the release owner, not a "
             "question this file settles.</p><ul>"
         )
-        for n, v, l in reciprocal:
+        for n, v, lic in reciprocal:
             parts.append(
                 f"<li><code>{html.escape(n)} {html.escape(v)}</code>, "
-                f"{html.escape(l)}, "
+                f"{html.escape(lic)}, "
                 f"https://crates.io/crates/{html.escape(n)}/{html.escape(v)}"
                 "</li>"
             )
         parts.append("</ul>")
 
-    parts.append("<h2>Crates</h2><table><tr><th>Crate</th><th>Version</th>"
-                 "<th>Licence</th><th>Source</th></tr>")
+    parts.append(
+        "<h2>Crates</h2><table><tr><th>Crate</th><th>Version</th>"
+        "<th>Licence</th><th>Source</th></tr>"
+    )
     for name, version, lic, _ in rows:
         src = f"https://crates.io/crates/{name}/{version}"
         parts.append(
@@ -217,12 +288,17 @@ def main():
     with open(args.out, "w", encoding="utf-8", newline="\n") as fh:
         fh.write("\n".join(parts))
 
-    print(f"wrote {args.out}: {len(rows)} crates, "
-          f"{len(reciprocal)} needing more than attribution")
+    print(
+        f"wrote {args.out}: {len(rows)} crates, "
+        f"{len(reciprocal)} needing more than attribution"
+    )
     if missing:
-        print(f"no licence text found on this machine for {len(missing)}: "
-              + ", ".join(missing[:8]) + ("..." if len(missing) > 8 else ""),
-              file=sys.stderr)
+        print(
+            f"no licence text found on this machine for {len(missing)}: "
+            + ", ".join(missing[:8])
+            + ("..." if len(missing) > 8 else ""),
+            file=sys.stderr,
+        )
         if args.fail_on_missing:
             return 1
     return 0

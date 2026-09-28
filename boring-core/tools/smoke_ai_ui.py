@@ -28,7 +28,8 @@ CONTRAST = r"""
   }
   var box = document.getElementById('api-key');
   var a = lum(getComputedStyle(box).borderTopColor);
-  var b = lum(getComputedStyle((box.closest('fieldset, .panel') || document.body)).backgroundColor);
+  var panel = box.closest('fieldset, .panel') || document.body;
+  var b = lum(getComputedStyle(panel).backgroundColor);
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 """
 

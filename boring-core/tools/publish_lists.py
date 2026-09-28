@@ -647,8 +647,7 @@ def build_bundle(args, fetch_filters, fetch_scam=None) -> int:
     texts = licence_texts(builds, fetch_filters)
     regional_builds = [b for b in builds if b.output.regional_id]
     index_text = (
-        json.dumps(regional_index(regional_builds), indent=2, ensure_ascii=False)
-        + "\n"
+        json.dumps(regional_index(regional_builds), indent=2, ensure_ascii=False) + "\n"
     )
 
     today = datetime.date.today()
@@ -685,10 +684,7 @@ def build_bundle(args, fetch_filters, fetch_scam=None) -> int:
         # The engine reads every list before anything goes out.
         lists = [entry["name"] for entry in files]
         report = args.check_parse(
-            [
-                (os.path.join(staging, name), name in TRUSTED_NAMES)
-                for name in lists
-            ]
+            [(os.path.join(staging, name), name in TRUSTED_NAMES) for name in lists]
         )
         parsed = check_parse(report, lists)
         for entry in files:

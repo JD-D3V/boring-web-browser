@@ -136,9 +136,8 @@ def guarded_lines(text: str) -> list[bool]:
                 # The other half of a branding guard is the half that is
                 # ours, so it is not guarded.
                 stack[-1] = False
-        elif stripped.startswith("#endif"):
-            if stack:
-                stack.pop()
+        elif stripped.startswith("#endif") and stack:
+            stack.pop()
         inside.append(any(stack))
     return inside
 
@@ -156,8 +155,7 @@ def uses(src: Path, names: set[str]) -> list[dict]:
             # Nothing in a test or a third party tree ends up in the
             # browser we ship, and both are enormous.
             dirnames[:] = [
-                d for d in dirnames
-                if d not in ("third_party", "test", "tests")
+                d for d in dirnames if d not in ("third_party", "test", "tests")
             ]
             for filename in filenames:
                 if not filename.endswith(SOURCE_SUFFIXES):
@@ -182,9 +180,7 @@ def uses(src: Path, names: set[str]) -> list[dict]:
                         found.append(
                             {
                                 "name": name,
-                                "file": str(path.relative_to(src)).replace(
-                                    "\\", "/"
-                                ),
+                                "file": str(path.relative_to(src)).replace("\\", "/"),
                                 "line": number + 1,
                                 "text": line.strip()[:120],
                             }
@@ -227,14 +223,15 @@ def main() -> int:
             print("  ", name)
 
     if not outstanding:
-        print("\nNothing outstanding. Every Chrome only string this build "
-              "reads is already put back.")
+        print(
+            "\nNothing outstanding. Every Chrome only string this build "
+            "reads is already put back."
+        )
         if args.json:
             write_report(args.json, by_name)
         return 0
 
-    print(f"\n{len(outstanding)} would not compile in a Chromium branded "
-          "build:\n")
+    print(f"\n{len(outstanding)} would not compile in a Chromium branded build:\n")
     for name in outstanding:
         print(" ", name)
         for hit in by_name[name]:

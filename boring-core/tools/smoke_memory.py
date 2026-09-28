@@ -30,6 +30,7 @@ every protection).
 Usage: python smoke_memory.py   (BORING_OUT picks the build, see drive.py)
 """
 
+import contextlib
 import json
 import os
 import shutil
@@ -43,7 +44,7 @@ from pathlib import Path
 
 from drive import CHROME, OFFSCREEN
 from measure_startup import DevTools
-from smoke_local import Checks, set_profile_pref
+from smoke_local import Checks, set_local_state, set_profile_pref
 
 # chrome/browser/resource_coordinator/lifecycle_unit_state.mojom
 FROZEN = 3
@@ -182,9 +183,9 @@ class Cdp(DevTools):
         return result["result"].get("value")
 
     def open_tab(self, url, background):
-        return self.send(
-            "Target.createTarget", url=url, background=background
-        )["targetId"]
+        return self.send("Target.createTarget", url=url, background=background)[
+            "targetId"
+        ]
 
     def find_tab(self, url_prefix):
         """A tab's target by its address, which outlives a sleep."""
@@ -241,10 +242,8 @@ def launch(exe, profile, extra):
 
 
 def close(proc, cdp):
-    try:
+    with contextlib.suppress(Exception):
         cdp.send("Browser.close")
-    except Exception:
-        pass
     cdp.close()
     try:
         proc.wait(30)
@@ -308,6 +307,9 @@ def main():
             "boring.performance.never_sleep_sites",
             [f"http://keepawake.localhost:{port}"],
         )
+        # Chromium 153 redirects chrome://discards to
+        # chrome://debug-webuis-disabled unless this is set.
+        set_local_state(profile, "internal_only_uis_enabled", True)
 
         protection = f"{PROTECTION_SECONDS}s"
         proc, cdp = launch(
@@ -320,7 +322,14 @@ def main():
                 "AllowDevtoolsConnectedDiscard",
                 "--disable-features=CalculateNativeWinOcclusion",
                 "--autoplay-policy=no-user-gesture-required",
-                "--mute-audio",
+                # No --mute-audio: it zeroes the audio buffer before
+                # Chromium's own power monitor ever scans it (services/
+                # audio/sync_reader.cc, then output_controller.cc's
+                # OnMoreData), so a muted tab is never seen as audible
+                # and freezing/discard never protects it. The audio
+                # page's own gain is turned down instead (see
+                # AUDIO_PAGE), so this test still makes only a faint
+                # tone through the real output device.
                 f"--load-extension={extension}",
             ],
         )
@@ -427,7 +436,11 @@ def run(cdp, url, checks):
     infos = tab_infos(cdp, discards)
     for host in kept:
         state = infos.get(host, {}).get("state")
-        checks(f"{host} tab stays awake when asked to sleep", state != DISCARDED, str(state))
+        checks(
+            f"{host} tab stays awake when asked to sleep",
+            state != DISCARDED,
+            str(state),
+        )
 
     # The logged-in tab goes to sleep and comes back logged in.
     login_info = infos.get("login")
@@ -435,7 +448,9 @@ def run(cdp, url, checks):
         sleep_tab(cdp, discards, login_info["id"])
         time.sleep(2)
         state = tab_infos(cdp, discards).get("login", {}).get("state")
-        checks("an unprotected background tab can sleep", state == DISCARDED, str(state))
+        checks(
+            "an unprotected background tab can sleep", state == DISCARDED, str(state)
+        )
         login_tab = cdp.find_tab(url("login"))
         cdp.show(login_tab)
         login = cdp.attach(login_tab)

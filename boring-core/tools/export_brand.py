@@ -74,9 +74,21 @@ CHAR = "B"
 # the thin serif strokes do not wash out at 16-24 px. Everything 32 px
 # and up uses the master exactly.
 SIZE_TWEAKS = {
-    16: {"plate": [0.0, 0.0, 64.0, 64.0, 13.0], "glyph_scale": 1.25, "glyph_gamma": 0.7},
-    20: {"plate": [0.0, 0.0, 64.0, 64.0, 14.0], "glyph_scale": 1.2, "glyph_gamma": 0.75},
-    24: {"plate": [0.0, 0.0, 64.0, 64.0, 15.0], "glyph_scale": 1.14, "glyph_gamma": 0.8},
+    16: {
+        "plate": [0.0, 0.0, 64.0, 64.0, 13.0],
+        "glyph_scale": 1.25,
+        "glyph_gamma": 0.7,
+    },
+    20: {
+        "plate": [0.0, 0.0, 64.0, 64.0, 14.0],
+        "glyph_scale": 1.2,
+        "glyph_gamma": 0.75,
+    },
+    24: {
+        "plate": [0.0, 0.0, 64.0, 64.0, 15.0],
+        "glyph_scale": 1.14,
+        "glyph_gamma": 0.8,
+    },
 }
 
 ICO_SIZES = [16, 20, 24, 32, 40, 48, 64, 96, 128, 256]
@@ -181,7 +193,7 @@ class Font:
     def _simple(self, g, ncont):
         data = self.data
         p = g + 10
-        end_pts = list(struct.unpack(">%dH" % ncont, data[p : p + 2 * ncont]))
+        end_pts = list(struct.unpack(f">{ncont}H", data[p : p + 2 * ncont]))
         p += 2 * ncont
         npts = end_pts[-1] + 1 if end_pts else 0
         ilen = struct.unpack(">H", data[p : p + 2])[0]
@@ -271,7 +283,7 @@ class Font:
 
 
 def fmt(v):
-    s = "%.3f" % v
+    s = f"{v:.3f}"
     s = s.rstrip("0").rstrip(".")
     return "0" if s in ("-0", "") else s
 
@@ -284,7 +296,7 @@ def glyph_outline(font):
     """
     gid = font.glyph_index(CHAR)
     if not gid:
-        raise SystemExit("font has no glyph for %r" % CHAR)
+        raise SystemExit(f"font has no glyph for {CHAR!r}")
     adv = font.advance(gid)
     scale = FONT_SIZE / font.units_per_em
     x0 = ANCHOR_X - adv * scale / 2.0  # text-anchor: middle
@@ -336,14 +348,14 @@ def glyph_outline(font):
 def outline_path(contours):
     parts = []
     for start, segs in contours:
-        cmd = ["M%s %s" % (fmt(start[0]), fmt(start[1]))]
+        cmd = [f"M{fmt(start[0])} {fmt(start[1])}"]
         for seg in segs:
             if seg[0] == "L":
-                cmd.append("L%s %s" % (fmt(seg[1][0]), fmt(seg[1][1])))
+                cmd.append(f"L{fmt(seg[1][0])} {fmt(seg[1][1])}")
             else:
                 cmd.append(
-                    "Q%s %s %s %s"
-                    % (fmt(seg[1][0]), fmt(seg[1][1]), fmt(seg[2][0]), fmt(seg[2][1]))
+                    f"Q{fmt(seg[1][0])} {fmt(seg[1][1])} "
+                    f"{fmt(seg[2][0])} {fmt(seg[2][1])}"
                 )
         cmd.append("Z")
         parts.append("".join(cmd))
@@ -364,43 +376,31 @@ def outline_bounds(contours):
 
 
 def hexcolor(c):
-    return "#%02x%02x%02x" % c
+    return "#{:02x}{:02x}{:02x}".format(*c)
 
 
 def tile_svg(path_d):
     x, y, w, h, rx = PLATE
     return (
         '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" '
-        'viewBox="0 0 64 64" role="img" aria-label="B mark, %s">\n'
-        "<title>B mark, %s</title>\n"
-        "<!-- %s -->\n"
-        '<rect x="%s" y="%s" width="%s" height="%s" rx="%s" fill="%s"/>\n'
-        '<path fill="%s" d="%s"/>\n'
+        f'viewBox="0 0 64 64" role="img" aria-label="B mark, {MARK_LABEL}">\n'
+        f"<title>B mark, {MARK_LABEL}</title>\n"
+        f"<!-- {PROVENANCE} -->\n"
+        f'<rect x="{fmt(x)}" y="{fmt(y)}" width="{fmt(w)}" height="{fmt(h)}" '
+        f'rx="{fmt(rx)}" fill="{hexcolor(PLATE_COLOR)}"/>\n'
+        f'<path fill="{hexcolor(GLYPH_COLOR)}" d="{path_d}"/>\n'
         "</svg>\n"
-        % (
-            MARK_LABEL,
-            MARK_LABEL,
-            PROVENANCE,
-            fmt(x),
-            fmt(y),
-            fmt(w),
-            fmt(h),
-            fmt(rx),
-            hexcolor(PLATE_COLOR),
-            hexcolor(GLYPH_COLOR),
-            path_d,
-        )
     )
 
 
 def glyph_svg(path_d):
     return (
         '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" '
-        'viewBox="0 0 64 64" role="img" aria-label="B mark, %s">\n'
-        "<title>B mark, %s</title>\n"
-        "<!-- %s -->\n"
-        '<path fill="currentColor" d="%s"/>\n'
-        "</svg>\n" % (MARK_LABEL, MARK_LABEL, PROVENANCE, path_d)
+        f'viewBox="0 0 64 64" role="img" aria-label="B mark, {MARK_LABEL}">\n'
+        f"<title>B mark, {MARK_LABEL}</title>\n"
+        f"<!-- {PROVENANCE} -->\n"
+        f'<path fill="currentColor" d="{path_d}"/>\n'
+        "</svg>\n"
     )
 
 
@@ -427,7 +427,7 @@ def header_text(tile, glyph):
         "// Plate + B, 64 viewBox. For favicons and app-style marks.\n"
         'inline constexpr char kBrandTileSvg[] = R"SVG(' + tile + ')SVG";\n'
         "\n"
-        "// B only, fill=\"currentColor\", same 64 viewBox and placement.\n"
+        '// B only, fill="currentColor", same 64 viewBox and placement.\n'
         'inline constexpr char kBrandGlyphSvg[] = R"SVG(' + glyph + ')SVG";\n'
         "\n"
         "}  // namespace boring::branding\n"
@@ -628,13 +628,15 @@ def draw_tile(canvas, outline, scale, ox, oy, size_hint):
         gamma = 1.0
     xf = Xform(scale, ox, oy)
     ss = supersample_for(max(canvas.width, canvas.height))
-    plate = coverage(rounded_rect(px_, py_, pw, ph, prx, xf), canvas.width, canvas.height, ss)
+    plate = coverage(
+        rounded_rect(px_, py_, pw, ph, prx, xf), canvas.width, canvas.height, ss
+    )
     canvas.fill(plate, PLATE_COLOR)
     glyph = coverage(flatten_outline(outline, xf, gs), canvas.width, canvas.height, ss)
     if gamma != 1.0:
-        glyph = [c ** gamma if c > 0.0 else 0.0 for c in glyph]
+        glyph = [c**gamma if c > 0.0 else 0.0 for c in glyph]
     # The B only shows where the plate is (it always sits inside it).
-    canvas.fill([min(a, b) for a, b in zip(glyph, plate)], GLYPH_COLOR)
+    canvas.fill([min(a, b) for a, b in zip(glyph, plate, strict=True)], GLYPH_COLOR)
 
 
 def tile_image(outline, size):
@@ -665,7 +667,9 @@ def png_bytes(width, height, rgba):
     prev = bytes(stride)
     for y in range(height):
         line = rgba[y * stride : (y + 1) * stride]
-        sub = bytes((line[i] - (line[i - 4] if i >= 4 else 0)) & 255 for i in range(stride))
+        sub = bytes(
+            (line[i] - (line[i - 4] if i >= 4 else 0)) & 255 for i in range(stride)
+        )
         up = bytes((line[i] - prev[i]) & 255 for i in range(stride))
         best = min(
             ((0, line), (1, sub), (2, up)),
@@ -767,7 +771,18 @@ def bmp32_frame(width, height, rgba):
                 bits[x // 8] |= 0x80 >> (x % 8)
         mask += bits
     header = struct.pack(
-        "<IiiHHIIiiII", 40, width, height * 2, 1, 32, 0, len(xor) + len(mask), 0, 0, 0, 0
+        "<IiiHHIIiiII",
+        40,
+        width,
+        height * 2,
+        1,
+        32,
+        0,
+        len(xor) + len(mask),
+        0,
+        0,
+        0,
+        0,
     )
     return header + bytes(xor) + bytes(mask)
 
@@ -815,7 +830,12 @@ def ico_decode(data):
         rows = []
         for y in range(bw):
             r = pix[y * bw * 4 : (y + 1) * bw * 4]
-            rows.append([(r[4 * x + 2], r[4 * x + 1], r[4 * x], r[4 * x + 3]) for x in range(bw)])
+            rows.append(
+                [
+                    (r[4 * x + 2], r[4 * x + 1], r[4 * x], r[4 * x + 3])
+                    for x in range(bw)
+                ]
+            )
         rows.reverse()
         frames[bw] = [p for row in rows for p in row]
     return frames
@@ -853,7 +873,7 @@ def swap_emblem(outline, size, px, keep_label):
             xs.append(i % size)
             ys.append(i // size)
     if not xs:
-        raise SystemExit("no Chromium emblem found in %d px document frame" % size)
+        raise SystemExit(f"no Chromium emblem found in {size} px document frame")
     top, bottom, left = min(ys), max(ys) + 1, min(xs)
     radius = (bottom - top) / 2.0
     cy = top + radius
@@ -913,7 +933,7 @@ def swap_emblem(outline, size, px, keep_label):
     tile = tile_in_square(outline, size, size, left, top, side, hint)
     # Composite the tile over the page (source-over, premultiplied).
     merged = []
-    for (r, g, b, a), (tr, tg, tb, ta) in zip(canvas.px, tile.px):
+    for (r, g, b, a), (tr, tg, tb, ta) in zip(canvas.px, tile.px, strict=True):
         k = 1.0 - ta
         merged.append((tr + r * k, tg + g * k, tb + b * k, ta + a * k))
     canvas.px = merged
@@ -974,8 +994,10 @@ def outputs(outline):
         return png_bytes(canvas.width, canvas.height, canvas.rgba())
 
     def tile_png(size):
-        return png_bytes(size, size, by_size[size]) if size in by_size else png_of(
-            tile_image(outline, size)
+        return (
+            png_bytes(size, size, by_size[size])
+            if size in by_size
+            else png_of(tile_image(outline, size))
         )
 
     # Start menu tiles (VisualElements), same plate footprint as Chromium's
@@ -997,35 +1019,33 @@ def outputs(outline):
     # scaled ones (theme_resources.grd, 100 and 200 percent).
     for s in (16, 24, 48, 64, 128, 256):
         yield (
-            "chromium_src/chrome/app/theme/chromium/product_logo_%d.png" % s,
-            "chrome/app/theme/chromium/product_logo_%d.png" % s,
-            "IDR_PRODUCT_LOGO_%d / _SHORTCUTS (unscaled), %dx%d" % (s, s, s),
+            f"chromium_src/chrome/app/theme/chromium/product_logo_{s}.png",
+            f"chrome/app/theme/chromium/product_logo_{s}.png",
+            f"IDR_PRODUCT_LOGO_{s} / _SHORTCUTS (unscaled), {s}x{s}",
             tile_png(s),
         )
     for pct, mult in (("100", 1), ("200", 2)):
         for logical in (16, 32):
             s = logical * mult
             yield (
-                "chromium_src/chrome/app/theme/default_%s_percent/chromium/product_logo_%d.png"
-                % (pct, logical),
-                "chrome/app/theme/default_%s_percent/chromium/product_logo_%d.png"
-                % (pct, logical),
-                "IDR_PRODUCT_LOGO_%d at %s%%, %dx%d" % (logical, pct, s, s),
+                f"chromium_src/chrome/app/theme/default_{pct}_percent/chromium/product_logo_{logical}.png",
+                f"chrome/app/theme/default_{pct}_percent/chromium/product_logo_{logical}.png",
+                f"IDR_PRODUCT_LOGO_{logical} at {pct}%, {s}x{s}",
                 tile_png(s),
             )
         # Logo + wordmark: no approved wordmark, so the B tile sits where
         # Chromium's emblem was and the rest of the canvas is clear.
         h = 22 * mult
         w = 97 * mult
-        img = png_of(tile_in_square(outline, w, h, 0, 0, h, h if h in SIZE_TWEAKS else None))
+        img = png_of(
+            tile_in_square(outline, w, h, 0, 0, h, h if h in SIZE_TWEAKS else None)
+        )
         for suffix in ("", "_white"):
             yield (
-                "chromium_src/chrome/app/theme/default_%s_percent/chromium/product_logo_name_22%s.png"
-                % (pct, suffix),
-                "chrome/app/theme/default_%s_percent/chromium/product_logo_name_22%s.png"
-                % (pct, suffix),
-                "IDR_PRODUCT_LOGO_NAME_22%s at %s%%, %dx%d, B tile only (no wordmark)"
-                % (suffix.upper(), pct, w, h),
+                f"chromium_src/chrome/app/theme/default_{pct}_percent/chromium/product_logo_name_22{suffix}.png",
+                f"chrome/app/theme/default_{pct}_percent/chromium/product_logo_name_22{suffix}.png",
+                f"IDR_PRODUCT_LOGO_NAME_22{suffix.upper()} at {pct}%, {w}x{h}, "
+                "B tile only (no wordmark)",
                 img,
             )
         # chrome://version product logo (logo + wordmark), same treatment.
@@ -1034,29 +1054,28 @@ def outputs(outline):
         img = png_of(tile_in_square(outline, w, h, 0, 0, h))
         for suffix in ("", "_white"):
             yield (
-                "chromium_src/components/resources/default_%s_percent/chromium/product_logo%s.png"
-                % (pct, suffix),
-                "components/resources/default_%s_percent/chromium/product_logo%s.png"
-                % (pct, suffix),
-                "IDR_PRODUCT_LOGO%s (chrome://version) at %s%%, %dx%d, B tile only"
-                % (suffix.upper(), pct, w, h),
+                f"chromium_src/components/resources/default_{pct}_percent/chromium/product_logo{suffix}.png",
+                f"components/resources/default_{pct}_percent/chromium/product_logo{suffix}.png",
+                f"IDR_PRODUCT_LOGO{suffix.upper()} (chrome://version) at "
+                f"{pct}%, {w}x{h}, B tile only",
                 img,
             )
         s = 16 * mult
         yield (
-            "chromium_src/components/resources/default_%s_percent/chromium/favicon_product.png" % pct,
-            "components/resources/default_%s_percent/chromium/favicon_product.png" % pct,
-            "IDR_PRODUCT_FAVICON at %s%% (chrome://version and, via "
-            "branding-resources.patch, the boring pages), %dx%d" % (pct, s, s),
+            f"chromium_src/components/resources/default_{pct}_percent/chromium/favicon_product.png",
+            f"components/resources/default_{pct}_percent/chromium/favicon_product.png",
+            f"IDR_PRODUCT_FAVICON at {pct}% (chrome://version and, via "
+            f"branding-resources.patch, the boring pages), {s}x{s}",
             tile_png(s),
         )
         yield (
-            "chromium_src/chrome/app/theme/default_%s_percent/common/favicon_settings.png" % pct,
-            "chrome/app/theme/default_%s_percent/common/favicon_settings.png" % pct,
-            "IDR_SETTINGS_FAVICON at %s%% (chrome://settings incl. About tab "
-            "favicon; its only consumer is settings_utils.cc), %dx%d" % (pct, s, s),
+            f"chromium_src/chrome/app/theme/default_{pct}_percent/common/favicon_settings.png",
+            f"chrome/app/theme/default_{pct}_percent/common/favicon_settings.png",
+            f"IDR_SETTINGS_FAVICON at {pct}% (chrome://settings incl. About tab "
+            f"favicon; its only consumer is settings_utils.cc), {s}x{s}",
             tile_png(s),
         )
+
 
 # Chromium's product vector icons (omnibox chip for chrome:// pages, app
 # menu, infobars, omnibox actions). Each keeps its original canvas sizes
@@ -1066,19 +1085,34 @@ def outputs(outline):
 # 16 px small-size geometry (fuller plate, larger B); gamma cannot be
 # expressed in a vector icon, so it is left out.
 VECTOR_ICONS = [
-    ("components/omnibox/browser/vector_icons/product_chrome_refresh_old.icon",
-     [15], "omnibox::kProductChromeRefreshOldIcon: location chip for chrome:// "
-     "pages (rounded icons off, our default), app menu Set as default, "
-     "infobars, omnibox actions/pedals, chrome:// suggestions"),
-    ("components/omnibox/browser/vector_icons/chrome_product.icon",
-     [24, 16], "omnibox::kChromeProductIcon: the same slots when rounded icons are on"),
-    ("components/omnibox/browser/vector_icons/product_old.icon",
-     [32, 16], "omnibox::kProductOldIcon: autofill popup product row"),
-    ("components/vector_icons/chromium/product.icon",
-     [24, 16], "vector_icons::kProductIcon (branding_path_component=chromium): "
-     "autofill AI first-run and plus-address dialogs"),
-    ("components/vector_icons/chromium/product_refresh.icon",
-     [24, 16], "vector_icons::kProductRefreshIcon: infobars when rounded icons are on"),
+    (
+        "components/omnibox/browser/vector_icons/product_chrome_refresh_old.icon",
+        [15],
+        "omnibox::kProductChromeRefreshOldIcon: location chip for chrome:// "
+        "pages (rounded icons off, our default), app menu Set as default, "
+        "infobars, omnibox actions/pedals, chrome:// suggestions",
+    ),
+    (
+        "components/omnibox/browser/vector_icons/chrome_product.icon",
+        [24, 16],
+        "omnibox::kChromeProductIcon: the same slots when rounded icons are on",
+    ),
+    (
+        "components/omnibox/browser/vector_icons/product_old.icon",
+        [32, 16],
+        "omnibox::kProductOldIcon: autofill popup product row",
+    ),
+    (
+        "components/vector_icons/chromium/product.icon",
+        [24, 16],
+        "vector_icons::kProductIcon (branding_path_component=chromium): "
+        "autofill AI first-run and plus-address dialogs",
+    ),
+    (
+        "components/vector_icons/chromium/product_refresh.icon",
+        [24, 16],
+        "vector_icons::kProductRefreshIcon: infobars when rounded icons are on",
+    ),
 ]
 
 
@@ -1104,25 +1138,32 @@ def vector_icon_text(outline, canvases):
         cx = (b[0] + b[2]) / 2.0
         cy = (b[1] + b[3]) / 2.0
 
-        def pt(p):
+        def pt(p, cx=cx, cy=cy, gs=gs, k=k):
             x = (cx + (p[0] - cx) * gs) * k
             y = (cy + (p[1] - cy) * gs) * k
-            return "%s, %s" % (fmt(x), fmt(y))
+            return f"{fmt(x)}, {fmt(y)}"
 
-        lines.append("CANVAS_DIMENSIONS, %d," % canvas)
-        lines.append("PATH_COLOR_ARGB, 0xFF, 0x%02X, 0x%02X, 0x%02X," % PLATE_COLOR)
-        lines.append("ROUND_RECT, %s, %s, %s, %s, %s," % tuple(
-            fmt(v * k) for v in (px_, py_, pw, ph, prx)))
+        lines.append(f"CANVAS_DIMENSIONS, {canvas},")
+        lines.append(
+            "PATH_COLOR_ARGB, 0xFF, 0x{:02X}, 0x{:02X}, 0x{:02X},".format(*PLATE_COLOR)
+        )
+        lines.append(
+            "ROUND_RECT, {}, {}, {}, {}, {},".format(
+                *tuple(fmt(v * k) for v in (px_, py_, pw, ph, prx))
+            )
+        )
         lines.append("NEW_PATH,")
-        lines.append("PATH_COLOR_ARGB, 0xFF, 0x%02X, 0x%02X, 0x%02X," % GLYPH_COLOR)
+        lines.append(
+            "PATH_COLOR_ARGB, 0xFF, 0x{:02X}, 0x{:02X}, 0x{:02X},".format(*GLYPH_COLOR)
+        )
         lines.append("FILL_RULE_NONZERO,")
         for start, segs in outline:
-            lines.append("MOVE_TO, %s," % pt(start))
+            lines.append(f"MOVE_TO, {pt(start)},")
             for seg in segs:
                 if seg[0] == "L":
-                    lines.append("LINE_TO, %s," % pt(seg[1]))
+                    lines.append(f"LINE_TO, {pt(seg[1])},")
                 else:
-                    lines.append("QUADRATIC_TO, %s, %s," % (pt(seg[1]), pt(seg[2])))
+                    lines.append(f"QUADRATIC_TO, {pt(seg[1])}, {pt(seg[2])},")
             lines.append("CLOSE,")
         lines.append("")
     return "\n".join(lines)
@@ -1148,7 +1189,8 @@ def text_outputs(tile, glyph, outline):
     yield (
         "chromium_src/chrome/app/theme/chromium/product_logo_animation.svg",
         "chrome/app/theme/chromium/product_logo_animation.svg",
-        "IDR_PRODUCT_LOGO_ANIMATION_SVG (chrome://intro), static copy of the tile master",
+        "IDR_PRODUCT_LOGO_ANIMATION_SVG (chrome://intro), static copy of "
+        "the tile master",
         tile,
     )
     for dest, canvases, use in VECTOR_ICONS:
@@ -1171,7 +1213,7 @@ def normalized(path, data):
 
 def png_size(data):
     w, h = struct.unpack(">II", data[16:24])
-    return "%dx%d" % (w, h)
+    return f"{w}x{h}"
 
 
 def generate(root, font_path):
@@ -1186,7 +1228,7 @@ def generate(root, font_path):
         mid = ((bounds[0] + bounds[2]) / 2.0, (bounds[1] + bounds[3]) / 2.0)
         gb = [mid[i % 2] + (v - mid[i % 2]) * gs for i, v in enumerate(bounds)]
         if gb[0] < x or gb[1] < y or gb[2] > x + w or gb[3] > y + h:
-            raise SystemExit("glyph leaves the plate at %d px" % size)
+            raise SystemExit(f"glyph leaves the plate at {size} px")
     path_d = outline_path(outline)
     tile = tile_svg(path_d)
     glyph = glyph_svg(path_d)
@@ -1228,7 +1270,9 @@ def generate(root, font_path):
     font_rel = os.path.relpath(font_path, CORE).replace("\\", "/")
     inputs = [
         {
-            "path": font_rel if not font_rel.startswith("..") else font_path.replace("\\", "/"),
+            "path": font_rel
+            if not font_rel.startswith("..")
+            else font_path.replace("\\", "/"),
             "role": "glyph outline source: UnifrakturCook Bold, copyright 2010 "
             "j. 'mach' wust and 2009 Peter Wiegel, SIL Open Font License 1.1. "
             "Approved by JD on 2026-09-19. Redistributable, and the licence "
@@ -1237,8 +1281,11 @@ def generate(root, font_path):
         }
     ]
     for rel, role in (
-        (FONT_LICENCE, "SIL Open Font License 1.1 for UnifrakturCook Bold, "
-                       "kept with the font as the licence requires"),
+        (
+            FONT_LICENCE,
+            "SIL Open Font License 1.1 for UnifrakturCook Bold, "
+            "kept with the font as the licence requires",
+        ),
         (DOC_SOURCE, "Chromium's chromium_doc.ico (BSD), page silhouette kept"),
         (PDF_SOURCE, "Chromium's chromium_pdf.ico (BSD), page and PDF label kept"),
     ):
@@ -1262,24 +1309,43 @@ def generate(root, font_path):
         "geometry": {
             "source": "design/v2/brand-preview.svg",
             "box": 64,
-            "plate": {"x": PLATE[0], "y": PLATE[1], "w": PLATE[2], "h": PLATE[3],
-                      "rx": PLATE[4], "fill": hexcolor(PLATE_COLOR)},
-            "glyph": {"char": CHAR, "font_size": FONT_SIZE, "anchor": "middle",
-                      "anchor_x": ANCHOR_X, "baseline_y": BASELINE_Y,
-                      "fill": hexcolor(GLYPH_COLOR),
-                      "bounds": [round(v, 3) for v in bounds], **info},
+            "plate": {
+                "x": PLATE[0],
+                "y": PLATE[1],
+                "w": PLATE[2],
+                "h": PLATE[3],
+                "rx": PLATE[4],
+                "fill": hexcolor(PLATE_COLOR),
+            },
+            "glyph": {
+                "char": CHAR,
+                "font_size": FONT_SIZE,
+                "anchor": "middle",
+                "anchor_x": ANCHOR_X,
+                "baseline_y": BASELINE_Y,
+                "fill": hexcolor(GLYPH_COLOR),
+                "bounds": [round(v, 3) for v in bounds],
+                **info,
+            },
         },
         "size_tweaks": {
-            str(k): dict(v, note="derived from the same master outline; plate "
-                         "fills the canvas, glyph scaled about the centre of "
-                         "its bounds, glyph coverage raised to glyph_gamma")
+            str(k): dict(
+                v,
+                note="derived from the same master outline; plate "
+                "fills the canvas, glyph scaled about the centre of "
+                "its bounds, glyph coverage raised to glyph_gamma",
+            )
             for k, v in sorted(SIZE_TWEAKS.items())
         },
         "raster": {
             "fill_rule": "nonzero",
-            "coverage": "exact horizontal spans, 32 sub-rows per pixel (16 above 128 px)",
+            "coverage": (
+                "exact horizontal spans, 32 sub-rows per pixel (16 above 128 px)"
+            ),
             "blend": "premultiplied source-over in sRGB",
-            "ico": "BMP32 + AND mask below 256 px, PNG at 256 (as Chromium's own icons)",
+            "ico": (
+                "BMP32 + AND mask below 256 px, PNG at 256 (as Chromium's own icons)"
+            ),
             "zlib_runtime": zlib.ZLIB_RUNTIME_VERSION,
         },
         "outputs": records,
@@ -1299,7 +1365,7 @@ def check(font_path):
             recorded = json.loads(f.read().decode("utf-8"))
         want = {r["path"]: r["sha256"] for r in recorded["outputs"]}
         got = {r["path"]: r["sha256"] for r in fresh["outputs"]}
-        for inp_new, inp_old in zip(fresh["inputs"], recorded["inputs"]):
+        for inp_new, inp_old in zip(fresh["inputs"], recorded["inputs"], strict=True):
             if inp_new["sha256"] != inp_old["sha256"]:
                 print("INPUT CHANGED", inp_old["path"])
                 ok = False
@@ -1334,7 +1400,7 @@ def check(font_path):
                     ok = False
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
-    print("check: %s (%d outputs)" % ("OK" if ok else "FAILED", len(got)))
+    print(f"check: {'OK' if ok else 'FAILED'} ({len(got)} outputs)")
     return ok
 
 
@@ -1352,22 +1418,31 @@ def preview(dest):
             w, h, px = png_decode(data)
             images = [("", w, h, px)]
         elif path.endswith(".ico"):
-            images = [("_%d" % s, s, s, px) for s, px in sorted(ico_decode(data).items())]
+            images = [(f"_{s}", s, s, px) for s, px in sorted(ico_decode(data).items())]
         else:
             continue
-        base = rec["path"].replace("chromium_src/", "").replace("/", "_").replace(".", "_")
+        base = (
+            rec["path"].replace("chromium_src/", "").replace("/", "_").replace(".", "_")
+        )
         for suffix, w, h, px in images:
             zoom = max(1, min(8, 256 // max(w, h)))
-            for ground_name, ground in (("light", (255, 255, 255)), ("dark", (32, 33, 36))):
+            for ground_name, ground in (
+                ("light", (255, 255, 255)),
+                ("dark", (32, 33, 36)),
+            ):
                 out = bytearray()
                 for y in range(h * zoom):
                     for x in range(w * zoom):
                         r, g, b, a = px[(y // zoom) * w + x // zoom]
                         k = a / 255.0
-                        out += bytes(
-                            int(round(c * k + gc * (1 - k))) for c, gc in zip((r, g, b), ground)
-                        ) + b"\xff"
-                name = "%s%s_%s.png" % (base, suffix, ground_name)
+                        out += (
+                            bytes(
+                                int(round(c * k + gc * (1 - k)))
+                                for c, gc in zip((r, g, b), ground, strict=True)
+                            )
+                            + b"\xff"
+                        )
+                name = f"{base}{suffix}_{ground_name}.png"
                 with open(os.path.join(dest, name), "wb") as f:
                     f.write(png_bytes(w * zoom, h * zoom, bytes(out)))
     print("previews in", dest)
@@ -1382,8 +1457,8 @@ def main():
     if args.check:
         sys.exit(0 if check(args.font) else 1)
     manifest = generate(CORE, args.font)
-    print("wrote %d outputs (approved B, UnifrakturCook Bold, OFL 1.1)"
-          % len(manifest["outputs"]))
+    n_outputs = len(manifest["outputs"])
+    print(f"wrote {n_outputs} outputs (approved B, UnifrakturCook Bold, OFL 1.1)")
     if args.preview:
         preview(args.preview)
 

@@ -75,10 +75,20 @@ class TestKey:
 
     def __init__(self, directory):
         self.pem = directory / "test-signing-key.pem"
-        run_openssl(["ecparam", "-name", "prime256v1", "-genkey", "-noout",
-                     "-out", str(self.pem)])
-        spki = run_openssl(["ec", "-in", str(self.pem), "-pubout",
-                            "-outform", "DER"], capture=True)
+        run_openssl(
+            [
+                "ecparam",
+                "-name",
+                "prime256v1",
+                "-genkey",
+                "-noout",
+                "-out",
+                str(self.pem),
+            ]
+        )
+        spki = run_openssl(
+            ["ec", "-in", str(self.pem), "-pubout", "-outform", "DER"], capture=True
+        )
         self.spki_base64 = base64.b64encode(spki).decode("ascii")
         self.id = hashlib.sha256(spki).hexdigest()[:16]
 
@@ -111,7 +121,11 @@ OPENSSL_CANDIDATES = [
     r"C:\Program Files (x86)\Git\usr\bin\openssl.exe",
     os.path.join(
         os.environ.get("BORING_SRC", r"E:\ung\build\src"),
-        "third_party", "git", "usr", "bin", "openssl.exe",
+        "third_party",
+        "git",
+        "usr",
+        "bin",
+        "openssl.exe",
     ),
 ]
 
@@ -209,8 +223,10 @@ def main():
     checks = {}
 
     if not openssl_path():
-        print("FAIL: openssl is needed to sign the test bundles, and it is "
-              "not on PATH, nor in Git's copy, nor in the Chromium tree's")
+        print(
+            "FAIL: openssl is needed to sign the test bundles, and it is "
+            "not on PATH, nor in Git's copy, nor in the Chromium tree's"
+        )
         return 1
 
     with tempfile.TemporaryDirectory(prefix="lists-") as work:

@@ -120,8 +120,7 @@ def check_new_sections(b, checks):
     b.get("chrome://boring-protection")
     checks["My filters survives a reload"] = wait_for(
         b,
-        "document.getElementById('my-filters').value.indexOf("
-        "'boring-smoke-ad')>=0",
+        "document.getElementById('my-filters').value.indexOf('boring-smoke-ad')>=0",
     )
 
     checks["Memory Saver is a real switch with three levels"] = b.run(
@@ -137,8 +136,8 @@ def check_new_sections(b, checks):
     b.run("document.getElementById('memory-saver').click()")
     checks["Memory Saver switches"] = wait_for(
         b,
-        "document.getElementById('memory-saver').checked===" +
-        ("false" if was_on else "true"),
+        "document.getElementById('memory-saver').checked==="
+        + ("false" if was_on else "true"),
     )
     if not was_on:
         b.run("document.getElementById('memory-maximum').click()")
@@ -193,8 +192,7 @@ def main():
             # script timeout instead of a result.
             checks["web store row reports on"] = poll(
                 b,
-                "return document.getElementById('webstore-state')"
-                ".textContent==='On'",
+                "return document.getElementById('webstore-state').textContent==='On'",
                 40,
             )
             checks["senior mode text says only what it does"] = b.run(

@@ -190,8 +190,10 @@ def main():
             and bounds.get("y", 0) >= anchor.get("y", 0) + anchor.get("height", 0) - 8
         )
         checks["new tab button says the menu is open"] = (
-            b.run("return document.getElementById('engine')"
-                  ".getAttribute('aria-expanded')") == "true"
+            b.run(
+                "return document.getElementById('engine').getAttribute('aria-expanded')"
+            )
+            == "true"
         )
 
         # Make default.
@@ -227,8 +229,10 @@ def main():
         state = wait_state(b, lambda s: not s.get("open"))
         checks["Escape rolls the menu up"] = state.get("open") is False
         checks["new tab button says the menu is closed"] = (
-            b.run("return document.getElementById('engine')"
-                  ".getAttribute('aria-expanded')") == "false"
+            b.run(
+                "return document.getElementById('engine').getAttribute('aria-expanded')"
+            )
+            == "false"
         )
         checks["new tab page follows the new default"] = bool(
             b.run(

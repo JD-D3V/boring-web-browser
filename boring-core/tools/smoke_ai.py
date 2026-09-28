@@ -8,7 +8,7 @@ setting came back. Also checks the page starts with AI turned off.
 import sys
 import time
 
-from drive import Browser, PROFILE
+from drive import PROFILE, Browser
 
 
 def main():

@@ -14,7 +14,6 @@ Nothing here contacts the network unless the url given does.
 import argparse
 import ctypes
 import os
-import sys
 import time
 from ctypes import wintypes
 
@@ -28,17 +27,28 @@ SW_RESTORE = 9
 
 
 class RECT(ctypes.Structure):
-    _fields_ = [("left", wintypes.LONG), ("top", wintypes.LONG),
-                ("right", wintypes.LONG), ("bottom", wintypes.LONG)]
+    _fields_ = [
+        ("left", wintypes.LONG),
+        ("top", wintypes.LONG),
+        ("right", wintypes.LONG),
+        ("bottom", wintypes.LONG),
+    ]
 
 
 class BITMAPINFOHEADER(ctypes.Structure):
-    _fields_ = [("biSize", wintypes.DWORD), ("biWidth", wintypes.LONG),
-                ("biHeight", wintypes.LONG), ("biPlanes", wintypes.WORD),
-                ("biBitCount", wintypes.WORD), ("biCompression", wintypes.DWORD),
-                ("biSizeImage", wintypes.DWORD), ("biXPelsPerMeter", wintypes.LONG),
-                ("biYPelsPerMeter", wintypes.LONG), ("biClrUsed", wintypes.DWORD),
-                ("biClrImportant", wintypes.DWORD)]
+    _fields_ = [
+        ("biSize", wintypes.DWORD),
+        ("biWidth", wintypes.LONG),
+        ("biHeight", wintypes.LONG),
+        ("biPlanes", wintypes.WORD),
+        ("biBitCount", wintypes.WORD),
+        ("biCompression", wintypes.DWORD),
+        ("biSizeImage", wintypes.DWORD),
+        ("biXPelsPerMeter", wintypes.LONG),
+        ("biYPelsPerMeter", wintypes.LONG),
+        ("biClrUsed", wintypes.DWORD),
+        ("biClrImportant", wintypes.DWORD),
+    ]
 
 
 ENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
@@ -82,10 +92,11 @@ def chrome_pids(binary):
         try:
             size = wintypes.DWORD(32768)
             name = ctypes.create_unicode_buffer(size.value)
-            if kernel32.QueryFullProcessImageNameW(
-                    handle, 0, name, ctypes.byref(size)):
-                if os.path.normcase(name.value) == want:
-                    pids.add(pid)
+            if (
+                kernel32.QueryFullProcessImageNameW(handle, 0, name, ctypes.byref(size))
+                and os.path.normcase(name.value) == want
+            ):
+                pids.add(pid)
         finally:
             kernel32.CloseHandle(handle)
     return pids
@@ -96,16 +107,18 @@ def parents_of(pids):
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 
     class PROCESSENTRY32(ctypes.Structure):
-        _fields_ = [("dwSize", wintypes.DWORD),
-                    ("cntUsage", wintypes.DWORD),
-                    ("th32ProcessID", wintypes.DWORD),
-                    ("th32DefaultHeapID", ctypes.POINTER(ctypes.c_ulong)),
-                    ("th32ModuleID", wintypes.DWORD),
-                    ("cntThreads", wintypes.DWORD),
-                    ("th32ParentProcessID", wintypes.DWORD),
-                    ("pcPriClassBase", wintypes.LONG),
-                    ("dwFlags", wintypes.DWORD),
-                    ("szExeFile", ctypes.c_char * 260)]
+        _fields_ = [
+            ("dwSize", wintypes.DWORD),
+            ("cntUsage", wintypes.DWORD),
+            ("th32ProcessID", wintypes.DWORD),
+            ("th32DefaultHeapID", ctypes.POINTER(ctypes.c_ulong)),
+            ("th32ModuleID", wintypes.DWORD),
+            ("cntThreads", wintypes.DWORD),
+            ("th32ParentProcessID", wintypes.DWORD),
+            ("pcPriClassBase", wintypes.LONG),
+            ("dwFlags", wintypes.DWORD),
+            ("szExeFile", ctypes.c_char * 260),
+        ]
 
     snap = kernel32.CreateToolhelp32Snapshot(0x00000002, 0)
     out = {}
@@ -194,21 +207,28 @@ def write_png(path, w, h, bgra):
     rows = bytearray()
     for y in range(h):
         rows.append(0)
-        line = bgra[y * w * 4:(y + 1) * w * 4]
+        line = bgra[y * w * 4 : (y + 1) * w * 4]
         # BGRA to RGB
         rows += bytes(
-            b for i in range(0, len(line), 4)
+            b
+            for i in range(0, len(line), 4)
             for b in (line[i + 2], line[i + 1], line[i])
         )
 
     def chunk(tag, data):
-        return (struct.pack(">I", len(data)) + tag + data
-                + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF))
+        return (
+            struct.pack(">I", len(data))
+            + tag
+            + data
+            + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+        )
 
-    png = (b"\x89PNG\r\n\x1a\n"
-           + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
-           + chunk(b"IDAT", zlib.compress(bytes(rows), 6))
-           + chunk(b"IEND", b""))
+    png = (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress(bytes(rows), 6))
+        + chunk(b"IEND", b"")
+    )
     with open(path, "wb") as f:
         f.write(png)
 
@@ -250,8 +270,7 @@ def main():
     place = os.environ.get("BORING_WINDOW_POSITION", OFFSCREEN)
     chrome_args.append("--window-position=" + place)
 
-    binary = os.environ.get(
-        "BORING_CHROME", r"E:\ung\build\src\out\Default\chrome.exe")
+    binary = os.environ.get("BORING_CHROME", r"E:\ung\build\src\out\Default\chrome.exe")
 
     # chromedriver adds an infobar reading "Chrome is being controlled by
     # automated test software". It is the test harness talking, not the
@@ -259,8 +278,7 @@ def main():
     # should not contain it unless somebody asks for it.
     keep = None if args.automation_banner else ["enable-automation"]
 
-    with Browser(user_data_dir=args.profile, args=chrome_args,
-                 keep_switches=keep) as b:
+    with Browser(user_data_dir=args.profile, args=chrome_args, keep_switches=keep) as b:
         for _ in range(max(0, args.tabs - 1)):
             b.run("window.open('about:blank')")
         b.get(args.url)

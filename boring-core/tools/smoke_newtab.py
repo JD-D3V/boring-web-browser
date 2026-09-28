@@ -4,9 +4,10 @@
 A fresh profile's new tab should be our page, say "Just a Browser." with
 the B mark above it and as its tab icon, report real protection
 state, start with the Reading and Wikipedia shortcuts, and let a person
-add and remove shortcuts, with removed defaults staying removed. Only web addresses may become
-shortcuts, never script or local files. The tiles arrive with a short
-motion (a plain fade with reduced motion), and the engine button opens
+add and remove shortcuts, with removed defaults staying removed. Only
+web addresses may become shortcuts, never script or local files. The
+tiles arrive with a short motion (a plain fade with reduced motion),
+and the engine button opens
 the browser's own search engine menu under itself, driven through the
 test hook in smoke_search_menu.py. Screenshots go to
 artifacts/ui-implemented.
@@ -187,8 +188,7 @@ def main():
         b.run("document.getElementById('add-cancel').click()")
         checks["cancel closes the editor"] = wait_for(
             b,
-            "getComputedStyle(document.getElementById('add-form'))"
-            ".display==='none'",
+            "getComputedStyle(document.getElementById('add-form')).display==='none'",
         )
 
         add(b, "Example", "example.com")

@@ -43,7 +43,7 @@ PAGE = """<!doctype html>
 </script>
 """
 
-POPUP = "<!doctype html><meta charset=\"utf-8\"><title>popup</title><p>pop-up\n"
+POPUP = '<!doctype html><meta charset="utf-8"><title>popup</title><p>pop-up\n'
 
 ALLOW = 1  # CONTENT_SETTING_ALLOW
 
@@ -90,9 +90,7 @@ def open_page(profile, url):
     # chromedriver starts the browser with --disable-popup-blocking, so
     # without this the test would be asking a browser with the pop-up
     # blocker switched off whether it blocks pop-ups.
-    with Browser(
-        user_data_dir=profile, keep_switches=["disable-popup-blocking"]
-    ) as b:
+    with Browser(user_data_dir=profile, keep_switches=["disable-popup-blocking"]) as b:
         b.get(url)
         time.sleep(2)
         result = b.run("return window.__boringPopup || ''")
@@ -130,9 +128,13 @@ def main():
                 result, title, windows = open_page(profile, url)
                 print(f"site allowed: window.open {result}, {windows} window(s)")
                 if result != "opened" or title != "opened":
-                    failures.append("the per site allow rule did not let a pop-up through")
+                    failures.append(
+                        "the per site allow rule did not let a pop-up through"
+                    )
                 if windows != 2:
-                    failures.append(f"the allowed pop-up did not open a window ({windows})")
+                    failures.append(
+                        f"the allowed pop-up did not open a window ({windows})"
+                    )
 
                 set_popup_exception(profile, origin, None)
                 result, title, windows = open_page(profile, url)

@@ -17,7 +17,7 @@ def main():
     for relpath in sys.argv[1:]:
         relpath = relpath.replace("/", os.sep)
         orig = os.path.join(SRC, relpath)
-        keep = os.path.join(pristine.store_for(src), relpath)
+        keep = os.path.join(pristine.store_for(SRC), relpath)
         if not os.path.exists(orig):
             sys.exit("no such file: " + orig)
         if os.path.exists(keep):

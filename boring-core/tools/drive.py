@@ -26,6 +26,7 @@ OUT = os.environ.get("BORING_OUT", r"E:\ung\build\src\out\Default")
 CHROME = os.path.join(OUT, "chrome.exe")
 DRIVER = os.path.join(OUT, "chromedriver.exe")
 
+
 def _scratch_profile():
     """A profile of this test's own, removed when it exits.
 
@@ -44,9 +45,7 @@ def _scratch_profile():
     chosen = os.environ.get("BORING_PROFILE")
     if chosen:
         return chosen
-    path = tempfile.mkdtemp(
-        prefix="boring-profile-", dir=os.environ.get("TMP") or None
-    )
+    path = tempfile.mkdtemp(prefix="boring-profile-", dir=os.environ.get("TMP") or None)
     # Chrome can still be letting go of files as the process exits, so a
     # failure to remove the directory is not worth failing a test over.
     atexit.register(shutil.rmtree, path, True)
@@ -110,8 +109,7 @@ class Browser:
             # painting, which photographs blank. These keep it drawing.
             "--disable-backgrounding-occluded-windows",
             "--disable-features=CalculateNativeWinOcclusion",
-            "--window-position=" + os.environ.get(
-                "BORING_WINDOW_POSITION", OFFSCREEN),
+            "--window-position=" + os.environ.get("BORING_WINDOW_POSITION", OFFSCREEN),
         ]
         if user_data_dir:
             chrome_args.append("--user-data-dir=" + user_data_dir)

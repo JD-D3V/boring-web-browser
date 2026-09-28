@@ -17,10 +17,14 @@
 #include "base/task/sequenced_task_runner.h"
 #include "cc/paint/paint_flags.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/omnibox/omnibox_controller.h"
 #include "chrome/browser/ui/omnibox/omnibox_edit_model.h"
 #include "chrome/browser/ui/view_ids.h"
 #include "chrome/browser/ui/views/controls/hover_button.h"
+#include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/browser/ui/views/location_bar/location_icon_view.h"
 #include "chrome/browser/ui/views/omnibox/omnibox_view_views.h"
@@ -92,18 +96,20 @@ LocationBarView* BarFor(views::View* icon) {
   return icon ? views::AsViewClass<LocationBarView>(icon->parent()) : nullptr;
 }
 
-// The address bar of the window `page` is in, found through the view
-// tree so nothing here depends on BrowserView.
+// The address bar of the window `page` is in, found through its Browser
+// rather than the view tree: `page`'s own native view is detached while
+// its tab sits in the background, so a lookup rooted at GetNativeView()
+// finds nothing once the tab is not the one showing.
 LocationBarView* BarForPage(content::WebContents* page) {
   if (!page) {
     return nullptr;
   }
-  views::Widget* widget =
-      views::Widget::GetTopLevelWidgetForNativeView(page->GetNativeView());
-  if (!widget || !widget->GetRootView()) {
-    return nullptr;
-  }
-  return BarFor(widget->GetRootView()->GetViewByID(VIEW_ID_LOCATION_ICON));
+  BrowserWindowInterface* window =
+      GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(page);
+  Browser* browser = window ? window->GetBrowserForMigrationOnly() : nullptr;
+  BrowserView* view =
+      browser ? BrowserView::GetBrowserViewForBrowser(browser) : nullptr;
+  return view ? view->GetLocationBarView() : nullptr;
 }
 
 TemplateURLService* ServiceFor(LocationBarView* bar) {

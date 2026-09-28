@@ -104,7 +104,9 @@ def main():
 
     with tempfile.TemporaryDirectory() as profile:
         ran, ad = plant_and_read(profile)
-        print("default profile: script ran:", ran == "1", "ad hidden:", ad.get("hidden"))
+        print(
+            "default profile: script ran:", ran == "1", "ad hidden:", ad.get("hidden")
+        )
         if ran != "1":
             failures.append("the marker script did not run on a search page")
         if not ad.get("hidden"):

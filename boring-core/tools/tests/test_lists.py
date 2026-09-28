@@ -245,9 +245,7 @@ class FilterListChecks(unittest.TestCase):
 
 class HostfileChecks(unittest.TestCase):
     def test_healthy_hostfile_parses(self):
-        hosts = get_scamlist.parse_hostfile(
-            fixture("urlhaus_good.txt").decode("utf-8")
-        )
+        hosts = get_scamlist.parse_hostfile(fixture("urlhaus_good.txt").decode("utf-8"))
         self.assertEqual(len(hosts), 40)
         # No trailing newline, which is what the real feed sends.
         self.assertFalse(fixture("urlhaus_good.txt").endswith(b"\n"))
@@ -335,7 +333,7 @@ class ScamListBuild(unittest.TestCase):
             "# a pretend hostfile\n"
             f"127.0.0.1\t{get_scamlist.TEST_HOSTS[0]}\n"
             "# Number of entries: 1"
-        ).encode("utf-8")
+        ).encode()
         with permitted(URLHAUS_SOURCE):
             built = get_scamlist.build_scam_list(
                 fetch=stub_fetch({URLHAUS_URL: only_test})
@@ -649,7 +647,6 @@ class PublishPath(unittest.TestCase):
         self.assertFalse(
             os.path.exists(os.path.join(self.out, publish_lists.MANIFEST_NAME))
         )
-
 
     def test_scriptlet_resources_are_never_in_the_bundle(self):
         # They are code that runs in pages: signed browser updates only.

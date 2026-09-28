@@ -27,14 +27,17 @@ import re
 import sys
 import time
 
-from drive import Browser, PROFILE
+from drive import PROFILE, Browser
 
 # One source of truth for what this build claims, read from the header
 # the browser itself compiles, so the test and the browser cannot
 # disagree about it.
 CAPABILITIES = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "components", "boring", "core", "boring_capabilities.h",
+    "components",
+    "boring",
+    "core",
+    "boring_capabilities.h",
 )
 
 # Told apart from a real failure by smoke_all.py, which reports it as
