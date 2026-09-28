@@ -641,6 +641,7 @@ class PublishPath(unittest.TestCase):
                 ["--out", self.out, "--sign-key", missing, "--version", "500"],
                 fetch_filters=fetch,
                 fetch_scam=fetch,
+                check_parse=stub_check,
             )
         self.assertEqual(code, 1)
         self.assertIn("no signing key", err.getvalue())
