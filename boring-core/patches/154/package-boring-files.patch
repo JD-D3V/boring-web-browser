@@ -36,7 +36,7 @@
 +NOTICES-regional-*.txt: %(VersionDir)s\
 +# boring: the en-US spelling dictionary, used when Windows has no
 +# English spelling data. DIR_APP_DICTIONARIES is beside chrome.dll.
-+Dictionaries\en-US-10-1.bdic: %(VersionDir)s\Dictionaries\
++Dictionaries\en-US-10-2.bdic: %(VersionDir)s\Dictionaries\
 +# boring: Chromium Web Store, installed into each profile from here.
 +# One line per folder: each line copies files into one folder.
 +boring\chromium-web-store\*.*: %(VersionDir)s\boring\chromium-web-store\
@@ -170,7 +170,7 @@
 +  },
 +  # boring: the en-US spelling dictionary.
 +  {
-+    'filename': 'Dictionaries/en-US-10-1.bdic',
++    'filename': 'Dictionaries/en-US-10-2.bdic',
 +    'buildtype': ['official'],
 +  },
 +  # boring: Chromium Web Store. Files only: the zip writer cannot take

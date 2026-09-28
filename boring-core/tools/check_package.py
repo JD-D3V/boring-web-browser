@@ -130,8 +130,29 @@ CORE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # The en-US Hunspell dictionary, so spelling works with no download.
 # In Dictionaries beside chrome.dll, which is DIR_APP_DICTIONARIES with
-# the spellcheck-dictionary-dir patch.
-DICTIONARY = "Dictionaries/en-US-10-1.bdic"
+# the spellcheck-dictionary-dir patch. Chromium renames it when it
+# updates it (en-US-10-1 in 153, en-US-10-2 in 154), so a package may
+# carry any en-US version, and DICTIONARY is the one the tree under
+# BORING_OUT builds, read from the same table the build reads (see
+# components/boring/notices/BUILD.gn).
+DICTIONARY_PATTERN = "Dictionaries/en-US-*.bdic"
+
+
+def tree_dictionary(out=None):
+    """Dictionaries/en-US-<version>.bdic, as the tree beside out names it."""
+    out = out or os.environ.get("BORING_OUT", r"E:\ung\build\src\out\Default")
+    table = os.path.join(
+        out, "..", "..", "components", "spellcheck", "common", "spellcheck_common.cc"
+    )
+    try:
+        with open(table, encoding="utf-8") as f:
+            match = re.search(r'\{"en-US", "(-[0-9-]+)"\}', f.read())
+    except OSError:
+        match = None
+    return f"Dictionaries/en-US{match.group(1) if match else '-10-1'}.bdic"
+
+
+DICTIONARY = tree_dictionary()
 
 # Chromium Web Store, installed into each profile from this folder. The
 # files and the version are the ones tools/get_chromium_web_store.py
@@ -198,7 +219,7 @@ def web_store_manifest_problem(data, expected_version):
 
 def check_feature_contents(relative, reader, report, label):
     """Reads the files whose content, not just presence, matters."""
-    if relative.lower() == DICTIONARY.lower():
+    if fnmatch.fnmatch(relative.lower(), DICTIONARY_PATTERN.lower()):
         problem = bdic_problem(reader())
         if problem:
             report.fail(f"[{label}] {relative}: {problem}")
@@ -380,9 +401,9 @@ def check_required_sets(present, report, label):
             report.fail(
                 f"[{label}] {wanted} is missing, so the package ships no notices"
             )
-    if DICTIONARY.lower() not in present_lower:
+    if not fnmatch.filter(present_lower, DICTIONARY_PATTERN.lower()):
         report.fail(
-            f"[{label}] {DICTIONARY} is missing, so spelling has no "
+            f"[{label}] {DICTIONARY_PATTERN} is missing, so spelling has no "
             "dictionary where Windows has no English spelling data"
         )
     version, web_store = web_store_expected()

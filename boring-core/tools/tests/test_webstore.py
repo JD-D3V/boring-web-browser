@@ -389,11 +389,27 @@ class CheckPackageFeatureTest(unittest.TestCase):
         report = check_package.Report()
         check_package.check_required_sets(set(), report, "empty")
         text = "\n".join(report.problems)
-        self.assertIn(check_package.DICTIONARY, text)
+        self.assertIn(check_package.DICTIONARY_PATTERN, text)
         self.assertIn("NOTICES-chromium-web-store.txt", text)
         self.assertIn("NOTICES-hunspell-en-US.txt", text)
         if check_package.web_store_expected()[1]:
             self.assertIn("Chromium Web Store file(s) missing", text)
+
+    def test_dictionary_name_follows_the_tree(self):
+        with tempfile.TemporaryDirectory() as src:
+            table = os.path.join(src, "components", "spellcheck", "common")
+            os.makedirs(table)
+            with open(os.path.join(table, "spellcheck_common.cc"), "w") as f:
+                f.write('      {"en-GB", "-10-1"},\n      {"en-US", "-10-2"},\n')
+            out = os.path.join(src, "out", "Default")
+            self.assertEqual(
+                check_package.tree_dictionary(out), "Dictionaries/en-US-10-2.bdic"
+            )
+        report = check_package.Report()
+        check_package.check_required_sets(
+            {"Dictionaries/en-US-10-2.bdic"}, report, "154"
+        )
+        self.assertFalse(any("spelling" in p for p in report.problems))
 
 
 class ExtensionInstallPatchTest(unittest.TestCase):

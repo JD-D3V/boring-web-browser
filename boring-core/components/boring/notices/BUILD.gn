@@ -87,7 +87,21 @@ if (is_official_build) {
 # (beside chrome.exe in the zip, the version folder once installed).
 # Not really a notice, but this is the one target components/boring/core
 # already pulls in as data.
+#
+# The file name changes with Chromium (en-US-10-1 in 153, en-US-10-2 in
+# 154), so it is read from the table Chromium loads it by, the
+# {"en-US", "-10-2"} line in spellcheck_common.cc, rather than written
+# down here.
+_spellcheck_versions =
+    filter_include(read_file("//components/spellcheck/common/spellcheck_common.cc",
+                             "list lines"),
+                   [ "*{\"en-US\", \"-*\"},*" ])
+assert(_spellcheck_versions != [],
+       "no en-US dictionary version in spellcheck_common.cc")
+_en_us_fields = string_split(_spellcheck_versions[0], "\"")
+_en_us_bdic = "en-US" + _en_us_fields[3] + ".bdic"
+
 copy("hunspell_en_us") {
-  sources = [ "//third_party/hunspell_dictionaries/en-US-10-1.bdic" ]
-  outputs = [ "$root_out_dir/Dictionaries/en-US-10-1.bdic" ]
+  sources = [ "//third_party/hunspell_dictionaries/$_en_us_bdic" ]
+  outputs = [ "$root_out_dir/Dictionaries/$_en_us_bdic" ]
 }
