@@ -106,9 +106,8 @@ LocationBarView* BarForPage(content::WebContents* page) {
   }
   BrowserWindowInterface* window =
       GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(page);
-  Browser* browser = window ? window->GetBrowserForMigrationOnly() : nullptr;
   BrowserView* view =
-      browser ? BrowserView::GetBrowserViewForBrowser(browser) : nullptr;
+      window ? BrowserView::GetBrowserViewForBrowser(window) : nullptr;
   return view ? view->GetLocationBarView() : nullptr;
 }
 
