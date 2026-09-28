@@ -159,7 +159,7 @@ def main():
         b.get("chrome://settings/searchEngines")
         time.sleep(3)
         text = b.run(DEEP_TEXT)
-        # "No Search" is still offered in the list, just not as the default.
+        # Google is offered in the list too, just not as the default.
         default = "DuckDuckGo (Default)" in text
         print("DuckDuckGo is the default engine:", default)
         if not default:

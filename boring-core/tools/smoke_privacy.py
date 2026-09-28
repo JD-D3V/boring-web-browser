@@ -15,8 +15,8 @@ and one on localhost, which the browser treats as two different sites.
                 hidden, dangerous sites blocked through Quad9, and the
                 updater honestly off in a build without an update key
   search        the new tab page lists the browser's search engines and
-                choosing one makes it the default; with search turned off
-                in settings ("No Search") it says so and still offers them
+                choosing one makes it the default; Google is offered but
+                is not the default, and choosing it in settings works
 
 Quad9 itself is not contacted: the check reads what the browser's own
 settings say, which is what decides where DNS goes.
@@ -297,41 +297,34 @@ def newtab_search_state(b):
     )
 
 
-def check_search_off(profile, failures):
-    """No Search in settings: the new tab page says search is off, still
-    lists real engines to choose from, and choosing one works."""
+def check_google(profile, failures):
+    """Google is offered (google-search.patch), is not the default, and
+    choosing it in settings makes the new tab page search with it."""
     with Browser(user_data_dir=profile) as b:
-        chosen = choose_in_settings(b, "No Search")
-        print("chose in settings:", repr(chosen))
-        if chosen != "No Search":
-            failures.append(f"could not choose No Search in settings: {chosen!r}")
-            return
-        time.sleep(1)
         b.get("chrome://boring-newtab")
         wait_for(b, "return document.querySelectorAll('#engines button').length >= 2")
         state = newtab_search_state(b)
-        print("new tab with search off:", state)
-        if len(state["engines"]) < 2 or not state["shown"]:
-            failures.append(f"with search off the new tab page is empty: {state}")
+        print("new tab engines:", state["engines"])
+        if "Google" not in state["engines"]:
+            failures.append(f"Google is not offered: {state['engines']}")
             return
         if "No Search" in state["engines"]:
             failures.append("the new tab page offers No Search as an engine")
-        if not state["disabled"] or "Search is off" not in state["placeholder"]:
-            failures.append(f"the new tab page does not say search is off: {state}")
-        pick = state["engines"][0]
-        b.run(
-            "var want = arguments[0];"
-            "Array.from(document.querySelectorAll('#engines button')).find("
-            "  function(x) { return x.textContent.slice(1) === want; }).click();",
-            [pick],
-        )
+        if "Google" in state["placeholder"]:
+            failures.append(f"Google is the default engine: {state['placeholder']}")
+        chosen = choose_in_settings(b, "Google")
+        print("chose in settings:", repr(chosen))
+        if chosen != "Google":
+            failures.append(f"could not choose Google in settings: {chosen!r}")
+            return
+        time.sleep(1)
+        b.get("chrome://boring-newtab")
         after = wait_for(
-            b,
-            f"return document.getElementById('q').placeholder === 'Search {pick}'",
+            b, "return document.getElementById('q').placeholder === 'Search Google'"
         )
-        print(f"search off -> chose {pick!r}: {bool(after)}")
+        print(f"chose Google -> new tab searches Google: {bool(after)}")
         if not after:
-            failures.append(f"with search off, choosing {pick!r} did not work")
+            failures.append("choosing Google in settings did not reach the new tab")
 
 
 def check_search(profile, failures):
@@ -384,7 +377,7 @@ def main():
             check_tracking(profile, a, b_origin, failures)
             check_fingerprint(profile, a, failures)
             check_search(profile, failures)
-            check_search_off(profile, failures)
+            check_google(profile, failures)
         finally:
             for server in servers:
                 server.shutdown()

@@ -17,6 +17,7 @@ ai-webui-config.patch
 protection-menu.patch
 frame-color.patch
 default-search.patch
+google-search.patch
 newtab-default.patch
 welcome-first-run.patch
 settings-menu-links.patch
