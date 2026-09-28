@@ -49,7 +49,7 @@ LISTS = {
     ),
     "aggressive-fanboy.txt": (
         "[Adblock Plus 2.0]\n! Title: boring aggressive smoke test, social\n"
-        f"||{THIRD_PARTY}/share-widget.js^$script\n"
+        f"||{THIRD_PARTY}^*/share-widget.js$script\n"
     ),
 }
 
@@ -84,9 +84,7 @@ def widget(b, pages):
 
 def main():
     check = Checks()
-    pages = Pages(
-        {"/page.html": (PAGE, HTML), "/share-widget.js": (WIDGET, JS)}
-    )
+    pages = Pages({"/page.html": (PAGE, HTML), "/share-widget.js": (WIDGET, JS)})
     page = pages.url(TEST_SITE, "/page.html")
     try:
         with (

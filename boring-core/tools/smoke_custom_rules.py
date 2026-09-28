@@ -43,7 +43,7 @@ LISTS = {
         "[Adblock Plus 2.0]\n! Title: boring custom rules smoke test\n"
         "##.boring-control-ad\n"
         f"{TEST_SITE}##.boring-listed\n"
-        f"||{THIRD_PARTY}/tracker.js^$script\n"
+        f"||{THIRD_PARTY}^*/tracker.js$script\n"
     ),
     "ubo.txt": "! Title: boring custom rules smoke test, nothing here\n",
     "cookies.txt": "! Title: boring custom rules smoke test, no cookie rules\n",
@@ -53,7 +53,7 @@ HIDE_RULES = f"! mine\n{TEST_SITE}##.boring-mine\n"
 EXCEPTION_RULES = (
     f"{TEST_SITE}##.boring-mine\n"
     f"{TEST_SITE}#@#.boring-listed\n"
-    f"@@||{THIRD_PARTY}/tracker.js^$script\n"
+    f"@@||{THIRD_PARTY}^*/tracker.js$script\n"
 )
 
 PAGE = """<!doctype html>
@@ -96,9 +96,7 @@ def reload_until(b, page, condition, tries=10):
 
 def main():
     check = Checks()
-    pages = Pages(
-        {"/page.html": (PAGE, HTML), "/tracker.js": ("window.t = 1;\n", JS)}
-    )
+    pages = Pages({"/page.html": (PAGE, HTML), "/tracker.js": ("window.t = 1;\n", JS)})
     page = pages.url(TEST_SITE, "/page.html")
     try:
         with (
@@ -130,9 +128,7 @@ def main():
                     "the list still hides its element",
                     b.run(f"return {hidden_expr('.boring-listed')}"),
                 )
-                check(
-                    "the article stays", b.run(f"return {shown_expr('#content')}")
-                )
+                check("the article stays", b.run(f"return {shown_expr('#content')}"))
 
             set_profile_pref(profile, PREF, EXCEPTION_RULES)
             with Browser(user_data_dir=profile, args=args) as b:
