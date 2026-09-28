@@ -38,7 +38,14 @@ constexpr char kScamFile[] = "scamlist.txt";
 constexpr char kUboFile[] = "ubo.txt";
 constexpr char kCookiesFile[] = "cookies.txt";
 constexpr char kResourcesFile[] = "resources.json";
+constexpr char kAggressiveUboFile[] = "aggressive-ubo.txt";
+constexpr char kAggressiveFanboyFile[] = "aggressive-fanboy.txt";
 constexpr char kRegionalIndexFile[] = "index.json";
+
+// How regional files are named in a list update manifest.
+constexpr std::string_view kRegionalBundlePrefix = "regional-";
+constexpr std::string_view kRegionalBundleSuffix = ".txt";
+constexpr char kRegionalIndexBundleName[] = "regional-index.json";
 
 // The index is about a kilobyte. This is what we refuse to read, not
 // what we expect.
@@ -91,6 +98,10 @@ const char* ListFileName(ListKind kind) {
       return kCookiesFile;
     case ListKind::kResources:
       return kResourcesFile;
+    case ListKind::kAggressiveUbo:
+      return kAggressiveUboFile;
+    case ListKind::kAggressiveFanboy:
+      return kAggressiveFanboyFile;
   }
   NOTREACHED();
 }
@@ -168,9 +179,39 @@ base::FilePath GetRegionalListPath(std::string_view id) {
 }
 
 base::FilePath GetRegionalIndexPath() {
-  const base::FilePath dir = ShippedDir();
-  return dir.empty() ? base::FilePath()
-                     : dir.Append(kRegionalDir).AppendASCII(kRegionalIndexFile);
+  const base::FilePath shipped = ShippedDir();
+  const base::FilePath downloaded = GetDownloadedListDir();
+  return NewestOf(
+      shipped.empty()
+          ? base::FilePath()
+          : shipped.Append(kRegionalDir).AppendASCII(kRegionalIndexFile),
+      downloaded.empty()
+          ? base::FilePath()
+          : downloaded.Append(kRegionalDir).AppendASCII(kRegionalIndexFile));
+}
+
+std::optional<base::FilePath> GetDownloadTarget(std::string_view name) {
+  if (const std::optional<ListKind> kind = ListKindFromName(name)) {
+    if (*kind == ListKind::kResources) {
+      return std::nullopt;
+    }
+    return base::FilePath().AppendASCII(name);
+  }
+  if (name == kRegionalIndexBundleName) {
+    return base::FilePath(kRegionalDir).AppendASCII(kRegionalIndexFile);
+  }
+  if (name.starts_with(kRegionalBundlePrefix) &&
+      name.ends_with(kRegionalBundleSuffix)) {
+    const std::string_view id =
+        name.substr(kRegionalBundlePrefix.size(),
+                    name.size() - kRegionalBundlePrefix.size() -
+                        kRegionalBundleSuffix.size());
+    if (IsValidRegionalListId(id)) {
+      return base::FilePath(kRegionalDir)
+          .AppendASCII(base::StrCat({id, kRegionalBundleSuffix}));
+    }
+  }
+  return std::nullopt;
 }
 
 RegionalListInfo::RegionalListInfo() = default;

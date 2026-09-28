@@ -1,0 +1,94 @@
+diff --git a/chrome/browser/performance_manager/BUILD.gn b/chrome/browser/performance_manager/BUILD.gn
+--- a/chrome/browser/performance_manager/BUILD.gn
++++ b/chrome/browser/performance_manager/BUILD.gn
+@@ -176,6 +176,7 @@ source_set("impl") {
+     "//chrome/browser/ui/browser_window",
+     "//chrome/common:buildflags",
+     "//chrome/common:chrome_features",
++    "//components/boring/performance",
+     "//components/favicon/content",
+     "//components/guest_view/browser",
+     "//components/guest_view/buildflags",
+diff --git a/chrome/browser/performance_manager/chrome_browser_main_extra_parts_performance_manager.cc b/chrome/browser/performance_manager/chrome_browser_main_extra_parts_performance_manager.cc
+--- a/chrome/browser/performance_manager/chrome_browser_main_extra_parts_performance_manager.cc
++++ b/chrome/browser/performance_manager/chrome_browser_main_extra_parts_performance_manager.cc
+@@ -90,6 +90,7 @@
+ #include "chrome/browser/performance_manager/public/user_tuning/user_performance_tuning_manager.h"
+ #include "chrome/browser/performance_manager/user_tuning/user_performance_tuning_notifier.h"
+ #include "chrome/browser/tab_contents/form_interaction_tab_helper.h"
++#include "components/boring/performance/idle_tab_freezer.h"
+ #include "components/performance_manager/freezing/freezer.h"
+ #include "components/performance_manager/freezing/freezing_policy.h"
+ #include "components/performance_manager/public/freezing/freezing.h"
+@@ -240,6 +241,8 @@ void ChromeBrowserMainExtraPartsPerformanceManager::CreatePoliciesAndDecorators(
+   graph->PassToGraph(std::make_unique<performance_manager::FreezingPolicy>(
+       std::make_unique<FreezingDiscarder>(),
+       std::move(freezing_opt_out_checker)));
++  // boring: freeze tabs left in the background for a few minutes.
++  graph->PassToGraph(std::make_unique<boring::performance::IdleTabFreezer>());
+ 
+   graph->PassToGraph(
+       std::make_unique<performance_manager::policies::MemorySaverModePolicy>());
+diff --git a/chrome/browser/performance_manager/policies/discard_eligibility_policy.cc b/chrome/browser/performance_manager/policies/discard_eligibility_policy.cc
+--- a/chrome/browser/performance_manager/policies/discard_eligibility_policy.cc
++++ b/chrome/browser/performance_manager/policies/discard_eligibility_policy.cc
+@@ -10,6 +10,7 @@
+ #include "chrome/browser/glic/public/glic_keyed_service_factory.h"
+ #include "chrome/browser/glic/public/service/glic_instance_coordinator.h"
+ #include "chrome/common/buildflags.h"
++#include "components/boring/performance/tab_activity.h"
+ #include "components/performance_manager/graph/page_node_impl.h"
+ #include "components/performance_manager/public/decorators/page_live_state_decorator.h"
+ #include "components/performance_manager/public/graph/node_data_describer_registry.h"
+@@ -440,6 +441,14 @@ DiscardEligibilityPolicy::CanDiscardWithCustomRecentVisibilityWindow(
+                                  CanDiscardResult::kProtected);
+   }
+ 
++  // boring: a call, a playing video or a running download is in use even
++  // from a background tab.
++  if (page_node->UsesWebRTC() || boring::performance::IsBusyInBackground(
++                                     page_node->GetWebContents().get())) {
++    add_reason_and_update_result(CannotDiscardReason::kBackgroundActivity,
++                                 CanDiscardResult::kProtected);
++  }
++
+   // Record metrics regarding the discard decision.
+   // If |cannot_discard_reasons| is null, the caller isn't interested in the
+   // specific reasons, so pass an empty vector to the metrics helper.
+diff --git a/chrome/browser/performance_manager/user_tuning/profile_discard_opt_out_list_helper.cc b/chrome/browser/performance_manager/user_tuning/profile_discard_opt_out_list_helper.cc
+--- a/chrome/browser/performance_manager/user_tuning/profile_discard_opt_out_list_helper.cc
++++ b/chrome/browser/performance_manager/user_tuning/profile_discard_opt_out_list_helper.cc
+@@ -11,6 +11,8 @@
+ #include "base/values.h"
+ #include "chrome/browser/performance_manager/policies/discard_eligibility_policy.h"
+ #include "chrome/browser/profiles/profile.h"
++#include "components/boring/core/boring_prefs.h"
++#include "components/boring/performance/never_sleep_sites.h"
+ #include "components/performance_manager/public/features.h"
+ #include "components/performance_manager/public/performance_manager.h"
+ #include "components/performance_manager/public/user_tuning/prefs.h"
+@@ -62,6 +64,14 @@ ProfileDiscardOptOutListHelper::ProfileDiscardOptOutTracker::
+       base::BindRepeating(&ProfileDiscardOptOutListHelper::
+                               ProfileDiscardOptOutTracker::OnOptOutListChanged,
+                           base::Unretained(this)));
++  // boring: the sites the person keeps awake from the shield or the
++  // Memory section. With kFreezingFollowsDiscardOptOut this also stops
++  // them being frozen.
++  pref_change_registrar_.Add(
++      boring::prefs::kBoringNeverSleepSites,
++      base::BindRepeating(&ProfileDiscardOptOutListHelper::
++                              ProfileDiscardOptOutTracker::OnOptOutListChanged,
++                          base::Unretained(this)));
+   // Trigger a first update so the list reflects the initial pref value.
+   OnOptOutListChanged();
+ }
+@@ -94,6 +104,9 @@ void ProfileDiscardOptOutListHelper::ProfileDiscardOptOutTracker::
+   std::ranges::transform(
+       managed_value_list, std::back_inserter(patterns),
+       [](const auto& managed_value) { return managed_value.GetString(); });
++  std::ranges::move(boring::performance::GetNeverSleepPatterns(
++                        pref_change_registrar_.prefs()),
++                    std::back_inserter(patterns));
+ 
+   delegate_->SetPatterns(browser_context_id_, patterns);
+ }

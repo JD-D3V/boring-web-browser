@@ -3,16 +3,20 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_TOOLBAR_BORING_PROTECTION_BUTTON_H_
 #define CHROME_BROWSER_UI_VIEWS_TOOLBAR_BORING_PROTECTION_BUTTON_H_
 
+#include <memory>
 #include <string>
 
 #include "base/callback_list.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/timer/timer.h"
+#include "chrome/browser/ui/views/boring/boring_popup.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_button.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "ui/base/metadata/metadata_header_macros.h"
-#include "ui/menus/simple_menu_model.h"
+#include "ui/views/widget/widget.h"
+#include "url/gurl.h"
 
 class BrowserWindowInterface;
 
@@ -20,15 +24,20 @@ namespace ui {
 class Event;
 }
 
+namespace views {
+class BubbleDialogDelegate;
+class ToggleButton;
+}  // namespace views
+
 // The shield in the toolbar. It says whether scam and ad blocking are
 // really running, without being asked, and grows a "Needs attention"
 // label when a list did not load, or "Blocking off" on a site where the
-// person turned it off. Pressing it on a web page opens a short menu to
-// turn blocking off or back on for that site, or open the Protection
-// page; anywhere else it opens the Protection page.
+// person turned it off. Pressing it on a web page opens a short panel:
+// Aggressive blocking, Never sleep this site, turn blocking off or back
+// on for the site, Block this element, and Open Protection. Anywhere
+// else it opens the Protection page.
 class BoringProtectionButton : public ToolbarButton,
-                               public content::WebContentsObserver,
-                               public ui::SimpleMenuModel::Delegate {
+                               public content::WebContentsObserver {
   METADATA_HEADER(BoringProtectionButton, ToolbarButton)
 
  public:
@@ -44,13 +53,6 @@ class BoringProtectionButton : public ToolbarButton,
 
   // content::WebContentsObserver:
   void PrimaryPageChanged(content::Page& page) override;
-
-  // ui::SimpleMenuModel::Delegate:
-  void ExecuteCommand(int command_id, int event_flags) override;
-
- protected:
-  // ToolbarButton, also reached by a right click:
-  void ShowDropDownMenu(ui::mojom::MenuSourceType source_type) override;
 
  private:
   // What the shield is currently saying.
@@ -77,8 +79,18 @@ class BoringProtectionButton : public ToolbarButton,
   std::string CurrentSite() const;
   bool IsOffHere() const;
 
-  // The menu, owned by ToolbarButton so it outlives an open menu.
-  ui::SimpleMenuModel* site_menu();
+  // The panel.
+  void ShowPanel();
+  void ClosePanel();
+  void OnPanelCloseRequested(views::Widget::ClosedReason reason);
+  void OnPanelClosed();
+  void OnAggressiveToggled();
+  void OnNeverSleepToggled();
+  void OnToggleSite();
+  void OnBlockElement();
+  void OnOpenProtection();
+  // Reloads the page the panel is about, when it still shows that site.
+  void ReloadPanelSite();
 
   const raw_ptr<BrowserWindowInterface> browser_;
   State state_ = State::kLoading;
@@ -87,9 +99,18 @@ class BoringProtectionButton : public ToolbarButton,
   // Repaints when a site is added or removed anywhere, the Protection
   // page or another window included.
   PrefChangeRegistrar pref_change_registrar_;
-  // The site the open menu is about, so a choice acts on the site that
-  // was shown even if the tab moves on while the menu is open.
-  std::string menu_site_;
+  // The site the open panel is about, so a choice acts on the site that
+  // was shown even if the tab moves on while the panel is open.
+  std::string panel_site_;
+  GURL panel_url_;
+  raw_ptr<views::ToggleButton> aggressive_ = nullptr;
+  raw_ptr<views::ToggleButton> never_sleep_ = nullptr;
+
+  // The delegate must outlive the widget: declared first, destroyed last.
+  std::unique_ptr<views::BubbleDialogDelegate> panel_delegate_;
+  std::unique_ptr<views::Widget> panel_;
+  boring_ui::PopupMotion panel_motion_{boring_ui::PopupMotion::Style::kDrop};
+  base::WeakPtrFactory<BoringProtectionButton> weak_factory_{this};
 };
 
 #endif  // CHROME_BROWSER_UI_VIEWS_TOOLBAR_BORING_PROTECTION_BUTTON_H_

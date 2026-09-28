@@ -17,12 +17,15 @@
 #include "base/values.h"
 #include "components/boring/adblock/adblock_service.h"
 #include "components/boring/adblock/blocking_off_sites.h"
+#include "components/boring/adblock/custom_rules.h"
 #include "components/boring/branding/brand_mark.h"
 #include "components/boring/core/boring_capabilities.h"
 #include "components/boring/core/boring_prefs.h"
 #include "components/boring/lists/list_paths.h"
 #include "components/boring/lists/list_updater.h"
+#include "components/boring/performance/never_sleep_sites.h"
 #include "components/boring/privacy/privacy_state.h"
+#include "components/boring/protection/memory_saver.h"
 #include "components/boring/scam/scam_service.h"
 #include "components/boring/update/browser_updater.h"
 #include "components/prefs/pref_change_registrar.h"
@@ -40,6 +43,7 @@
 #include "extensions/browser/extension_registry_observer.h"
 #include "extensions/browser/unloaded_extension_reason.h"
 #include "extensions/common/extension.h"
+#include "url/gurl.h"
 
 namespace boring {
 
@@ -96,10 +100,14 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
             width: 40px; height: 24px; border-radius: 16px;
             border: 1px solid var(--field); background: var(--field);
             cursor: pointer; }
+  /* 180 ms, eased: the knob settles rather than snaps. */
+  .switch { transition: background-color 180ms ease,
+                        border-color 180ms ease; }
   .switch::before { content: ""; position: absolute; left: 3px; top: 3px;
                     width: 16px; height: 16px; border-radius: 50%;
                     background: var(--paper);
-                    transition: transform 120ms ease; }
+                    transition: transform 180ms cubic-bezier(0.2, 0, 0, 1),
+                                background-color 180ms ease; }
   .switch:checked { background: var(--accent); border-color: var(--accent); }
   .switch:checked::before { transform: translateX(16px);
                             background: var(--surface); }
@@ -138,13 +146,33 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   /* Real checkboxes, sized up and drawn in the page's accent. */
   .check-row input { width: 18px; height: 18px; margin: 0; flex: none;
                      accent-color: var(--accent); cursor: pointer; }
+  h2.section { font-size: 1.3em; font-weight: 550; letter-spacing: -0.02em;
+               margin: 2em 0 0.2em; }
+  .choice { border: none; border-top: 1px solid var(--line); margin: 0;
+            padding: 18px 0 10px; min-width: 0; }
+  .choice legend { float: left; width: 100%; padding: 0; font-size: 14px;
+                   font-weight: 600; margin-bottom: 8px; }
+  .choice > label { clear: both; }
+  .check-row input[type="radio"] { border-radius: 50%; }
+  .choice:disabled .check-row { opacity: 0.55; cursor: not-allowed; }
+  .filters label strong { font-size: 14px; font-weight: 600; }
+  .filters textarea { display: block; width: 100%; margin-top: 10px;
+                      min-height: 8em; resize: vertical; padding: 10px 12px;
+                      border: 1px solid var(--field); border-radius: 8px;
+                      background: var(--paper); color: var(--ink);
+                      font: 13px/1.5 Consolas, "Cascadia Mono", monospace; }
+  .problem-list { margin: 8px 0 0; padding: 0; list-style: none;
+                  font-size: 12px; }
+  .problem-list li { padding: 4px 0; color: var(--warning); }
+  .problem-list code { font: 12px Consolas, "Cascadia Mono", monospace;
+                       color: var(--ink); overflow-wrap: anywhere; }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden;
              clip-path: inset(50%); white-space: nowrap; }
   @media (prefers-reduced-motion: reduce) {
-    .switch::before { transition: none; }
+    .switch, .switch::before { transition: none; }
   }
   @media (forced-colors: active) {
-    button, input, select { border: 1px solid ButtonText; }
+    button, input, select, textarea { border: 1px solid ButtonText; }
     .primary { background: Highlight; color: HighlightText; }
     .switch { appearance: auto; width: auto; height: auto; }
     .switch::before { display: none; }
@@ -216,6 +244,30 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
     <div id="regional-lists"></div>
   </fieldset>
 
+  <fieldset class="choice" id="level-choice">
+    <legend>Blocking level</legend>
+    <label class="check-row"><input type="radio" name="level" value="0"
+        id="level-standard"> Standard</label>
+    <label class="check-row"><input type="radio" name="level" value="1"
+        id="level-aggressive"> Aggressive</label>
+  </fieldset>
+
+  <div class="state-row filters">
+    <label for="my-filters"><strong>My filters</strong></label>
+    <p id="my-filters-desc">One rule per line, as in uBlock Origin.</p>
+    <textarea id="my-filters" rows="6" spellcheck="false"
+        autocomplete="off" aria-describedby="my-filters-desc"></textarea>
+    <div class="actions">
+      <button class="secondary" id="save-filters">Save</button>
+    </div>
+    <p id="my-filters-status" role="status"></p>
+    <div id="filter-problems" hidden>
+      <strong id="filter-problems-title">Not used</strong>
+      <ul class="problem-list" id="filter-problems-list"
+          aria-labelledby="filter-problems-title"></ul>
+    </div>
+  </div>
+
   <div class="state-row">
     <div class="state-line"><strong>Browser updates</strong>
       <span class="state-value loading" id="update-state">Starting</span></div>
@@ -274,6 +326,29 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
       <button class="primary" id="keep-on">Keep it on</button>
       <button class="secondary" id="turn-off">Turn it off</button>
     </div>
+  </div>
+
+  <h2 class="section">Memory</h2>
+  <label class="setting-row" for="memory-saver" id="memory-saver-row">
+    <span><strong>Memory Saver</strong>
+      <p id="memory-saver-desc">Tabs you have not used for a while sleep
+      to free memory.</p></span>
+    <input class="switch" type="checkbox" id="memory-saver">
+  </label>
+  <fieldset class="choice" id="memory-level">
+    <legend>Memory Saver level</legend>
+    <label class="check-row"><input type="radio" name="memory-level"
+        value="0" id="memory-moderate"> Moderate</label>
+    <label class="check-row"><input type="radio" name="memory-level"
+        value="1" id="memory-balanced"> Balanced</label>
+    <label class="check-row"><input type="radio" name="memory-level"
+        value="2" id="memory-maximum"> Maximum</label>
+  </fieldset>
+  <div class="state-row">
+    <div class="state-line"><strong>Never sleep</strong>
+      <span class="state-value" id="never-sleep-state">None</span></div>
+    <p>Add a site from the shield in the toolbar.</p>
+    <ul class="site-list" id="never-sleep" aria-label="Sites that never sleep"></ul>
   </div>
 
   <div id="status" class="sr-only" role="status"></div>
@@ -458,6 +533,71 @@ function showRegional(lists, chosen) {
   });
 }
 
+function showLevel(level) {
+  el('level-standard').checked = level !== 1;
+  el('level-aggressive').checked = level === 1;
+}
+
+// The box is filled from the profile once, and again after a save, so
+// a refresh of the rest of the page never overwrites typing.
+var filtersLoaded = false;
+
+function showFilterProblems(problems) {
+  var list = el('filter-problems-list');
+  list.textContent = '';
+  problems.forEach(function(problem) {
+    var item = document.createElement('li');
+    var rule = document.createElement('code');
+    rule.textContent = problem.rule;
+    item.append('Line ' + problem.line + ': ', rule,
+                problem.error ? ' (' + problem.error + ')' : '');
+    list.append(item);
+  });
+  el('filter-problems').hidden = problems.length === 0;
+  el('my-filters-status').textContent = problems.length === 0 ? 'Saved.' :
+      problems.length === 1 ? 'Saved. 1 line not used.' :
+      'Saved. ' + problems.length + ' lines not used.';
+}
+
+function showMemory(m) {
+  var on = el('memory-saver');
+  on.checked = m.on;
+  on.disabled = !m.available || m.managed;
+  el('memory-saver-desc').textContent = m.managed ?
+      'Set by your organisation.' :
+      'Tabs you have not used for a while sleep to free memory.';
+  var names = ['memory-moderate', 'memory-balanced', 'memory-maximum'];
+  names.forEach(function(id, level) {
+    el(id).checked = m.level === level;
+  });
+  el('memory-level').disabled = !m.available || m.managed || !m.on;
+}
+
+// Sites whose tabs never sleep, each with a Remove button. Rebuilt from
+// the profile's own list every time.
+function showNeverSleep(sites) {
+  var list = el('never-sleep');
+  list.textContent = '';
+  el('never-sleep-state').textContent = sites.length === 0 ? 'None' :
+      sites.length === 1 ? '1 site' : sites.length + ' sites';
+  sites.forEach(function(site) {
+    var item = document.createElement('li');
+    var name = document.createElement('span');
+    name.textContent = site;
+    var remove = document.createElement('button');
+    remove.className = 'secondary';
+    remove.textContent = 'Remove';
+    remove.setAttribute('aria-label', 'Remove ' + site);
+    remove.dataset.site = site;
+    remove.addEventListener('click', function() {
+      chrome.send('setNeverSleep', [site, false]);
+      say(site + ' can sleep again.');
+    });
+    item.append(name, remove);
+    list.append(item);
+  });
+}
+
 var pollTimer = null;
 
 function load(s) {
@@ -502,6 +642,13 @@ function load(s) {
   el('fingerprint').checked = s.fingerprint;
   el('strip-params').checked = s.stripParams;
   showUpdates(s.update, s.updateAuto, s.version);
+  showLevel(s.level);
+  if (!filtersLoaded) {
+    el('my-filters').value = s.customRules;
+    filtersLoaded = true;
+  }
+  showMemory(s.memory);
+  showNeverSleep(s.neverSleep);
 
   var senior = el('senior');
   senior.checked = s.senior;
@@ -591,12 +738,52 @@ el('hide-cookies').addEventListener('change', function(e) {
   say(e.target.checked ? 'Cookie notices hidden.' : 'Cookie notices shown.');
 });
 
+document.querySelectorAll('input[name="level"]').forEach(function(radio) {
+  radio.addEventListener('change', function(e) {
+    var aggressive = e.target.value === '1';
+    chrome.send('setBlockingLevel', [aggressive ? 1 : 0]);
+    say(aggressive ? 'Aggressive blocking on.' : 'Standard blocking on.');
+  });
+});
+
+el('save-filters').addEventListener('click', function() {
+  el('my-filters-status').textContent = 'Saving.';
+  chrome.send('setCustomRules', [el('my-filters').value]);
+});
+
+el('memory-saver').addEventListener('change', function(e) {
+  chrome.send('setMemorySaver', [e.target.checked]);
+  say(e.target.checked ? 'Memory Saver on.' : 'Memory Saver off.');
+});
+
+document.querySelectorAll('input[name="memory-level"]').forEach(
+    function(radio) {
+  radio.addEventListener('change', function(e) {
+    chrome.send('setMemorySaverLevel', [Number(e.target.value)]);
+  });
+});
+
 window.loadProtection = load;
+window.showLevel = showLevel;
+window.showFilterProblems = showFilterProblems;
+window.showNeverSleep = showNeverSleep;
 window.showRegional = showRegional;
 window.showOffSites = showOffSites;
 window.showWebStore = showWebStore;
 chrome.send('getProtection');
 )SCRIPT";
+
+// My filters is a text box, not a file; far more than anyone types.
+constexpr size_t kMaxCustomRulesLength = 256 * 1024;
+
+base::DictValue MemoryDict() {
+  const MemorySaverState state = GetMemorySaverState();
+  return base::DictValue()
+      .Set("available", state.available)
+      .Set("on", state.on)
+      .Set("level", static_cast<int>(state.level))
+      .Set("managed", state.managed);
+}
 
 const char* UpdateStateName(BrowserUpdater::State state) {
   switch (state) {
@@ -686,6 +873,27 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
         "setSiteBlocking",
         base::BindRepeating(&ProtectionMessageHandler::HandleSetSiteBlocking,
                             base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "setBlockingLevel",
+        base::BindRepeating(&ProtectionMessageHandler::HandleSetBlockingLevel,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "setCustomRules",
+        base::BindRepeating(&ProtectionMessageHandler::HandleSetCustomRules,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "setMemorySaver",
+        base::BindRepeating(&ProtectionMessageHandler::HandleSetMemorySaver,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "setMemorySaverLevel",
+        base::BindRepeating(
+            &ProtectionMessageHandler::HandleSetMemorySaverLevel,
+            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "setNeverSleep",
+        base::BindRepeating(&ProtectionMessageHandler::HandleSetNeverSleep,
+                            base::Unretained(this)));
   }
 
   // The list of sites can change from the shield while this page is
@@ -703,6 +911,14 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     registrar_.Add(prefs::kBoringRegionalLists,
                    base::BindRepeating(&ProtectionMessageHandler::SendRegional,
                                        base::Unretained(this)));
+    // Both also change from the shield in any window.
+    registrar_.Add(prefs::kBoringBlockingLevel,
+                   base::BindRepeating(&ProtectionMessageHandler::SendLevel,
+                                       base::Unretained(this)));
+    registrar_.Add(
+        prefs::kBoringNeverSleepSites,
+        base::BindRepeating(&ProtectionMessageHandler::SendNeverSleep,
+                            base::Unretained(this)));
     if (extensions::ExtensionRegistry* registry = GetExtensionRegistry()) {
       extensions_observation_.Observe(registry);
     }
@@ -799,6 +1015,35 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
         IsJavascriptAllowed()) {
       web_ui()->CallJavascriptFunctionUnsafe("showWebStore",
                                              base::Value(WebStoreState()));
+    }
+  }
+
+  base::ListValue NeverSleepSites() {
+    base::ListValue sites;
+    if (PrefService* prefs = GetPrefs()) {
+      for (const base::Value& site :
+           prefs->GetList(prefs::kBoringNeverSleepSites)) {
+        if (site.is_string()) {
+          sites.Append(site.GetString());
+        }
+      }
+    }
+    return sites;
+  }
+
+  void SendNeverSleep() {
+    if (IsJavascriptAllowed()) {
+      web_ui()->CallJavascriptFunctionUnsafe("showNeverSleep",
+                                             NeverSleepSites());
+    }
+  }
+
+  void SendLevel() {
+    PrefService* prefs = GetPrefs();
+    if (prefs && IsJavascriptAllowed()) {
+      web_ui()->CallJavascriptFunctionUnsafe(
+          "showLevel",
+          base::Value(prefs->GetInteger(prefs::kBoringBlockingLevel)));
     }
   }
 
@@ -913,6 +1158,12 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     out.Set("update", UpdateStateName(BrowserUpdater::GetState()));
     out.Set("updateAuto", BrowserUpdater::IsAutomatic());
     out.Set("version", BrowserUpdater::BuildVersion());
+    out.Set("level",
+            prefs ? prefs->GetInteger(prefs::kBoringBlockingLevel) : 0);
+    out.Set("customRules", prefs ? prefs->GetString(prefs::kBoringCustomRules)
+                                 : std::string());
+    out.Set("memory", MemoryDict());
+    out.Set("neverSleep", NeverSleepSites());
     AllowJavascript();
     web_ui()->CallJavascriptFunctionUnsafe("loadProtection", out);
     LoadRegionalIndex();
@@ -1015,6 +1266,82 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     // The pref observer repaints the list; this covers a request that
     // changed nothing.
     SendOffSites();
+  }
+
+  // [0 or 1]. The pref observer repaints.
+  void HandleSetBlockingLevel(const base::ListValue& args) {
+    PrefService* prefs = GetPrefs();
+    if (prefs && args.size() == 1 && args[0].is_int() &&
+        (args[0].GetInt() == 0 || args[0].GetInt() == 1)) {
+      prefs->SetInteger(prefs::kBoringBlockingLevel, args[0].GetInt());
+    }
+    SendLevel();
+  }
+
+  // [text]. Saved as typed, applied at once, then checked off the UI
+  // thread so the page can list the lines the engine will not use.
+  void HandleSetCustomRules(const base::ListValue& args) {
+    PrefService* prefs = GetPrefs();
+    if (!prefs || args.size() != 1 || !args[0].is_string() ||
+        args[0].GetString().size() > kMaxCustomRulesLength) {
+      return;
+    }
+    const std::string text = args[0].GetString();
+    prefs->SetString(prefs::kBoringCustomRules, text);
+    ApplyCustomRules(web_ui()->GetWebContents()->GetBrowserContext());
+    base::ThreadPool::PostTaskAndReplyWithResult(
+        FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
+        base::BindOnce(
+            [](const std::string& rules) { return CheckCustomRules(rules); },
+            text),
+        base::BindOnce(&ProtectionMessageHandler::OnCustomRulesChecked,
+                       weak_factory_.GetWeakPtr()));
+  }
+
+  void OnCustomRulesChecked(std::vector<CustomRuleProblem> problems) {
+    if (!IsJavascriptAllowed()) {
+      return;
+    }
+    base::ListValue list;
+    for (const CustomRuleProblem& problem : problems) {
+      list.Append(base::DictValue()
+                      .Set("line", static_cast<int>(problem.line))
+                      .Set("rule", problem.rule)
+                      .Set("error", problem.error));
+    }
+    web_ui()->CallJavascriptFunctionUnsafe("showFilterProblems", list);
+  }
+
+  void HandleSetMemorySaver(const base::ListValue& args) {
+    if (args.size() == 1 && args[0].is_bool()) {
+      SetMemorySaverOn(args[0].GetBool());
+    }
+    HandleGet(args);
+  }
+
+  // [0, 1 or 2]: Chromium's Moderate, Balanced and Maximum.
+  void HandleSetMemorySaverLevel(const base::ListValue& args) {
+    if (args.size() == 1 && args[0].is_int() && args[0].GetInt() >= 0 &&
+        args[0].GetInt() <= static_cast<int>(MemorySaverLevel::kMaximum)) {
+      SetMemorySaverLevel(static_cast<MemorySaverLevel>(args[0].GetInt()));
+    }
+    HandleGet(args);
+  }
+
+  // [site, false]. Only taking a site off is offered here; a site is
+  // added from the shield, on the site itself.
+  void HandleSetNeverSleep(const base::ListValue& args) {
+    if (args.size() == 2 && args[0].is_string() && args[1].is_bool() &&
+        !args[1].GetBool()) {
+      const GURL site(args[0].GetString());
+      if (site.is_valid() && site.SchemeIsHTTPOrHTTPS()) {
+        performance::SetNeverSleep(
+            web_ui()->GetWebContents()->GetBrowserContext(), site, false);
+      }
+    }
+    // The pref observer repaints; this covers a request that changed
+    // nothing.
+    SendNeverSleep();
   }
 
   PrefChangeRegistrar registrar_;

@@ -82,7 +82,9 @@
      "browser_app_menu_button.h",
      "chrome_labs/chrome_labs_bubble_view.h",
      "chrome_labs/chrome_labs_coordinator.h",
-@@ -121,8 +123,10 @@
+@@ -121,8 +123,12 @@
++    "../boring/boring_memory_saver_bridge.cc",
++    "../boring/boring_popup.h",
      "ai_overlay_toolbar_button.cc",
      "app_menu.cc",
      "app_menu_dynamic_helper.cc",
@@ -93,7 +95,7 @@
      "browser_app_menu_button.cc",
      "chrome_labs/chrome_labs_bubble_view.cc",
      "chrome_labs/chrome_labs_coordinator.cc",
-@@ -186,6 +190,7 @@
+@@ -186,6 +192,7 @@
      "//chrome/browser/actor/ui/task_list_bubble:controller",
      "//chrome/browser/actor/ui/task_list_bubble:ui",
      "//chrome/browser/bookmarks",
@@ -101,12 +103,14 @@
      "//chrome/browser/extensions",
      "//chrome/browser/external_protocol",
      "//chrome/browser/feedback",
-@@ -260,11 +265,17 @@
+@@ -260,11 +267,19 @@
      "//chrome/common:chrome_features",
      "//chrome/common:constants",
      "//components/autofill/core/common:features",
 +    "//components/boring/adblock:browser",
 +    "//components/boring/core",
++    "//components/boring/performance",
++    "//components/boring/protection",
 +    "//components/boring/reader",
 +    "//components/boring/scam",
 +    "//components/dom_distiller/content/browser",

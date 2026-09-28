@@ -2,17 +2,30 @@
 """Build the list bundle the browser downloads to keep its blocking fresh.
 
 The filter lists are baked in when the browser is built, so on an
-installed copy they only get older. This writes the same files
-(easylist.txt, ubo.txt, cookies.txt and resources.json, built exactly
-as get_filterlists.py and get_ubo_resources.py build them) plus a small
-signed manifest into a folder, ready to be uploaded to the release host.
-Regional lists are not in the bundle: they change when a newer version
-of the browser is installed.
+installed copy they only get older. This writes the same files, built
+exactly as get_filterlists.py builds them, plus a small signed manifest
+into a folder, ready to be uploaded to the release host:
+
+    easylist.txt           EasyList and EasyPrivacy
+    ubo.txt                uBlock filters, Quick fixes, Privacy, Unbreak
+    cookies.txt            Easylist Cookie List
+    aggressive-ubo.txt     uBlock filters - Annoyances
+    aggressive-fanboy.txt  Fanboy's Social, Newsletter, Notifications
+    regional-<id>.txt      each regional list (saved as regional/<id>.txt)
+    regional-index.json    the regional index (saved as regional/index.json)
+    NOTICES-*.txt          the licence notices, beside the lists; not in
+                           the manifest and never read by the browser
+
+Filter rules only. Scriptlets and $redirect resources are code that runs
+in pages, so they ship only with signed browser updates, and the browser
+ignores a resources file in a bundle. Names are flat because a release
+keeps its files in one folder; the browser maps regional-* into its
+regional folder.
 
 No scam blocklist is published. No feed we use grants permission to
 redistribute its data this way, so v1 ships and publishes none; see
 get_scamlist.py. The browser refuses a scam list offered by an update
-feed for the same reason, so publishing one would not even take effect. The browser reads the manifest, checks the
+feed for the same reason. The browser reads the manifest, checks the
 signature, compares it with what it already has, and downloads only the
 files that changed.
 
@@ -23,9 +36,8 @@ The manifest looks like this:
       "updated": "2026-09-17",
       "degraded": false,
       "files": [{"name": "easylist.txt", "size": 123, "sha256": "...",
-                 "entries": 138411},
-                {"name": "ubo.txt", ...}, {"name": "cookies.txt", ...},
-                {"name": "resources.json", ..., "entries": 197}],
+                 "entries": 138411, "parse_errors": 2967},
+                {"name": "ubo.txt", ...}, ...],
       "sources": [{"list": "easylist.txt", "name": "easylist", "ok": true,
                    "http_status": 200, "bytes": 2166195, "entries": 82279,
                    "reason": null}]
@@ -40,12 +52,18 @@ corrupted; they say nothing about who wrote the manifest. Anyone who can
 replace the files on the release host can replace the manifest too, so
 the browser only trusts a manifest signed by a key compiled into it.
 
-Nothing is published unless every list validated. A refusal leaves the
-previous bundle exactly as it was and exits non-zero.
+Nothing is published unless every list validated, and that means three
+things for each list: the download checks in get_filterlists.py (header,
+licence line, truncation, rule floors); the shrink limits below against
+the bundle published last time; and a parse by the browser's own engine
+code (the check_lists binary built from boring-core/rust), which refuses
+a list the engine cannot read. A refusal leaves the previous bundle
+exactly as it was and exits non-zero.
 
 Usage:
   python publish_lists.py --out DIR [--previous DIR] [--version N]
-                          [--sign-key PEM | --unsigned]
+                          [--sign-key PEM | --unsigned] [--checker EXE]
+  python publish_lists.py --sign-bundle DIR [--sign-key PEM]
   python publish_lists.py --gen-test-key [DIR]
 
 The signing key is never in the repo. Give it as --sign-key PATH or in
@@ -64,17 +82,24 @@ import subprocess
 import sys
 import tempfile
 
-import get_ubo_resources
 from get_filterlists import (
+    AGGRESSIVE,
     COOKIES,
+    REGIONAL,
     UBO,
     BuildResult,
     FeedError,
+    ListBuild,
+    OutputList,
     build_filter_list,
     build_output_list,
     count_rules,
+    fetch_licence_text,
     fetch_url,
+    notice_text,
     parse_filter_list,
+    regional_index,
+    utc_stamp,
 )
 from get_scamlist import count_real_hosts
 
@@ -155,9 +180,9 @@ FILTER_POLICY = Policy(
     # source clears 10,000 five times over.
     first_run_floor=10_000,
     # EasyList and EasyPrivacy are curated by hand and move by small
-    # percentages. With both sources healthy a quarter of the rules
-    # disappearing is already not a normal week.
-    healthy_shrink_floor=0.75,
+    # percentages, well under 1 per cent a week. More than 20 per cent
+    # gone with both sources healthy is not a normal week.
+    healthy_shrink_floor=0.80,
     # Losing EasyList leaves EasyPrivacy's 56,132 of 138,411, so 41 per
     # cent is the worst a single source outage explains.
     degraded_shrink_floor=0.35,
@@ -172,48 +197,135 @@ def version_for(day: datetime.date) -> int:
     return (day - VERSION_EPOCH).days
 
 
-UBO_POLICY = Policy(
-    name="ubo.txt",
-    # 27,718 rules on 2026-09-25 across the four lists, with includes.
-    first_run_floor=10_000,
-    # Curated by hand like EasyList; a quarter gone is not a normal week.
-    healthy_shrink_floor=0.75,
-    # Never used: ubo.txt is published whole or not at all.
-    degraded_shrink_floor=0.75,
-)
+# Every other list is published whole or not at all, like the build
+# does: half of uBO's lists or half of the cookie list is a different
+# list, not a thinner one. So their degraded floor is never used.
+#
+# Shrink limits, as a share of the rules the published bundle held:
+#
+#   ubo.txt, cookies.txt, aggressive-*.txt   80 per cent (refuse a drop
+#       of more than 20). Curated by hand like EasyList; uAssets and the
+#       Fanboy lists moved by under 2 per cent a week in September 2026.
+#   regional-*.txt                            75 per cent (more than 25).
+#       Smaller lists, where one cleanup of a few hundred dead rules is
+#       a larger share, and still far from what a broken build loses.
+#
+# First run floors are the rule floors get_filterlists.py already
+# holds each source to, added up, so a bundle with nothing to compare
+# against still has to be a real list.
+CURATED_SHRINK_FLOOR = 0.80
+REGIONAL_SHRINK_FLOOR = 0.75
 
-COOKIE_POLICY = Policy(
-    name="cookies.txt",
-    # 28,053 rules on 2026-09-25.
-    first_run_floor=10_000,
-    healthy_shrink_floor=0.75,
-    degraded_shrink_floor=0.75,
-)
+# The engine skips rules it cannot read, and every real list has some:
+# uBO syntax it lacks, like HTML filtering and a few options. Measured
+# with check_lists on 2026-09-25: easylist 2.1 per cent, ubo 4.2, cookies
+# 0, uBO Annoyances 1.4, Fanboy 0, regional 0.5 to 5.3 (Liste FR). A
+# list past 15 per cent has changed syntax or is not a filter list, and
+# the browser would silently use little of it.
+MAX_PARSE_ERROR_SHARE = 0.15
 
-RESOURCES_NAME = "resources.json"
+# The checker, built by `cargo build --release --bin check_lists` in
+# boring-core/rust. --checker or BORING_LIST_CHECKER can point elsewhere.
+RUST_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "rust"
+)
+DEFAULT_CHECKER = os.path.join(
+    RUST_DIR,
+    "target",
+    "release",
+    "check_lists" + (".exe" if os.name == "nt" else ""),
+)
+CHECKER_ENV = "BORING_LIST_CHECKER"
+
+REGIONAL_INDEX_NAME = "regional-index.json"
+
+# Lists used with every scriptlet permission. The check parses them the
+# same way, so a trusted-only rule in them counts as fine.
+TRUSTED_NAMES = frozenset({UBO.path, AGGRESSIVE[0].path})
+
+
+def bundle_name(output: OutputList) -> str:
+    """The flat name a list has in the bundle, see the module docstring."""
+    return output.path.replace("/", "-")
+
+
+def policy_for(output: OutputList) -> Policy:
+    share = REGIONAL_SHRINK_FLOOR if output.regional_id else CURATED_SHRINK_FLOOR
+    return Policy(
+        name=bundle_name(output),
+        first_run_floor=sum(source.min_rules for source in output.sources),
+        healthy_shrink_floor=share,
+        degraded_shrink_floor=share,
+    )
+
+
+# Every list in the bundle but easylist.txt, in the order they appear.
+BUNDLED_OUTPUTS = (UBO, COOKIES, *AGGRESSIVE, *REGIONAL)
 
 
 def entries_in(name: str, text: str) -> int:
     """Real entries in a list's text, whichever list it is."""
     if name == SCAM_POLICY.name:
         return count_real_hosts(text)
-    if name in (UBO_POLICY.name, COOKIE_POLICY.name):
-        # uAssets lists carry no [Adblock] line, so only count.
-        return count_rules(text, 1)
-    if name == RESOURCES_NAME:
+    if name == REGIONAL_INDEX_NAME:
         return len(json.loads(text))
-    return parse_filter_list(text)
+    if name == FILTER_POLICY.name:
+        return parse_filter_list(text)
+    # uAssets lists carry no [Adblock] line, so only count.
+    return count_rules(text, 1)
 
 
-def build_ubo_resources() -> tuple[str, int]:
-    """resources.json from the pinned uBO release, and how many it holds."""
-    try:
-        built = get_ubo_resources.build(
-            fetch_url, get_ubo_resources.default_node()
+def run_checker(checker: str, files: list[tuple[str, bool]]) -> dict:
+    """Runs check_lists on (path, trusted) pairs and returns its report."""
+    if not os.path.isfile(checker):
+        raise RefusedError(
+            f"the list checker is not at {checker}. Build it with "
+            "`cargo build --release --bin check_lists` in boring-core/rust, "
+            f"or point --checker or {CHECKER_ENV} at it. Nothing is published "
+            "without the engine having read every list."
         )
-    except (FeedError, get_ubo_resources.FormatError) as e:
-        raise RefusedError(f"{RESOURCES_NAME}: {e}") from e
-    return built.json_text(), len(built.resources)
+    argv = [checker]
+    for path, trusted in files:
+        argv += ["--trusted", path] if trusted else [path]
+    try:
+        done = subprocess.run(argv, capture_output=True, check=True)
+        return json.loads(done.stdout.decode("utf-8"))
+    except (OSError, subprocess.CalledProcessError, ValueError) as e:
+        raise RefusedError(f"the list checker failed: {e}") from e
+
+
+def check_parse(report: dict, names: list[str]) -> dict[str, dict]:
+    """Applies the parse policy to a checker report, or raises RefusedError.
+
+    Returns each list's numbers by its name in the bundle.
+    """
+    files = report.get("files")
+    if not isinstance(files, list) or len(files) != len(names):
+        raise RefusedError("the list checker did not report on every list")
+    by_name = {}
+    for name, entry in zip(names, files, strict=True):
+        rules = entry.get("rules", 0)
+        errors = entry.get("errors", 0)
+        accepted = entry.get("network", 0) + entry.get("cosmetic", 0)
+        if rules <= 0 or accepted <= 0:
+            raise RefusedError(f"{name}: the engine read no rules from it")
+        share = errors / rules
+        if share > MAX_PARSE_ERROR_SHARE:
+            examples = "; ".join(
+                f"line {e['line']}: {e['error']}" for e in entry.get("examples", [])[:3]
+            )
+            raise RefusedError(
+                f"{name}: the engine could not read {errors} of {rules} rules "
+                f"({share:.1%}, limit {MAX_PARSE_ERROR_SHARE:.0%}): {examples}"
+            )
+        by_name[name] = entry
+    engine = report.get("engine") or {}
+    if not engine.get("built") or not engine.get("reloaded"):
+        raise RefusedError(
+            "the engine did not build from these lists, or its cache did not "
+            f"load back ({engine})"
+        )
+    return by_name
 
 
 def read_previous(directory: str | None) -> dict | None:
@@ -464,41 +576,19 @@ def move_into_place(staging: str, out: str, names: list[str]) -> None:
         os.replace(pending, target)
 
 
-def build_bundle(args, fetch_filters, fetch_scam=None, build_resources=None) -> int:
-    """Builds, validates and publishes. Raises RefusedError to stop.
+def print_statuses(name: str, result: BuildResult) -> None:
+    for status in result.sources:
+        state = f"{status.entries} entries" if status.ok else f"FAILED, {status.reason}"
+        print(f"  {name} {status.name}: {state}")
 
-    fetch_scam is accepted and ignored: no scam list is published, and
-    keeping the parameter means a caller that still passes one gets the
-    same refusal rather than a TypeError. build_resources returns the
-    text of resources.json and its count; tests hand in their own.
-    """
-    previous_dir = args.previous or args.out
-    previous = read_previous(previous_dir)
 
-    filters = build_filter_list(fetch=fetch_filters)
-
-    for status in filters.sources:
-        state = (
-            f"{status.entries} entries" if status.ok else f"FAILED, {status.reason}"
-        )
-        print(f"  {FILTER_POLICY.name} {status.name}: {state}")
-
-    check_coverage(
-        FILTER_POLICY,
-        filters,
-        previous_entries(previous, previous_dir, FILTER_POLICY.name),
-    )
-
-    # uBO's lists and the cookie list go out whole or not at all, like
-    # the build does: half of them is a different list, not a thinner one.
-    extra = []
-    for policy, output in ((UBO_POLICY, UBO), (COOKIE_POLICY, COOKIES)):
-        build = build_output_list(output, fetch_filters)
-        for status in build.result.sources:
-            state = (
-                f"{status.entries} entries" if status.ok else f"FAILED, {status.reason}"
-            )
-            print(f"  {policy.name} {status.name}: {state}")
+def build_outputs(fetch, previous: dict | None, previous_dir: str) -> list[ListBuild]:
+    """Builds every list after easylist.txt, all or nothing."""
+    builds = []
+    for output in BUNDLED_OUTPUTS:
+        policy = policy_for(output)
+        build = build_output_list(output, fetch)
+        print_statuses(policy.name, build.result)
         if not build.complete:
             raise RefusedError(f"{policy.name}: {build.result.describe_failures()}")
         check_coverage(
@@ -506,9 +596,60 @@ def build_bundle(args, fetch_filters, fetch_scam=None, build_resources=None) -> 
             build.result,
             previous_entries(previous, previous_dir, policy.name),
         )
-        extra.append((policy, build.result))
+        builds.append(build)
+    return builds
 
-    resources_text, resources_count = (build_resources or build_ubo_resources)()
+
+def licence_texts(builds: list[ListBuild], fetch) -> dict[str, str]:
+    """The full licence texts the notices quote, fetched once each."""
+    texts = {}
+    for build in builds:
+        url = build.output.licence.text_url
+        if url and url not in texts:
+            try:
+                texts[url] = fetch_licence_text(build.output.licence, fetch)
+            except FeedError as e:
+                raise RefusedError(f"licence text {url}: {e}") from e
+    return texts
+
+
+def bundle_notice(build: ListBuild, fetched_at: str, texts: dict[str, str]) -> str:
+    """The list's notice, as the build writes it, said to be for the bundle."""
+    name = bundle_name(build.output)
+    head = (
+        f"This notice travels with {name} in the Boring Browser list bundle.\n"
+        "The browser saves that file under the name given below.\n\n"
+    )
+    return head + notice_text(
+        build, fetched_at, texts.get(build.output.licence.text_url or "")
+    )
+
+
+def build_bundle(args, fetch_filters, fetch_scam=None) -> int:
+    """Builds, validates and publishes. Raises RefusedError to stop.
+
+    fetch_scam is accepted and ignored: no scam list is published, and
+    keeping the parameter means a caller that still passes one gets the
+    same refusal rather than a TypeError.
+    """
+    previous_dir = args.previous or args.out
+    previous = read_previous(previous_dir)
+
+    filters = build_filter_list(fetch=fetch_filters)
+    print_statuses(FILTER_POLICY.name, filters)
+    check_coverage(
+        FILTER_POLICY,
+        filters,
+        previous_entries(previous, previous_dir, FILTER_POLICY.name),
+    )
+
+    builds = build_outputs(fetch_filters, previous, previous_dir)
+    texts = licence_texts(builds, fetch_filters)
+    regional_builds = [b for b in builds if b.output.regional_id]
+    index_text = (
+        json.dumps(regional_index(regional_builds), indent=2, ensure_ascii=False)
+        + "\n"
+    )
 
     today = datetime.date.today()
     version = args.version if args.version is not None else version_for(today)
@@ -520,6 +661,7 @@ def build_bundle(args, fetch_filters, fetch_scam=None, build_resources=None) -> 
         )
 
     degraded = filters.degraded
+    fetched_at = utc_stamp(datetime.datetime.now(datetime.UTC))
 
     work = tempfile.mkdtemp(prefix="boring-lists-")
     try:
@@ -529,24 +671,69 @@ def build_bundle(args, fetch_filters, fetch_scam=None, build_resources=None) -> 
         files = [
             write_file(staging, FILTER_POLICY.name, filters.text, filters.entries),
             *(
-                write_file(staging, policy.name, result.text, result.entries)
-                for policy, result in extra
+                write_file(
+                    staging,
+                    bundle_name(build.output),
+                    build.result.text,
+                    build.result.entries,
+                )
+                for build in builds
             ),
-            write_file(staging, RESOURCES_NAME, resources_text, resources_count),
         ]
         confirm_on_disk(staging, files)
+
+        # The engine reads every list before anything goes out.
+        lists = [entry["name"] for entry in files]
+        report = args.check_parse(
+            [
+                (os.path.join(staging, name), name in TRUSTED_NAMES)
+                for name in lists
+            ]
+        )
+        parsed = check_parse(report, lists)
+        for entry in files:
+            entry["parse_errors"] = parsed[entry["name"]].get("errors", 0)
+            print(
+                f"  {entry['name']}: the engine read "
+                f"{entry['entries'] - entry['parse_errors']} of "
+                f"{entry['entries']} rules"
+            )
+
+        files.append(
+            write_file(
+                staging,
+                REGIONAL_INDEX_NAME,
+                index_text,
+                len(regional_builds),
+            )
+        )
+        confirm_on_disk(staging, files)
+
+        notices = []
+        for build in builds:
+            if build.output.notice in notices:
+                continue
+            with open(
+                os.path.join(staging, build.output.notice),
+                "w",
+                encoding="utf-8",
+                newline="\n",
+            ) as f:
+                f.write(bundle_notice(build, fetched_at, texts))
+            notices.append(build.output.notice)
 
         manifest = {
             "version": version,
             "updated": today.isoformat(),
             "degraded": degraded,
             "files": files,
+            "notices": notices,
             "sources": [
                 *source_rows(FILTER_POLICY, filters),
                 *(
                     row
-                    for policy, result in extra
-                    for row in source_rows(policy, result)
+                    for build in builds
+                    for row in source_rows(policy_for(build.output), build.result)
                 ),
             ],
         }
@@ -555,7 +742,7 @@ def build_bundle(args, fetch_filters, fetch_scam=None, build_resources=None) -> 
             json.dump(manifest, f, indent=2)
             f.write("\n")
 
-        names = [entry["name"] for entry in files]
+        names = [entry["name"] for entry in files] + notices
         if args.unsigned:
             print()
             print("WARNING: publishing without a signature.")
@@ -596,6 +783,40 @@ def build_bundle(args, fetch_filters, fetch_scam=None, build_resources=None) -> 
     return 0
 
 
+def sign_bundle(args) -> int:
+    """Signs the manifest of a bundle already built and checked.
+
+    For the publish job in lists.yml: the build job checks the bundle
+    without ever seeing the key, and the job that holds the key only
+    signs those exact bytes. Refuses a bundle with a resources file in
+    it, which no bundle may carry.
+    """
+    directory = args.sign_bundle
+    manifest_path = os.path.join(directory, MANIFEST_NAME)
+    manifest = read_previous(directory)
+    if manifest is None:
+        raise RefusedError(f"no readable {MANIFEST_NAME} in {directory}")
+    names = [entry.get("name") for entry in manifest.get("files", [])]
+    if "resources.json" in names or os.path.exists(
+        os.path.join(directory, "resources.json")
+    ):
+        raise RefusedError("a list bundle must never carry resources.json")
+    for entry in manifest.get("files", []):
+        confirm_on_disk(directory, [entry])
+    work = tempfile.mkdtemp(prefix="boring-sign-")
+    try:
+        signature = sign_manifest(manifest_path, resolve_key(args, work), work)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    with open(
+        os.path.join(directory, SIGNATURE_NAME), "w", encoding="utf-8", newline="\n"
+    ) as f:
+        json.dump(signature, f, indent=2)
+        f.write("\n")
+    print("signed", manifest_path, "with key", signature["key"])
+    return 0
+
+
 def parse_args(argv: list[str] | None = None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", help="folder to write the bundle into")
@@ -612,9 +833,20 @@ def parse_args(argv: list[str] | None = None):
     )
     ap.add_argument("--sign-key", default=None, help="path to the signing key PEM")
     ap.add_argument(
+        "--checker",
+        default=os.environ.get(CHECKER_ENV, DEFAULT_CHECKER),
+        help="the check_lists binary from boring-core/rust",
+    )
+    ap.add_argument(
         "--unsigned",
         action="store_true",
         help="publish without a signature; the browser will reject it",
+    )
+    ap.add_argument(
+        "--sign-bundle",
+        default=None,
+        metavar="DIR",
+        help="only sign the manifest of the bundle already built in DIR",
     )
     ap.add_argument(
         "--gen-test-key",
@@ -631,20 +863,29 @@ def main(
     argv: list[str] | None = None,
     fetch_filters=None,
     fetch_scam=None,
-    build_resources=None,
+    check_parse=None,
 ) -> int:
-    """Runs a publication. The fetches are parameters so tests can stub them."""
+    """Runs a publication.
+
+    The fetches and the engine check are parameters so tests can stub
+    them. check_parse takes [(path, trusted)] and returns what the
+    check_lists binary prints.
+    """
     args = parse_args(argv)
     try:
         if args.gen_test_key:
             return gen_test_key(args.gen_test_key)
+        if args.sign_bundle:
+            return sign_bundle(args)
         if not args.out:
             raise RefusedError("--out is required")
+        args.check_parse = check_parse or (
+            lambda files: run_checker(args.checker, files)
+        )
         return build_bundle(
             args,
             fetch_filters or fetch_url,
             fetch_scam or fetch_url,
-            build_resources,
         )
     except RefusedError as e:
         print("not publishing:", e, file=sys.stderr)

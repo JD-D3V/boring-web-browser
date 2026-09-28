@@ -18,7 +18,14 @@ use adblock::resources::{
 };
 use adblock::Engine;
 
+pub mod check;
+
 pub struct EngineHandle(RwLock<Engine>);
+
+/// The adblock crate this library is built with. A serialized engine
+/// only loads into the same version, so the browser keys its engine
+/// cache on this. A test checks it against Cargo.lock.
+pub const ADBLOCK_CRATE_VERSION: &CStr = c"0.13.3";
 
 // The engine is read from several browser threads at once. This fails to
 // build if the adblock crate is ever built with its "single-thread"
@@ -100,6 +107,30 @@ pub struct BoringAdblockList {
 // file carries that as a permission bit, and a trusted list may use any.
 const FULL_TRUST: PermissionMask = PermissionMask::from_bits(0xff);
 
+/// Builds one engine from lists given as (text, trusted). The one place
+/// lists become an engine, shared by the browser and the list checker.
+pub fn build_engine<'a>(lists: impl IntoIterator<Item = (&'a str, bool)>) -> Engine {
+    let mut set = FilterSet::new(false);
+    for (text, trusted) in lists {
+        if text.is_empty() {
+            continue;
+        }
+        let permissions = if trusted {
+            FULL_TRUST
+        } else {
+            PermissionMask::default()
+        };
+        set.add_filter_list(
+            text.to_owned(),
+            ParseOptions {
+                permissions,
+                ..ParseOptions::default()
+            },
+        );
+    }
+    Engine::new_with_filter_set(set)
+}
+
 /// Builds one engine from several filter lists, each with its own trust
 /// level, so a rule in one list can be cancelled by an exception in
 /// another. Returns null on failure. The caller owns the handle and must
@@ -119,29 +150,141 @@ pub unsafe extern "C" fn boring_adblock_new_lists(
         } else {
             unsafe { std::slice::from_raw_parts(lists, count) }
         };
-        let mut set = FilterSet::new(false);
-        for list in lists {
-            if list.text.is_null() || list.len == 0 {
-                continue;
-            }
-            let bytes = unsafe { std::slice::from_raw_parts(list.text, list.len) };
-            let permissions = if list.trusted != 0 {
-                FULL_TRUST
-            } else {
-                PermissionMask::default()
-            };
-            set.add_filter_list(
-                String::from_utf8_lossy(bytes).into_owned(),
-                ParseOptions {
-                    permissions,
-                    ..ParseOptions::default()
-                },
-            );
-        }
-        Engine::new_with_filter_set(set)
+        let texts: Vec<(String, bool)> = lists
+            .iter()
+            .filter(|list| !list.text.is_null() && list.len != 0)
+            .map(|list| {
+                // SAFETY: the caller promises `text` points to `len`
+                // readable bytes, and null entries were skipped above.
+                let bytes = unsafe { std::slice::from_raw_parts(list.text, list.len) };
+                (
+                    String::from_utf8_lossy(bytes).into_owned(),
+                    list.trusted != 0,
+                )
+            })
+            .collect();
+        build_engine(
+            texts
+                .iter()
+                .map(|(text, trusted)| (text.as_str(), *trusted)),
+        )
     });
     match result {
         Ok(engine) => Box::into_raw(Box::new(EngineHandle(RwLock::new(engine)))),
+        Err(_) => std::ptr::null_mut(),
+    }
+}
+
+// ---- Engine cache ----
+
+/// The adblock crate version, as a static NUL-terminated string. Never
+/// free it.
+#[no_mangle]
+pub extern "C" fn boring_adblock_crate_version() -> *const c_char {
+    ADBLOCK_CRATE_VERSION.as_ptr()
+}
+
+/// Serializes an engine so it can be loaded again without parsing its
+/// lists. Resources are not part of it: give them again after loading.
+/// Returns null on failure. On success `*len_out` is the size; free the
+/// bytes with `boring_adblock_bytes_free`.
+///
+/// # Safety
+/// `handle` must be null, or an engine from `boring_adblock_new*` that
+/// has not been freed. `len_out` must be null or writable.
+#[no_mangle]
+pub unsafe extern "C" fn boring_adblock_serialize(
+    handle: *const EngineHandle,
+    len_out: *mut usize,
+) -> *mut u8 {
+    if len_out.is_null() {
+        return std::ptr::null_mut();
+    }
+    // SAFETY: checked for null above; the caller promises it is writable.
+    unsafe { *len_out = 0 };
+    let Some(engine) = engine_ref(handle) else {
+        return std::ptr::null_mut();
+    };
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let guard = engine.0.read().ok()?;
+        Some(guard.serialize().into_boxed_slice())
+    }));
+    let Ok(Some(bytes)) = result else {
+        return std::ptr::null_mut();
+    };
+    // SAFETY: as above.
+    unsafe { *len_out = bytes.len() };
+    Box::into_raw(bytes).cast()
+}
+
+/// Frees bytes from `boring_adblock_serialize`.
+///
+/// # Safety
+/// `data` must be null, or bytes from `boring_adblock_serialize` with the
+/// length it reported, not already freed.
+#[no_mangle]
+pub unsafe extern "C" fn boring_adblock_bytes_free(data: *mut u8, len: usize) {
+    if data.is_null() {
+        return;
+    }
+    // SAFETY: the caller promises this is the boxed slice handed out by
+    // boring_adblock_serialize, with its length.
+    drop(unsafe { Box::from_raw(std::ptr::slice_from_raw_parts_mut(data, len)) });
+}
+
+/// Loads an engine serialized by `boring_adblock_serialize`. Returns null
+/// when the bytes are not one: another crate version, a damaged file or
+/// anything else. The caller then builds from the lists instead. Free the
+/// engine with `boring_adblock_free`.
+///
+/// # Safety
+/// `data` must be null or point to `len` readable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn boring_adblock_deserialize(
+    data: *const u8,
+    len: usize,
+) -> *mut EngineHandle {
+    if data.is_null() || len == 0 {
+        return std::ptr::null_mut();
+    }
+    let result = catch_unwind(|| {
+        // SAFETY: the caller promises `len` readable bytes at `data`.
+        let bytes = unsafe { std::slice::from_raw_parts(data, len) };
+        let mut engine = Engine::default();
+        engine.deserialize(bytes).ok()?;
+        Some(engine)
+    });
+    match result {
+        Ok(Some(engine)) => Box::into_raw(Box::new(EngineHandle(RwLock::new(engine)))),
+        _ => std::ptr::null_mut(),
+    }
+}
+
+// ---- Checking rules ----
+
+/// Checks filter rules the way a person's own rules are used: standard
+/// permissions, never trusted scriptlets. Returns a JSON array of
+/// {"line", "rule", "error"} for each line that is not a rule the engine
+/// will use (lines are 1-based; comments and blank lines are fine), an
+/// empty array when all are, or null on failure. Free the result with
+/// `boring_adblock_string_free`.
+///
+/// # Safety
+/// `text` must be null or point to `len` readable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn boring_adblock_check_rules(text: *const u8, len: usize) -> *mut c_char {
+    let result = catch_unwind(|| {
+        let text = if text.is_null() || len == 0 {
+            String::new()
+        } else {
+            // SAFETY: the caller promises `len` readable bytes at `text`.
+            let bytes = unsafe { std::slice::from_raw_parts(text, len) };
+            String::from_utf8_lossy(bytes).into_owned()
+        };
+        check::errors_json(&check::check_list(&text, false).errors)
+    });
+    match result {
+        Ok(json) => to_c_string(json),
         Err(_) => std::ptr::null_mut(),
     }
 }
@@ -918,5 +1061,147 @@ mod tests {
         let blocked =
             unsafe { boring_adblock_check(e.0, url.as_ptr(), std::ptr::null(), rtype.as_ptr()) };
         assert_eq!(blocked, 1);
+    }
+    // The cache key names this version, so it has to be the one built.
+    #[test]
+    fn crate_version_matches_cargo_lock() {
+        let lock =
+            std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.lock")).unwrap();
+        let version = ADBLOCK_CRATE_VERSION.to_str().unwrap();
+        assert!(
+            lock.contains(&format!("name = \"adblock\"\nversion = \"{version}\"")),
+            "Cargo.lock does not pin adblock {version}; update ADBLOCK_CRATE_VERSION"
+        );
+        let exported = unsafe { CStr::from_ptr(boring_adblock_crate_version()) };
+        assert_eq!(exported, ADBLOCK_CRATE_VERSION);
+    }
+
+    fn roundtrip(e: &Owned) -> Owned {
+        let mut len = 0;
+        let bytes = unsafe { boring_adblock_serialize(e.0, &mut len) };
+        assert!(!bytes.is_null());
+        assert!(len > 0);
+        let loaded = unsafe { boring_adblock_deserialize(bytes, len) };
+        unsafe { boring_adblock_bytes_free(bytes, len) };
+        assert!(!loaded.is_null());
+        Owned(loaded)
+    }
+
+    #[test]
+    fn serialized_engine_blocks_and_hides_the_same() {
+        let e = engine(&[
+            ("||tracker.test^\nexample.com##.ad-banner\n", false),
+            ("@@||tracker.test/ok.js\n", true),
+        ]);
+        let loaded = roundtrip(&e);
+        let (flags, _) = check(&loaded, "https://tracker.test/bad.js", "script");
+        assert_eq!(flags, BORING_ADBLOCK_MATCHED);
+        let (flags, _) = check(&loaded, "https://tracker.test/ok.js", "script");
+        assert_ne!(flags & BORING_ADBLOCK_EXCEPTION, 0);
+        let res = cosmetic(&loaded, "https://example.com/");
+        assert!(res["hide_selectors"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|s| s == ".ad-banner"));
+    }
+
+    // Resources are not in the serialized engine. The browser gives them
+    // again after loading, and then scriptlets and trust work as before.
+    #[test]
+    fn resources_given_after_loading_still_apply_with_trust() {
+        let rule = "example.com##+js(trusted-test, yes)\n";
+        let trusted = engine(&[("", false), (rule, true)]);
+        let loaded = roundtrip(&trusted);
+        give_resources(&loaded, &trusted_scriptlet());
+        let res = cosmetic(&loaded, "https://example.com/");
+        assert!(res["injected_script"]
+            .as_str()
+            .unwrap()
+            .contains("window.trustedRan = 'yes';"));
+
+        let standard = engine(&[(rule, false)]);
+        let loaded = roundtrip(&standard);
+        give_resources(&loaded, &trusted_scriptlet());
+        let res = cosmetic(&loaded, "https://example.com/");
+        assert!(!res["injected_script"]
+            .as_str()
+            .unwrap()
+            .contains("trustedRan"));
+    }
+
+    #[test]
+    fn damaged_cache_is_refused() {
+        let e = engine(&[("||tracker.test^\n", false)]);
+        let mut len = 0;
+        let bytes = unsafe { boring_adblock_serialize(e.0, &mut len) };
+        let mut copy = unsafe { std::slice::from_raw_parts(bytes, len) }.to_vec();
+        unsafe { boring_adblock_bytes_free(bytes, len) };
+        let middle = copy.len() / 2;
+        copy[middle] ^= 0xff;
+        assert!(unsafe { boring_adblock_deserialize(copy.as_ptr(), copy.len()) }.is_null());
+        let junk = b"not an engine at all";
+        assert!(unsafe { boring_adblock_deserialize(junk.as_ptr(), junk.len()) }.is_null());
+        assert!(unsafe { boring_adblock_deserialize(std::ptr::null(), 0) }.is_null());
+        assert!(unsafe { boring_adblock_serialize(std::ptr::null(), &mut len) }.is_null());
+        assert_eq!(len, 0);
+    }
+
+    #[test]
+    fn check_rules_reports_bad_lines() {
+        let text = "! mine\n||ads.test^\n||bad.test^$nosuchoption\nexample.com##+js(trusted-set-cookie, a, b)\n";
+        let json = take_string(unsafe { boring_adblock_check_rules(text.as_ptr(), text.len()) });
+        let errors: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let lines: Vec<u64> = errors
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e["line"].as_u64().unwrap())
+            .collect();
+        assert_eq!(lines, vec![3, 4]);
+        let json = take_string(unsafe { boring_adblock_check_rules(std::ptr::null(), 0) });
+        assert_eq!(json, "[]");
+    }
+
+    // Build versus load time for the main engine, on the real lists.
+    // Run with the lists the browser ships:
+    //   set BORING_LISTS_DIR=E:\ung-153-47\build\src\out\Default\boring
+    //   cargo test --release -- --ignored --nocapture engine_cache_timing
+    #[test]
+    #[ignore]
+    fn engine_cache_timing() {
+        let dir = std::env::var("BORING_LISTS_DIR").expect("set BORING_LISTS_DIR");
+        let read = |name: &str| std::fs::read_to_string(format!("{dir}/{name}")).unwrap();
+        let easylist = read("easylist.txt");
+        let ubo = read("ubo.txt");
+        let runs = 5;
+        let mut build_ms = Vec::new();
+        let mut load_ms = Vec::new();
+        let mut size = 0;
+        for _ in 0..runs {
+            let start = std::time::Instant::now();
+            let built = build_engine([(easylist.as_str(), false), (ubo.as_str(), true)]);
+            build_ms.push(start.elapsed().as_secs_f64() * 1000.0);
+            let bytes = built.serialize();
+            size = bytes.len();
+            let start = std::time::Instant::now();
+            let mut loaded = Engine::default();
+            loaded.deserialize(&bytes).unwrap();
+            load_ms.push(start.elapsed().as_secs_f64() * 1000.0);
+        }
+        build_ms.sort_by(f64::total_cmp);
+        load_ms.sort_by(f64::total_cmp);
+        println!(
+            "main engine ({} + {} bytes of lists): build median {:.1} ms (min {:.1}), \
+             load from cache median {:.1} ms (min {:.1}), cache {} bytes, {} runs",
+            easylist.len(),
+            ubo.len(),
+            build_ms[runs / 2],
+            build_ms[0],
+            load_ms[runs / 2],
+            load_ms[0],
+            size,
+            runs
+        );
     }
 }

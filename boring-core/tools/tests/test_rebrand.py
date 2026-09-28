@@ -13,9 +13,11 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from rebrand import (  # noqa: E402
     MISSING_BRANDED_MESSAGES,
     NAME,
+    PUBLISHER,
     add_missing_messages,
     check_attribution,
     rename_product,
+    set_publisher,
 )
 
 BRANDED = "chrome/app/chromium_strings.grd"
@@ -54,6 +56,33 @@ COPYRIGHT = (
     "  The Chromium Authors\n"
     "</message>"
 )
+
+
+COPYRIGHT_LINE = (
+    '<message name="IDS_ABOUT_VERSION_COPYRIGHT" desc="Copyright">\n'
+    "  Copyright 2026 The Chromium Authors. All rights reserved.\n"
+    "</message>"
+)
+
+
+class PublisherIsOursCreditStays(unittest.TestCase):
+    def test_company_name_becomes_the_publisher(self):
+        out = set_publisher(BRANDED, COPYRIGHT + COPYRIGHT_LINE)
+        self.assertIn(f"  {PUBLISHER}\n</message>", out)
+        # The copyright holder keeps the credit.
+        self.assertIn("2026 The Chromium Authors.", out)
+
+    def test_other_files_are_left_alone(self):
+        text = COPYRIGHT + COPYRIGHT_LINE
+        self.assertEqual(set_publisher("other.grd", text), text)
+
+    def test_a_missing_company_name_stops_the_rebrand(self):
+        with self.assertRaises(SystemExit):
+            set_publisher(BRANDED, COPYRIGHT_LINE)
+
+    def test_the_credit_check_still_passes(self):
+        before = set_publisher(BRANDED, COPYRIGHT + COPYRIGHT_LINE)
+        check_attribution(BRANDED, before, rename_product(before))
 
 
 class RenameKeepsTheCredit(unittest.TestCase):

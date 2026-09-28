@@ -19,18 +19,33 @@ action("scripts") {
   ]
 }
 
+# The element picker's script, embedded the same way.
+action("picker_script") {
+  script = "embed_scripts.py"
+  sources = [ "element_picker.js" ]
+  outputs = [ "$target_gen_dir/element_picker_script.h" ]
+  args = [
+    "--picker",
+    rebase_path(outputs[0], root_build_dir),
+    rebase_path("element_picker.js", root_build_dir),
+  ]
+}
+
 static_library("cosmetic") {
   sources = [
     "cosmetic_css.cc",
     "cosmetic_css.h",
     "cosmetic_filter_agent.cc",
     "cosmetic_filter_agent.h",
+    "element_picker_agent.cc",
+    "element_picker_agent.h",
   ]
   public_deps = [
     "//components/boring/adblock/mojom",
     "//content/public/renderer",
   ]
   deps = [
+    ":picker_script",
     ":scripts",
     "//base",
     "//components/boring/adblock:renderer",

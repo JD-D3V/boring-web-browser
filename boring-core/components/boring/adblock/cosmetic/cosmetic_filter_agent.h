@@ -4,6 +4,7 @@
 #define COMPONENTS_BORING_ADBLOCK_COSMETIC_COSMETIC_FILTER_AGENT_H_
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -19,6 +20,8 @@ class Arguments;
 }  // namespace gin
 
 namespace boring {
+
+class ElementPickerAgent;
 
 // Applies the ad blocker's cosmetic filters to one frame's documents:
 // hides elements with a user stylesheet, runs scriptlets in the page's
@@ -47,6 +50,7 @@ class CosmeticFilterAgent
  private:
   // content::RenderFrameObserver:
   void DidCreateNewDocument() override;
+  void DidFinishLoad() override;
   void OnDestruct() override;
 
   void ApplyAtDocumentStart();
@@ -62,6 +66,8 @@ class CosmeticFilterAgent
 
   const int32_t isolated_world_id_;
   mojo::Remote<mojom::CosmeticFilters> cosmetic_filters_;
+  // The element picker, main frames only.
+  std::unique_ptr<ElementPickerAgent> element_picker_;
 
   // Per document. RunScriptsAtDocumentStart can come twice for one
   // document (document.write can insert a second <html>), and the

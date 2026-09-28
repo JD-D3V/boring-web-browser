@@ -108,13 +108,43 @@ def output_answers(*outputs) -> dict:
     return answers
 
 
-def stub_resources():
-    """resources.json as publish_lists expects it from its builder."""
-    text = json.dumps(
-        [{"name": "noop.js", "aliases": [], "kind": {"mime": "application/javascript"},
-          "content": ""}]
-    )
-    return text + "\n", 1
+GPL_TEXT = (
+    b"GNU GENERAL PUBLIC LICENSE\n Version 3, 29 June 2007\n"
+    b"... the terms ...\nEND OF TERMS AND CONDITIONS\n"
+)
+
+
+def stub_check(files, errors_in=None):
+    """What check_lists prints, worked out without the Rust binary.
+
+    Every rule line parses, except that `errors_in` maps a bundle name
+    to how many of its rules the pretend engine could not read.
+    """
+    reports = []
+    for path, trusted in files:
+        with open(path, encoding="utf-8") as f:
+            rules = sum(
+                1
+                for line in f
+                if line.strip() and not line.strip().startswith(("!", "["))
+            )
+        errors = (errors_in or {}).get(os.path.basename(path), 0)
+        examples = [{"line": 3, "rule": "x", "error": "unrecognised option"}]
+        reports.append(
+            {
+                "path": path,
+                "trusted": trusted,
+                "rules": rules,
+                "network": rules - errors,
+                "cosmetic": 0,
+                "errors": errors,
+                "examples": examples if errors else [],
+            }
+        )
+    return {
+        "files": reports,
+        "engine": {"built": True, "reloaded": True, "serialized_bytes": 1},
+    }
 
 
 @contextlib.contextmanager
@@ -140,7 +170,9 @@ def healthy_answers() -> dict:
         EASYPRIVACY_URL: filter_bytes(tag="b"),
         URLHAUS_URL: hostfile_bytes(),
         OPENPHISH_URL: url_feed_bytes(),
-        **output_answers(get_filterlists.UBO, get_filterlists.COOKIES),
+        **output_answers(*publish_lists.BUNDLED_OUTPUTS),
+        get_filterlists.GPL3_UASSETS.text_url: GPL_TEXT,
+        get_filterlists.GPL3_ADGUARD.text_url: GPL_TEXT,
     }
 
 
@@ -405,7 +437,7 @@ class PublishPath(unittest.TestCase):
         self.out = os.path.join(self.work, "dist")
         os.makedirs(self.out)
 
-    def run_publish(self, answers, extra=None, previous=None):
+    def run_publish(self, answers, extra=None, previous=None, check=stub_check):
         fetch = stub_fetch(answers)
         argv = ["--out", self.out, "--unsigned", *(extra or [])]
         if previous:
@@ -416,7 +448,7 @@ class PublishPath(unittest.TestCase):
                 argv,
                 fetch_filters=fetch,
                 fetch_scam=fetch,
-                build_resources=stub_resources,
+                check_parse=check,
             )
         return code, out.getvalue() + err.getvalue()
 
@@ -442,7 +474,21 @@ class PublishPath(unittest.TestCase):
         self.assertFalse(manifest["degraded"])
         self.assertEqual(
             {f["name"] for f in manifest["files"]},
-            {"easylist.txt", "ubo.txt", "cookies.txt", "resources.json"},
+            {
+                "easylist.txt",
+                "ubo.txt",
+                "cookies.txt",
+                "aggressive-ubo.txt",
+                "aggressive-fanboy.txt",
+                "regional-de.txt",
+                "regional-fr.txt",
+                "regional-it.txt",
+                "regional-es-pt.txt",
+                "regional-ja.txt",
+                "regional-zh.txt",
+                "regional-ru.txt",
+                "regional-index.json",
+            },
         )
 
         for entry in manifest["files"]:
@@ -451,8 +497,9 @@ class PublishPath(unittest.TestCase):
             self.assertEqual(len(data), entry["size"])
             self.assertEqual(hashlib.sha256(data).hexdigest(), entry["sha256"])
 
-        # EasyList, EasyPrivacy, the four uAssets lists, the cookie list.
-        self.assertEqual(len(manifest["sources"]), 7)
+        # EasyList, EasyPrivacy, the four uAssets lists, the cookie list,
+        # uBO Annoyances, three Fanboy lists and seven regional lists.
+        self.assertEqual(len(manifest["sources"]), 18)
         self.assertTrue(all(s["ok"] for s in manifest["sources"]))
         self.assertIn("without a signature", log)
 
@@ -604,6 +651,156 @@ class PublishPath(unittest.TestCase):
         )
 
 
+    def test_scriptlet_resources_are_never_in_the_bundle(self):
+        # They are code that runs in pages: signed browser updates only.
+        code, _ = self.run_publish(healthy_answers(), extra=["--version", "500"])
+        self.assertEqual(code, 0)
+        self.assertFalse(os.path.exists(os.path.join(self.out, "resources.json")))
+        names = [f["name"] for f in self.read_manifest()["files"]]
+        self.assertNotIn("resources.json", names)
+
+    def test_regional_lists_and_their_index_are_in_the_bundle(self):
+        code, _ = self.run_publish(healthy_answers(), extra=["--version", "500"])
+        self.assertEqual(code, 0)
+        path = os.path.join(self.out, "regional-index.json")
+        with open(path, encoding="utf-8") as f:
+            index = json.load(f)
+        self.assertEqual(
+            [e["id"] for e in index],
+            [o.regional_id for o in get_filterlists.REGIONAL],
+        )
+        for entry in index:
+            name = f"regional-{entry['id']}.txt"
+            self.assertTrue(os.path.exists(os.path.join(self.out, name)))
+        # Every name is flat, as a release host needs.
+        for entry in self.read_manifest()["files"]:
+            self.assertNotIn("/", entry["name"])
+
+    def test_notices_go_out_with_the_lists(self):
+        code, _ = self.run_publish(healthy_answers(), extra=["--version", "500"])
+        self.assertEqual(code, 0)
+        manifest = self.read_manifest()
+        self.assertIn("NOTICES-uAssets.txt", manifest["notices"])
+        self.assertIn("NOTICES-aggressive-fanboy.txt", manifest["notices"])
+        path = os.path.join(self.out, "NOTICES-uAssets.txt")
+        with open(path, encoding="utf-8") as f:
+            self.assertIn("END OF TERMS AND CONDITIONS", f.read())
+
+    def test_a_list_the_engine_cannot_read_refuses_the_run(self):
+        before = self.seed_previous()
+        # A fifth of the uBO list unreadable, over the 15 per cent limit.
+        rules = sum(s.min_rules * 2 for s in get_filterlists.UBO.sources)
+
+        def check(files):
+            return stub_check(files, {"ubo.txt": rules // 5})
+
+        code, log = self.run_publish(
+            healthy_answers(), extra=["--version", "101"], check=check
+        )
+        self.assertEqual(code, 1)
+        self.assertIn("could not read", log)
+        self.assertIn("ubo.txt", log)
+        self.assertEqual(snapshot(self.out), before)
+
+    def test_a_few_unreadable_rules_are_normal(self):
+        # Real lists carry some uBO syntax the engine lacks (2 to 5 per
+        # cent in September 2026). That alone must not stop an update.
+        rules = sum(s.min_rules * 2 for s in get_filterlists.UBO.sources)
+
+        def check(files):
+            return stub_check(files, {"ubo.txt": rules // 20})
+
+        code, log = self.run_publish(
+            healthy_answers(), extra=["--version", "500"], check=check
+        )
+        self.assertEqual(code, 0, log)
+        files = self.read_manifest()["files"]
+        ubo = next(f for f in files if f["name"] == "ubo.txt")
+        self.assertEqual(ubo["parse_errors"], rules // 20)
+
+    def test_an_engine_that_does_not_build_refuses_the_run(self):
+        def check(files):
+            report = stub_check(files)
+            report["engine"] = {"built": False}
+            return report
+
+        code, log = self.run_publish(
+            healthy_answers(), extra=["--version", "500"], check=check
+        )
+        self.assertEqual(code, 1)
+        self.assertIn("did not build", log)
+        self.assertFalse(os.path.exists(os.path.join(self.out, "lists.json")))
+
+    def test_no_checker_means_no_bundle(self):
+        missing = os.path.join(self.work, "no-such-check_lists.exe")
+        fetch = stub_fetch(healthy_answers())
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = publish_lists.main(
+                ["--out", self.out, "--unsigned", "--checker", missing],
+                fetch_filters=fetch,
+            )
+        self.assertEqual(code, 1)
+        self.assertIn("checker", err.getvalue())
+        self.assertFalse(os.path.exists(os.path.join(self.out, "lists.json")))
+
+    def test_a_regional_list_that_shrinks_sharply_is_refused(self):
+        before = self.seed_previous()
+        answers = healthy_answers()
+        source = get_filterlists.REGIONAL[0].sources[0]
+        # Seeded with twice the floor; this is 70 per cent of that, under
+        # the 75 per cent regional limit but above the list's own floor.
+        answers[source.url] = listed_bytes(
+            source, rules=int(source.min_rules * 2 * 0.7), tag="shrunk"
+        )
+        code, log = self.run_publish(answers, extra=["--version", "101"])
+        self.assertEqual(code, 1)
+        self.assertIn("regional-de.txt", log)
+        self.assertEqual(snapshot(self.out), before)
+
+    def test_a_curated_list_losing_over_a_fifth_is_refused(self):
+        before = self.seed_previous()
+        answers = healthy_answers()
+        source = get_filterlists.COOKIES.sources[0]
+        answers[source.url] = listed_bytes(
+            source, rules=int(source.min_rules * 2 * 0.78), tag="shrunk"
+        )
+        code, log = self.run_publish(answers, extra=["--version", "101"])
+        self.assertEqual(code, 1)
+        self.assertIn("cookies.txt", log)
+        self.assertEqual(snapshot(self.out), before)
+
+
+@unittest.skipUnless(
+    os.path.isfile(publish_lists.DEFAULT_CHECKER),
+    "check_lists is not built (cargo build --release --bin check_lists)",
+)
+class RealChecker(unittest.TestCase):
+    """The same checks through the real engine code, when it is built."""
+
+    def test_the_engine_reads_real_rules_and_refuses_junk(self):
+        work = tempfile.mkdtemp(prefix="boring-checker-test-")
+        self.addCleanup(shutil.rmtree, work, ignore_errors=True)
+        good = os.path.join(work, "good.txt")
+        junk = os.path.join(work, "junk.txt")
+        with open(good, "w", encoding="utf-8", newline="\n") as f:
+            f.write("! Title: t\n||ads.example^\nexample.com##.ad\n")
+        with open(junk, "w", encoding="utf-8", newline="\n") as f:
+            f.write("||a.example^$nosuchoption\n||b.example^$nosuchoption\n")
+        report = publish_lists.run_checker(
+            publish_lists.DEFAULT_CHECKER, [(good, False), (junk, True)]
+        )
+        self.assertEqual(report["files"][0]["errors"], 0)
+        self.assertEqual(report["files"][0]["rules"], 2)
+        self.assertEqual(report["files"][1]["errors"], 2)
+        self.assertTrue(report["engine"]["reloaded"])
+        publish_lists.check_parse(
+            {"files": report["files"][:1], "engine": report["engine"]}, ["good.txt"]
+        )
+        with self.assertRaises(publish_lists.RefusedError):
+            publish_lists.check_parse(report, ["good.txt", "junk.txt"])
+
+
 @unittest.skipUnless(shutil.which("openssl"), "openssl is not on PATH")
 class Signing(unittest.TestCase):
     """The signature is only worth having if it is over the real bytes."""
@@ -631,7 +828,7 @@ class Signing(unittest.TestCase):
                 ["--out", self.out, "--sign-key", self.key, "--version", "500"],
                 fetch_filters=fetch,
                 fetch_scam=fetch,
-                build_resources=stub_resources,
+                check_parse=stub_check,
             )
         self.assertEqual(code, 0)
 
@@ -679,12 +876,59 @@ class Signing(unittest.TestCase):
                 ["--out", self.out, "--version", "500"],
                 fetch_filters=fetch,
                 fetch_scam=fetch,
-                build_resources=stub_resources,
+                check_parse=stub_check,
             )
         self.assertEqual(code, 0)
         self.assertTrue(
             os.path.exists(os.path.join(self.out, publish_lists.SIGNATURE_NAME))
         )
+
+    def test_a_checked_bundle_can_be_signed_on_its_own(self):
+        # lists.yml builds unsigned in one job and signs in another.
+        fetch = stub_fetch(healthy_answers())
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = publish_lists.main(
+                ["--out", self.out, "--unsigned", "--version", "500"],
+                fetch_filters=fetch,
+                check_parse=stub_check,
+            )
+            self.assertEqual(code, 0)
+            code = publish_lists.main(
+                ["--sign-bundle", self.out, "--sign-key", self.key]
+            )
+        self.assertEqual(code, 0)
+        with open(
+            os.path.join(self.out, publish_lists.SIGNATURE_NAME), encoding="utf-8"
+        ) as f:
+            signature = json.load(f)
+        pub_pem = os.path.join(self.work, "pub.pem")
+        sig_der = os.path.join(self.work, "sig.der")
+        with open(pub_pem, "wb") as f:
+            f.write(publish_lists.openssl(["pkey", "-in", self.key, "-pubout"]))
+        with open(sig_der, "wb") as f:
+            f.write(base64.b64decode(signature["sig"]))
+        publish_lists.openssl(
+            [
+                "dgst",
+                "-sha256",
+                "-verify",
+                pub_pem,
+                "-signature",
+                sig_der,
+                os.path.join(self.out, publish_lists.MANIFEST_NAME),
+            ]
+        )
+
+        # A resources file slipped into the folder is refused.
+        with open(os.path.join(self.out, "resources.json"), "w") as f:
+            f.write("[]")
+        err = io.StringIO()
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            code = publish_lists.main(
+                ["--sign-bundle", self.out, "--sign-key", self.key]
+            )
+        self.assertEqual(code, 1)
+        self.assertIn("resources.json", err.getvalue())
 
 
 if __name__ == "__main__":

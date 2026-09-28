@@ -74,6 +74,20 @@ struct BoringLibrary {
                                              size_t exception_count) = nullptr;
   void (*adblock_string_free)(char* s) = nullptr;
 
+  // Engine cache. serialize returns null on failure, else bytes to free
+  // with bytes_free; deserialize returns null for anything that is not
+  // an engine from this crate version. A loaded engine has no resources
+  // until given them again. crate_version is static, never freed.
+  unsigned char* (*adblock_serialize)(const void* engine,
+                                      size_t* len_out) = nullptr;
+  void (*adblock_bytes_free)(unsigned char* data, size_t len) = nullptr;
+  void* (*adblock_deserialize)(const unsigned char* data, size_t len) = nullptr;
+  const char* (*adblock_crate_version)() = nullptr;
+
+  // The lines of a person's own rules that the engine will not use, as
+  // JSON [{line, rule, error}], lines 1-based. Free with string_free.
+  char* (*adblock_check_rules)(const unsigned char* text, size_t len) = nullptr;
+
   // Scam and phishing blocklist.
   void* (*scamlist_new)(const unsigned char* text, size_t len) = nullptr;
   int (*scamlist_contains)(const void* list, const char* host) = nullptr;

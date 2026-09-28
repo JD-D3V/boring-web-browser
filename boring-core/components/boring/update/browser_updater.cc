@@ -27,6 +27,8 @@
 #include "base/win/registry.h"
 #include "components/boring/core/boring_release.h"
 #include "components/version_info/version_info.h"
+#include "content/public/browser/browser_task_traits.h"
+#include "content/public/browser/browser_thread.h"
 #include "net/base/url_util.h"
 #include "url/gurl.h"
 
@@ -271,6 +273,26 @@ void Configure(Loaded loaded) {
       base::BindOnce([] { Get().api.cleanup(); }));
 }
 
+// The part of StartOnce() that waits for the browser to finish starting.
+void Start(base::RepeatingClosure request_exit) {
+  Updater& updater = Get();
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(kDisableSwitch)) {
+    updater.state = BrowserUpdater::State::kDisabled;
+    return;
+  }
+  // Nothing to load and nothing to ask while there is no key to check an
+  // installer against.
+  if (KeyToTrust(FeedUrl()).empty()) {
+    updater.state = BrowserUpdater::State::kNoKey;
+    return;
+  }
+  updater.request_exit = std::move(request_exit);
+  updater.ui_task_runner = base::SequencedTaskRunner::GetCurrentDefault();
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
+      base::BindOnce(&Load), base::BindOnce(&Configure));
+}
+
 }  // namespace
 
 // static
@@ -280,21 +302,12 @@ void BrowserUpdater::StartOnce(base::RepeatingClosure request_exit) {
     return;
   }
   updater.started = true;
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(kDisableSwitch)) {
-    updater.state = State::kDisabled;
-    return;
-  }
-  // Nothing to load and nothing to ask while there is no key to check an
-  // installer against.
-  if (KeyToTrust(FeedUrl()).empty()) {
-    updater.state = State::kNoKey;
-    return;
-  }
-  updater.request_exit = std::move(request_exit);
-  updater.ui_task_runner = base::SequencedTaskRunner::GetCurrentDefault();
-  base::ThreadPool::PostTaskAndReplyWithResult(
-      FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
-      base::BindOnce(&Load), base::BindOnce(&Configure));
+  // Nothing about an update is urgent enough to slow the first window.
+  // The UI thread runs BEST_EFFORT tasks only once Chromium counts
+  // startup as complete (first page shown, or a timeout), the same
+  // point AfterStartupTaskUtils waits for.
+  content::GetUIThreadTaskRunner({base::TaskPriority::BEST_EFFORT})
+      ->PostTask(FROM_HERE, base::BindOnce(&Start, std::move(request_exit)));
 }
 
 // static

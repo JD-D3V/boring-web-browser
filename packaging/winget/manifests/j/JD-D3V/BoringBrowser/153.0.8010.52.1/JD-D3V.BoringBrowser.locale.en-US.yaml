@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.12.0.schema.json
+
+PackageIdentifier: JD-D3V.BoringBrowser
+PackageVersion: 153.0.8010.52.1
+PackageLocale: en-US
+Publisher: JD
+PublisherUrl: https://github.com/JD-D3V
+PublisherSupportUrl: https://jd-d3v.github.io/boring-web-browser/report.html
+PrivacyUrl: https://jd-d3v.github.io/boring-web-browser/privacy.html
+Author: JD
+PackageName: Boring Browser
+PackageUrl: https://jd-d3v.github.io/boring-web-browser/
+License: MIT
+LicenseUrl: https://github.com/JD-D3V/boring-web-browser/blob/main/LICENSE
+Copyright: Copyright (c) 2026 JD (JD-D3V)
+ShortDescription: A plain Windows browser built on ungoogled-chromium, with ad and tracker blocking on by default.
+Description: |-
+  Boring Browser is a Windows browser built on ungoogled-chromium.
+  Ad, tracker and pop-up blocking are on from the start, with HTTPS first and Quad9 secure DNS.
+  It checks its own site once a day for a new release and installs one only with your OK.
+  The installer is not signed yet, so Windows SmartScreen may warn.
+Moniker: boring-browser
+Tags:
+- browser
+- chromium
+- privacy
+- ungoogled-chromium
+- web
+ReleaseNotesUrl: https://github.com/JD-D3V/boring-web-browser/releases/tag/v153.0.8010.52.1
+ManifestType: defaultLocale
+ManifestVersion: 1.12.0

@@ -20,13 +20,22 @@ enum class ListKind {
   kScam,       // scamlist.txt: scam and phishing hosts
   kUbo,        // ubo.txt: uBlock filters, Quick fixes, Privacy, Unbreak
   kCookies,    // cookies.txt: cookie notices, used only when asked for
-  kResources,  // resources.json: scriptlets and $redirect stubs
+  kResources,  // resources.json: scriptlets and $redirect stubs. Only
+               // ever the shipped copy; list downloads never carry it.
+  // aggressive-ubo.txt: uBlock filters, Annoyances. Trusted like ubo.txt.
+  // Used only on the Aggressive blocking level.
+  kAggressiveUbo,
+  // aggressive-fanboy.txt: Fanboy's Social, Newsletter and Notifications
+  // lists. Used only on the Aggressive blocking level.
+  kAggressiveFanboy,
 };
 
 // Every kind, for code that has to go through them all.
 inline constexpr ListKind kAllListKinds[] = {
-    ListKind::kFilters, ListKind::kScam,      ListKind::kUbo,
-    ListKind::kCookies, ListKind::kResources,
+    ListKind::kFilters,       ListKind::kScam,
+    ListKind::kUbo,           ListKind::kCookies,
+    ListKind::kResources,     ListKind::kAggressiveUbo,
+    ListKind::kAggressiveFanboy,
 };
 
 // The file a list is kept in. The same name wherever it lives, and the
@@ -80,9 +89,23 @@ bool IsValidRegionalListId(std::string_view id);
 // for an invalid id or when there is neither. Looks at the disk.
 base::FilePath GetRegionalListPath(std::string_view id);
 
-// The index of regional lists that shipped with the browser,
-// boring\regional\index.json: [{id, title, locales, licence, source}].
+// The index of regional lists, boring\regional\index.json:
+// [{id, title, locales, licence, source}]. Whichever of the shipped and
+// the downloaded one was written last, as GetListPath() chooses, so a
+// list update can add a regional list. Empty when there is neither.
+// Looks at the disk.
 base::FilePath GetRegionalIndexPath();
+
+// Where a file named in a list update manifest goes, relative to
+// GetDownloadedListDir(), or nothing when the name is not one this
+// browser takes from a download. Manifest names are flat, because a
+// release host keeps files in one folder:
+//   easylist.txt, ubo.txt, ...  the ListKind files, except
+//                               resources.json, which is code and
+//                               changes only with the browser
+//   regional-<id>.txt           regional\<id>.txt, for a valid id
+//   regional-index.json         regional\index.json
+std::optional<base::FilePath> GetDownloadTarget(std::string_view name);
 
 // One entry of that index.
 struct RegionalListInfo {

@@ -502,6 +502,18 @@ body :focus-visible {
 }
 body.dark :focus-visible { outline-color: #92d4bb; }
 
+/* Entering reader view: the article settles in, 220 ms, once. */
+@keyframes boring-reader-in {
+  from { opacity: 0; transform: translateY(8px); }
+}
+@keyframes boring-reader-fade {
+  from { opacity: 0; }
+}
+#main-content article {
+  animation: boring-reader-in 220ms cubic-bezier(0.2, 0, 0, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   body { transition: none; }
+  #main-content article { animation: boring-reader-fade 150ms ease-out both; }
 }

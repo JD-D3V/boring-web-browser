@@ -5,24 +5,35 @@
 # to one release tag, "lists", that the browser checks on a schedule.
 # The tag is reused, so the address in the browser never changes.
 #
-# This is only downloading and uploading text files, so it runs on
-# GitHub's own runners rather than the desktop that builds Chromium.
+# Filter rules only: EasyList, uBO's lists, the cookie list, the
+# Aggressive lists and every regional list with its index. Scriptlet and
+# $redirect resources ship only with signed browser updates, and the
+# browser ignores a resources file in a bundle.
 #
-# Start it by hand for now. The browser's own schedule is weekly, so
-# this wants to run weekly too, but the first run is what creates the
-# public lists release, and that is JD's call to make. Once he is happy,
-# add back:
+# Automatic, but careful. publish_lists.py refuses a bundle that fails
+# any download check, that shrinks sharply against the bundle published
+# now (limits per list are in publish_lists.py), or that the browser's
+# own engine code cannot parse (check_lists, built below). A refusal
+# fails the run and leaves the published bundle alone.
 #
-#   schedule:
-#     - cron: "0 4 * * 1"
+# Two jobs, so the signing key is only ever in a job that has already
+# passed every check, and only after JD approves it: the "lists"
+# environment is protected with required reviewers, and the
+# BORING_LIST_SIGNING_KEY secret belongs to that environment. Until he
+# approves a run, nothing is signed and nothing is uploaded.
 
 name: lists
 
 on:
+  # By hand until JD has made the protected "lists" environment and its
+  # secret. Then add the twice weekly schedule back:
+  #
+  #   schedule:
+  #     - cron: "17 4 * * 1,4"
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 # One publisher at a time. Two runs uploading to the same reused tag
 # could leave a manifest describing files from the other run.
@@ -31,9 +42,9 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       GH_TOKEN: ${{ github.token }}
       DIST: ${{ github.workspace }}/dist
@@ -47,46 +58,102 @@ jobs:
         with:
           python-version: "3.12"
 
+      # The same parser the browser uses, to read every list before it
+      # goes out. The runner image has Rust; the version is whatever
+      # rustup has as stable, which the crate builds with.
+      - name: Build the list checker
+        working-directory: boring-core/rust
+        run: cargo build --release --locked --bin check_lists
+
       # The runner starts empty every time, so without this the tool has
       # nothing to compare against and every run looks like a first run.
-      # The check that refuses a bundle which lost most of its entries
-      # only works if the previous bundle is here to be lost from.
+      # The shrink limits only work if the previous bundle is here.
       - name: Fetch the bundle that is published now
         run: |
           mkdir -p "$PREV"
           if gh release view lists >/dev/null 2>&1; then
-            gh release download lists -D "$PREV" --clobber || true
+            gh release download lists -D "$PREV" --clobber
             ls -l "$PREV"
           else
             echo "no lists release yet, this is the first run"
           fi
 
-      - name: Build the bundle
+      # Unsigned here on purpose: this job never sees the key. The
+      # signing job below signs exactly these bytes.
+      - name: Build and check the bundle
         working-directory: boring-core/tools
         env:
-          # The private half of the list signing key. Without it the
-          # tool stops rather than publishing something no browser will
-          # accept. See artifacts/release-readiness/JD_CHECKLIST.md.
-          BORING_LIST_SIGNING_KEY: ${{ secrets.BORING_LIST_SIGNING_KEY }}
-        run: python publish_lists.py --out "$DIST" --previous "$PREV"
+          BORING_LIST_CHECKER: ${{ github.workspace }}/boring-core/rust/target/release/check_lists
+        run: python publish_lists.py --out "$DIST" --previous "$PREV" --unsigned
 
-      # publish_lists.py checks its own output before it returns. This
-      # only catches the case where it wrote nothing at all, which would
-      # otherwise upload an empty bundle over a good one.
       - name: Check the bundle is there
         run: |
           test -s "$DIST/lists.json" || { echo "no manifest in $DIST"; exit 1; }
-          test -s "$DIST/lists.json.sig" || { echo "no signature in $DIST"; exit 1; }
+          if [ -e "$DIST/resources.json" ]; then
+            echo "resources.json must never be in a list bundle"; exit 1
+          fi
           ls -l "$DIST"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundle
+          path: dist/
+          retention-days: 7
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Protected: JD is a required reviewer. The job waits here, and the
+    # key below does not exist for it, until he approves the run.
+    environment: lists
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DIST: ${{ github.workspace }}/dist
+    steps:
+      - name: Check out our files
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: bundle
+          path: dist/
+
+      # Signs the manifest exactly as the build job checked it, with
+      # openssl from the runner image. publish_lists.py writes the key to
+      # a private temporary file and removes it whatever happens.
+      - name: Sign the manifest
+        working-directory: boring-core/tools
+        env:
+          BORING_LIST_SIGNING_KEY: ${{ secrets.BORING_LIST_SIGNING_KEY }}
+        run: python publish_lists.py --sign-bundle "$DIST"
 
       - name: Make the lists release if it is not there yet
         run: |
-          if ! gh release view lists >/dev/null 2>&1; then
-            gh release create lists \
+          if ! gh release view lists -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create lists -R "$GITHUB_REPOSITORY" \
               --title "Blocking lists" \
-              --notes "Ad, tracker and scam lists the browser downloads to stay current. Replaced every week; this tag always holds the newest set." \
+              --notes "Ad, tracker and annoyance filter lists the browser downloads to stay current. Replaced twice a week; this tag always holds the newest set." \
               --latest=false
           fi
 
+      # Lists first, manifest and signature last, so a browser reading
+      # the release part way through finds an old manifest whose hashes
+      # do not match the new lists and refuses them, rather than a new
+      # manifest naming files that are not up yet.
       - name: Upload the bundle
-        run: gh release upload lists "$DIST"/* --clobber
+        run: |
+          set -euo pipefail
+          shopt -s extglob
+          gh release upload lists -R "$GITHUB_REPOSITORY" --clobber "$DIST"/!(lists.json|lists.json.sig)
+          gh release upload lists -R "$GITHUB_REPOSITORY" --clobber "$DIST/lists.json" "$DIST/lists.json.sig"
+          # An older bundle carried resources.json. Nothing reads it now.
+          gh release delete-asset lists resources.json -R "$GITHUB_REPOSITORY" -y || true

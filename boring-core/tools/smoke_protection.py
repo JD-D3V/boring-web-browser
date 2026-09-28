@@ -8,11 +8,17 @@ asks before it turns off, and survives a reload, and that turning it on
 forces sponsored results hidden. Also that the Chrome Web Store row
 follows the bundled extension (the copy smoke_webstore.py checks) as it
 is turned off and on, and when it is not installed, and that a fresh
-profile has no sites with blocking off. Screenshots go to
-artifacts/ui-implemented.
+profile has no sites with blocking off. Also the blocking level
+(Standard or Aggressive, surviving a reload), My filters (saved, and a
+line the engine cannot use listed as not used), and the Memory section:
+Memory Saver on and off with Chromium's three levels, Balanced by
+default, and the Never sleep list with working Remove buttons. The
+switches move for 180 ms, or not at all with reduced motion.
+Screenshots go to artifacts/ui-implemented.
 """
 
 import json
+import os
 import sys
 import tempfile
 import time
@@ -51,6 +57,107 @@ def poll(b, script, seconds):
         if time.monotonic() > deadline:
             return False
         time.sleep(0.5)
+
+
+# A rule adblock-rust refuses: an option it does not know.
+BAD_RULE = "||example.com^$boringnotanoption"
+GOOD_RULE = "example.com##.boring-smoke-ad"
+NEVER_SLEEP_SITE = "https://example.com"
+
+
+def write_never_sleep(profile, sites):
+    """Put sites on the Never sleep list while the browser is closed.
+
+    Adding one happens from the shield, which WebDriver cannot press, so
+    the list is written the way the browser stores it.
+    """
+    path = os.path.join(profile, "Default", "Preferences")
+    with open(path, encoding="utf-8") as f:
+        prefs = json.load(f)
+    prefs.setdefault("boring", {}).setdefault("performance", {})[
+        "never_sleep_sites"
+    ] = sites
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(prefs, f)
+
+
+def check_new_sections(b, checks):
+    """Blocking level, My filters and Memory on a fresh profile."""
+    checks["level is two real radio buttons, Standard first"] = b.run(
+        "var s=document.getElementById('level-standard'),"
+        "a=document.getElementById('level-aggressive');"
+        "return s.type==='radio' && a.type==='radio' && s.labels.length===1 &&"
+        " a.labels.length===1 && s.checked && !a.checked"
+    )
+    b.run("document.getElementById('level-aggressive').click()")
+    b.get("chrome://boring-protection")
+    checks["aggressive level survives a reload"] = wait_for(
+        b, "document.getElementById('level-aggressive').checked"
+    )
+    b.run("document.getElementById('level-standard').click()")
+
+    checks["My filters is a labelled text box with Save"] = b.run(
+        "var t=document.getElementById('my-filters');"
+        "return t.tagName==='TEXTAREA' && t.labels.length===1 && "
+        "document.getElementById('save-filters').textContent==='Save'"
+    )
+    b.run(
+        "document.getElementById('my-filters').value=arguments[0];"
+        "document.getElementById('save-filters').click()",
+        [GOOD_RULE + "\n" + BAD_RULE],
+    )
+    checks["a line that did not parse is listed"] = wait_for(
+        b,
+        "!document.getElementById('filter-problems').hidden && "
+        "document.getElementById('filter-problems-list').textContent"
+        ".indexOf('boringnotanoption')>=0 && "
+        "document.getElementById('filter-problems-list').textContent"
+        ".indexOf('boring-smoke-ad')<0 && "
+        "document.getElementById('my-filters-status').textContent"
+        ".indexOf('Saved')===0",
+        10000,
+    )
+    b.get("chrome://boring-protection")
+    checks["My filters survives a reload"] = wait_for(
+        b,
+        "document.getElementById('my-filters').value.indexOf("
+        "'boring-smoke-ad')>=0",
+    )
+
+    checks["Memory Saver is a real switch with three levels"] = b.run(
+        "var m=document.getElementById('memory-saver');"
+        "var r=document.querySelectorAll('input[name=memory-level]');"
+        "return m.type==='checkbox' && m.labels.length===1 && r.length===3 &&"
+        " Array.from(r).every(function(x){return x.labels.length===1;})"
+    )
+    checks["Memory Saver level is Balanced by default"] = b.run(
+        "return document.getElementById('memory-balanced').checked"
+    )
+    was_on = b.run("return document.getElementById('memory-saver').checked")
+    b.run("document.getElementById('memory-saver').click()")
+    checks["Memory Saver switches"] = wait_for(
+        b,
+        "document.getElementById('memory-saver').checked===" +
+        ("false" if was_on else "true"),
+    )
+    if not was_on:
+        b.run("document.getElementById('memory-maximum').click()")
+        checks["Memory Saver level changes"] = wait_for(
+            b, "document.getElementById('memory-maximum').checked"
+        )
+        b.run("document.getElementById('memory-balanced').click()")
+        b.run("document.getElementById('memory-saver').click()")
+    checks["no sites on the Never sleep list in a fresh profile"] = wait_for(
+        b,
+        "document.getElementById('never-sleep-state').textContent==='None' "
+        "&& !document.querySelector('#never-sleep li')",
+    )
+    checks["switches move calmly, or not at all with reduced motion"] = b.run(
+        "var d=getComputedStyle(document.getElementById('senior'),'::before')"
+        ".transitionDuration;"
+        "return matchMedia('(prefers-reduced-motion: reduce)').matches ?"
+        " /^0s/.test(d) : d.indexOf('0.18s')===0"
+    )
 
 
 def main():
@@ -108,6 +215,9 @@ def main():
                 "return e.type==='checkbox' && e.labels.length===1;})"
             )
             b.screenshot(str(OUT / "protection-light.png"))
+            check_new_sections(b, checks)
+            b.get("chrome://boring-protection")
+            wait_for(b, "document.getElementById('ads-state').textContent==='On'")
 
             b.run("document.getElementById('senior').click()")
             checks["senior mode turns on"] = wait_for(
@@ -178,6 +288,22 @@ def main():
             checks["web store row reports removed when not installed"] = wait_for(
                 b,
                 "document.getElementById('webstore-state').textContent==='Removed'",
+            )
+
+        write_never_sleep(profile, [NEVER_SLEEP_SITE])
+        with Browser(user_data_dir=profile, args=["--window-size=1360,900"]) as b:
+            b.get("chrome://boring-protection")
+            checks["Never sleep list shows its site"] = wait_for(
+                b,
+                "document.getElementById('never-sleep-state').textContent"
+                "==='1 site' && document.querySelector('#never-sleep li span')"
+                ".textContent===" + json.dumps(NEVER_SLEEP_SITE),
+            )
+            b.run("document.querySelector('#never-sleep button').click()")
+            checks["Remove takes a site off the Never sleep list"] = wait_for(
+                b,
+                "document.getElementById('never-sleep-state').textContent"
+                "==='None' && !document.querySelector('#never-sleep li')",
             )
 
         with Browser(

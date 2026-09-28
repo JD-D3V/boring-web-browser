@@ -7,6 +7,7 @@ folder called boring. Run again any time to refresh the lists.
   boring\\easylist.txt     EasyList and EasyPrivacy, as they are served
   boring\\ubo.txt          uBlock filters, Quick fixes, Privacy, Unbreak
   boring\\cookies.txt      Easylist Cookie List
+  boring\\aggressive-*.txt extra lists for the Aggressive blocking level
   boring\\regional\\*.txt   optional regional lists, with index.json
   boring\\sources.json     what was fetched, when, and its SHA-256
 
@@ -668,6 +669,88 @@ REGIONAL = (
     ),
 )
 
+# The Aggressive blocking level (prefs::kBoringBlockingLevel 1) adds
+# these, as an optional engine like the cookie list. Checked at the
+# source on 2026-09-25, list header and repository:
+#
+#   uBlock filters - Annoyances, uAssets/filters/annoyances.txt, which is
+#   one "!#include annoyances-others.txt". Header: "! License:
+#   https://github.com/uBlockOrigin/uAssets/blob/master/LICENSE", and
+#   that LICENSE is the GPL-3.0 (its text is fetched and checked into
+#   the notice, as for ubo.txt). Trusted like the rest of uBO's lists.
+#
+#   Fanboy's Social Blocking List, Newsletter List and Notifications
+#   List, from secure.fanboy.co.nz. Each header: "! License:
+#   http://creativecommons.org/licenses/by/3.0/". The repositories
+#   (ryanbr/fanboy-adblock, easylist/easylist) hold no licence file, so
+#   the header is the licence, as for the Easylist Cookie List. The
+#   easylist.to copies of the same lists say "Licence:
+#   https://easylist.to/pages/licence.html" instead, which does not name
+#   them, so those copies are not used.
+#
+# Left out on purpose: Fanboy's Annoyance List, which includes the
+# Easylist Cookie List (cookie notices have their own switch) and would
+# duplicate the three lists above; uBO's Cookie Notices list, for the
+# same reason; and anything that blocks all third party scripts.
+#
+# Rule floors, about a third of what each held on 2026-09-25 with the
+# includes in: uBO Annoyances 3,524, Social 13,892, Newsletter 6,506,
+# Notifications 1,588.
+FANBOY = "https://secure.fanboy.co.nz/"
+FANBOY_LICENCE_LINE = "! License: http://creativecommons.org/licenses/by/3.0/"
+
+AGGRESSIVE = (
+    OutputList(
+        path="aggressive-ubo.txt",
+        title="uBlock filters - Annoyances",
+        sources=(
+            ListSource(
+                "ublock-annoyances",
+                "uBlock filters - Annoyances",
+                UASSETS + "annoyances.txt",
+                UASSETS_LICENCE_LINE,
+                min_rules=1200,
+            ),
+        ),
+        licence=GPL3_UASSETS,
+        attribution=(
+            "The uBlock Origin uAssets contributors "
+            "(https://github.com/uBlockOrigin/uAssets)"
+        ),
+        notice="NOTICES-aggressive-ubo.txt",
+    ),
+    OutputList(
+        path="aggressive-fanboy.txt",
+        title="Fanboy's Social, Newsletter and Notifications lists",
+        sources=(
+            ListSource(
+                "fanboy-social",
+                "Fanboy's Social Blocking List",
+                FANBOY + "fanboy-social.txt",
+                FANBOY_LICENCE_LINE,
+                min_rules=4500,
+            ),
+            ListSource(
+                "fanboy-newsletter",
+                "Fanboy's Newsletter List",
+                FANBOY + "fanboy-newsletter.txt",
+                FANBOY_LICENCE_LINE,
+                min_rules=2000,
+            ),
+            ListSource(
+                "fanboy-notifications",
+                "Fanboy's Notifications List",
+                FANBOY + "fanboy-notifications.txt",
+                FANBOY_LICENCE_LINE,
+                min_rules=500,
+            ),
+        ),
+        licence=CC_BY_3,
+        attribution="Fanboy and the EasyList authors (https://easylist.to/)",
+        notice="NOTICES-aggressive-fanboy.txt",
+    ),
+)
+
 
 def eval_token(token: str) -> bool | None:
     """One "!#if" token, None when it is not one uBO knows."""
@@ -1035,7 +1118,7 @@ def manifest_entry(build: ListBuild, sha256: str, fetched_at: str) -> dict:
 
 def build_all(fetch=fetch_url, regional: bool = True) -> list[ListBuild]:
     """Every list but easylist.txt, in the order they are written."""
-    outputs = [UBO, COOKIES, *(REGIONAL if regional else ())]
+    outputs = [UBO, COOKIES, *AGGRESSIVE, *(REGIONAL if regional else ())]
     return [build_output_list(output, fetch) for output in outputs]
 
 

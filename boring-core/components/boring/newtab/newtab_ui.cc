@@ -2,9 +2,11 @@
 
 #include "components/boring/newtab/newtab_ui.h"
 
+#include <algorithm>
 #include <memory>
 #include <string>
 
+#include "base/command_line.h"
 #include "base/functional/bind.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/memory/weak_ptr.h"
@@ -15,6 +17,7 @@
 #include "components/boring/adblock/adblock_service.h"
 #include "components/boring/branding/brand_mark.h"
 #include "components/boring/core/boring_capabilities.h"
+#include "components/boring/newtab/search_engine_menu.h"
 #include "components/boring/scam/scam_service.h"
 #include "components/boring/search/search_engines.h"
 #include "components/pref_registry/pref_registry_syncable.h"
@@ -27,6 +30,7 @@
 #include "content/public/browser/web_ui_data_source.h"
 #include "content/public/browser/web_ui_message_handler.h"
 #include "content/public/common/url_constants.h"
+#include "ui/gfx/geometry/rect.h"
 #include "url/gurl.h"
 
 namespace boring {
@@ -123,6 +127,11 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   .shortcuts { display: flex; flex-wrap: wrap; justify-content: center;
                gap: 32px; margin: 30px 0 0; padding: 0; list-style: none; }
   .shortcuts li { position: relative; }
+  /* Tiles arrive once per page load, a few ms apart. */
+  @keyframes tile-in { from { opacity: 0; transform: translateY(6px); } }
+  @keyframes tile-fade { from { opacity: 0; } }
+  .shortcuts.appear li { animation: tile-in 220ms ease-out both;
+        animation-delay: calc(var(--i, 0) * 30ms); }
   .shortcut { display: flex; flex-direction: column;
                         align-items: center; gap: 10px; width: 72px;
                         color: inherit; text-decoration: none;
@@ -183,6 +192,8 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   }
   @media (prefers-reduced-motion: reduce) {
     .remove { transition: none; }
+    .shortcuts.appear li { animation: tile-fade 150ms ease-out both;
+          animation-delay: 0ms; }
   }
   @media (forced-colors: active) {
     .shortcut, .shortcut-mark, .search-form, .editor input, button {
@@ -201,8 +212,8 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   <p class="intro">Find what you came for.</p>
   <form class="search-form" id="search" role="search">
     <button id="engine" class="engine" type="button"
-        aria-haspopup="listbox" aria-expanded="false"
-        aria-controls="engines" aria-label="Choose a search engine">
+        aria-haspopup="dialog" aria-expanded="false"
+        aria-label="Choose a search engine">
       <span class="engine-mark" id="engine-mark" aria-hidden="true">?</span>
       <svg aria-hidden="true" focusable="false" width="10" height="10"
           viewBox="0 0 10 10">
@@ -211,6 +222,8 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
             stroke-linecap="round"/>
       </svg>
     </button>
+    <!-- Only where the browser's own menu cannot be shown, such as a
+         window with no address bar. -->
     <ul class="engines" id="engines" role="listbox"
         aria-label="Search engines" hidden></ul>
     <p class="sr-only" id="engine-status" role="status"></p>
@@ -260,13 +273,19 @@ function node(tag, className, text) {
 }
 
 var shortcutCount = 0;
+var tilesShown = false;
 
 function showShortcuts(list) {
   var ul = el('shortcuts');
   ul.replaceChildren();
   shortcutCount = list.length;
+  // Only the first time: a tile added or removed later should not make
+  // the whole row arrive again.
+  ul.classList.toggle('appear', !tilesShown);
+  tilesShown = true;
   list.forEach(function(item, index) {
     var li = node('li');
+    li.style.setProperty('--i', index);
     var a = node('a', 'shortcut');
     a.href = item.url;
     var name = item.title || item.host;
@@ -284,6 +303,7 @@ function showShortcuts(list) {
   });
   if (list.length < 8) {
     var li = node('li');
+    li.style.setProperty('--i', list.length);
     var add = node('button', 'shortcut');
     add.type = 'button';
     add.id = 'add-open';
@@ -347,18 +367,20 @@ function showProtection(p) {
 }
 
 var searchUrl = '';
-// Set while a choice is on its way, so the answer is read out once.
-var choosing = false;
+var searchName = '';
+// An engine chosen from the menu for the next search only.
+var onceUrl = '';
 
 el('search').addEventListener('submit', function(e) {
   e.preventDefault();
   var typed = el('q').value.trim();
-  if (!typed || !searchUrl) return;
-  location.href = searchUrl.replace('%s', encodeURIComponent(typed));
+  var url = onceUrl || searchUrl;
+  if (!typed || !url) return;
+  location.href = url.replace('%s', encodeURIComponent(typed));
 });
 
-var engineList = el('engines');
 var engineButton = el('engine');
+var engineList = el('engines');
 
 function closeEngines(focusButton) {
   engineList.hidden = true;
@@ -373,21 +395,6 @@ function openEngines() {
       engineList.querySelector('button:not(:disabled)');
   if (current) current.focus();
 }
-
-engineButton.addEventListener('click', function() {
-  if (engineList.hidden) {
-    openEngines();
-  } else {
-    closeEngines(true);
-  }
-});
-
-engineButton.addEventListener('keydown', function(e) {
-  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && engineList.hidden) {
-    e.preventDefault();
-    openEngines();
-  }
-});
 
 // Arrow keys, Home and End move between the engines that can be chosen.
 // A disabled one cannot take focus, so it is skipped rather than left
@@ -432,6 +439,7 @@ document.addEventListener('click', function(e) {
   }
 });
 
+// The in-page list, kept for when the browser's menu is unavailable.
 function showEngines(engines, canChange) {
   engineList.textContent = '';
   engines.forEach(function(engine) {
@@ -451,7 +459,6 @@ function showEngines(engines, canChange) {
     pick.addEventListener('click', function() {
       closeEngines(true);
       if (!engine.isDefault) {
-        choosing = true;
         chrome.send('setSearchEngine', [engine.id]);
       }
     });
@@ -472,19 +479,73 @@ function showEngines(engines, canChange) {
   engineButton.hidden = engines.length < (searchUrl ? 2 : 1);
 }
 
-window.loadSearch = function(engine) {
-  if (choosing) {
-    choosing = false;
-    el('engine-status').textContent =
-        'Search engine: ' + (engine.name || 'none');
+// The engine list is the browser's own menu, the same one the address
+// bar's engine icon opens. It is placed under this button.
+engineButton.addEventListener('click', function() {
+  if (!engineList.hidden) {
+    closeEngines(true);
+    return;
   }
+  var r = engineButton.getBoundingClientRect();
+  engineButton.setAttribute('aria-expanded', 'true');
+  chrome.send('showEngineMenu', [Math.round(r.left), Math.round(r.top),
+                                 Math.round(r.width), Math.round(r.height)]);
+});
+
+// No address bar to hang the menu from: use the list in the page.
+window.engineMenuUnavailable = function() {
+  openEngines();
+};
+
+engineButton.addEventListener('keydown', function(e) {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    engineButton.click();
+  }
+});
+
+window.engineMenuClosed = function() {
+  engineButton.setAttribute('aria-expanded', 'false');
+};
+
+// A search with this engine, this once. With words typed it goes now;
+// otherwise the box says which engine the next search will use.
+window.searchOnce = function(engine) {
+  var typed = el('q').value.trim();
+  if (typed) {
+    location.href = engine.url.replace('%s', encodeURIComponent(typed));
+    return;
+  }
+  onceUrl = engine.url;
+  el('q').disabled = false;
+  el('q').placeholder = 'Search ' + engine.name;
+  el('engine-status').textContent = 'Next search: ' + engine.name;
+  el('q').focus();
+};
+
+// "Make default" in the menu: the new default wins over a one-time
+// choice, and the box says so.
+window.defaultChanged = function() {
+  onceUrl = '';
+  chrome.send('getSearch');
+};
+
+// Test only, see kSearchMenuTestSwitch.
+window.searchMenuTestResult = function(result) {
+  window.lastSearchMenuTest = result;
+};
+
+window.loadSearch = function(engine) {
   searchUrl = engine.url || '';
   var engines = engine.engines || [];
   // No engine to search with, for example after "No Search" in
   // settings: say so, and keep the list so one can be chosen here.
-  el('q').disabled = !searchUrl;
-  el('q').placeholder = searchUrl ? 'Search ' + (engine.name || 'the web') :
-                                    'Search is off. Choose an engine.';
+  searchName = engine.name || '';
+  el('q').disabled = !searchUrl && !onceUrl;
+  if (!onceUrl) {
+    el('q').placeholder = searchUrl ? 'Search ' + (searchName || 'the web') :
+                                      'Search is off. Choose an engine.';
+  }
   el('engine-mark').textContent =
       searchUrl ? (engine.name || '?').charAt(0).toUpperCase() : '?';
   engineButton.setAttribute('aria-label', searchUrl ?
@@ -613,6 +674,18 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
         "getProtection",
         base::BindRepeating(&NewTabMessageHandler::HandleGetProtection,
                             base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "showEngineMenu",
+        base::BindRepeating(&NewTabMessageHandler::HandleShowEngineMenu,
+                            base::Unretained(this)));
+    // Test only: nothing a page can ask for without the switch.
+    if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+            kSearchMenuTestSwitch)) {
+      web_ui()->RegisterMessageCallback(
+          "searchMenuTest",
+          base::BindRepeating(&NewTabMessageHandler::HandleSearchMenuTest,
+                              base::Unretained(this)));
+    }
   }
 
  private:
@@ -805,6 +878,74 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
   }
 
   void RetryGetSearch() { HandleGetSearch(base::ListValue()); }
+
+  // [left, top, width, height] of the engine button, in the page's CSS
+  // pixels. The browser shows its own search engine menu under it.
+  void HandleShowEngineMenu(const base::ListValue& args) {
+    AllowJavascript();
+    const bool numbers =
+        std::ranges::all_of(args, [](const base::Value& value) {
+          return value.is_int() || value.is_double();
+        });
+    if (args.size() != 4 || !numbers) {
+      return;
+    }
+    const gfx::Rect anchor(static_cast<int>(args[0].GetDouble()),
+                           static_cast<int>(args[1].GetDouble()),
+                           static_cast<int>(args[2].GetDouble()),
+                           static_cast<int>(args[3].GetDouble()));
+    const bool shown = ShowSearchEngineMenuForPage(
+        web_ui()->GetWebContents(), anchor,
+        base::BindRepeating(&NewTabMessageHandler::OnEngineMenuPick,
+                            weak_factory_.GetWeakPtr()),
+        base::BindRepeating(&NewTabMessageHandler::OnEngineMenuDefaultChanged,
+                            weak_factory_.GetWeakPtr()),
+        base::BindOnce(&NewTabMessageHandler::OnEngineMenuClosed,
+                       weak_factory_.GetWeakPtr()));
+    if (!shown) {
+      web_ui()->CallJavascriptFunctionUnsafe("engineMenuUnavailable");
+    }
+  }
+
+  // An engine chosen to search with once: the page gets its search
+  // address, never a template, and only a web address.
+  void OnEngineMenuPick(const std::string& keyword) {
+    if (!IsJavascriptAllowed()) {
+      return;
+    }
+    for (const SearchEngine& engine :
+         GetSearchEngines(web_ui()->GetWebContents()->GetBrowserContext())) {
+      if (engine.keyword != keyword) {
+        continue;
+      }
+      const std::string url = SearchUrlFromTemplate(engine.url);
+      if (!url.empty()) {
+        web_ui()->CallJavascriptFunctionUnsafe(
+            "searchOnce",
+            base::DictValue().Set("name", engine.name).Set("url", url));
+      }
+      return;
+    }
+  }
+
+  void OnEngineMenuDefaultChanged() {
+    if (IsJavascriptAllowed()) {
+      web_ui()->CallJavascriptFunctionUnsafe("defaultChanged");
+    }
+  }
+
+  void OnEngineMenuClosed() {
+    if (IsJavascriptAllowed()) {
+      web_ui()->CallJavascriptFunctionUnsafe("engineMenuClosed");
+    }
+  }
+
+  void HandleSearchMenuTest(const base::ListValue& args) {
+    AllowJavascript();
+    web_ui()->CallJavascriptFunctionUnsafe(
+        "searchMenuTestResult",
+        RunSearchEngineMenuTestCommand(web_ui()->GetWebContents(), args));
+  }
 
   void HandleGetProtection(const base::ListValue& args) {
     ScamService* scam = ScamService::GetInstance();

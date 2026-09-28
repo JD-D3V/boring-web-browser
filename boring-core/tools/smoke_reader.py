@@ -3,8 +3,9 @@
 
 Reader view used to need a command line switch. It should be on now.
 Opens an article through the reader URL and checks our own look is
-there: the reading time line, the Aa settings button, and the page
-colours.
+there: the reading time line, the Aa settings button, the page
+colours, and the short settle-in motion as the article opens (a plain
+fade with reduced motion).
 """
 
 import hashlib
@@ -61,6 +62,15 @@ def main():
             "return e ? getComputedStyle(e).width : ''"
         )
 
+        motion = b.run(
+            "var a = document.querySelector('#main-content article');"
+            "if (!a) return {};"
+            "var c = getComputedStyle(a);"
+            "return {name: c.animationName, duration: c.animationDuration,"
+            " opacity: c.opacity,"
+            " reduced: matchMedia('(prefers-reduced-motion: reduce)').matches};"
+        )
+
         words = b.run(
             "var e = document.getElementById('content');"
             "return e ? (e.innerText || '').split(/\\s+/).length : 0"
@@ -71,6 +81,7 @@ def main():
         print("reading time:", repr(read_time))
         print("page background:", body_bg)
         print("text column width:", width)
+        print("entering motion:", motion)
 
         # The dark theme is picked from the Aa menu. The reader's own
         # script is out of reach from here, so press the menu's option the
@@ -88,6 +99,9 @@ def main():
 
         if not has_aa:
             failures.append("our reader look did not load")
+        want = "boring-reader-fade" if motion.get("reduced") else "boring-reader-in"
+        if motion.get("name") != want or motion.get("opacity") != "1":
+            failures.append("reader view does not settle in as it opens")
         if words < 200:
             failures.append("the article text was not extracted")
         if "minute read" not in read_time:

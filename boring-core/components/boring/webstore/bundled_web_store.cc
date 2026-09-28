@@ -12,6 +12,7 @@
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/memory/scoped_refptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/path_service.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/thread_pool.h"
@@ -21,6 +22,7 @@
 #include "components/prefs/pref_service.h"
 #include "components/user_prefs/user_prefs.h"
 #include "content/public/browser/browser_context.h"
+#include "content/public/browser/browser_task_traits.h"
 #include "content/public/browser/browser_thread.h"
 #include "extensions/browser/crx_installer.h"
 #include "extensions/browser/extension_registrar.h"
@@ -122,10 +124,12 @@ Action Decide(const std::string& recorded,
                                          : Action::kRecordBundled;
 }
 
-void MaybeInstallBundledWebStore(content::BrowserContext* context) {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  if (!context || context->IsOffTheRecord() ||
-      extensions::ExtensionsBrowserClient::Get()->IsGuestSession(context)) {
+namespace {
+
+void CheckBundledWebStore(
+    base::WeakPtr<content::BrowserContext> weak_context) {
+  content::BrowserContext* context = weak_context.get();
+  if (!context || context->ShutdownStarted()) {
     return;
   }
   PrefService* pref_service = user_prefs::UserPrefs::Get(context);
@@ -183,6 +187,23 @@ void MaybeInstallBundledWebStore(content::BrowserContext* context) {
           &CopyToTemp, module_dir.Append(kBundledDir),
           extensions::ExtensionRegistrar::Get(context)->install_directory()),
       base::BindOnce(&StartInstall, installer, base::Unretained(context)));
+}
+
+}  // namespace
+
+void MaybeInstallBundledWebStore(content::BrowserContext* context) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+  if (!context || context->IsOffTheRecord() ||
+      extensions::ExtensionsBrowserClient::Get()->IsGuestSession(context)) {
+    return;
+  }
+  // Only once the browser has finished starting: the UI thread runs
+  // BEST_EFFORT tasks after Chromium counts startup as complete, the
+  // same point AfterStartupTaskUtils waits for. A profile closed by then
+  // is simply skipped; it is checked again the next time it loads.
+  content::GetUIThreadTaskRunner({base::TaskPriority::BEST_EFFORT})
+      ->PostTask(FROM_HERE,
+                 base::BindOnce(&CheckBundledWebStore, context->GetWeakPtr()));
 }
 
 }  // namespace boring::webstore

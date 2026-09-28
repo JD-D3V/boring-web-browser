@@ -1,0 +1,34 @@
+# Run the Python tool tests.
+#
+# These are offline and take a second, so they run on GitHub's free
+# cloud runners on every push, next to lint.yml. Nothing here touches
+# the build tree or the self hosted machine.
+#
+# Windows only. The browser is Windows only, and several of these tests
+# reach for Windows things: signtool under the SDK, msvcrt file locking,
+# drive letters. The POSIX branches exist so the code reads sensibly
+# elsewhere, not because anything runs there, and a green tick on a
+# platform we do not ship would be worth nothing.
+
+name: tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tools:
+    name: Tools (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run the tests
+        run: python -m unittest discover -s boring-core/tools/tests -v

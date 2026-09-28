@@ -1,0 +1,82 @@
+name: Something is wrong
+description: Report a bug in the browser.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time. Please do not report a security
+        problem here, because this form is public. Use the private
+        reporting link on the Security tab instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, and what the browser did instead.
+      placeholder: |
+        I clicked the shield in the toolbar and the window closed.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to make it happen again
+      description: |
+        Step by step, from opening the browser. If it only happens on one
+        site, say which one, as long as you do not mind naming it.
+      placeholder: |
+        1. Open the browser
+        2. Go to ...
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: |
+        From the app menu, Settings, About. Copy the whole line.
+      placeholder: 151.0.7922.173
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Which Windows
+      description: |
+        Press the Windows key, type winver, press Enter, and copy the
+        version line.
+      placeholder: Windows 11 24H2
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you installed it
+      options:
+        - The installer
+        - The zip, unpacked and run from a folder
+        - Not sure
+    validations:
+      required: true
+  - type: checkboxes
+    id: senior
+    attributes:
+      label: Settings that might matter
+      options:
+        - label: Senior Safe Mode is on
+        - label: I turned blocking list updates off
+        - label: I have extensions installed
+  - type: textarea
+    id: anything-else
+    attributes:
+      label: Anything else
+      description: |
+        Please do not paste passwords, card numbers or anything from a
+        page you were signed in to.

@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "base/containers/flat_map.h"
+#include "base/files/file_path.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
@@ -43,6 +44,12 @@ namespace boring {
 // so a browser installed this week stays silent. When they are not, one
 // small manifest is read at most once a day, and a list is downloaded
 // only when its hash says it actually changed.
+//
+// What a download may carry: filter lists only (EasyList, uBO's lists,
+// the cookie list, the Aggressive lists and the regional lists with
+// their index). Scriptlets and $redirect resources are code that runs
+// in pages, so they change only with a signed browser update; a
+// resources file in a manifest is ignored.
 //
 // The manifest has to be signed by a key this browser was built with
 // before anything in it is believed. The hashes in it catch a file that
@@ -112,10 +119,10 @@ class ListUpdater {
     // False when the lists in use are still fresh, or when the last
     // check was too recent to repeat. Nothing is sent in that case.
     bool worth_asking = false;
-    // Hash of each downloaded list we hold; a kind we hold none of has
-    // no entry. A list whose hash already matches the manifest is not
-    // fetched.
-    base::flat_map<ListKind, std::string> held_sha256;
+    // Hash of each downloaded list we hold, by its name in the manifest;
+    // a list we hold none of has no entry. A list whose hash already
+    // matches the manifest is not fetched.
+    base::flat_map<std::string, std::string> held_sha256;
     // Manifest version the last check applied, 0 when there was none.
     int version = 0;
     // Whether that bundle was a degraded one. Carried forward when a
@@ -126,7 +133,10 @@ class ListUpdater {
 
   // One list the manifest offers that we do not already have.
   struct Wanted {
-    ListKind kind;
+    // The name in the manifest, which is also the file on the host.
+    std::string name;
+    // Where it goes, relative to the downloaded list folder.
+    base::FilePath target;
     std::string sha256;
     int64_t size = 0;
   };
@@ -140,7 +150,7 @@ class ListUpdater {
   static Local LookAtWhatWeHave();
   // Checks a downloaded list against the size and hash the manifest
   // promised, then puts it in place. False leaves the old list alone.
-  static bool SaveList(ListKind kind,
+  static bool SaveList(base::FilePath target,
                        std::string sha256,
                        int64_t size,
                        std::string body);

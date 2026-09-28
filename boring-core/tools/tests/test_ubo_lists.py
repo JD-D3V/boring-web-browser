@@ -51,7 +51,7 @@ def listed(source, rules=None, body=(), tag="r") -> bytes:
 
 def all_answers(regional=True) -> dict:
     answers = {}
-    outputs = [gf.UBO, gf.COOKIES, *(gf.REGIONAL if regional else ())]
+    outputs = [gf.UBO, gf.COOKIES, *gf.AGGRESSIVE, *(gf.REGIONAL if regional else ())]
     for n, output in enumerate(outputs):
         for m, source in enumerate(output.sources):
             answers[source.url] = listed(source, tag=f"o{n}s{m}x")
@@ -201,9 +201,24 @@ class Headers(unittest.TestCase):
             self.assertRegex(output.regional_id, r"^[a-z0-9][a-z0-9-]{0,31}$")
             self.assertEqual(output.path, f"regional/{output.regional_id}.txt")
             self.assertTrue(output.notice.startswith("NOTICES-regional-"))
-        for output in (gf.UBO, gf.COOKIES, *gf.REGIONAL):
+        for output in (gf.UBO, gf.COOKIES, *gf.AGGRESSIVE, *gf.REGIONAL):
             for source in output.sources:
                 self.assertTrue(source.licence_line.startswith("! "))
+
+    def test_aggressive_lists_are_named_as_the_browser_reads_them(self):
+        # components/boring/lists/list_paths.cc: kAggressiveUbo and
+        # kAggressiveFanboy, directly in the boring folder.
+        self.assertEqual(
+            [o.path for o in gf.AGGRESSIVE],
+            ["aggressive-ubo.txt", "aggressive-fanboy.txt"],
+        )
+        for output in gf.AGGRESSIVE:
+            self.assertTrue(output.notice.startswith("NOTICES-aggressive-"))
+            self.assertIsNone(output.regional_id)
+        # Fanboy's lists only from the host whose header names CC BY 3.0.
+        for source in gf.AGGRESSIVE[1].sources:
+            self.assertTrue(source.url.startswith("https://secure.fanboy.co.nz/"))
+            self.assertEqual(source.licence_line, gf.FANBOY_LICENCE_LINE)
 
 
 class ToolRun(unittest.TestCase):
@@ -231,8 +246,12 @@ class ToolRun(unittest.TestCase):
             index = json.load(f)
         self.assertEqual([e["id"] for e in index], [o.regional_id for o in gf.REGIONAL])
         self.assertEqual(set(index[0]), {"id", "title", "locales", "licence", "source"})
-        for output in (gf.UBO, gf.COOKIES, *gf.REGIONAL):
+        for output in (gf.UBO, gf.COOKIES, *gf.AGGRESSIVE, *gf.REGIONAL):
             self.assertTrue(os.path.exists(self.path(output.notice)), output.notice)
+        for output in gf.AGGRESSIVE:
+            self.assertTrue(os.path.exists(self.path("boring", output.path)))
+        with open(self.path("NOTICES-aggressive-fanboy.txt"), encoding="utf-8") as f:
+            self.assertIn(gf.FANBOY_LICENCE_LINE, f.read())
         with open(self.path("NOTICES-uAssets.txt"), encoding="utf-8") as f:
             notice = f.read()
         self.assertIn("END OF TERMS AND CONDITIONS", notice)
@@ -391,7 +410,7 @@ class PublishExtras(unittest.TestCase):
             code = publish_lists.main(
                 ["--out", work, "--unsigned", "--version", "5"],
                 fetch_filters=test_lists.stub_fetch(answers),
-                build_resources=test_lists.stub_resources,
+                check_parse=test_lists.stub_check,
             )
         self.assertEqual(code, 1)
         self.assertIn("ubo.txt", err.getvalue())

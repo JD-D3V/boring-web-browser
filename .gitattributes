@@ -4,4 +4,4 @@ boring-core/components/boring/webstore/chromium-web-store/** -text
 # core.autocrlf on, a checkout or a stash pop writes them with CRLF and
 # they stop applying, so keep them LF on every machine.
 *.patch text eol=lf
-patches/series text eol=lf
+**/patches/series text eol=lf

@@ -2,6 +2,7 @@
 
 #include "components/boring/core/boring_prefs.h"
 
+#include <string>
 #include <string_view>
 
 #include "base/command_line.h"
@@ -31,6 +32,9 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterBooleanPref(prefs::kBoringHideCookieNotices, false);
   // No sync flag, like the list above.
   registry->RegisterListPref(prefs::kBoringRegionalLists);
+  registry->RegisterIntegerPref(prefs::kBoringBlockingLevel, 0);
+  registry->RegisterStringPref(prefs::kBoringCustomRules, std::string());
+  registry->RegisterListPref(prefs::kBoringNeverSleepSites);
 }
 
 bool IsSeniorSafeMode(const PrefService* prefs) {

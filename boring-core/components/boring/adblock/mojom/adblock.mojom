@@ -51,3 +51,22 @@ interface CosmeticFilters {
       array<string> exceptions, url.mojom.Url top_frame_url)
       => (array<string> selectors);
 };
+
+// The element picker, in the renderer. Bound per main frame as an
+// associated interface, so it is ordered with the frame's navigations.
+// Started by the browser from the toolbar shield's "Block this element".
+interface ElementPicker {
+  // Shows the picker on the page. Answers with the CSS selector the
+  // person chose to block, already hidden on the page, or an empty
+  // string when they cancelled, the page could not be picked (not http
+  // or https) or went away.
+  Start() => (string selector);
+};
+
+// Test only. Lets a page loaded with the address fragment
+// #boring-test-element-picker ask the browser to start the picker on
+// itself, so a smoke test can drive the picker with WebDriver alone.
+// The browser binds it only when run with --boring-element-picker-test.
+interface ElementPickerTestHook {
+  StartPicker();
+};

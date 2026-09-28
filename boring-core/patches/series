@@ -27,6 +27,8 @@ omnibox-shape.patch
 settings-drop-google.patch
 webui-palette.patch
 toolbar-buttons.patch
+search-engine-menu.patch
+tab-sleep-dim.patch
 tab-underline.patch
 bookmark-bar.patch
 app-menu-icon.patch
@@ -41,3 +43,6 @@ privacy-defaults.patch
 chrome-browser-extensions-build-gn.patch
 extension-install-defaults.patch
 spellcheck-dictionary-dir.patch
+memory-saver-defaults.patch
+performance-tab-sleeping.patch
+background-mode-keep-running.patch

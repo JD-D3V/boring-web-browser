@@ -1,0 +1,9 @@
+# A security report must never arrive as a public issue, so the blank
+# issue is turned off and the security route is offered first.
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security problem privately
+    url: https://github.com/JD-D3V/boring-web-browser/security/advisories/new
+    about: >
+      Never report a security problem in a public issue. This opens a
+      private advisory that only the maintainer can read.

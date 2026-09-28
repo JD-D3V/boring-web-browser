@@ -227,6 +227,12 @@ struct Loaded {
         Bind(handle, "boring_adblock_hidden_class_id_selectors",
              &api.adblock_hidden_class_id_selectors) &&
         Bind(handle, "boring_adblock_string_free", &api.adblock_string_free) &&
+        Bind(handle, "boring_adblock_serialize", &api.adblock_serialize) &&
+        Bind(handle, "boring_adblock_bytes_free", &api.adblock_bytes_free) &&
+        Bind(handle, "boring_adblock_deserialize", &api.adblock_deserialize) &&
+        Bind(handle, "boring_adblock_crate_version",
+             &api.adblock_crate_version) &&
+        Bind(handle, "boring_adblock_check_rules", &api.adblock_check_rules) &&
         Bind(handle, "boring_scamlist_new", &api.scamlist_new) &&
         Bind(handle, "boring_scamlist_contains", &api.scamlist_contains) &&
         Bind(handle, "boring_scamlist_free", &api.scamlist_free) &&

@@ -1,9 +1,13 @@
 # Copyright 2026 boring. BSD style license.
 
+# search_engine_menu.h is declared here and defined in
+# chrome/browser/ui/views/boring/boring_search_engine_menu.cc, which is
+# built into chrome/browser/ui. See that header.
 static_library("newtab") {
   sources = [
     "newtab_ui.cc",
     "newtab_ui.h",
+    "search_engine_menu.h",
   ]
   deps = [
     "//base",
@@ -17,6 +21,7 @@ static_library("newtab") {
     "//components/user_prefs",
     "//content/public/browser",
     "//content/public/common",
+    "//ui/gfx/geometry",
     "//url",
   ]
 }

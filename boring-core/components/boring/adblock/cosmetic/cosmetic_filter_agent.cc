@@ -3,6 +3,7 @@
 #include "components/boring/adblock/cosmetic/cosmetic_filter_agent.h"
 
 #include <iterator>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -16,6 +17,7 @@
 #include "base/values.h"
 #include "components/boring/adblock/cosmetic/cosmetic_css.h"
 #include "components/boring/adblock/cosmetic/cosmetic_scripts.h"
+#include "components/boring/adblock/cosmetic/element_picker_agent.h"
 #include "components/boring/adblock/renderer/adblock_renderer_throttle.h"
 #include "content/public/renderer/render_frame.h"
 #include "gin/arguments.h"
@@ -153,6 +155,12 @@ CosmeticFilterAgent::CosmeticFilterAgent(content::RenderFrame* render_frame,
       content::RenderFrameObserverTracker<CosmeticFilterAgent>(render_frame),
       isolated_world_id_(isolated_world_id) {
   SetUpIsolatedWorld(isolated_world_id_);
+  // "Block this element" picks from the page in the tab, so only the
+  // main frame gets a picker.
+  if (render_frame->IsMainFrame() && !render_frame->IsInFencedFrameTree()) {
+    element_picker_ = std::make_unique<ElementPickerAgent>(*render_frame,
+                                                           isolated_world_id_);
+  }
 }
 
 CosmeticFilterAgent::~CosmeticFilterAgent() = default;
@@ -175,6 +183,15 @@ void CosmeticFilterAgent::DidCreateNewDocument() {
   top_frame_url_ = GURL();
   exceptions_.clear();
   document_weak_factory_.InvalidateWeakPtrs();
+  if (element_picker_) {
+    element_picker_->DidCreateNewDocument();
+  }
+}
+
+void CosmeticFilterAgent::DidFinishLoad() {
+  if (element_picker_) {
+    element_picker_->DidFinishLoad();
+  }
 }
 
 void CosmeticFilterAgent::OnDestruct() {

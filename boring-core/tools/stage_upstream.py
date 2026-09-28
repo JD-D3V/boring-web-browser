@@ -118,10 +118,42 @@ def assemble_rust_toolchain(source_tree: Path) -> None:
     print("rust toolchain at", dst)
 
 
+# clone.py writes the output folder into .gclient with str(path), which
+# on Windows is E:\ung-154\build\src. gclient reads .gclient as
+# Python, where "\u" starts a unicode escape, so the sync stops with a
+# syntax error. Upstream bug; the same path with forward slashes is fine.
+_GCLIENT_WRITE = ".write_text(GC_CONFIG.replace('UC_OUT', str(args.output)))"
+_GCLIENT_WRITE_FIXED = (
+    ".write_text(GC_CONFIG.replace('UC_OUT', args.output.as_posix()))"
+)
+
+
+def fix_gclient_path(clone_py: Path) -> None:
+    """Makes clone.py write a forward slash path into .gclient."""
+    text = clone_py.read_text(encoding="utf-8")
+    if _GCLIENT_WRITE_FIXED in text:
+        return
+    if text.count(_GCLIENT_WRITE) != 1:
+        raise RuntimeError(
+            f"{clone_py}: the .gclient line changed upstream; check whether "
+            "the backslash fix is still needed"
+        )
+    clone_py.write_text(
+        text.replace(_GCLIENT_WRITE, _GCLIENT_WRITE_FIXED), encoding="utf-8"
+    )
+    print("clone.py: .gclient gets a forward slash path")
+
+
 def fetch_source(root: Path, source: str) -> None:
     """Puts Chromium's source under build/src, by whichever route."""
     source_tree = root / "build" / "src"
-    if (source_tree / "BUILD.gn").exists():
+    # A git checkout has BUILD.gn long before its dependencies are synced,
+    # so the clone route only counts as done once clone.py has finished.
+    clone_done = root / "build" / ".boring-clone-done"
+    if source == "clone" and clone_done.exists():
+        print("source already cloned:", source_tree)
+        return
+    if source != "clone" and (source_tree / "BUILD.gn").exists():
         print("source already unpacked:", source_tree)
         return
     if source == "clone":
@@ -129,17 +161,21 @@ def fetch_source(root: Path, source: str) -> None:
         # plus a gclient sync of the dependencies, then the same
         # generated files the tarball would have shipped with.
         print("cloning the chromium source (this is the long one) ...", flush=True)
+        fix_gclient_path(root / "ungoogled-chromium" / "utils" / "clone.py")
         run(
             [
                 sys.executable,
                 str(root / "ungoogled-chromium" / "utils" / "clone.py"),
                 "-o",
-                str(source_tree),
+                source_tree.as_posix(),
                 "-p",
                 "win64",
             ],
             cwd=root,
         )
+        # clone.py is safe to run again over a partial checkout (it
+        # fetches and resets), so only a finished run is marked done.
+        clone_done.write_text("clone.py finished\n", encoding="utf-8")
         return
     raise RuntimeError("fetch_source: tarball route is handled by prepare()")
 

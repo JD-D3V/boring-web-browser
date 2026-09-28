@@ -1,0 +1,63 @@
+--- a/chrome/browser/ui/views/tabs/tab/tab_icon.h
++++ b/chrome/browser/ui/views/tabs/tab/tab_icon.h
+@@ -206,6 +206,10 @@
+   // fade out
+   gfx::LinearAnimation tab_discard_animation_;
+ 
++  // boring: dims the favicon of a sleeping (discarded) tab and brightens
++  // it again on wake. Shown means asleep.
++  gfx::SlideAnimation sleep_dim_animation_;
++
+   // The discard indicator will be shown only if the tab is discarded and the
+   // discard ring treatment pref is enabled. Keep track of both of the component
+   // booleans, in order to determine if the discard indicator is shown/unshown
+--- a/chrome/browser/ui/views/tabs/tab/tab_icon.cc
++++ b/chrome/browser/ui/views/tabs/tab/tab_icon.cc
+@@ -128,7 +128,8 @@
+     : AnimationDelegateViews(this),
+       clock_(base::DefaultTickClock::GetInstance()),
+       favicon_size_animation_(this),
+-      tab_discard_animation_(this) {
++      tab_discard_animation_(this),
++      sleep_dim_animation_(this) {
+   SetCanProcessEventsWithinSubtree(false);
+ 
+   // Add padding to avoid clipping the attention indicator and the increased
+@@ -488,9 +489,18 @@
+     canvas->Translate(gfx::Vector2d(-bounds.x(), -bounds.y()));
+   }
+ 
++  // boring: a sleeping tab's favicon is a little dimmer.
++  const double sleep = sleep_dim_animation_.GetCurrentValue();
++  if (sleep > 0) {
++    canvas->SaveLayerAlpha(
++        static_cast<uint8_t>(gfx::Tween::IntValueBetween(sleep, 0xff, 0x8c)));
++  }
+   canvas->DrawImageInt(icon, 0, 0, bounds.width(), bounds.height(), bounds.x(),
+                        bounds.y(), bounds.width(), bounds.height(),
+                        /*filter=*/true);
++  if (sleep > 0) {
++    canvas->Restore();
++  }
+ 
+   // Emits a custom event when the favicon finishes shrinking and the discard
+   // ring gets painted
+@@ -520,6 +530,18 @@
+ }
+ 
+ void TabIcon::SetDiscarded(bool discarded) {
++  // boring: a gentle dim on sleep and back on wake, whether or not the
++  // discard ring is on. RichAnimationDuration() is zero with Windows
++  // "Animation effects" off, so then it simply changes.
++  if (discarded != is_discarded_) {
++    sleep_dim_animation_.SetSlideDuration(
++        gfx::Animation::RichAnimationDuration(base::Milliseconds(200)));
++    if (discarded) {
++      sleep_dim_animation_.Show();
++    } else {
++      sleep_dim_animation_.Hide();
++    }
++  }
+   is_discarded_ = discarded;
+   bool show_discard_indicator =
+       is_discarded_ && discard_ring_treatment_enabled_;

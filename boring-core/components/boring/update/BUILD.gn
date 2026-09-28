@@ -27,6 +27,7 @@ static_library("update") {
     "//base",
     "//components/boring/core",
     "//components/version_info",
+    "//content/public/browser",
     "//net",
     "//url",
   ]

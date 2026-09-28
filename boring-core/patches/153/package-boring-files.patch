@@ -1,6 +1,6 @@
 --- a/chrome/installer/mini_installer/chrome.release
 +++ b/chrome/installer/mini_installer/chrome.release
-@@ -22,6 +22,57 @@
+@@ -22,6 +22,61 @@ chrome.dll: %(VersionDir)s\
  chrome_100_percent.pak: %(VersionDir)s\
  chrome_child.dll: %(VersionDir)s\
  chrome_elf.dll: %(VersionDir)s\
@@ -11,6 +11,8 @@
 +boring\easylist.txt: %(VersionDir)s\boring\
 +boring\ubo.txt: %(VersionDir)s\boring\
 +boring\cookies.txt: %(VersionDir)s\boring\
++boring\aggressive-ubo.txt: %(VersionDir)s\boring\
++boring\aggressive-fanboy.txt: %(VersionDir)s\boring\
 +boring\resources.json: %(VersionDir)s\boring\
 +boring\sources.json: %(VersionDir)s\boring\
 +boring\regional\*.txt: %(VersionDir)s\boring\regional\
@@ -29,6 +31,8 @@
 +NOTICES-uAssets.txt: %(VersionDir)s\
 +NOTICES-uBlock-resources.txt: %(VersionDir)s\
 +NOTICES-easylist-cookie.txt: %(VersionDir)s\
++NOTICES-aggressive-ubo.txt: %(VersionDir)s\
++NOTICES-aggressive-fanboy.txt: %(VersionDir)s\
 +NOTICES-regional-*.txt: %(VersionDir)s\
 +# boring: the en-US spelling dictionary, used when Windows has no
 +# English spelling data. DIR_APP_DICTIONARIES is beside chrome.dll.
@@ -60,7 +64,7 @@
  chrome_wer.dll: %(VersionDir)s\
 --- a/chrome/tools/build/win/FILES.cfg
 +++ b/chrome/tools/build/win/FILES.cfg
-@@ -63,6 +63,121 @@
+@@ -63,6 +63,137 @@ FILES = [
      'filegroup': ['default', 'symsrc'],
      'optional': ['official'],
    },
@@ -84,6 +88,14 @@
 +  },
 +  {
 +    'filename': 'boring/cookies.txt',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'boring/aggressive-ubo.txt',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'boring/aggressive-fanboy.txt',
 +    'buildtype': ['official'],
 +  },
 +  {
@@ -142,6 +154,14 @@
 +  },
 +  {
 +    'filename': 'NOTICES-easylist-cookie.txt',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'NOTICES-aggressive-ubo.txt',
++    'buildtype': ['official'],
++  },
++  {
++    'filename': 'NOTICES-aggressive-fanboy.txt',
 +    'buildtype': ['official'],
 +  },
 +  {

@@ -1,0 +1,101 @@
+--- a/chrome/browser/ui/views/location_bar/BUILD.gn
++++ b/chrome/browser/ui/views/location_bar/BUILD.gn
+@@ -83,6 +83,10 @@
+       "zoom_bubble_manager_views.h",
+     ]
+     sources += [
++      # boring: the search engine menu on the address bar's engine icon.
++      "../boring/boring_popup.h",
++      "../boring/boring_search_engine_menu.cc",
++      "../boring/boring_search_engine_menu.h",
+       "content_setting_image_view.cc",
+       "custom_tab_bar_view.cc",
+       "lens_overlay_homework_page_action_controller.cc",
+@@ -145,6 +149,7 @@
+       "//chrome/browser/ui/user_education",
+       "//chrome/browser/ui/views:bubble_anchor_util_views",
+       "//chrome/browser/ui/views:layout_provider",
++      "//chrome/browser/ui/views/controls",
+       "//chrome/browser/ui/views/frame:toolbar_button_provider",
+       "//chrome/browser/ui/views/interaction",
+       "//chrome/browser/ui/views/page_action",
+@@ -162,6 +167,8 @@
+       "//chrome/browser/web_applications",
+       "//chrome/browser/web_applications:features",
+       "//components/autofill/core/common:features",
++      "//components/boring/newtab",
++      "//components/boring/search",
+       "//components/commerce/core:feature_list",
+       "//components/contextual_search:public",
+       "//components/dom_distiller/core",
+@@ -178,17 +185,20 @@
+       "//components/record_replay/core/common",
+       "//components/safe_browsing/core/common:features",
+       "//components/search",
++      "//components/search_engines",
+       "//components/security_interstitials/content:security_interstitial_page",
+       "//components/security_state/content",
+       "//components/security_state/core",
+       "//components/strings:components_strings",
+       "//components/user_education/common",
++      "//components/vector_icons",
+       "//components/zoom",
+       "//extensions:extensions_browser_resources",
+       "//extensions/browser",
+       "//extensions/common",
+       "//extensions/common:extension_features",
+       "//third_party/blink/public/common",
++      "//third_party/metrics_proto",
+       "//ui/accessibility",
+       "//ui/actions",
+       "//ui/color",
+--- a/chrome/browser/ui/views/location_bar/location_icon_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_icon_view.cc
+@@ -18,6 +18,7 @@
+ #include "chrome/browser/ui/page_info/page_info_dialog.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/view_ids.h"
++#include "chrome/browser/ui/views/boring/boring_search_engine_menu.h"
+ #include "chrome/browser/ui/views/location_bar/icon_label_bubble_view.h"
+ #include "chrome/browser/ui/views/location_bar/location_bar_util.h"
+ #include "chrome/browser/ui/views/location_bar/location_icon_state_helper.h"
+@@ -119,6 +120,12 @@
+ }
+ 
+ bool LocationIconView::ShowBubble(const ui::Event& event) {
++  // boring: where the icon is the search engine (new tab page, typing a
++  // search), it opens the search engine menu. On a page it is page info,
++  // exactly as before.
++  if (delegate_->IsEditingOrEmpty()) {
++    return BoringSearchEngineMenu::ShowForLocationIcon(this);
++  }
+   const bool success = delegate_->ShowPageInfoDialog();
+   if (success) {
+     MaybeAnimateIcon(true);
+@@ -128,7 +135,8 @@
+ 
+ bool LocationIconView::IsBubbleShowing() const {
+   return PageInfoBubbleView::GetShownBubbleType() !=
+-         PageInfoBubbleView::BUBBLE_NONE;
++             PageInfoBubbleView::BUBBLE_NONE ||
++         BoringSearchEngineMenu::IsShowingFor(this);
+ }
+ 
+ void LocationIconView::OnGestureEvent(ui::GestureEvent* event) {
+@@ -409,10 +417,15 @@
+   }
+ 
+   was_editing_or_empty_ = is_editing_or_empty;
++
++  // boring: after Chromium's own settings, so the engine icon becomes a
++  // button only where the search engine menu is available.
++  BoringSearchEngineMenu::UpdateLocationIcon(this);
+ }
+ 
+ bool LocationIconView::IsTriggerableEvent(const ui::Event& event) {
+-  if (delegate_->IsEditingOrEmpty()) {
++  if (delegate_->IsEditingOrEmpty() &&
++      !BoringSearchEngineMenu::IsAvailableFor(this)) {
+     return false;
+   }
+ 

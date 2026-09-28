@@ -1,7 +1,11 @@
 # Copyright 2026 boring. BSD style license.
 
+# memory_saver.h is declared here and defined in
+# chrome/browser/ui/views/boring/boring_memory_saver_bridge.cc, which is
+# built into chrome/browser/ui. See that header.
 static_library("protection") {
   sources = [
+    "memory_saver.h",
     "protection_ui.cc",
     "protection_ui.h",
   ]
@@ -11,6 +15,7 @@ static_library("protection") {
     "//components/boring/branding",
     "//components/boring/core",
     "//components/boring/lists",
+    "//components/boring/performance",
     "//components/boring/privacy",
     "//components/boring/scam",
     "//components/boring/update",
@@ -20,5 +25,6 @@ static_library("protection") {
     "//content/public/common",
     "//extensions/browser",
     "//extensions/common",
+    "//url",
   ]
 }

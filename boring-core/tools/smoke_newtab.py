@@ -5,7 +5,10 @@ A fresh profile's new tab should be our page, say "Just a Browser." with
 the B mark above it and as its tab icon, report real protection
 state, start with the Reading and Wikipedia shortcuts, and let a person
 add and remove shortcuts, with removed defaults staying removed. Only web addresses may become
-shortcuts, never script or local files. Screenshots go to
+shortcuts, never script or local files. The tiles arrive with a short
+motion (a plain fade with reduced motion), and the engine button opens
+the browser's own search engine menu under itself, driven through the
+test hook in smoke_search_menu.py. Screenshots go to
 artifacts/ui-implemented.
 """
 
@@ -16,6 +19,7 @@ import time
 from pathlib import Path
 
 from drive import Browser
+from smoke_search_menu import TEST_SWITCH, hook, wait_state
 
 OUT = Path(__file__).resolve().parents[2] / "artifacts/ui-implemented"
 
@@ -84,7 +88,9 @@ def main():
     checks = {}
     with (
         tempfile.TemporaryDirectory(prefix="newtab-", dir=OUT) as profile,
-        Browser(user_data_dir=profile, args=["--window-size=1360,900"]) as b,
+        Browser(
+            user_data_dir=profile, args=[TEST_SWITCH, "--window-size=1360,900"]
+        ) as b,
     ):
         b.get("chrome://newtab")
         checks["new tab is our page"] = wait_for(b, "location.host==='boring-newtab'")
@@ -135,7 +141,42 @@ def main():
             "return getComputedStyle(document.getElementById('add-form'))"
             ".display==='none'"
         )
+        checks["tiles arrive with calm motion"] = b.run(
+            "var ul=document.getElementById('shortcuts');"
+            "var li=ul.querySelector('li');"
+            "if(!li||!ul.classList.contains('appear')) return false;"
+            "var a=getComputedStyle(li);"
+            "return (a.animationName==='tile-in'&&a.animationDuration==='0.22s')||"
+            "(a.animationName==='tile-fade'&&"
+            "matchMedia('(prefers-reduced-motion: reduce)').matches)"
+        )
         b.screenshot(str(OUT / "newtab-default.png"))
+
+        # The engine button opens the browser's own menu under itself.
+        checks["engine button says it opens a dialog"] = b.run(
+            "var e=document.getElementById('engine');"
+            "return e.getAttribute('aria-haspopup')==='dialog' && "
+            "e.getAttribute('aria-expanded')==='false'"
+        )
+        b.run("document.getElementById('engine').click()")
+        state = wait_state(b, lambda s: s.get("open") and s.get("progress") == 1)
+        rect = b.run(
+            "var r=document.getElementById('engine').getBoundingClientRect();"
+            "return {width:r.width,height:r.height}"
+        )
+        anchor = state.get("anchor", {})
+        checks["engine button opens the search engine menu"] = bool(
+            state.get("open")
+            and len(state.get("engines", [])) >= 2
+            and abs(anchor.get("width", 0) - rect["width"]) <= 2
+            and abs(anchor.get("height", 0) - rect["height"]) <= 2
+        )
+        hook(b, "escape")
+        state = wait_state(b, lambda s: not s.get("open"))
+        checks["Escape closes the menu"] = state.get("open") is False and b.run(
+            "return document.getElementById('engine')"
+            ".getAttribute('aria-expanded')==='false'"
+        )
 
         add(b, "Script", "javascript:alert(1)")
         checks["script address is refused"] = wait_for(

@@ -58,6 +58,18 @@ inline constexpr char kBoringHideCookieNotices[] =
 // default. Per profile and never synced.
 inline constexpr char kBoringRegionalLists[] = "boring.adblock.regional_lists";
 
+// Blocking level: 0 standard, 1 aggressive (extra lists, see
+// components/boring/adblock). Standard by default.
+inline constexpr char kBoringBlockingLevel[] = "boring.adblock.level";
+
+// The person's own filter rules, as typed on the Protection page, one
+// per line. Standard permissions only: never trusted scriptlets.
+inline constexpr char kBoringCustomRules[] = "boring.adblock.custom_rules";
+
+// Sites (scheme://host) whose tabs are never frozen or put to sleep.
+inline constexpr char kBoringNeverSleepSites[] =
+    "boring.performance.never_sleep_sites";
+
 }  // namespace prefs
 
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);

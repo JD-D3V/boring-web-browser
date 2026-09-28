@@ -22,6 +22,15 @@ DEFAULT_SRC = r"E:\ung\build\src"
 import pristine  # noqa: E402
 
 NAME = "Boring Browser"
+# Who Windows says publishes the browser: the Publisher column of
+# Installed apps, the uninstall entry, and "Company" in the properties
+# of chrome.exe, chrome.dll, setup.exe and the installer. Windows shows
+# it on the line under the app's name, so the product name here would
+# only repeat itself; the person who publishes it says something. It
+# was "The Chromium Authors", which read as though Google's Chromium
+# team shipped this build. They are still credited as the copyright
+# holder, which is what that text is for.
+PUBLISHER = "JD"
 # Used where Windows wants no spaces: the install folder, registry ids,
 # ProgIDs and the URL scheme.
 ID = "BoringBrowser"
@@ -127,7 +136,21 @@ MISSING_BRANDED_MESSAGES = [
 
 MESSAGES_CLOSE = "    </messages>"
 
+# The one "The Chromium Authors" that names a publisher rather than
+# giving credit: the company name, which the installer turns into the
+# Publisher of the uninstall entry (InstallUtil::GetPublisherName()) and
+# chrome://version shows under the product name. The copyright line next
+# to it keeps the credit. Only the Chromium branded half of the <if>;
+# the Chrome for Testing half says Google LLC and is never built here.
+COMPANY_NAME_MESSAGE = re.compile(
+    r'(<message name="IDS_ABOUT_VERSION_COMPANY_NAME"[^>]*>\s*)'
+    r"The Chromium Authors"
+    r"(\s*</message>)"
+)
+
 BRANDING = {
+    "COMPANY_FULLNAME": PUBLISHER,
+    "COMPANY_SHORTNAME": PUBLISHER,
     "PRODUCT_FULLNAME": NAME,
     "PRODUCT_SHORTNAME": NAME,
     "PRODUCT_INSTALLER_FULLNAME": NAME + " Installer",
@@ -194,6 +217,21 @@ def rename_product(text):
     return HOLD.sub(lambda m: kept[int(m.group(1))], renamed)
 
 
+def set_publisher(rel, text):
+    """Puts PUBLISHER in the company name message. See COMPANY_NAME_MESSAGE."""
+    if rel != "chrome/app/chromium_strings.grd":
+        return text
+    text, count = COMPANY_NAME_MESSAGE.subn(
+        lambda m: m.group(1) + PUBLISHER + m.group(2), text
+    )
+    if count != 1:
+        raise SystemExit(
+            f"rebrand: expected one Chromium company name message in {rel}, "
+            f"found {count}"
+        )
+    return text
+
+
 def check_attribution(rel, before, after):
     """Refuses to write a file that lost a credit to the project.
 
@@ -248,7 +286,9 @@ def add_missing_messages(rel, text):
 
 def rebrand(src):
     for rel in STRING_FILES:
-        before = pristine_text(src, rel)
+        # The publisher is not a credit, so it is taken out of what the
+        # credit check compares against.
+        before = set_publisher(rel, pristine_text(src, rel))
         after = rename_product(add_missing_messages(rel, before))
         check_attribution(rel, before, after)
         write_if_changed(src, rel, after)
@@ -279,7 +319,7 @@ def check_tree(src):
     """
     problems = []
     for rel in STRING_FILES:
-        before = pristine_text(src, rel)
+        before = set_publisher(rel, pristine_text(src, rel))
         with open(os.path.join(src, rel), encoding="utf-8", newline="") as f:
             after = f.read()
         want = len(PROJECT_REFERENCE.findall(before))

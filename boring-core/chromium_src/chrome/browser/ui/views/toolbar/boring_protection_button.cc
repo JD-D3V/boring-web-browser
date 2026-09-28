@@ -15,8 +15,10 @@
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "components/boring/adblock/adblock_service.h"
 #include "components/boring/adblock/blocking_off_sites.h"
+#include "components/boring/adblock/element_picker.h"
 #include "components/boring/core/boring_capabilities.h"
 #include "components/boring/core/boring_prefs.h"
+#include "components/boring/performance/never_sleep_sites.h"
 #include "components/boring/scam/scam_service.h"
 #include "components/prefs/pref_service.h"
 #include "components/tabs/public/tab_interface.h"
@@ -24,10 +26,8 @@
 #include "content/public/browser/reload_type.h"
 #include "content/public/browser/web_contents.h"
 #include "ui/accessibility/ax_enums.mojom.h"
-#include "ui/base/menu_source_utils.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
-#include "ui/base/models/menu_separator_types.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_provider.h"
 #include "ui/gfx/canvas.h"
@@ -37,8 +37,18 @@
 #include "ui/gfx/image/canvas_image_source.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/views/accessibility/view_accessibility.h"
+#include "ui/views/animation/ink_drop.h"
+#include "ui/views/border.h"
+#include "ui/views/bubble/bubble_border.h"
+#include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/controls/button/button.h"
+#include "ui/views/controls/button/label_button.h"
+#include "ui/views/controls/button/toggle_button.h"
+#include "ui/views/controls/highlight_path_generator.h"
 #include "ui/views/controls/label.h"
+#include "ui/views/controls/separator.h"
+#include "ui/views/layout/box_layout.h"
+#include "ui/views/view.h"
 
 namespace {
 
@@ -48,11 +58,8 @@ namespace {
 // enough and it stops as soon as there is an answer.
 constexpr base::TimeDelta kWhileLoading = base::Seconds(1);
 
-// Commands in the shield's menu.
-enum MenuCommand {
-  kToggleSite = 1,
-  kOpenProtection,
-};
+// The panel is one calm column.
+constexpr int kPanelWidth = 300;
 
 // Diameter, in DIP, of the status dot painted before the label. Small on
 // purpose, the word does the talking and the dot is just a glance-check.
@@ -91,14 +98,47 @@ ui::ImageModel MakeDotImageModel(SkColor color) {
       gfx::CanvasImageSource::MakeImageSkia<DotImageSource>(color));
 }
 
+// A plain row that acts, like a menu item: full width, left aligned,
+// hover and focus shown by the ink drop.
+views::LabelButton* AddActionRow(views::View* parent,
+                                 views::Button::PressedCallback callback,
+                                 const std::u16string& text) {
+  auto* row = parent->AddChildView(
+      std::make_unique<views::LabelButton>(std::move(callback), text));
+  row->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+  row->SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(8, 12)));
+  views::InkDrop::Get(row)->SetMode(views::InkDropHost::InkDropMode::ON);
+  row->SetHasInkDropActionOnClick(true);
+  views::InstallRoundRectHighlightPathGenerator(row, gfx::Insets(), 6);
+  return row;
+}
+
+// A setting with its switch: the label says what it is, and the switch,
+// a real toggle, carries the same name for a screen reader.
+views::ToggleButton* AddToggleRow(views::View* parent,
+                                  const std::u16string& text,
+                                  bool is_on,
+                                  views::Button::PressedCallback callback) {
+  auto* row = parent->AddChildView(std::make_unique<views::View>());
+  auto* layout = row->SetLayoutManager(std::make_unique<views::BoxLayout>(
+      views::BoxLayout::Orientation::kHorizontal, gfx::Insets::VH(6, 12), 12));
+  layout->set_cross_axis_alignment(
+      views::BoxLayout::CrossAxisAlignment::kCenter);
+  auto* label = row->AddChildView(std::make_unique<views::Label>(text));
+  label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+  layout->SetFlexForView(label, 1);
+  auto* toggle = row->AddChildView(
+      std::make_unique<views::ToggleButton>(std::move(callback)));
+  toggle->SetIsOn(is_on);
+  toggle->GetViewAccessibility().SetName(text);
+  return toggle;
+}
+
 }  // namespace
 
 BoringProtectionButton::BoringProtectionButton(BrowserWindowInterface* browser)
     : ToolbarButton(base::BindRepeating(&BoringProtectionButton::OnPressed,
-                                        base::Unretained(this)),
-                    std::make_unique<ui::SimpleMenuModel>(this),
-                    /*tab_strip_model=*/nullptr,
-                    /*trigger_menu_on_long_press=*/false),
+                                        base::Unretained(this))),
       browser_(browser) {
   // The dot and the label are painted below, by UpdateState().
 
@@ -141,7 +181,11 @@ BoringProtectionButton::BoringProtectionButton(BrowserWindowInterface* browser)
       current_font.DeriveWithSizeDelta(12 - current_font.GetFontSize()));
 }
 
-BoringProtectionButton::~BoringProtectionButton() = default;
+BoringProtectionButton::~BoringProtectionButton() {
+  // The panel is anchored to this view, so it goes first.
+  panel_motion_.Detach();
+  panel_.reset();
+}
 
 void BoringProtectionButton::OnThemeChanged() {
   ToolbarButton::OnThemeChanged();
@@ -152,11 +196,16 @@ void BoringProtectionButton::OnThemeChanged() {
 
 void BoringProtectionButton::FollowActiveTab() {
   tabs::TabInterface* active = browser_->GetActiveTabInterface();
+  // The panel speaks for one site; another tab is another site.
+  ClosePanel();
   Observe(active ? active->GetContents() : nullptr);
   UpdateState();
 }
 
 void BoringProtectionButton::PrimaryPageChanged(content::Page& page) {
+  if (CurrentSite() != panel_site_) {
+    ClosePanel();
+  }
   UpdateState();
 }
 
@@ -266,63 +315,162 @@ void BoringProtectionButton::UpdateState() {
                                         base::Unretained(this)));
   }
 
-  // On a web page the shield opens a menu, and says so to a screen
+  // On a web page the shield opens a panel, and says so to a screen
   // reader; anywhere else it opens the Protection page directly.
   GetViewAccessibility().SetHasPopup(CurrentSite().empty()
                                          ? ax::mojom::HasPopup::kFalse
-                                         : ax::mojom::HasPopup::kMenu);
-}
-
-ui::SimpleMenuModel* BoringProtectionButton::site_menu() {
-  return static_cast<ui::SimpleMenuModel*>(menu_model());
+                                         : ax::mojom::HasPopup::kDialog);
 }
 
 void BoringProtectionButton::OnPressed(const ui::Event& event) {
-  ShowDropDownMenu(ui::GetMenuSourceTypeForEvent(event));
-}
-
-void BoringProtectionButton::ShowDropDownMenu(
-    ui::mojom::MenuSourceType source_type) {
-  if (IsMenuShowing()) {
+  // Pressing the shield again puts the panel away.
+  if (panel_) {
+    ClosePanel();
     return;
   }
-  menu_site_ = CurrentSite();
-  if (menu_site_.empty()) {
+  ShowPanel();
+}
+
+void BoringProtectionButton::ShowPanel() {
+  panel_site_ = CurrentSite();
+  if (panel_site_.empty() || !web_contents()) {
     chrome::ExecuteCommand(browser_, IDC_BORING_PROTECTION);
     return;
   }
-  const std::u16string site = base::UTF8ToUTF16(menu_site_);
+  panel_url_ = web_contents()->GetLastCommittedURL();
+  const std::u16string site = base::UTF8ToUTF16(panel_site_);
   const bool off = IsOffHere();
-  ui::SimpleMenuModel* menu = site_menu();
-  menu->Clear();
-  menu->AddTitle(off ? u"Blocking is off on " + site
-                     : u"Blocking is on for " + site);
-  menu->AddItem(kToggleSite, off ? u"Turn blocking back on"
-                                 : u"Turn off blocking on this site");
-  menu->AddSeparator(ui::NORMAL_SEPARATOR);
-  menu->AddItem(kOpenProtection, u"Open Protection");
-  ShowMenuForModel(source_type, menu);
+  Profile* profile = browser_->GetProfile();
+  PrefService* prefs = profile->GetPrefs();
+
+  panel_delegate_ = std::make_unique<views::BubbleDialogDelegate>(
+      this, views::BubbleBorder::TOP_RIGHT);
+  panel_delegate_->SetTitle(off ? u"Blocking is off on " + site
+                                : u"Blocking is on for " + site);
+  panel_delegate_->SetShowTitle(true);
+  panel_delegate_->SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
+  panel_delegate_->SetEnableArrowKeyTraversal(true);
+  panel_delegate_->set_margins(gfx::Insets::TLBR(4, 0, 8, 0));
+  panel_delegate_->set_fixed_width(kPanelWidth);
+  panel_delegate_->set_highlight_button_when_shown(true);
+
+  auto contents = std::make_unique<views::View>();
+  contents->SetLayoutManager(std::make_unique<views::BoxLayout>(
+      views::BoxLayout::Orientation::kVertical, gfx::Insets::VH(0, 8), 2));
+
+  // The level belongs to the profile, not the site. The engine picks it
+  // up from the next page load.
+  aggressive_ = AddToggleRow(
+      contents.get(), u"Aggressive blocking",
+      prefs->GetInteger(boring::prefs::kBoringBlockingLevel) == 1,
+      base::BindRepeating(&BoringProtectionButton::OnAggressiveToggled,
+                          base::Unretained(this)));
+  never_sleep_ = nullptr;
+  if (!boring::performance::GetNeverSleepKey(panel_url_).empty()) {
+    never_sleep_ = AddToggleRow(
+        contents.get(), u"Never sleep this site",
+        boring::performance::IsNeverSleep(profile, panel_url_),
+        base::BindRepeating(&BoringProtectionButton::OnNeverSleepToggled,
+                            base::Unretained(this)));
+  }
+
+  contents->AddChildView(std::make_unique<views::Separator>())
+      ->SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(4, 0)));
+  AddActionRow(
+      contents.get(),
+      base::BindRepeating(&BoringProtectionButton::OnToggleSite,
+                          base::Unretained(this)),
+      off ? u"Turn blocking back on" : u"Turn off blocking on this site");
+  // Nothing to pick where nothing is being blocked.
+  if (!off && !boring::AdblockService::IsDisabled()) {
+    AddActionRow(contents.get(),
+                 base::BindRepeating(&BoringProtectionButton::OnBlockElement,
+                                     base::Unretained(this)),
+                 u"Block this element");
+  }
+  contents->AddChildView(std::make_unique<views::Separator>())
+      ->SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(4, 0)));
+  AddActionRow(contents.get(),
+               base::BindRepeating(&BoringProtectionButton::OnOpenProtection,
+                                   base::Unretained(this)),
+               u"Open Protection");
+
+  panel_delegate_->SetContentsView(std::move(contents));
+  panel_ = views::BubbleDialogDelegate::CreateBubble(
+      panel_delegate_.get(),
+      base::BindOnce(&BoringProtectionButton::OnPanelCloseRequested,
+                     weak_factory_.GetWeakPtr()));
+  panel_motion_.Open(panel_.get());
+  panel_->Show();
 }
 
-void BoringProtectionButton::ExecuteCommand(int command_id, int event_flags) {
-  if (command_id == kOpenProtection) {
-    chrome::ExecuteCommand(browser_, IDC_BORING_PROTECTION);
-    return;
+void BoringProtectionButton::ClosePanel() {
+  if (panel_ && !panel_motion_.closing()) {
+    panel_->CloseWithReason(views::Widget::ClosedReason::kUnspecified);
   }
-  if (command_id != kToggleSite || menu_site_.empty()) {
+}
+
+void BoringProtectionButton::OnPanelCloseRequested(
+    views::Widget::ClosedReason reason) {
+  // Escape, a click elsewhere or a choice: play out first, then go.
+  panel_motion_.Close(base::BindOnce(&BoringProtectionButton::OnPanelClosed,
+                                     weak_factory_.GetWeakPtr()));
+}
+
+void BoringProtectionButton::OnPanelClosed() {
+  aggressive_ = nullptr;
+  never_sleep_ = nullptr;
+  panel_motion_.Detach();
+  panel_.reset();
+  panel_delegate_.reset();
+}
+
+void BoringProtectionButton::OnAggressiveToggled() {
+  if (aggressive_) {
+    browser_->GetProfile()->GetPrefs()->SetInteger(
+        boring::prefs::kBoringBlockingLevel, aggressive_->GetIsOn() ? 1 : 0);
+  }
+}
+
+void BoringProtectionButton::OnNeverSleepToggled() {
+  if (never_sleep_) {
+    boring::performance::SetNeverSleep(browser_->GetProfile(), panel_url_,
+                                       never_sleep_->GetIsOn());
+  }
+}
+
+void BoringProtectionButton::OnToggleSite() {
+  if (panel_site_.empty()) {
     return;
   }
   Profile* profile = browser_->GetProfile();
   PrefService* prefs = profile->GetPrefs();
   const bool off =
-      prefs->GetList(boring::prefs::kBlockingOffSites).contains(menu_site_);
-  boring::SetBlockingOffForSite(prefs, menu_site_, !off);
+      prefs->GetList(boring::prefs::kBlockingOffSites).contains(panel_site_);
+  boring::SetBlockingOffForSite(prefs, panel_site_, !off);
   // Bring the copy the renderer checks read up to date now, rather than
   // at the reload's first request.
   boring::BlockingOffSites::ForContext(profile);
+  ClosePanel();
   // What was blocked, or is now to be blocked, only changes with a fresh
   // load, so reload the page the choice was made on.
-  if (web_contents() && CurrentSite() == menu_site_) {
+  ReloadPanelSite();
+}
+
+void BoringProtectionButton::OnBlockElement() {
+  ClosePanel();
+  if (web_contents() && CurrentSite() == panel_site_) {
+    boring::StartElementPicker(web_contents());
+  }
+}
+
+void BoringProtectionButton::OnOpenProtection() {
+  ClosePanel();
+  chrome::ExecuteCommand(browser_, IDC_BORING_PROTECTION);
+}
+
+void BoringProtectionButton::ReloadPanelSite() {
+  if (web_contents() && CurrentSite() == panel_site_) {
     web_contents()->GetController().Reload(content::ReloadType::NORMAL,
                                            /*check_for_repost=*/true);
   }

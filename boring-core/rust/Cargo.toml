@@ -5,7 +5,16 @@ edition = "2021"
 
 [lib]
 name = "boring_adblock"
-crate-type = ["cdylib"]
+# cdylib is the DLL the browser loads. rlib lets the list checker below
+# use the same parsing code, so what the publisher checks is what the
+# browser will do.
+crate-type = ["cdylib", "rlib"]
+
+# Parses filter lists line by line with the engine's own parser, for
+# tools/publish_lists.py. Never shipped with the browser.
+[[bin]]
+name = "check_lists"
+path = "src/bin/check_lists.rs"
 
 [dependencies]
 # "css-validation" sorts procedural rules such as :has-text() into

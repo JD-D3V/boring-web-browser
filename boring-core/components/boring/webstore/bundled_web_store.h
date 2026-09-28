@@ -37,9 +37,10 @@ inline constexpr char kOwnCopy[] = "own";
 
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
 
-// Called once per profile when its extensions have loaded. Installs or
-// updates the bundled copy when that is what the profile needs, off the
-// UI thread, and otherwise does nothing.
+// Called once per profile when its extensions have loaded. Once the
+// browser has finished starting, installs or updates the bundled copy
+// when that is what the profile needs, off the UI thread, and otherwise
+// does nothing.
 void MaybeInstallBundledWebStore(content::BrowserContext* context);
 
 enum class Action {

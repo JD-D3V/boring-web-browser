@@ -4,6 +4,8 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -11,6 +13,7 @@
 #include "base/base64.h"
 #include "base/command_line.h"
 #include "base/containers/span.h"
+#include "base/files/file_enumerator.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
@@ -125,6 +128,14 @@ constexpr size_t kMaxListBytes = 32 * 1024 * 1024;
 std::string HashOfString(std::string_view data) {
   return base::HexEncodeLower(crypto::SHA256HashString(data));
 }
+
+// Downloaded regional files live in a folder of their own; the manifest
+// names them flat. See GetDownloadTarget().
+constexpr base::FilePath::CharType kRegionalDir[] =
+    FILE_PATH_LITERAL("regional");
+constexpr char kRegionalIndexFile[] = "index.json";
+constexpr char kRegionalIndexName[] = "regional-index.json";
+constexpr char kRegionalPrefix[] = "regional-";
 
 std::string HashOfFile(const base::FilePath& path) {
   std::string data;
@@ -418,9 +429,34 @@ ListUpdater::Local ListUpdater::LookAtWhatWeHave() {
     if (kind == ListKind::kScam && !kScamBlockingAvailable) {
       continue;
     }
+    if (kind == ListKind::kResources) {
+      // An older browser may have downloaded one. It is never read now
+      // (the service reads the shipped copy only), so it goes.
+      base::DeleteFile(GetDownloadedListPath(kind));
+      continue;
+    }
     std::string sha256 = HashOfFile(GetDownloadedListPath(kind));
     if (!sha256.empty()) {
-      local.held_sha256[kind] = std::move(sha256);
+      local.held_sha256[ListFileName(kind)] = std::move(sha256);
+    }
+  }
+  // The regional lists and their index, by their names in the manifest.
+  const base::FilePath regional = GetDownloadedListDir().Append(kRegionalDir);
+  base::FileEnumerator files(regional, /*recursive=*/false,
+                             base::FileEnumerator::FILES);
+  for (base::FilePath path = files.Next(); !path.empty();
+       path = files.Next()) {
+    const std::string file = path.BaseName().MaybeAsASCII();
+    const std::string name = file == kRegionalIndexFile
+                                 ? std::string(kRegionalIndexName)
+                                 : base::StrCat({kRegionalPrefix, file});
+    const std::optional<base::FilePath> target = GetDownloadTarget(name);
+    if (!target || target->BaseName() != path.BaseName()) {
+      continue;  // Not a file a download would have put here.
+    }
+    std::string sha256 = HashOfFile(path);
+    if (!sha256.empty()) {
+      local.held_sha256[name] = std::move(sha256);
     }
   }
   return local;
@@ -516,21 +552,26 @@ void ListUpdater::ApplyManifest() {
         static_cast<size_t>(*size) > kMaxListBytes) {
       continue;
     }
-    const std::optional<ListKind> kind = ListKindFromName(*name);
-    if (!kind) {
-      continue;  // A list this version of the browser does not know.
+    // Unknown names are lists this version does not know, and a
+    // resources file is refused whatever the manifest says: see the
+    // class comment.
+    std::optional<base::FilePath> target = GetDownloadTarget(*name);
+    if (!target) {
+      continue;
     }
-    if (*kind == ListKind::kScam && !kScamBlockingAvailable) {
+    if (ListKindFromName(*name) == ListKind::kScam &&
+        !kScamBlockingAvailable) {
       // This version ships no scam list and must not start using one
       // an update feed happens to offer.
       continue;
     }
-    const auto have = local_.held_sha256.find(*kind);
+    const auto have = local_.held_sha256.find(*name);
     if (have != local_.held_sha256.end() &&
         base::EqualsCaseInsensitiveASCII(have->second, *sha256)) {
       continue;  // Already holding exactly this one.
     }
-    wanted_.push_back({*kind, base::ToLowerASCII(*sha256), *size});
+    wanted_.push_back(
+        {*name, std::move(*target), base::ToLowerASCII(*sha256), *size});
   }
   FetchNextList();
 }
@@ -543,8 +584,8 @@ void ListUpdater::FetchNextList() {
     return;
   }
   const Wanted& wanted = wanted_[next_];
-  loader_ = MakeLoader(GetFeedUrl().Resolve(ListFileName(wanted.kind)),
-                       /*no_cache=*/false);
+  // The name passed GetDownloadTarget(), so it is a plain file name.
+  loader_ = MakeLoader(GetFeedUrl().Resolve(wanted.name), /*no_cache=*/false);
   loader_->DownloadToString(factory_.get(),
                             base::BindOnce(&ListUpdater::OnListDownloaded,
                                            weak_factory_.GetWeakPtr()),
@@ -560,13 +601,13 @@ void ListUpdater::OnListDownloaded(std::optional<std::string> body) {
   const Wanted& wanted = wanted_[next_];
   base::ThreadPool::PostTaskAndReplyWithResult(
       FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
-      base::BindOnce(&ListUpdater::SaveList, wanted.kind, wanted.sha256,
+      base::BindOnce(&ListUpdater::SaveList, wanted.target, wanted.sha256,
                      wanted.size, std::move(*body)),
       base::BindOnce(&ListUpdater::OnListSaved, weak_factory_.GetWeakPtr()));
 }
 
 // static
-bool ListUpdater::SaveList(ListKind kind,
+bool ListUpdater::SaveList(base::FilePath target,
                            std::string sha256,
                            int64_t size,
                            std::string body) {
@@ -578,10 +619,13 @@ bool ListUpdater::SaveList(ListKind kind,
     return false;
   }
   const base::FilePath dir = GetDownloadedListDir();
-  if (dir.empty() || !base::CreateDirectory(dir)) {
+  if (dir.empty()) {
     return false;
   }
-  const base::FilePath path = dir.AppendASCII(ListFileName(kind));
+  const base::FilePath path = dir.Append(target);
+  if (!base::CreateDirectory(path.DirName())) {
+    return false;
+  }
   const base::FilePath part = path.AddExtensionASCII(".part");
   if (!base::WriteFile(part, body)) {
     // A write that ran out of room leaves part of a file behind, and

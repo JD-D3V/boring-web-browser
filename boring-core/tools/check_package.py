@@ -81,6 +81,9 @@ REQUIRED_PROTECTION = [
     "boring/ubo.txt",
     "boring/resources.json",
     "boring/cookies.txt",
+    # The Aggressive level's lists (uBO Annoyances, Fanboy).
+    "boring/aggressive-ubo.txt",
+    "boring/aggressive-fanboy.txt",
     "boring/sources.json",
     "boring/regional/index.json",
     # The browser updater. Without it an installed copy never hears of a
@@ -119,6 +122,8 @@ REQUIRED_NOTICES = [
     "NOTICES-uAssets.txt",
     "NOTICES-uBlock-resources.txt",
     "NOTICES-easylist-cookie.txt",
+    "NOTICES-aggressive-ubo.txt",
+    "NOTICES-aggressive-fanboy.txt",
 ]
 
 CORE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

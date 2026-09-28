@@ -4,8 +4,9 @@
 Serves a pretend release host on this machine, points the browser at it
 with --boring-list-url, and opens the Protection page, which is what
 sets a check going. Checks that a good bundle is downloaded and put in
-place, that a bundle whose hash does not match is refused, and that the
-page says how old the lists are.
+place, regional lists and their index included, that a resources file
+offered by the bundle is ignored, that a bundle whose hash does not
+match is refused, and that the page says how old the lists are.
 
 Nothing outside the temporary folders is touched: --boring-list-dir
 keeps the downloads away from the lists this machine really browses
@@ -36,6 +37,14 @@ FILTERS = "! pretend filter list\n||lists-smoke-test.invalid^\n"
 # Served on purpose although this version ships no scam list: a feed
 # can offer whatever it likes, and the browser has to refuse it.
 SCAM = "# pretend scam blocklist\nboring-lists-test.invalid\n"
+# Regional lists and their index travel in the bundle under flat names
+# and land in the regional folder.
+REGIONAL = "! pretend regional list\n||regional-smoke-test.invalid^\n"
+REGIONAL_INDEX = '[{"id": "de", "title": "Pretend German list", "locales": ["de"]}]\n'
+AGGRESSIVE = "! pretend annoyances list\n##.pretend-annoyance\n"
+# Served on purpose: scriptlets are code, and they change only with a
+# signed browser update. A bundle offering them must be ignored.
+RESOURCES = "[]\n"
 
 
 def serve(directory):
@@ -133,7 +142,16 @@ def run_openssl(args, capture=False):
 def write_bundle(directory, version, break_hash=False, key=None, sign=True):
     """Writes a bundle the browser can download, or a broken one."""
     files = []
-    for name, text in (("easylist.txt", FILTERS), ("scamlist.txt", SCAM)):
+    for name, text in (
+        ("easylist.txt", FILTERS),
+        ("scamlist.txt", SCAM),
+        ("regional-de.txt", REGIONAL),
+        ("regional-index.json", REGIONAL_INDEX),
+        ("aggressive-ubo.txt", AGGRESSIVE),
+        ("resources.json", RESOURCES),
+        # Not a name the browser takes: it must not land anywhere.
+        ("regional-Escape.txt", REGIONAL),
+    ):
         data = text.encode("utf-8")
         (directory / name).write_bytes(data)
         digest = hashlib.sha256(data).hexdigest()
@@ -223,6 +241,21 @@ def main():
         checks["a scam list offered by the feed is refused"] = not (
             downloads / "scamlist.txt"
         ).exists()
+        checks["a regional list in the bundle lands in the regional folder"] = (
+            downloads / "regional" / "de.txt"
+        ).exists() and (downloads / "regional" / "de.txt").read_text() == REGIONAL
+        checks["the regional index lands beside it"] = (
+            downloads / "regional" / "index.json"
+        ).exists()
+        checks["an Aggressive list in the bundle is downloaded"] = (
+            downloads / "aggressive-ubo.txt"
+        ).exists()
+        checks["a resources file in the bundle is ignored"] = not (
+            downloads / "resources.json"
+        ).exists()
+        checks["a name the browser does not take is ignored"] = not list(
+            downloads.rglob("*scape*")
+        )
         checks["the check is written down"] = (downloads / "last-check").exists()
         checks["the version is written down"] = (
             downloads / "last-check"
@@ -247,6 +280,9 @@ def main():
             server.shutdown()
 
         checks["a list that fails its hash is refused"] = not landed
+        checks["a regional list that fails its hash is refused"] = not (
+            downloads / "regional" / "de.txt"
+        ).exists()
         checks["a refused list leaves nothing behind"] = not list(
             downloads.glob("*.part")
         )

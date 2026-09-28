@@ -1,0 +1,32 @@
+# Copyright 2026 boring. BSD style license.
+
+# Tab freezing and sleeping. Chromium's performance manager does the
+# work; this adds the sites kept awake, the tabs it should leave alone,
+# and the vote that freezes background tabs. Wired in by
+# patches/performance-tab-sleeping.patch.
+
+static_library("performance") {
+  sources = [
+    "idle_tab_freezer.cc",
+    "idle_tab_freezer.h",
+    "never_sleep_sites.cc",
+    "never_sleep_sites.h",
+    "tab_activity.cc",
+    "tab_activity.h",
+  ]
+
+  # idle_tab_freezer.h builds on the performance manager's graph, and the
+  # patched discard opt-out helper reads the pref name from core.
+  public_deps = [
+    "//components/boring/core",
+    "//components/performance_manager",
+  ]
+  deps = [
+    "//base",
+    "//components/download/public/common:public",
+    "//components/prefs",
+    "//components/user_prefs",
+    "//content/public/browser",
+    "//url",
+  ]
+}

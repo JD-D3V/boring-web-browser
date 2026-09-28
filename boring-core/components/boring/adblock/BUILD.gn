@@ -56,6 +56,10 @@ static_library("browser") {
     "cname_uncloaker.h",
     "cosmetic_filters_impl.cc",
     "cosmetic_filters_impl.h",
+    "custom_rules.cc",
+    "custom_rules.h",
+    "element_picker.cc",
+    "element_picker.h",
   ]
   deps = [
     ":buildflags",
@@ -66,6 +70,7 @@ static_library("browser") {
     "//components/prefs",
     "//components/user_prefs",
     "//content/public/browser",
+    "//crypto",
     "//mojo/public/cpp/bindings",
     "//mojo/public/cpp/system",
     "//net",
