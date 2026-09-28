@@ -99,8 +99,11 @@ def assemble_rust_toolchain(source_tree: Path) -> None:
 
     host_is_64bit = sys.maxsize > 2**32
     x64 = source_tree / "third_party" / "rust-toolchain-x64"
-    sources = [x64, source_tree / "third_party" / "rust-toolchain-x86",
-               source_tree / "third_party" / "rust-toolchain-arm"]
+    sources = [
+        x64,
+        source_tree / "third_party" / "rust-toolchain-x86",
+        source_tree / "third_party" / "rust-toolchain-arm",
+    ]
 
     print("assembling the rust toolchain ...", flush=True)
     for src in sources:
@@ -117,8 +120,11 @@ def assemble_rust_toolchain(source_tree: Path) -> None:
                     shutil.copy2(item, out)
 
     with open(flag, "w") as f:
-        subprocess.run([str(x64 / "rustc" / "bin" / "rustc.exe"), "--version"],
-                       stdout=f, check=True)
+        subprocess.run(
+            [str(x64 / "rustc" / "bin" / "rustc.exe"), "--version"],
+            stdout=f,
+            check=True,
+        )
     print("rust toolchain at", dst)
 
 
@@ -216,8 +222,7 @@ def fetch_node_modules(source_tree: Path) -> None:
     it where gclient would have, tarball included, since the clone
     pruning list removes that tarball.
     """
-    pin = _gcs_pin((source_tree / "DEPS").read_text(encoding="utf-8"),
-                   NODE_MODULES_DEP)
+    pin = _gcs_pin((source_tree / "DEPS").read_text(encoding="utf-8"), NODE_MODULES_DEP)
     out = source_tree / NODE_MODULES_DEP.removeprefix("src/")
     tarball = out / pin["output_file"]
     if (out / ".package-lock.json").exists():
@@ -240,7 +245,37 @@ def fetch_node_modules(source_tree: Path) -> None:
     print("node_modules at", out)
 
 
-def prepare(dest: Path, disable_ssl_verification: bool, source: str = "tarball") -> None:
+# Headers clone.py writes with lastchange.py. Their include guard is the
+# path after the last "src/", so a Windows path with a drive letter and
+# backslashes gives "E:_UNG-154_..." instead: the preprocessor reads that
+# as a guard named E, the first header defines it and every later one is
+# skipped, and the build fails on SKIA_COMMIT_HASH hours in.
+GENERATED_HEADERS = (
+    "gpu/webgpu/dawn_commit_hash.h",
+    "gpu/config/gpu_lists_version.h",
+    "skia/ext/skia_commit_hash.h",
+)
+
+
+def fix_header_guards(source_tree: Path) -> None:
+    """Gives the generated headers the guard the tarball ships with."""
+    for relative in GENERATED_HEADERS:
+        header = source_tree / relative
+        text = header.read_text(encoding="utf-8")
+        match = re.search(r"^#ifndef (\S+)$", text, re.MULTILINE)
+        if not match:
+            sys.exit(f"{header}: no include guard")
+        guard = match.group(1)
+        if re.fullmatch(r"[A-Za-z_]\w*", guard):
+            continue
+        wanted = re.sub(r"[/.]", "_", relative.upper()) + "_"
+        header.write_text(text.replace(guard, wanted), encoding="utf-8")
+        print(f"{relative}: include guard {wanted}")
+
+
+def prepare(
+    dest: Path, disable_ssl_verification: bool, source: str = "tarball"
+) -> None:
     """Downloads, prunes and patches the source, then stops.
 
     Mirrors the source preparation half of ungoogled's build.py. The
@@ -273,6 +308,7 @@ def prepare(dest: Path, disable_ssl_verification: bool, source: str = "tarball")
     if source == "clone":
         fetch_source(root, source)
         fetch_node_modules(source_tree)
+        fix_header_guards(source_tree)
     elif (source_tree / "BUILD.gn").exists():
         print("source already unpacked:", source_tree)
     else:
