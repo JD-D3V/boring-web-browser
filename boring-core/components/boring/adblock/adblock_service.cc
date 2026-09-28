@@ -130,9 +130,8 @@ std::string EngineCacheHeader(const std::vector<std::string>& texts,
        " adblock=", GetBoringLibrary()->adblock_crate_version(), "\n"});
   for (size_t i = 0; i < texts.size(); ++i) {
     base::StrAppend(
-        &key,
-        {trusted[i] ? "trusted " : "standard ",
-         base::HexEncodeLower(crypto::SHA256HashString(texts[i])), "\n"});
+        &key, {trusted[i] ? "trusted " : "standard ",
+               base::HexEncodeLower(crypto::SHA256HashString(texts[i])), "\n"});
   }
   return base::StrCat({kEngineCacheMagic, " ",
                        base::HexEncodeLower(crypto::SHA256HashString(key)),
@@ -185,8 +184,16 @@ void ReportCacheUse(std::string_view cache_name, bool from_cache) {
   if (!command_line->HasSwitch(kCacheReportSwitch)) {
     return;
   }
+  const base::FilePath report_path =
+      command_line->GetSwitchValuePath(kCacheReportSwitch);
+  // base::AppendToFile opens with OPEN_EXISTING on Windows, so it silently
+  // does nothing if the file is missing (a test deleted it, or nothing has
+  // written to this path yet). Create it first so the switch always works.
+  if (!base::PathExists(report_path)) {
+    base::WriteFile(report_path, "");
+  }
   base::AppendToFile(
-      command_line->GetSwitchValuePath(kCacheReportSwitch),
+      report_path,
       base::StrCat({cache_name, from_cache ? " cache\n" : " text\n"}));
 }
 
@@ -567,8 +574,7 @@ void AdblockService::LoadCookies() {
     }
   }
   Sources read;
-  scoped_refptr<AdblockEngine> built =
-      Build({{path, false}}, &read, "cookies");
+  scoped_refptr<AdblockEngine> built = Build({{path, false}}, &read, "cookies");
   if (!built) {
     LOG(WARNING) << "boring adblock: cookie notice list did not build";
     return;
