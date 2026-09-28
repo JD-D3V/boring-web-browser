@@ -25,9 +25,7 @@ def main():
     chunks = []
     for relpath in sys.argv[2:]:
         rel = relpath.replace("\\", "/")
-        keep = os.path.join(
-            pristine.store_for(src), rel.replace("/", os.sep)
-        )
+        keep = os.path.join(pristine.store_for(SRC), rel.replace("/", os.sep))
         cur = os.path.join(SRC, rel.replace("/", os.sep))
         if not os.path.exists(keep):
             sys.exit("no pristine copy for " + rel + "; run snapshot.py first")
