@@ -11,7 +11,7 @@ diff --git a/chrome/browser/chrome_content_browser_client.cc b/chrome/browser/ch
  #include "components/captive_portal/core/buildflags.h"
  #include "components/content_settings/browser/page_specific_content_settings.h"
  #include "components/content_settings/browser/ui/javascript_optimizer_setting.h"
-@@ -6050,6 +6053,12 @@ ChromeContentBrowserClient::CreateURLLoaderThrottlesForKeepAlive(
+@@ -6029,6 +6032,12 @@ ChromeContentBrowserClient::CreateURLLoaderThrottles(
      result.push_back(std::move(contextual_tasks_throttle));
    }
  
@@ -24,7 +24,7 @@ diff --git a/chrome/browser/chrome_content_browser_client.cc b/chrome/browser/ch
    return result;
  }
  
-@@ -6590,6 +6599,12 @@ void ChromeContentBrowserClient::WillCreateURLLoaderFactory(
+@@ -6604,6 +6613,12 @@ void ChromeContentBrowserClient::WillCreateURLLoaderFactory(
      network::mojom::URLLoaderFactoryOverridePtr* factory_override,
      scoped_refptr<base::SequencedTaskRunner> navigation_response_task_runner,
      bool is_for_network_service) {
