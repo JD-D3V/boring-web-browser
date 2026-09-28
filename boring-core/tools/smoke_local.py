@@ -192,6 +192,28 @@ def set_profile_pref(profile, dotted, value):
         json.dump(prefs, f)
 
 
+def set_local_state(profile, dotted, value):
+    """Writes one pref into Local State (the user-data-dir level file,
+    not Default/Preferences), for a profile the browser has closed.
+
+    Local State is read at startup, so a switch that lives there (like
+    internal_only_uis_enabled) has to be set before the run that needs
+    it, the same way set_profile_pref sets a profile pref.
+    """
+    path = os.path.join(profile, "Local State")
+    state = {}
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            state = json.load(f)
+    node = state
+    *parents, leaf = dotted.split(".")
+    for key in parents:
+        node = node.setdefault(key, {})
+    node[leaf] = value
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(state, f)
+
+
 def get_profile_pref(profile, dotted, default=None):
     path = os.path.join(profile, "Default", "Preferences")
     with open(path, encoding="utf-8") as f:

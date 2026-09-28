@@ -44,7 +44,7 @@ from pathlib import Path
 
 from drive import CHROME, OFFSCREEN
 from measure_startup import DevTools
-from smoke_local import Checks, set_profile_pref
+from smoke_local import Checks, set_local_state, set_profile_pref
 
 # chrome/browser/resource_coordinator/lifecycle_unit_state.mojom
 FROZEN = 3
@@ -307,6 +307,9 @@ def main():
             "boring.performance.never_sleep_sites",
             [f"http://keepawake.localhost:{port}"],
         )
+        # Chromium 153 redirects chrome://discards to
+        # chrome://debug-webuis-disabled unless this is set.
+        set_local_state(profile, "internal_only_uis_enabled", True)
 
         protection = f"{PROTECTION_SECONDS}s"
         proc, cdp = launch(
@@ -319,7 +322,14 @@ def main():
                 "AllowDevtoolsConnectedDiscard",
                 "--disable-features=CalculateNativeWinOcclusion",
                 "--autoplay-policy=no-user-gesture-required",
-                "--mute-audio",
+                # No --mute-audio: it zeroes the audio buffer before
+                # Chromium's own power monitor ever scans it (services/
+                # audio/sync_reader.cc, then output_controller.cc's
+                # OnMoreData), so a muted tab is never seen as audible
+                # and freezing/discard never protects it. The audio
+                # page's own gain is turned down instead (see
+                # AUDIO_PAGE), so this test still makes only a faint
+                # tone through the real output device.
                 f"--load-extension={extension}",
             ],
         )
