@@ -110,9 +110,9 @@ void IdleTabFreezer::Update(const PageNode* page) {
   // A vote lands on the tab's primary page, so only that page gets one.
   const bool vote =
       contents && page->GetType() == PageType::kTab && !page->IsVisible() &&
-      performance_manager::PerformanceManager::
-              GetPrimaryPageNodeForWebContents(contents)
-                  .get() == page &&
+      performance_manager::PerformanceManager::GetPrimaryPageNodeForWebContents(
+          contents)
+              .get() == page &&
       !KeepAwake(page);
   auto it = votes_.find(page);
   if (vote == (it != votes_.end())) {

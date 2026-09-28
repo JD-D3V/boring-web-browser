@@ -126,8 +126,7 @@ Action Decide(const std::string& recorded,
 
 namespace {
 
-void CheckBundledWebStore(
-    base::WeakPtr<content::BrowserContext> weak_context) {
+void CheckBundledWebStore(base::WeakPtr<content::BrowserContext> weak_context) {
   content::BrowserContext* context = weak_context.get();
   if (!context || context->ShutdownStarted()) {
     return;

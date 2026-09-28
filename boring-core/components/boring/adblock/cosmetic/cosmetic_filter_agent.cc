@@ -113,9 +113,9 @@ ProceduralSetup SetUpProcedural(const std::vector<std::string>& actions,
     if (action && !action_type) {
       continue;
     }
-    const std::string* style =
-        action_type && *action_type == "style" ? action->FindString("arg")
-                                               : nullptr;
+    const std::string* style = action_type && *action_type == "style"
+                                   ? action->FindString("arg")
+                                   : nullptr;
     if (action_type && *action_type == "style" &&
         (!style || !IsSafeDeclarations(*style))) {
       continue;
@@ -158,8 +158,8 @@ CosmeticFilterAgent::CosmeticFilterAgent(content::RenderFrame* render_frame,
   // "Block this element" picks from the page in the tab, so only the
   // main frame gets a picker.
   if (render_frame->IsMainFrame() && !render_frame->IsInFencedFrameTree()) {
-    element_picker_ = std::make_unique<ElementPickerAgent>(*render_frame,
-                                                           isolated_world_id_);
+    element_picker_ =
+        std::make_unique<ElementPickerAgent>(*render_frame, isolated_world_id_);
   }
 }
 
@@ -281,9 +281,8 @@ void CosmeticFilterAgent::StartIsolatedScript(const std::string& config_json) {
 
   v8::Local<v8::Function> send_class_ids;
   if (!gin::CreateFunctionTemplate(
-           isolate,
-           base::BindRepeating(&CosmeticFilterAgent::OnClassIdsSeen,
-                               document_weak_factory_.GetWeakPtr()))
+           isolate, base::BindRepeating(&CosmeticFilterAgent::OnClassIdsSeen,
+                                        document_weak_factory_.GetWeakPtr()))
            ->GetFunction(context)
            .ToLocal(&send_class_ids)) {
     return;

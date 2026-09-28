@@ -63,8 +63,7 @@ class IdleTabFreezer : public performance_manager::GraphOwned,
       const performance_manager::PageNode* page) override;
 
   // PageLiveStateObserver:
-  void OnIsPinnedTabChanged(
-      const performance_manager::PageNode* page) override;
+  void OnIsPinnedTabChanged(const performance_manager::PageNode* page) override;
 
  private:
   // Casts or withdraws the vote for one page, as it stands now.

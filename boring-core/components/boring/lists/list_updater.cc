@@ -444,8 +444,7 @@ ListUpdater::Local ListUpdater::LookAtWhatWeHave() {
   const base::FilePath regional = GetDownloadedListDir().Append(kRegionalDir);
   base::FileEnumerator files(regional, /*recursive=*/false,
                              base::FileEnumerator::FILES);
-  for (base::FilePath path = files.Next(); !path.empty();
-       path = files.Next()) {
+  for (base::FilePath path = files.Next(); !path.empty(); path = files.Next()) {
     const std::string file = path.BaseName().MaybeAsASCII();
     const std::string name = file == kRegionalIndexFile
                                  ? std::string(kRegionalIndexName)
@@ -559,8 +558,7 @@ void ListUpdater::ApplyManifest() {
     if (!target) {
       continue;
     }
-    if (ListKindFromName(*name) == ListKind::kScam &&
-        !kScamBlockingAvailable) {
+    if (ListKindFromName(*name) == ListKind::kScam && !kScamBlockingAvailable) {
       // This version ships no scam list and must not start using one
       // an update feed happens to offer.
       continue;

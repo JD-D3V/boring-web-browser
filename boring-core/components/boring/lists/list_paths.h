@@ -32,9 +32,8 @@ enum class ListKind {
 
 // Every kind, for code that has to go through them all.
 inline constexpr ListKind kAllListKinds[] = {
-    ListKind::kFilters,       ListKind::kScam,
-    ListKind::kUbo,           ListKind::kCookies,
-    ListKind::kResources,     ListKind::kAggressiveUbo,
+    ListKind::kFilters,          ListKind::kScam,      ListKind::kUbo,
+    ListKind::kCookies,          ListKind::kResources, ListKind::kAggressiveUbo,
     ListKind::kAggressiveFanboy,
 };
 
