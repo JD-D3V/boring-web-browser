@@ -10,7 +10,7 @@ person can leave with their data.
 import sys
 import time
 
-from drive import Browser, PROFILE
+from drive import PROFILE, Browser
 
 
 def main():

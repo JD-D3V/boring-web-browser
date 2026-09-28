@@ -64,8 +64,7 @@ def files_in(patch: Path) -> tuple[list[str], list[str]]:
     return changed, created
 
 
-def try_apply(tree: Path, patch: Path,
-              extra: list[str]) -> tuple[int, str, list[str]]:
+def try_apply(tree: Path, patch: Path, extra: list[str]) -> tuple[int, str, list[str]]:
     """Run git apply --check, and report what it quietly refused to look at.
 
     A staged ungoogled tree has `/build` in its root .gitignore, and the
@@ -91,9 +90,11 @@ def try_apply(tree: Path, patch: Path,
     # lines that are actually complaints, so the reported detail is the
     # error and not "Checking patch ...".
     complaints = [
-        line for line in err.splitlines()
-        if not line.startswith(("Checking patch", "Skipped patch",
-                                "Applied patch", "Checking "))
+        line
+        for line in err.splitlines()
+        if not line.startswith(
+            ("Checking patch", "Skipped patch", "Applied patch", "Checking ")
+        )
     ]
     return result.returncode, "\n".join(complaints).strip(), skipped
 
@@ -131,8 +132,12 @@ def check_patches(tree: Path, patch_set: str | None = None) -> list[dict]:
 
         code, err, skipped = try_apply(tree, patch, [])
         if code == 0:
-            row = {"patch": name, "state": "clean", "files": targets,
-                   "creates": created}
+            row = {
+                "patch": name,
+                "state": "clean",
+                "files": targets,
+                "creates": created,
+            }
             if skipped:
                 # Exit 0, but git never looked at these. Saying "clean"
                 # here would be a false pass.
@@ -230,8 +235,7 @@ def check_rebrand(tree: Path) -> list[dict]:
                 }
             )
         elif rel.endswith("chromium_install_modes.h"):
-            missing = [old for old, _ in rebrand.INSTALL_MODES
-                       if text.count(old) != 1]
+            missing = [old for old, _ in rebrand.INSTALL_MODES if text.count(old) != 1]
             rows.append(
                 {
                     "file": rel,
@@ -282,9 +286,7 @@ def main() -> int:
     print("\npatches: " + ", ".join(f"{v} {k}" for k, v in sorted(counts.items())))
 
     changed = [
-        r
-        for r in overlay
-        if r["state"] not in ("upstream unchanged", "ours alone")
+        r for r in overlay if r["state"] not in ("upstream unchanged", "ours alone")
     ]
     print(f"\nwhole file copies: {len(overlay)} total, {len(changed)} to review")
     for row in changed:

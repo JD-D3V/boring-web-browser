@@ -52,6 +52,7 @@ def text_when(b, url, pattern):
             return text
         time.sleep(READY_POLL)
 
+
 # Levels chromium hands a renderer. Anything weaker than these in a
 # release build means the sandbox was loosened somewhere.
 STRONG_LOCKDOWN = {"Lockdown", "Limited"}
@@ -63,72 +64,74 @@ def main():
 
     def check(name, ok, detail=""):
         checks.append((name, ok))
-        print(("PASS: " if ok else "FAIL: ") + name + (f" ({detail})" if detail else ""))
+        print(
+            ("PASS: " if ok else "FAIL: ") + name + (f" ({detail})" if detail else "")
+        )
 
-    with tempfile.TemporaryDirectory(dir=os.environ.get("TMP")) as profile:
-        with Browser(user_data_dir=profile) as b:
-            raw = text_when(b, "chrome://sandbox", r"policies:")
-            marker = raw.find("policies:")
-            policies = []
-            if marker != -1:
-                try:
-                    policies = json.loads(raw[marker + len("policies:") :])
-                except json.JSONDecodeError:
-                    policies = []
+    with (
+        tempfile.TemporaryDirectory(dir=os.environ.get("TMP")) as profile,
+        Browser(user_data_dir=profile) as b,
+    ):
+        raw = text_when(b, "chrome://sandbox", r"policies:")
+        marker = raw.find("policies:")
+        policies = []
+        if marker != -1:
+            try:
+                policies = json.loads(raw[marker + len("policies:") :])
+            except json.JSONDecodeError:
+                policies = []
 
-            check(
-                "chrome://sandbox reports sandbox policies",
-                len(policies) > 0,
-                f"{len(policies)} policies",
-            )
+        check(
+            "chrome://sandbox reports sandbox policies",
+            len(policies) > 0,
+            f"{len(policies)} policies",
+        )
 
-            levels = [p.get("lockdownLevel") for p in policies]
-            check(
-                "every sandboxed process is at a strong lockdown level",
-                bool(levels) and all(lv in STRONG_LOCKDOWN for lv in levels),
-                ", ".join(sorted(set(levels))) or "none",
-            )
-            check(
-                "no process runs at a weak lockdown level",
-                not any(lv in WEAK_LOCKDOWN for lv in levels),
-                ", ".join(sorted(set(levels))) or "none",
-            )
+        levels = [p.get("lockdownLevel") for p in policies]
+        check(
+            "every sandboxed process is at a strong lockdown level",
+            bool(levels) and all(lv in STRONG_LOCKDOWN for lv in levels),
+            ", ".join(sorted(set(levels))) or "none",
+        )
+        check(
+            "no process runs at a weak lockdown level",
+            not any(lv in WEAK_LOCKDOWN for lv in levels),
+            ", ".join(sorted(set(levels))) or "none",
+        )
 
-            # The renderers should be the untrusted integrity ones.
-            untrusted = [
-                p
-                for p in policies
-                if "Untrusted" in (p.get("desiredIntegrityLevel") or "")
-            ]
-            check(
-                "renderers run at untrusted integrity",
-                len(untrusted) >= 1,
-                f"{len(untrusted)} of {len(policies)}",
-            )
+        # The renderers should be the untrusted integrity ones.
+        untrusted = [
+            p for p in policies if "Untrusted" in (p.get("desiredIntegrityLevel") or "")
+        ]
+        check(
+            "renderers run at untrusted integrity",
+            len(untrusted) >= 1,
+            f"{len(untrusted)} of {len(policies)}",
+        )
 
-            # Require something after the colon, so a half drawn page
-            # keeps us waiting rather than reporting an empty mode.
-            text = text_when(
-                b,
-                "chrome://process-internals/#site-isolation",
-                r"Site Isolation mode:\s*\S",
-            )
-            mode = re.search(r"Site Isolation mode:\s*(.+)", text)
-            mode_text = mode.group(1).strip() if mode else ""
-            check(
-                "site isolation mode is reported",
-                bool(mode_text),
-                mode_text or "no 'Site Isolation mode:' line",
-            )
-            check(
-                "site isolation is Site Per Process",
-                mode_text == "Site Per Process",
-                mode_text,
-            )
+        # Require something after the colon, so a half drawn page
+        # keeps us waiting rather than reporting an empty mode.
+        text = text_when(
+            b,
+            "chrome://process-internals/#site-isolation",
+            r"Site Isolation mode:\s*\S",
+        )
+        mode = re.search(r"Site Isolation mode:\s*(.+)", text)
+        mode_text = mode.group(1).strip() if mode else ""
+        check(
+            "site isolation mode is reported",
+            bool(mode_text),
+            mode_text or "no 'Site Isolation mode:' line",
+        )
+        check(
+            "site isolation is Site Per Process",
+            mode_text == "Site Per Process",
+            mode_text,
+        )
 
-            b.get("https://example.com/")
-            title = b.run("return document.title")
-            check("ordinary https page loads", bool(title), f"title {title!r}")
+        b.get("https://example.com/")
+        title = b.run("return document.title")
+        check("ordinary https page loads", bool(title), f"title {title!r}")
 
     failed = [c for c in checks if not c[1]]
     print()

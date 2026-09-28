@@ -14,8 +14,7 @@ import time
 import urllib.parse
 import uuid
 
-from drive import Browser, PROFILE
-
+from drive import PROFILE, Browser
 
 # A plain article page that distills cleanly.
 ARTICLE = "https://en.wikipedia.org/wiki/Web_browser"

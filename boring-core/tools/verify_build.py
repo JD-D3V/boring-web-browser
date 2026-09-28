@@ -88,9 +88,14 @@ def sha256(path: Path) -> str:
 
 def ninja_running() -> bool:
     result = subprocess.run(
-        ["powershell", "-NoProfile", "-NonInteractive", "-Command",
-         "(Get-Process ninja,clang-cl,lld-link -ErrorAction SilentlyContinue"
-         " | Measure-Object).Count"],
+        [
+            "powershell",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "(Get-Process ninja,clang-cl,lld-link -ErrorAction SilentlyContinue"
+            " | Measure-Object).Count",
+        ],
         capture_output=True,
         text=True,
     )
@@ -103,8 +108,9 @@ def run(step: Step, args: list[str], env: dict, cwd: Path, log: Path) -> Step:
     started = time.monotonic()
     log.parent.mkdir(parents=True, exist_ok=True)
     with open(log, "w", encoding="utf-8", errors="replace") as out:
-        result = subprocess.run(args, cwd=cwd, env=env, stdout=out,
-                                stderr=subprocess.STDOUT, text=True)
+        result = subprocess.run(
+            args, cwd=cwd, env=env, stdout=out, stderr=subprocess.STDOUT, text=True
+        )
     step.seconds = time.monotonic() - started
     step.code = result.returncode
     print(f"  exit {step.code} in {step.seconds:.0f}s, log {log.name}")
@@ -149,14 +155,23 @@ def newest(directory: Path, pattern: str) -> Path | None:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--src", required=True, help="the Chromium source tree")
-    ap.add_argument("--package", action="store_true",
-                    help="also build the installer, package, and read it back")
-    ap.add_argument("--network", action="store_true",
-                    help="also capture where the browser goes on its own")
+    ap.add_argument(
+        "--package",
+        action="store_true",
+        help="also build the installer, package, and read it back",
+    )
+    ap.add_argument(
+        "--network",
+        action="store_true",
+        help="also capture where the browser goes on its own",
+    )
     ap.add_argument("--only", help="run one step by name and stop")
     ap.add_argument("--label", default="", help="name for this run's report")
-    ap.add_argument("--force", action="store_true",
-                    help="run even though a build looks to be in progress")
+    ap.add_argument(
+        "--force",
+        action="store_true",
+        help="run even though a build looks to be in progress",
+    )
     args = ap.parse_args()
 
     src = Path(args.src).resolve()
@@ -177,8 +192,12 @@ def main() -> int:
     logs = REPO / "logs" / f"verify-{label}"
     logs.mkdir(parents=True, exist_ok=True)
 
-    env = {**os.environ, "BORING_OUT": str(out_dir), "TMP": r"E:\tmp",
-           "TEMP": r"E:\tmp"}
+    env = {
+        **os.environ,
+        "BORING_OUT": str(out_dir),
+        "TMP": r"E:\tmp",
+        "TEMP": r"E:\tmp",
+    }
 
     facts = build_facts(out_dir, src)
     print("browser under test:", facts["chromium_version"], "at", out_dir)
@@ -193,26 +212,55 @@ def main() -> int:
         return not args.only or args.only == name
 
     if wanted("sandbox"):
-        steps.append(run(Step("sandbox"),
-                         [sys.executable, str(HERE / "smoke_sandbox.py")],
-                         env, HERE, logs / "sandbox.log"))
+        steps.append(
+            run(
+                Step("sandbox"),
+                [sys.executable, str(HERE / "smoke_sandbox.py")],
+                env,
+                HERE,
+                logs / "sandbox.log",
+            )
+        )
 
     if wanted("smoke"):
-        steps.append(run(Step("smoke"),
-                         [sys.executable, str(HERE / "smoke_all.py")],
-                         env, HERE, logs / "smoke.log"))
+        steps.append(
+            run(
+                Step("smoke"),
+                [sys.executable, str(HERE / "smoke_all.py")],
+                env,
+                HERE,
+                logs / "smoke.log",
+            )
+        )
 
     if args.package and wanted("package"):
         # mini_installer is not part of the default browser build, so it
         # is asked for by name here rather than assumed to be there.
-        steps.append(run(Step("mini_installer"),
-                         ["cmd", "/c", str(HERE / "build_chrome.bat"),
-                          "-j", "4", "mini_installer"],
-                         {**env, "BORING_SRC": str(src)}, REPO,
-                         logs / "mini_installer.log"))
-        steps.append(run(Step("package"),
-                         [sys.executable, str(root / "package.py")],
-                         env, root, logs / "package.log"))
+        steps.append(
+            run(
+                Step("mini_installer"),
+                [
+                    "cmd",
+                    "/c",
+                    str(HERE / "build_chrome.bat"),
+                    "-j",
+                    "4",
+                    "mini_installer",
+                ],
+                {**env, "BORING_SRC": str(src)},
+                REPO,
+                logs / "mini_installer.log",
+            )
+        )
+        steps.append(
+            run(
+                Step("package"),
+                [sys.executable, str(root / "package.py")],
+                env,
+                root,
+                logs / "package.log",
+            )
+        )
 
         zip_path = newest(root / "build", "*_windows_x64.zip")
         installer = newest(root / "build", "*_installer_x64.exe")
@@ -223,26 +271,60 @@ def main() -> int:
             print("\n=== check package ===\n  skipped:", step.note)
             steps.append(step)
         else:
-            steps.append(run(
-                step,
-                [sys.executable, str(HERE / "check_package.py"),
-                 "--zip", str(zip_path), "--installer", str(installer),
-                 "--expect-version", facts["chromium_version"]],
-                env, HERE, logs / "check_package.log"))
+            steps.append(
+                run(
+                    step,
+                    [
+                        sys.executable,
+                        str(HERE / "check_package.py"),
+                        "--zip",
+                        str(zip_path),
+                        "--installer",
+                        str(installer),
+                        "--expect-version",
+                        facts["chromium_version"],
+                    ],
+                    env,
+                    HERE,
+                    logs / "check_package.log",
+                )
+            )
             step.note = zip_path.name
 
     if args.package and wanted("identity"):
-        steps.append(run(Step("icon identity"),
-                         [sys.executable, str(HERE / "icon_identity.py"),
-                          "--exe", str(out_dir / "chrome.exe"),
-                          "--out", str(REPORTS / f"icons-{label}")],
-                         env, HERE, logs / "icons.log"))
+        steps.append(
+            run(
+                Step("icon identity"),
+                [
+                    sys.executable,
+                    str(HERE / "icon_identity.py"),
+                    "--exe",
+                    str(out_dir / "chrome.exe"),
+                    "--out",
+                    str(REPORTS / f"icons-{label}"),
+                ],
+                env,
+                HERE,
+                logs / "icons.log",
+            )
+        )
 
     if args.network and wanted("network"):
-        steps.append(run(Step("network"),
-                         [sys.executable, str(HERE / "net_audit.py"),
-                          "--all", "--seconds", "120"],
-                         env, HERE, logs / "network.log"))
+        steps.append(
+            run(
+                Step("network"),
+                [
+                    sys.executable,
+                    str(HERE / "net_audit.py"),
+                    "--all",
+                    "--seconds",
+                    "120",
+                ],
+                env,
+                HERE,
+                logs / "network.log",
+            )
+        )
 
     report = {
         "label": label,
@@ -268,8 +350,7 @@ def main() -> int:
             failed += 1
         print(f"{step.name:<20} {outcome:<12} {step.note}")
     if facts["missing"]:
-        print(f"{'binaries':<20} {'FAIL':<12} missing "
-              + ", ".join(facts["missing"]))
+        print(f"{'binaries':<20} {'FAIL':<12} missing " + ", ".join(facts["missing"]))
         failed += 1
     print("\nwrote", out)
     print("logs in", logs)

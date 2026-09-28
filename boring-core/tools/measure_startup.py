@@ -43,7 +43,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -180,7 +180,9 @@ def launch_once(exe, profile):
     try:
         proc.wait(30)
     except subprocess.TimeoutExpired:
-        subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True)
+        subprocess.run(
+            ["taskkill", "/F", "/T", "/PID", str(proc.pid)], capture_output=True
+        )
     time.sleep(2)
     return result
 
@@ -189,7 +191,10 @@ def summarise(values):
     values = [v for v in values if v is not None]
     if not values:
         return "n/a"
-    return f"median {statistics.median(values):.0f} ms (min {min(values):.0f}, max {max(values):.0f}, n={len(values)})"
+    return (
+        f"median {statistics.median(values):.0f} ms "
+        f"(min {min(values):.0f}, max {max(values):.0f}, n={len(values)})"
+    )
 
 
 def median_or_none(values):
@@ -201,7 +206,7 @@ def append_results(path, label, report):
     """Adds one line for this run, so runs can be compared later."""
     entry = {
         "label": label,
-        "when": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "when": datetime.now(UTC).isoformat(timespec="seconds"),
         "median_ms": {
             name: {
                 f"{kind}_{key}": median_or_none(data[kind][key])
@@ -223,7 +228,9 @@ def main():
     ap.add_argument("--warm-runs", type=int, default=5)
     ap.add_argument("--first-runs", type=int, default=3)
     ap.add_argument("--json", default=None, help="also write the numbers here")
-    ap.add_argument("--label", default="", help="a name for this run, kept with --results")
+    ap.add_argument(
+        "--label", default="", help="a name for this run, kept with --results"
+    )
     ap.add_argument(
         "--results",
         default=None,
@@ -236,7 +243,9 @@ def main():
         first = {k: [] for k in HISTOGRAMS}
         warm = {k: [] for k in HISTOGRAMS}
         for _ in range(args.first_runs):
-            profile = Path(tempfile.mkdtemp(prefix=f"startup-{name}-", dir=os.environ.get("TMP")))
+            profile = Path(
+                tempfile.mkdtemp(prefix=f"startup-{name}-", dir=os.environ.get("TMP"))
+            )
             r = launch_once(exe, profile)
             for k in HISTOGRAMS:
                 first[k].append(r.get(k))

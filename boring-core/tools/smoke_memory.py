@@ -30,6 +30,7 @@ every protection).
 Usage: python smoke_memory.py   (BORING_OUT picks the build, see drive.py)
 """
 
+import contextlib
 import json
 import os
 import shutil
@@ -182,9 +183,9 @@ class Cdp(DevTools):
         return result["result"].get("value")
 
     def open_tab(self, url, background):
-        return self.send(
-            "Target.createTarget", url=url, background=background
-        )["targetId"]
+        return self.send("Target.createTarget", url=url, background=background)[
+            "targetId"
+        ]
 
     def find_tab(self, url_prefix):
         """A tab's target by its address, which outlives a sleep."""
@@ -241,10 +242,8 @@ def launch(exe, profile, extra):
 
 
 def close(proc, cdp):
-    try:
+    with contextlib.suppress(Exception):
         cdp.send("Browser.close")
-    except Exception:
-        pass
     cdp.close()
     try:
         proc.wait(30)
@@ -427,7 +426,11 @@ def run(cdp, url, checks):
     infos = tab_infos(cdp, discards)
     for host in kept:
         state = infos.get(host, {}).get("state")
-        checks(f"{host} tab stays awake when asked to sleep", state != DISCARDED, str(state))
+        checks(
+            f"{host} tab stays awake when asked to sleep",
+            state != DISCARDED,
+            str(state),
+        )
 
     # The logged-in tab goes to sleep and comes back logged in.
     login_info = infos.get("login")
@@ -435,7 +438,9 @@ def run(cdp, url, checks):
         sleep_tab(cdp, discards, login_info["id"])
         time.sleep(2)
         state = tab_infos(cdp, discards).get("login", {}).get("state")
-        checks("an unprotected background tab can sleep", state == DISCARDED, str(state))
+        checks(
+            "an unprotected background tab can sleep", state == DISCARDED, str(state)
+        )
         login_tab = cdp.find_tab(url("login"))
         cdp.show(login_tab)
         login = cdp.attach(login_tab)

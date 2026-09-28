@@ -82,8 +82,15 @@ def git_apply(src, patch, extra):
 def unified(old_path, new_path, rel, created):
     """A diff in the shape git apply expects, or "" when nothing changed."""
     result = subprocess.run(
-        ["git", "diff", "--no-index", "--src-prefix=a/", "--dst-prefix=b/",
-         old_path, new_path],
+        [
+            "git",
+            "diff",
+            "--no-index",
+            "--src-prefix=a/",
+            "--dst-prefix=b/",
+            old_path,
+            new_path,
+        ],
         capture_output=True,
         text=True,
     )
@@ -164,8 +171,12 @@ def rebase_one(src, name, patch_set, dry_run):
 
         # The whole point is a patch that needs no slack. Prove it: undo
         # what git placed, then apply the rebased copy strictly.
-        subprocess.run(["git", "apply", "--reverse", "-C1", patch],
-                       cwd=src, capture_output=True, text=True)
+        subprocess.run(
+            ["git", "apply", "--reverse", "-C1", patch],
+            cwd=src,
+            capture_output=True,
+            text=True,
+        )
         strict = git_apply(src, out, [])
         if strict.returncode != 0:
             detail = (strict.stderr or "").strip().splitlines()
@@ -192,8 +203,10 @@ def main():
     for name in names:
         state, detail = rebase_one(args.src, name, args.set, args.dry_run)
         counts[state] = counts.get(state, 0) + 1
-        print(f"  {name.ljust(width)}  {state}" + (f"  {detail}" if detail else ""),
-              flush=True)
+        print(
+            f"  {name.ljust(width)}  {state}" + (f"  {detail}" if detail else ""),
+            flush=True,
+        )
     print()
     print(", ".join(f"{n} {state}" for state, n in sorted(counts.items())))
     bad = ("CANNOT PLACE", "file gone", "REBASED BUT STILL FUZZY")

@@ -46,8 +46,7 @@ FRAGMENT = "#boring-test-element-picker"
 
 LISTS = {
     "easylist.txt": (
-        "[Adblock Plus 2.0]\n! Title: boring picker smoke test\n"
-        "##.boring-control-ad\n"
+        "[Adblock Plus 2.0]\n! Title: boring picker smoke test\n##.boring-control-ad\n"
     ),
     "ubo.txt": "! Title: boring picker smoke test, nothing here\n",
     "cookies.txt": "! Title: boring picker smoke test, no cookie rules\n",
@@ -100,8 +99,13 @@ def click_at(b, selector):
                 "id": "mouse",
                 "parameters": {"pointerType": "mouse"},
                 "actions": [
-                    {"type": "pointerMove", "origin": "viewport", "x": rect[0],
-                     "y": rect[1], "duration": 0},
+                    {
+                        "type": "pointerMove",
+                        "origin": "viewport",
+                        "x": rect[0],
+                        "y": rect[1],
+                        "duration": 0,
+                    },
                     {"type": "pause", "duration": 100},
                     {"type": "pointerDown", "button": 0},
                     {"type": "pointerUp", "button": 0},
@@ -177,9 +181,7 @@ def main():
                 check("the picker closes", wait_for(b, "!" + PICKER_UP))
                 check(
                     "the rest of the page stays",
-                    b.run(
-                        f"return {shown_expr('#keep')} && {shown_expr('#other')}"
-                    ),
+                    b.run(f"return {shown_expr('#keep')} && {shown_expr('#other')}"),
                 )
 
                 b.get(page)
@@ -191,10 +193,7 @@ def main():
             saved = rules(profile)
             check(
                 "the rule is saved as host##selector",
-                any(
-                    line.startswith(f"{TEST_SITE}##")
-                    for line in saved.splitlines()
-                ),
+                any(line.startswith(f"{TEST_SITE}##") for line in saved.splitlines()),
                 repr(saved),
             )
             check(
