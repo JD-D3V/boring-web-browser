@@ -380,7 +380,12 @@ def foreign_windows(pid: int) -> list[str]:
         if owner.value == pid and user32.IsWindowVisible(hwnd):
             name = ctypes.create_unicode_buffer(256)
             user32.GetClassNameW(hwnd, name, 256)
-            if not name.value.startswith("Chrome_"):
+            # Tooltips are Windows' own popups, never an update dialog; a
+            # stray one made the quiet cases fail in the release 2 run.
+            if not name.value.startswith("Chrome_") and name.value not in (
+                "MicrosoftWindowsTooltip",
+                "tooltips_class32",
+            ):
                 title = ctypes.create_unicode_buffer(256)
                 user32.GetWindowTextW(hwnd, title, 256)
                 found.append(f"{name.value}: {title.value}")
