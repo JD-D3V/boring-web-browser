@@ -325,7 +325,7 @@ DIR_SCAN_SUBPATHS = ["", "boring", "locales", "Dictionaries"]
 # see the actual staged file set.
 def _top_level_known_names():
     names = set()
-    for wanted in REQUIRED + REQUIRED_NOTICES:
+    for wanted in REQUIRED + REQUIRED_PROTECTION + REQUIRED_NOTICES:
         if "/" not in wanted:
             names.add(wanted)
     for wanted in RUST_NOTICE_CANDIDATES:

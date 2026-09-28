@@ -12,6 +12,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import struct
 import sys
 import tempfile
@@ -31,6 +32,7 @@ EXTENSION = WEBSTORE / "chromium-web-store"
 PATCHES = [
     CORE / "patches" / "package-boring-files.patch",
     CORE / "patches" / "153" / "package-boring-files.patch",
+    CORE / "patches" / "154" / "package-boring-files.patch",
 ]
 
 # The real key from the 1.5.5.4 manifest, which fixes the extension ID.
@@ -284,22 +286,42 @@ class PackagingPatchTest(unittest.TestCase):
         _, self.web_store = check_package.web_store_expected()
         if not self.web_store:
             self.skipTest("run tools/get_chromium_web_store.py first")
-        self.expected = set(self.web_store) | {
-            check_package.DICTIONARY,
+        self.common = set(self.web_store) | {
             "NOTICES-chromium-web-store.txt",
             "NOTICES-hunspell-en-US.txt",
         }
         self._dir = tempfile.TemporaryDirectory()
         self.addCleanup(self._dir.cleanup)
         self.out = Path(self._dir.name)
-        for name in self.expected:
-            path = self.out / name
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(b"x")
+        for name in self.common:
+            self.make(name)
+
+    def make(self, name):
+        path = self.out / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"x")
+
+    def expect(self, patch):
+        """What this patch must ship, with the dictionary its Chromium names.
+
+        Chromium renames the dictionary when it updates it, so each
+        patch set names its own; check_package and smoke_spellcheck check
+        the name against a real build.
+        """
+        text = patch.read_text(encoding="utf-8")
+        names = {
+            "Dictionaries/" + m.group(1)
+            for m in re.finditer(r"Dictionaries[/\\](en-US-[0-9-]+\.bdic)", text)
+        }
+        self.assertEqual(len(names), 1, f"{patch}: dictionaries {names}")
+        dictionary = names.pop()
+        self.make(dictionary)
+        return self.common | {dictionary}
 
     def test_chrome_release(self):
         for patch in PATCHES:
-            with self.subTest(patch=patch.name):
+            with self.subTest(patch=patch.parent.name + "/" + patch.name):
+                self.expected = self.expect(patch)
                 text = "[GENERAL]\n" + "\n".join(
                     line
                     for line in added_lines(patch, "chrome.release")
@@ -338,7 +360,8 @@ class PackagingPatchTest(unittest.TestCase):
 
     def test_files_cfg(self):
         for patch in PATCHES:
-            with self.subTest(patch=patch.name):
+            with self.subTest(patch=patch.parent.name + "/" + patch.name):
+                self.expected = self.expect(patch)
                 text = "\n".join(added_lines(patch, "FILES.cfg"))
                 scope = {"__builtins__": None}
                 exec("FILES = [\n" + text + "\n]", scope)
@@ -410,6 +433,11 @@ class CheckPackageFeatureTest(unittest.TestCase):
             {"Dictionaries/en-US-10-2.bdic"}, report, "154"
         )
         self.assertFalse(any("spelling" in p for p in report.problems))
+
+    def test_raw_build_dir_sees_top_level_protection_files(self):
+        # --dir narrows the top level to names the tool checks for; the
+        # updater DLL is one of them and must not be filtered out.
+        self.assertIn("WinSparkle.dll", check_package._top_level_known_names())
 
 
 class ExtensionInstallPatchTest(unittest.TestCase):
