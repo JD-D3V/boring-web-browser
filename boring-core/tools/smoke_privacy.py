@@ -298,8 +298,8 @@ def newtab_search_state(b):
 
 
 def check_google(profile, failures):
-    """Google is offered (google-search.patch), is not the default, and
-    choosing it in settings makes the new tab page search with it."""
+    """Google is offered (google-search.patch) and choosing it in settings
+    makes the new tab page search with it."""
     with Browser(user_data_dir=profile) as b:
         b.get("chrome://boring-newtab")
         wait_for(b, "return document.querySelectorAll('#engines button').length >= 2")
@@ -310,8 +310,11 @@ def check_google(profile, failures):
             return
         if "No Search" in state["engines"]:
             failures.append("the new tab page offers No Search as an engine")
-        if "Google" in state["placeholder"]:
-            failures.append(f"Google is the default engine: {state['placeholder']}")
+        # check_search may have left Google chosen in this profile; a fresh
+        # profile's DuckDuckGo default is smoke_serp's check.
+        if choose_in_settings(b, "DuckDuckGo") != "DuckDuckGo":
+            failures.append("could not choose DuckDuckGo in settings")
+            return
         chosen = choose_in_settings(b, "Google")
         print("chose in settings:", repr(chosen))
         if chosen != "Google":
