@@ -1,0 +1,129 @@
+--- a/chrome/browser/ui/views/tabs/horizontal_tab_style_views.cc
++++ b/chrome/browser/ui/views/tabs/horizontal_tab_style_views.cc
+@@ -98,11 +98,12 @@
+           GetLayoutConstant(LayoutConstant::kTabstripToolbarOverlap) * scale;
+     }
+ 
+-    // Don't round the bottom corners to avoid creating dead space between tabs.
+-    if (path_type == TabStyle::PathType::kHitTest) {
+-      bottom_left_corner_radius = 0;
+-      bottom_right_corner_radius = 0;
+-    }
++    // boring: square bottom corners on every detached tab, not just the
++    // hit test shape. The reference's tabs sit on the strip rather than
++    // merging into it, and a rounded bottom edge would show as a sliver
++    // of the strip's colour peeking through the tab's own corner.
++    bottom_left_corner_radius = 0;
++    bottom_right_corner_radius = 0;
+ 
+     float left = aligned_bounds.x() + extension_corner_radius;
+     float top = aligned_bounds.y() +
+@@ -393,6 +394,18 @@
+ 
+ gfx::Insets HorizontalTabStyleViews::GetContentsInsets() const {
+   gfx::Insets base_style_insets = tab_style()->GetContentsInsets();
++  // boring: 13 DIP before the favicon, 32 DIP after the title, room for
++  // the close button, rather than Chromium's symmetric padding. Set
++  // here rather than in TabStyle::GetContentsInsets() itself, because
++  // that base method is also what TabStyle::GetPinnedWidth() and
++  // TabStyle::GetMinimumActiveWidth() sum for their own width
++  // reservations, and a pinned tab shows no title or close button, so
++  // the close-button allowance in 32 would only make it wider for
++  // nothing. A pinned tab's favicon is centered by
++  // Tab::MaybeAdjustLeftForPinnedTab() independent of these insets
++  // anyway, so this asymmetry is inert there either way.
++  base_style_insets.set_left(13);
++  base_style_insets.set_right(32);
+   gfx::Insets split_insets = gfx::Insets(0);
+ 
+   // For split tabs, remove insets equal to the total separator width between
+@@ -716,11 +729,37 @@
+ 
+   const auto* widget = delegate_->GetView()->GetWidget();
+   DCHECK(widget);
++
+   const SkColor tab_stroke_color = widget->GetColorProvider()->GetColor(
+       widget->ShouldPaintAsActive() ? kColorTabStrokeFrameActive
+                                     : kColorTabStrokeFrameInactive);
+ 
+   PaintBackgroundStroke(canvas, group_color.value_or(tab_stroke_color));
++
++  // boring: the tab you are on carries a 2 DIP line in the accent colour
++  // along its bottom edge (V2 design; it was 3). It is painted over the
++  // fill and clipped to the same shape, so it follows the tab's corners
++  // and cannot reach the strip.
++  if (GetSelectionState() == TabStyle::TabSelectionState::kActive) {
++    constexpr int kUnderlineHeight = 2;
++    const SkPath tab_path =
++        GetPath(TabStyle::PathType::kHighlight, canvas->image_scale(), {});
++    gfx::ScopedCanvas underline_canvas(canvas);
++    const float underline_scale = canvas->UndoDeviceScaleFactor();
++    canvas->ClipPath(tab_path, true);
++    const SkRect tab_bounds = tab_path.getBounds();
++    cc::PaintFlags underline_flags;
++    underline_flags.setAntiAlias(true);
++    underline_flags.setColor(
++        widget->GetColorProvider()->GetColor(ui::kColorSysPrimary));
++    canvas->sk_canvas()->drawRect(
++        SkRect::MakeLTRB(
++            tab_bounds.left(),
++            tab_bounds.bottom() - kUnderlineHeight * underline_scale,
++            tab_bounds.right(), tab_bounds.bottom()),
++        underline_flags);
++  }
++
+   PaintSeparators(canvas);
+ }
+ 
+@@ -729,11 +768,12 @@
+     bool hovered,
+     std::optional<int> fill_id) const {
+   const TabStyle::TabSelectionState selection_state = GetSelectionState();
++  // boring: every tab, open or not, is the same detached rounded shape.
++  // Chromium gives the open one feet that flare into the toolbar so the
++  // two merge; ours is a card of its own colour sitting on the band, so
++  // the feet would only be a white smear under it.
+   const SkPath fill_path =
+-      GetPath(selection_state == TabStyle::TabSelectionState::kActive
+-                  ? TabStyle::PathType::kActiveTab
+-                  : TabStyle::PathType::kHighlight,
+-              canvas->image_scale(), {});
++      GetPath(TabStyle::PathType::kHighlight, canvas->image_scale(), {});
+   gfx::ScopedCanvas scoped_canvas(canvas);
+   const float scale = canvas->UndoDeviceScaleFactor();
+ 
+@@ -795,8 +835,9 @@
+     return;
+   }
+ 
++  // boring: the outline follows the same detached shape the fill uses.
+   SkPath outer_path =
+-      GetPath(TabStyle::PathType::kBorder, canvas->image_scale(),
++      GetPath(TabStyle::PathType::kHighlight, canvas->image_scale(),
+               {.should_paint_extension = false});
+   gfx::ScopedCanvas scoped_canvas(canvas);
+   float scale = canvas->UndoDeviceScaleFactor();
+--- a/chrome/browser/ui/views/tabs/tab.cc
++++ b/chrome/browser/ui/views/tabs/tab.cc
+@@ -74,6 +74,8 @@
+ #include "ui/gfx/animation/tween.h"
+ #include "ui/gfx/canvas.h"
+ #include "ui/gfx/favicon_size.h"
++#include "ui/gfx/font.h"
++#include "ui/gfx/font_list.h"
+ #include "ui/gfx/geometry/rect_conversions.h"
+ #include "ui/gfx/geometry/skia_conversions.h"
+ #include "ui/gfx/paint_vector_icon.h"
+@@ -1466,6 +1468,12 @@
+ void Tab::UpdateForegroundColors() {
+   TabStyle::TabColors colors = tab_style_views()->CalculateTargetColors();
+   title_->SetEnabledColor(colors.foreground_color);
++  // boring: the active tab's title is semibold, not just a different
++  // colour, matching the reference. DeriveWithWeight is absolute (it
++  // replaces whatever weight was there, it does not compound), so
++  // calling this on every colour update is harmless.
++  title_->SetFontList(title_->font_list().DeriveWithWeight(
++      IsActive() ? gfx::Font::Weight::SEMIBOLD : gfx::Font::Weight::NORMAL));
+   close_button_->SetColors(colors);
+   alert_indicator_button_->OnParentTabButtonColorChanged();
+   // There may be no focus ring when the tab is closing.

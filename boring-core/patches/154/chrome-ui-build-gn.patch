@@ -1,0 +1,14 @@
+diff --git a/chrome/browser/ui/BUILD.gn b/chrome/browser/ui/BUILD.gn
+--- a/chrome/browser/ui/BUILD.gn
++++ b/chrome/browser/ui/BUILD.gn
+@@ -828,6 +828,10 @@ static_library("ui") {
+     "//chrome/browser/webauthn",
+     "//chrome/browser/webauthn:impl",
+     "//components/autofill/core/common:credit_card_number_validation",
++    "//components/boring/core",
++    "//components/boring/lists",
++    "//components/boring/serp",
++    "//components/boring/update",
+     "//components/breadcrumbs/core:status",
+     "//components/captive_portal/content",
+     "//components/client_hints/browser",

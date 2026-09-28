@@ -29,10 +29,14 @@ Usage:
 """
 
 import argparse
+import hashlib
 import os
+import re
 import shutil
 import subprocess
 import sys
+import tarfile
+import urllib.request
 from pathlib import Path
 
 REPO = "https://github.com/ungoogled-software/ungoogled-chromium-windows"
@@ -162,12 +166,15 @@ def fetch_source(root: Path, source: str) -> None:
         # generated files the tarball would have shipped with.
         print("cloning the chromium source (this is the long one) ...", flush=True)
         fix_gclient_path(root / "ungoogled-chromium" / "utils" / "clone.py")
+        # Relative on purpose. gclient names each GCS dependency
+        # "<path>:<object>" and splits on the first colon, so an absolute
+        # E:/... path sends node_modules to <root>\E instead.
         run(
             [
                 sys.executable,
                 str(root / "ungoogled-chromium" / "utils" / "clone.py"),
                 "-o",
-                source_tree.as_posix(),
+                "build/src",
                 "-p",
                 "win64",
             ],
@@ -178,6 +185,59 @@ def fetch_source(root: Path, source: str) -> None:
         clone_done.write_text("clone.py finished\n", encoding="utf-8")
         return
     raise RuntimeError("fetch_source: tarball route is handled by prepare()")
+
+
+NODE_MODULES_DEP = "src/third_party/node/node_modules"
+
+
+def _gcs_pin(deps_text: str, dep: str) -> dict:
+    """Reads bucket, object, sha256 and file name of one GCS dep in DEPS."""
+    start = deps_text.find(f"'{dep}': {{")
+    if start < 0:
+        raise RuntimeError(f"DEPS has no {dep} entry")
+    end = deps_text.find("\n  '", start + 1)
+    block = deps_text[start:end]
+    pin = {}
+    for key in ("bucket", "object_name", "sha256sum", "output_file"):
+        match = re.search(rf"'{key}': '([^']+)'", block)
+        if not match:
+            raise RuntimeError(f"DEPS {dep}: no {key}")
+        pin[key] = match.group(1)
+    return pin
+
+
+def fetch_node_modules(source_tree: Path) -> None:
+    """Makes sure third_party/node/node_modules is there.
+
+    WebUI cannot compile without it. Chromium gates it on non_git_source,
+    which clone.py turns off, and ungoogled's gclient patch lets this one
+    through anyway. If that ever fails (it did once, from an absolute
+    output path), fetch the object DEPS pins, check its sha256 and unpack
+    it where gclient would have, tarball included, since the clone
+    pruning list removes that tarball.
+    """
+    pin = _gcs_pin((source_tree / "DEPS").read_text(encoding="utf-8"),
+                   NODE_MODULES_DEP)
+    out = source_tree / NODE_MODULES_DEP.removeprefix("src/")
+    tarball = out / pin["output_file"]
+    if (out / ".package-lock.json").exists():
+        print("node_modules already there")
+        return
+
+    url = f"https://storage.googleapis.com/{pin['bucket']}/{pin['object_name']}"
+    print("fetching node_modules:", url, flush=True)
+    out.mkdir(parents=True, exist_ok=True)
+    with urllib.request.urlopen(url, timeout=300) as response:
+        data = response.read()
+    digest = hashlib.sha256(data).hexdigest()
+    if digest != pin["sha256sum"]:
+        sys.exit(f"node_modules sha256 {digest}, DEPS pins {pin['sha256sum']}")
+    tarball.write_bytes(data)
+    with tarfile.open(tarball) as tar:
+        tar.extractall(out, filter="data")
+    if not (out / ".package-lock.json").exists():
+        sys.exit(f"node_modules unpacked, but {out} has no .package-lock.json")
+    print("node_modules at", out)
 
 
 def prepare(dest: Path, disable_ssl_verification: bool, source: str = "tarball") -> None:
@@ -212,6 +272,7 @@ def prepare(dest: Path, disable_ssl_verification: bool, source: str = "tarball")
 
     if source == "clone":
         fetch_source(root, source)
+        fetch_node_modules(source_tree)
     elif (source_tree / "BUILD.gn").exists():
         print("source already unpacked:", source_tree)
     else:
@@ -227,20 +288,39 @@ def prepare(dest: Path, disable_ssl_verification: bool, source: str = "tarball")
     downloads.retrieve_downloads(win_info, cache, None, True, disable_ssl_verification)
     downloads.check_downloads(win_info, cache, None)
 
-    print("pruning binaries ...", flush=True)
-    # A clone carries files the tarball never had, so ungoogled keeps a
-    # longer pruning list in the windows repo for exactly this route.
-    # build.py picks between them the same way.
-    pruning_list = (
-        root / "pruning.list"
-        if source == "clone"
-        else root / "ungoogled-chromium" / "pruning.list"
-    )
-    unremovable = prune_binaries.prune_files(
-        source_tree, pruning_list.read_text(encoding=ENCODING).splitlines()
-    )
-    if unremovable:
-        sys.exit(f"could not prune: {unremovable}")
+    # Pruning and patching cannot run twice over the same files, so a rerun
+    # after a failure resumes from markers instead of starting over.
+    prune_started = root / "build" / ".boring-prune-started"
+    pruned = root / "build" / ".boring-pruned"
+    patched = root / "build" / ".boring-patched"
+    if patched.exists():
+        print("already pruned, patched and substituted:", source_tree)
+        assemble_rust_toolchain(source_tree)
+        return
+
+    if pruned.exists():
+        print("already pruned")
+    else:
+        print("pruning binaries ...", flush=True)
+        # A clone carries files the tarball never had, so ungoogled keeps a
+        # longer pruning list in the windows repo for exactly this route.
+        # build.py picks between them the same way.
+        pruning_list = (
+            root / "pruning.list"
+            if source == "clone"
+            else root / "ungoogled-chromium" / "pruning.list"
+        )
+        resumed = prune_started.exists()
+        prune_started.write_text("pruning started\n", encoding="utf-8")
+        unremovable = prune_binaries.prune_files(
+            source_tree, pruning_list.read_text(encoding=ENCODING).splitlines()
+        )
+        if unremovable and not resumed:
+            sys.exit(f"could not prune: {unremovable}")
+        if unremovable:
+            # Deleted by the earlier, interrupted run.
+            print(f"{len(unremovable)} listed files were already gone")
+        pruned.write_text("pruned\n", encoding="utf-8")
 
     for relative in (
         Path("third_party/microsoft_dxheaders/src"),
@@ -277,6 +357,7 @@ def prepare(dest: Path, disable_ssl_verification: bool, source: str = "tarball")
         source_tree,
         None,
     )
+    patched.write_text("patched and substituted\n", encoding="utf-8")
 
     assemble_rust_toolchain(source_tree)
 

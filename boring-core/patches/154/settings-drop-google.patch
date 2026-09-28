@@ -1,0 +1,72 @@
+diff --git a/chrome/browser/resources/settings/people_page/people_page.css b/chrome/browser/resources/settings/people_page/people_page.css
+--- a/chrome/browser/resources/settings/people_page/people_page.css
++++ b/chrome/browser/resources/settings/people_page/people_page.css
+@@ -32,9 +32,30 @@
+   --cr-secondary-text-color: var(--settings-error-color);
+ }
+ 
++/* boring: there is no sync and no Google account to manage, so
++   these rows lead nowhere. Hidden here rather than by unpicking
++   the bindings, so the page logic is untouched. */
++#sync-setup,
++#google-services,
++#manage-google-account {
++  display: none;
++}
++
++/* Content-box divider hooks, see settings-restyle.patch's .hr/.cr-row
++ * (cr_shared_style_lit.css) for the full explanation: byte-for-byte
++ * the old flush border-top by default, inset to this row's own text
++ * when settings-restyle's settings-section/settings-subpage scope
++ * turns the two vars on. background-color is split out from the old
++ * "background" shorthand so the divider line layers on top of the
++ * grey fill instead of the shorthand resetting it away. */
+ #sync-not-allowed {
+-  background: var(--google-grey-100);
+-  border-top: var(--cr-separator-line);
++  background-color: var(--google-grey-100);
++  background-image: var(--cr-row-divider-background, none);
++  background-origin: content-box;
++  background-position: top;
++  background-repeat: no-repeat;
++  background-size: 100% var(--cr-separator-height);
++  border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+ }
+ 
+ #sync-not-allowed-text {
+@@ -43,7 +64,12 @@
+ 
+ cr-link-row {
+   --cr-link-row-icon-width: 40px;
+-  border-top: var(--cr-separator-line);
++  background-image: var(--cr-row-divider-background, none);
++  background-origin: content-box;
++  background-position: top;
++  background-repeat: no-repeat;
++  background-size: 100% var(--cr-separator-height);
++  border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+ }
+ 
+ .icon-container {
+@@ -77,6 +103,6 @@ settings-sync-account-control[showing-promo]::part(title) {
+ 
+ @media (prefers-color-scheme: dark) {
+   #sync-not-allowed {
+-    background: var(--google-grey-800);
++    background-color: var(--google-grey-800);
+   }
+ }
+diff --git a/chrome/app/settings_strings.grdp b/chrome/app/settings_strings.grdp
+--- a/chrome/app/settings_strings.grdp
++++ b/chrome/app/settings_strings.grdp
+@@ -3592,8 +3592,8 @@
+     </message>
+ 
+     <!-- Sync / People Page -->
+-    <message name="IDS_SETTINGS_PEOPLE" desc="Name of the settings page which manages the user's relationship to Google.">
+-      You and Google
++    <message name="IDS_SETTINGS_PEOPLE" desc="Name of the settings page which manages the browser profile.">
++      Profile
+     </message>
+     <message name="IDS_SETTINGS_CHANGE_PICTURE_PROFILE_PHOTO" desc="The text on the Google profile photo of the user.">
+       Google Profile photo
