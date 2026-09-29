@@ -8,3 +8,5 @@ form label,#email-preview label{display:block;font-weight:600;margin:20px 0 7px}
 @media(max-width:380px){h1{font-size:64px}nav{gap:15px}.brand-card{padding:23px}.release{padding:26px 20px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 .release .button{background:var(--paper);color:var(--ink)}.release .button:hover{background:#c6d7b5;color:var(--ink)}.release a:not(.button){color:#c6d7b5}
+.warning{padding-block:70px 10px}.warning>h2{font-size:52px;margin:24px 0 20px}.warning-intro{max-width:720px;color:var(--muted)}.warning-steps{list-style:none;padding:0;margin:35px 0 20px;display:grid;grid-template-columns:1fr 1fr;gap:40px}.warning-steps figure{margin:0}.warning-steps svg{display:block;width:100%;height:auto;border:1px solid var(--ink)}.warning-steps figcaption{font-size:14px;margin-top:14px;color:var(--ink)}.warning-steps code,.hash{font-size:12px;word-break:break-all}
+@media(max-width:800px){.warning{padding-block:45px 0}.warning>h2{font-size:40px}.warning-steps{grid-template-columns:1fr;gap:30px}}
