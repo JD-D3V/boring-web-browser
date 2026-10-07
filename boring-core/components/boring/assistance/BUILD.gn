@@ -24,6 +24,7 @@ static_library("assistance") {
   sources = [
     "assistance_session.cc",
     "assistance_session.h",
+    "assistance_test_hook.h",
   ]
   deps = [
     ":scripts",

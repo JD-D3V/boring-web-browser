@@ -5,7 +5,6 @@
 #include <array>
 #include <cstdint>
 #include <optional>
-#include <string_view>
 #include <utility>
 
 #include "base/json/json_writer.h"
@@ -21,7 +20,6 @@
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/isolated_world_ids.h"
-#include "url/gurl.h"
 
 namespace boring {
 
@@ -35,6 +33,8 @@ constexpr int32_t kAssistanceWorldId =
 // The same limit protocol.js enforces, checked here so an oversized
 // question never reaches the page at all.
 constexpr size_t kMaxQuestionBytes = 4096;
+// page_context.js takes 200 characters; this is the most they can encode to.
+constexpr size_t kMaxQueryBytes = 800;
 constexpr base::TimeDelta kPollInterval = base::Seconds(1);
 // Spec: after a minute say it is taking longer, and never resend.
 constexpr base::TimeDelta kSlowAfter = base::Seconds(60);
@@ -58,98 +58,135 @@ std::string InstallPageScripts() {
                        kAssistanceProtocolScript, "\n);\n"});
 }
 
+// Wraps `call` so a thrown error comes back as {error} rather than as an
+// empty result that looks like a busy frame.
+std::string Guarded(std::string_view call) {
+  return base::StrCat(
+      {"(() => {\n  try {\n", call,
+       "\n  } catch (error) {\n"
+       "    return {error: String(error && error.message || error)};\n"
+       "  }\n})()"});
+}
+
 const std::string* FindReason(const base::DictValue& result) {
   return result.FindString("reason");
 }
 
 }  // namespace
 
+AssistanceProvider::AssistanceProvider(std::u16string name,
+                                       GURL start_url,
+                                       std::string chat_path,
+                                       std::string_view adapter_script,
+                                       std::u16string history_note)
+    : name(std::move(name)),
+      start_url(std::move(start_url)),
+      chat_path(std::move(chat_path)),
+      adapter_script(adapter_script),
+      history_note(std::move(history_note)) {}
+
+AssistanceProvider::AssistanceProvider(const AssistanceProvider&) = default;
+AssistanceProvider& AssistanceProvider::operator=(const AssistanceProvider&) =
+    default;
+AssistanceProvider::~AssistanceProvider() = default;
+
+AssistanceProvider GeminiProvider(const GURL& start_url) {
+  return AssistanceProvider(
+      u"Gemini", start_url, "/app", kAssistanceGeminiScript,
+      u"Gemini keeps this chat unless you turn on Temporary chat.");
+}
+
 AssistanceSession::AssistanceSession(content::WebContents* source,
-                                     content::WebContents* gemini,
-                                     const url::Origin& provider,
+                                     content::WebContents* chat,
+                                     const AssistanceProvider& provider,
                                      bool press_send,
                                      base::RepeatingClosure on_changed)
     : content::WebContentsObserver(source),
-      gemini_(gemini->GetWeakPtr()),
+      chat_(chat->GetWeakPtr()),
       provider_(provider),
+      provider_origin_(url::Origin::Create(provider.start_url)),
       press_send_(press_send),
       on_changed_(std::move(on_changed)) {}
 
 AssistanceSession::~AssistanceSession() {
   // Spec: closing the session destroys its snapshot and target map. What
-  // already went to Google stays there; this only clears our side.
+  // already went to the chat site stays there; this only clears our side.
   if (web_contents()) {
     RunInSource(
         "globalThis.__boringAssistPage?.dispose();"
         "delete globalThis.__boringAssistSnapshot; true",
         base::NullCallback());
   }
-  if (gemini_) {
-    RunInGemini(
-        "globalThis.__boringAssistGemini?.dispose();"
-        "delete globalThis.__boringAssistGemini; true",
+  if (chat_) {
+    RunInChat(
+        "globalThis.__boringAssistChat?.dispose();"
+        "delete globalThis.__boringAssistChat; true",
         base::NullCallback());
   }
 }
 
-void AssistanceSession::Prepare(const std::u16string& question) {
+void AssistanceSession::Prepare(std::u16string_view question) {
   StartCapture(question, /*then_share=*/false);
 }
 
-void AssistanceSession::Ask(const std::u16string& question) {
+void AssistanceSession::Ask(std::u16string_view question) {
   StartCapture(question, /*then_share=*/true);
 }
 
-void AssistanceSession::StartCapture(const std::u16string& question,
-                                     bool then_share) {
+bool AssistanceSession::StartRequest(std::u16string_view text,
+                                     size_t max_bytes) {
   if (state_ == State::kCapturing) {
-    return;
+    return false;
   }
   Stop(State::kIdle, std::string());
   prompt_.clear();
-  share_when_ready_ = then_share;
 
   content::WebContents* source = web_contents();
   if (!source || source->GetBrowserContext()->IsOffTheRecord() ||
       !source->GetLastCommittedURL().SchemeIsHTTPOrHTTPS()) {
     SetState(State::kFailed, "unsupported_page");
-    return;
+    return false;
   }
-  const std::string text =
-      base::UTF16ToUTF8(base::TrimWhitespace(question, base::TRIM_ALL));
-  if (text.empty()) {
+  const std::string trimmed =
+      base::UTF16ToUTF8(base::TrimWhitespace(text, base::TRIM_ALL));
+  if (trimmed.empty()) {
     SetState(State::kFailed, "empty_question");
-    return;
+    return false;
   }
-  if (text.size() > kMaxQuestionBytes) {
+  if (trimmed.size() > max_bytes) {
     SetState(State::kFailed, "question_too_long");
-    return;
+    return false;
   }
 
   std::array<uint8_t, 8> bytes;
   base::RandBytes(bytes);
   request_id_ = base::HexEncode(bytes);
   SetState(State::kCapturing, std::string());
+  return true;
+}
+
+void AssistanceSession::StartCapture(std::u16string_view question,
+                                     bool then_share) {
+  if (!StartRequest(question, kMaxQuestionBytes)) {
+    return;
+  }
+  share_when_ready_ = then_share;
+  const std::string text =
+      base::UTF16ToUTF8(base::TrimWhitespace(question, base::TRIM_ALL));
 
   // The snapshot stays in the isolated world; only the prompt comes back.
   // A navigation destroys the world, and with it any later Show me.
   RunInSource(
       base::StrCat(
           {InstallPageScripts(),
-           "(() => {\n"
-           "  try {\n"
-           "    const snapshot = globalThis.__boringAssistPage.capture(",
-           Json(request_id_),
-           ");\n"
-           "    globalThis.__boringAssistSnapshot = snapshot;\n"
-           "    return {revision: snapshot.revision,\n"
-           "      prompt: globalThis.__boringAssistProtocol.makePrompt(",
-           Json(text),
-           ", snapshot)};\n"
-           "  } catch (error) {\n"
-           "    return {error: String(error && error.message || error)};\n"
-           "  }\n"
-           "})()"}),
+           Guarded(base::StrCat(
+               {"const snapshot = globalThis.__boringAssistPage.capture(",
+                Json(request_id_),
+                ");\n"
+                "globalThis.__boringAssistSnapshot = snapshot;\n"
+                "return {revision: snapshot.revision,\n"
+                "  prompt: globalThis.__boringAssistProtocol.makePrompt(",
+                Json(text), ", snapshot)};"}))}),
       base::BindOnce(&AssistanceSession::OnCaptured,
                      weak_factory_.GetWeakPtr()));
 }
@@ -175,26 +212,26 @@ void AssistanceSession::Share() {
   if (state_ != State::kReady) {
     return;
   }
-  if (!GeminiIsProvider()) {
+  if (!ChatIsProvider()) {
     SetState(State::kFailed, "provider_not_ready");
     return;
   }
   // A fresh adapter per request: each one sends at most once.
-  RunInGemini(
-      base::StrCat({"globalThis.__boringAssistGemini?.dispose();\n"
-                    "globalThis.__boringAssistGemini = (\n",
-                    kAssistanceGeminiScript,
+  RunInChat(
+      base::StrCat({"globalThis.__boringAssistChat?.dispose();\n"
+                    "globalThis.__boringAssistChat = (\n",
+                    provider_.adapter_script,
                     "\n)(document, () => new URL(location.href), ",
-                    Json(provider_.Serialize()),
+                    Json(provider_origin_.Serialize()),
                     ");\n"
                     "(() => {\n"
-                    "  const gemini = globalThis.__boringAssistGemini;\n"
-                    "  const prepared = gemini.prepare(",
+                    "  const chat = globalThis.__boringAssistChat;\n"
+                    "  const prepared = chat.prepare(",
                     Json(prompt_),
                     ");\n"
                     "  return prepared.ok && ",
                     press_send_ ? "true" : "false",
-                    " ? gemini.submit() : prepared;\n"
+                    " ? chat.submit() : prepared;\n"
                     "})()"}),
       base::BindOnce(&AssistanceSession::OnShared, weak_factory_.GetWeakPtr()));
 }
@@ -215,18 +252,18 @@ void AssistanceSession::OnShared(base::Value result) {
 }
 
 void AssistanceSession::Poll() {
-  if (!GeminiIsProvider()) {
+  if (!ChatIsProvider()) {
     Stop(State::kFailed, "provider_not_ready");
     return;
   }
-  RunInGemini(
+  RunInChat(
       "(() => {\n"
-      "  const gemini = globalThis.__boringAssistGemini;\n"
-      "  if (!gemini) return {ok: false, reason: 'gemini_reloaded'};\n"
-      "  const reply = gemini.readReply();\n"
+      "  const chat = globalThis.__boringAssistChat;\n"
+      "  if (!chat) return {ok: false, reason: 'chat_reloaded'};\n"
+      "  const reply = chat.readReply();\n"
       "  if (reply.ok || reply.reason !== 'waiting') return reply;\n"
       "  return {ok: false, reason:\n"
-      "    gemini.status().reason === 'generating' ? 'generating' : "
+      "    chat.status().reason === 'generating' ? 'generating' : "
       "'waiting'};\n"
       "})()",
       base::BindOnce(&AssistanceSession::OnPolled, weak_factory_.GetWeakPtr()));
@@ -246,21 +283,13 @@ void AssistanceSession::OnPolled(base::Value result) {
       SetState(State::kAnswered, "reply_unreadable");
       return;
     }
-    RunInSource(base::StrCat({"(() => {\n"
-                              "  try {\n"
-                              "    const snapshot = "
-                              "globalThis.__boringAssistSnapshot;\n"
-                              "    if (!snapshot || snapshot.requestId !== ",
-                              Json(request_id_),
-                              ") return null;\n"
-                              "    return globalThis.__boringAssistProtocol"
-                              ".parseGuidance(",
-                              Json(*text),
-                              ", snapshot);\n"
-                              "  } catch (error) {\n"
-                              "    return null;\n"
-                              "  }\n"
-                              "})()"}),
+    RunInSource(Guarded(base::StrCat(
+                    {"const snapshot = globalThis.__boringAssistSnapshot;\n"
+                     "if (!snapshot || snapshot.requestId !== ",
+                     Json(request_id_),
+                     ") return null;\n"
+                     "return globalThis.__boringAssistProtocol.parseGuidance(",
+                     Json(*text), ", snapshot);"})),
                 base::BindOnce(&AssistanceSession::OnParsed,
                                weak_factory_.GetWeakPtr()));
     return;
@@ -272,16 +301,16 @@ void AssistanceSession::OnPolled(base::Value result) {
     return;
   }
   if (*reason == "invalid_reply_size") {
-    // The answer is still there to read in Gemini; it just names nothing.
+    // The answer is still there to read; it just names nothing.
     Stop(State::kAnswered, "reply_too_long");
     return;
   }
-  if (*reason == "gemini_reloaded" || *reason == "unexpected_destination" ||
+  if (*reason == "chat_reloaded" || *reason == "unexpected_destination" ||
       *reason == "disposed") {
     Stop(State::kFailed, *reason);
     return;
   }
-  // Anything else means Gemini has it and is still answering.
+  // Anything else means the chat site has it and is still answering.
   if (state_ == State::kWaitingForSend) {
     sent_at_ = base::TimeTicks::Now();
     SetState(State::kWaitingForReply, std::string());
@@ -292,6 +321,7 @@ void AssistanceSession::OnPolled(base::Value result) {
 }
 
 void AssistanceSession::OnParsed(base::Value result) {
+  // Anything but a candidate id (null, or {error}) names nothing.
   candidate_ = result.is_string() ? result.GetString() : std::string();
   SetState(State::kAnswered, std::string());
 }
@@ -301,14 +331,59 @@ bool AssistanceSession::CanShowMe() const {
 }
 
 void AssistanceSession::ShowMe() {
-  if (!CanShowMe()) {
+  if (CanShowMe()) {
+    Highlight(candidate_);
+  }
+}
+
+void AssistanceSession::Find(std::u16string_view query) {
+  if (!StartRequest(query, kMaxQueryBytes)) {
     return;
   }
+  const std::string text =
+      base::UTF16ToUTF8(base::TrimWhitespace(query, base::TRIM_ALL));
+  RunInSource(
+      base::StrCat(
+          {InstallPageScripts(),
+           Guarded(base::StrCat({"return globalThis.__boringAssistPage.find(",
+                                 Json(request_id_), ", ", Json(text), ");"}))}),
+      base::BindOnce(&AssistanceSession::OnFound, weak_factory_.GetWeakPtr()));
+}
+
+void AssistanceSession::OnFound(base::Value result) {
+  const base::DictValue* dict = result.GetIfDict();
+  const std::optional<int> revision =
+      dict ? dict->FindInt("revision") : std::nullopt;
+  const base::ListValue* matches = dict ? dict->FindList("matches") : nullptr;
+  if (!revision || !matches) {
+    SetState(State::kFailed, "capture_failed");
+    return;
+  }
+  revision_ = *revision;
+  for (const base::Value& match : *matches) {
+    const base::DictValue* entry = match.GetIfDict();
+    const std::string* id = entry ? entry->FindString("id") : nullptr;
+    const std::string* label = entry ? entry->FindString("label") : nullptr;
+    if (id && label) {
+      match_ids_.push_back(*id);
+      match_labels_.push_back(*label);
+    }
+  }
+  SetState(State::kFound, match_ids_.empty() ? "no_match" : std::string());
+}
+
+void AssistanceSession::ShowMatch(size_t index) {
+  if (state_ == State::kFound && index < match_ids_.size()) {
+    Highlight(match_ids_[index]);
+  }
+}
+
+void AssistanceSession::Highlight(const std::string& candidate) {
   RunInSource(
       base::StrCat({"globalThis.__boringAssistPage ? "
                     "globalThis.__boringAssistPage.highlight(",
                     Json(request_id_), ", ", base::NumberToString(revision_),
-                    ", ", Json(candidate_),
+                    ", ", Json(candidate),
                     ") : {ok: false, reason: 'stale_or_unknown_target'}"}),
       base::BindOnce(&AssistanceSession::OnHighlighted,
                      weak_factory_.GetWeakPtr()));
@@ -322,7 +397,9 @@ void AssistanceSession::OnHighlighted(base::Value result) {
   // Spec: a stale or changed target asks for a fresh question rather than
   // outlining something else.
   candidate_.clear();
-  SetState(State::kAnswered, "stale_target");
+  match_ids_.clear();
+  match_labels_.clear();
+  SetState(state_, "stale_target");
 }
 
 void AssistanceSession::PrimaryPageChanged(content::Page& page) {
@@ -357,31 +434,35 @@ void AssistanceSession::RunInSource(const std::string& script,
       base::UTF8ToUTF16(script), std::move(callback), kAssistanceWorldId);
 }
 
-void AssistanceSession::RunInGemini(const std::string& script,
-                                    ResultCallback callback) {
-  if (!gemini_) {
+void AssistanceSession::RunInChat(const std::string& script,
+                                  ResultCallback callback) {
+  if (!chat_) {
     return;
   }
-  gemini_->GetPrimaryMainFrame()->ExecuteJavaScriptInIsolatedWorld(
+  chat_->GetPrimaryMainFrame()->ExecuteJavaScriptInIsolatedWorld(
       base::UTF8ToUTF16(script), std::move(callback), kAssistanceWorldId);
 }
 
-bool AssistanceSession::GeminiIsProvider() const {
-  if (!gemini_) {
+bool AssistanceSession::ChatIsProvider() const {
+  if (!chat_) {
     return false;
   }
-  // Spec: page context goes only to the exact provider origin, and only
-  // on its chat page. Sign-in pages and redirects never get it.
-  content::RenderFrameHost* frame = gemini_->GetPrimaryMainFrame();
+  // Spec: page context goes only to the exact provider origin, and only on
+  // its chat pages. Sign-in pages and redirects never get it.
+  content::RenderFrameHost* frame = chat_->GetPrimaryMainFrame();
   const std::string_view path = frame->GetLastCommittedURL().path();
-  return frame->GetLastCommittedOrigin().IsSameOriginWith(provider_) &&
-         (path == "/app" || base::StartsWith(path, "/app/"));
+  const std::string& chat_path = provider_.chat_path;
+  return frame->GetLastCommittedOrigin().IsSameOriginWith(provider_origin_) &&
+         (chat_path == "/" || path == chat_path ||
+          base::StartsWith(path, base::StrCat({chat_path, "/"})));
 }
 
 void AssistanceSession::Stop(State state, std::string reason) {
   weak_factory_.InvalidateWeakPtrs();
   poll_timer_.Stop();
   candidate_.clear();
+  match_ids_.clear();
+  match_labels_.clear();
   share_when_ready_ = false;
   SetState(state, std::move(reason));
 }

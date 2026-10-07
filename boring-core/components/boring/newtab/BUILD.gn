@@ -12,6 +12,7 @@ static_library("newtab") {
   deps = [
     "//base",
     "//components/boring/adblock:browser",
+    "//components/boring/assistance",
     "//components/boring/branding",
     "//components/boring/core",
     "//components/boring/scam",

@@ -41,6 +41,12 @@ FIXTURE = (
     '<input value="SHADOW_SECRET">\';</script>'
 )
 
+FIND_PAGE = (
+    '<nav><a href="/settings">Settings</a><a href="/keys">API keys</a>'
+    '<a href="/billing">Billing</a><a href="/docs">API documentation</a></nav>'
+    "<main><button>Create project</button></main>"
+)
+
 
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *_):
@@ -398,6 +404,62 @@ class AssistanceTest(unittest.TestCase):
             '.setAttribute("aria-label","Stop response")'
         )
         self.assertFalse(self.browser.run('return adapter.prepare("test")')["ok"])
+
+    def find_page(self):
+        self.browser.run("document.body.innerHTML=arguments[0];", [FIND_PAGE])
+        self.install("page_context.js", "reader")
+
+    def find(self, query):
+        return self.browser.run('return reader.find("abc123",arguments[0])', [query])
+
+    def test_find_ranks_matching_controls(self):
+        self.find_page()
+        result = self.find("Where do I create an API key?")
+        labels = [m["label"] for m in result["matches"]]
+        self.assertEqual(labels, ["API keys", "API documentation"])
+        self.assertNotIn("Settings", labels)
+        self.assertNotIn("Billing", labels)
+
+    def test_find_result_can_be_highlighted(self):
+        self.find_page()
+        # preventDefault keeps a click from navigating away, which would wipe
+        # the flag before the test could read it.
+        self.browser.run(
+            "document.querySelector('a[href=\"/keys\"]').onclick="
+            "e=>{e.preventDefault();document.body.dataset.clicked='yes'}"
+        )
+        result = self.find("Where do I create an API key?")
+        first = result["matches"][0]
+        self.assertEqual(first["label"], "API keys")
+        highlighted = self.browser.run(
+            'return reader.highlight("abc123",arguments[0],arguments[1])',
+            [result["revision"], first["id"]],
+        )
+        self.assertTrue(highlighted["ok"])
+        self.assertIsNone(
+            self.browser.run("return document.body.dataset.clicked || null")
+        )
+
+    def test_find_with_no_match_is_empty(self):
+        self.find_page()
+        self.assertEqual(self.find("zebra")["matches"], [])
+
+    def test_find_rejects_bad_query(self):
+        self.find_page()
+        for query in ["", "x" * 201]:
+            message = self.browser.run(
+                'try{reader.find("abc123",arguments[0]);return "no error"}'
+                "catch(e){return e.message}",
+                [query],
+            )
+            self.assertIn("Invalid query", message)
+
+    def test_find_plural_and_prefix(self):
+        self.find_page()
+        labels = [m["label"] for m in self.find("bill")["matches"]]
+        self.assertIn("Billing", labels)
+        labels = [m["label"] for m in self.find("keys")["matches"]]
+        self.assertIn("API keys", labels)
 
 
 if __name__ == "__main__":

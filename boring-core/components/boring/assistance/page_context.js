@@ -8,6 +8,9 @@
   const MAX_NODES = 20000;
   const BLOCK_TAGS = new Set(['P','H1','H2','H3','H4','H5','H6','LI','TR','PRE','BLOCKQUOTE']);
   const EXCLUDED = new Set(['INPUT','TEXTAREA','SELECT','OPTION','SCRIPT','STYLE','NOSCRIPT','TEMPLATE','IFRAME','OBJECT','EMBED']);
+  // Question words say nothing about the control. Without them, "create" would
+  // match every "Create ..." button.
+  const STOP_WORDS = new Set(['a','an','and','are','can','do','does','find','for','get','go','how','i','in','is','it','me','my','of','on','or','show','the','to','where','which','with','you','your','create','make','new','open']);
   const encoder = new TextEncoder();
   let revision = 0, active = null, overlay = null, timer = null, frame = null, highlighted = null;
   const targets = new Map();
@@ -197,5 +200,38 @@
     frame = requestAnimationFrame(track);
     return {ok:true,reason:'highlighted'};
   }
-  return Object.freeze({capture,highlight,dispose});
+  function words(text) {
+    return text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  }
+  // Drop one plural s, so "keys" meets "key". Short words keep theirs: "bus" stays whole.
+  function stem(word) {
+    return word.length > 3 && word.endsWith('s') ? word.slice(0,-1) : word;
+  }
+  // A prefix only counts from 3 characters up, so "bi" does not find "billing".
+  function sameWord(a, b) {
+    if (a === b) return true;
+    return Math.min(a.length,b.length) >= 3 && (a.startsWith(b) || b.startsWith(a));
+  }
+  // Pure local reading: the question never leaves the page or the isolated world.
+  function find(requestId, query) {
+    // Check before capture, so a rejected query keeps the last snapshot's targets.
+    const text = typeof query === 'string' ? query.trim() : '';
+    if (text.length < 1 || text.length > 200) throw new Error('Invalid query');
+    const snapshot = capture(requestId);
+    // Dedupe after stemming, so "key keys" cannot raise the score twice.
+    const wanted = [...new Set(words(text).filter(w => w.length >= 2 && !STOP_WORDS.has(w)).map(stem))];
+    const ranked = snapshot.candidates.map((candidate, order) => {
+      const labelWords = words(candidate.label).map(stem);
+      const score = wanted.filter(q => labelWords.some(w => sameWord(q,w))).length;
+      return {candidate,order,score};
+    });
+    const matches = ranked
+      .filter(r => r.score > 0)
+      .sort((a,b) => b.score - a.score ||
+        a.candidate.label.length - b.candidate.label.length || a.order - b.order)
+      .slice(0,5)
+      .map(({candidate}) => ({id:candidate.id,role:candidate.role,label:candidate.label}));
+    return {requestId,revision:snapshot.revision,matches};
+  }
+  return Object.freeze({capture,highlight,find,dispose});
 })()

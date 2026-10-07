@@ -15,6 +15,7 @@
 #include "base/time/time.h"
 #include "base/values.h"
 #include "components/boring/adblock/adblock_service.h"
+#include "components/boring/assistance/assistance_test_hook.h"
 #include "components/boring/branding/brand_mark.h"
 #include "components/boring/core/boring_capabilities.h"
 #include "components/boring/newtab/search_engine_menu.h"
@@ -535,6 +536,11 @@ window.searchMenuTestResult = function(result) {
   window.lastSearchMenuTest = result;
 };
 
+// Test only, see kAssistanceTestSwitch.
+window.assistanceTestResult = function(result) {
+  window.lastAssistanceTest = result;
+};
+
 window.loadSearch = function(engine) {
   searchUrl = engine.url || '';
   var engines = engine.engines || [];
@@ -684,6 +690,14 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
       web_ui()->RegisterMessageCallback(
           "searchMenuTest",
           base::BindRepeating(&NewTabMessageHandler::HandleSearchMenuTest,
+                              base::Unretained(this)));
+    }
+    // Test only, see kAssistanceTestSwitch.
+    if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+            kAssistanceTestSwitch)) {
+      web_ui()->RegisterMessageCallback(
+          "assistanceTest",
+          base::BindRepeating(&NewTabMessageHandler::HandleAssistanceTest,
                               base::Unretained(this)));
     }
   }
@@ -945,6 +959,13 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
     web_ui()->CallJavascriptFunctionUnsafe(
         "searchMenuTestResult",
         RunSearchEngineMenuTestCommand(web_ui()->GetWebContents(), args));
+  }
+
+  void HandleAssistanceTest(const base::ListValue& args) {
+    AllowJavascript();
+    web_ui()->CallJavascriptFunctionUnsafe(
+        "assistanceTestResult",
+        RunAssistanceTestCommand(web_ui()->GetWebContents(), args));
   }
 
   void HandleGetProtection(const base::ListValue& args) {

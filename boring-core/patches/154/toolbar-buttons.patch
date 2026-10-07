@@ -1,16 +1,17 @@
 diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.cc b/chrome/browser/ui/views/toolbar/toolbar_view.cc
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
-@@ -96,6 +96,8 @@
+@@ -96,6 +96,9 @@
  #include "chrome/browser/ui/views/toolbar/app_menu_control.h"
  #include "chrome/browser/ui/views/toolbar/avatar_toolbar_button_interface.h"
  #include "chrome/browser/ui/views/toolbar/back_forward_button.h"
++#include "chrome/browser/ui/views/toolbar/boring_assist_button.h"
 +#include "chrome/browser/ui/views/toolbar/boring_protection_button.h"
 +#include "chrome/browser/ui/views/toolbar/boring_reader_button.h"
  #include "chrome/browser/ui/views/toolbar/browser_app_menu_button.h"
  #include "chrome/browser/ui/views/toolbar/chrome_labs/chrome_labs_coordinator.h"
  #include "chrome/browser/ui/views/toolbar/home_button.h"
-@@ -537,6 +539,15 @@ void ToolbarView::Init() {
+@@ -537,6 +540,19 @@
      }
    }
  
@@ -23,24 +24,28 @@ diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.cc b/chrome/browser/ui
 +  boring_protection_ =
 +      AddChildView(std::make_unique<BoringProtectionButton>(browser_));
 +
++  // boring: Ask Gemini. It shows itself only where the panel can work
++  // and opens the panel; it never reads or sends the page itself.
++  boring_assist_ = AddChildView(std::make_unique<BoringAssistButton>(browser_));
++
    // Only show the Battery Saver button when it is not controlled by the OS. On
    // ChromeOS the battery icon in the shelf shows the same information.
    if (!performance_manager::user_tuning::IsBatterySaverModeManagedByOS() &&
-@@ -593,6 +604,13 @@ void ToolbarView::Init() {
+@@ -592,6 +608,13 @@
+     avatar_ = AddChildView(std::make_unique<AvatarToolbarButton>(browser_));
      bool show_avatar_toolbar_button =
          AvatarToolbarButtonInterface::CanShowForProfile(browser_->GetProfile());
- 
++
 +    // boring: there is nothing to sign in to, so a profile button on
 +    // every window is a control with nothing behind it. It stays for the
 +    // windows where it says something, incognito and guest, and
 +    // --show-avatar-button still overrides this either way.
 +    show_avatar_toolbar_button = browser_->GetProfile()->IsIncognitoProfile() ||
 +                                 browser_->GetProfile()->IsGuestSession();
-+
+ 
      const std::string sab_value = base::CommandLine::ForCurrentProcess()->
                                    GetSwitchValueASCII("show-avatar-button");
-     if (sab_value == "always")
-@@ -1206,6 +1224,7 @@ void ToolbarView::Update(WebContents* tab) {
+@@ -1206,6 +1229,7 @@
      reload_control->SetDevToolsStatus(
          chrome::IsDebuggerAttachedToCurrentTab(browser_));
    }
@@ -51,19 +56,22 @@ diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.cc b/chrome/browser/ui
 diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.h b/chrome/browser/ui/views/toolbar/toolbar_view.h
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.h
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.h
-@@ -49,6 +49,8 @@ class ActorTaskListBubble;
+@@ -49,6 +49,9 @@
  class AvatarToolbarButton;
  class AvatarToolbarButtonInterface;
  class BatterySaverButton;
++class BoringAssistButton;
 +class BoringProtectionButton;
 +class BoringReaderButton;
  class BrowserAppMenuButton;
  class BrowserWindowInterface;
  class ExtensionsToolbarButton;
-@@ -395,6 +397,10 @@ class ToolbarView : public views::AccessiblePaneView,
+@@ -395,6 +398,12 @@
    raw_ptr<ExtensionsToolbarDesktop> extensions_container_ = nullptr;
    raw_ptr<ToolbarDivider> toolbar_divider_ = nullptr;
    raw_ptr<BatterySaverButton> battery_saver_button_ = nullptr;
++  // boring: opens the Ask Gemini panel beside the page.
++  raw_ptr<BoringAssistButton> boring_assist_ = nullptr;
 +  // boring: the shield that says whether blocking is really working.
 +  raw_ptr<BoringProtectionButton> boring_protection_ = nullptr;
 +  // boring: shows itself only on pages with an article in them.
@@ -74,31 +82,35 @@ diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.h b/chrome/browser/ui/
 diff --git a/chrome/browser/ui/views/toolbar/BUILD.gn b/chrome/browser/ui/views/toolbar/BUILD.gn
 --- a/chrome/browser/ui/views/toolbar/BUILD.gn
 +++ b/chrome/browser/ui/views/toolbar/BUILD.gn
-@@ -14,6 +14,8 @@ source_set("toolbar") {
+@@ -14,6 +14,9 @@
      "app_menu_control.h",
      "avatar_toolbar_button_interface.h",
      "back_forward_button.h",
++    "boring_assist_button.h",
 +    "boring_protection_button.h",
 +    "boring_reader_button.h",
      "browser_app_menu_button.h",
      "chrome_labs/chrome_labs_bubble_view.h",
      "chrome_labs/chrome_labs_coordinator.h",
-@@ -118,10 +120,14 @@ source_set("toolbar") {
+@@ -118,10 +121,17 @@
  
  source_set("impl") {
    sources = [
++    "../boring/boring_assistance_panel.cc",
++    "../boring/boring_assistance_panel.h",
 +    "../boring/boring_memory_saver_bridge.cc",
 +    "../boring/boring_popup.h",
      "ai_overlay_toolbar_button.cc",
      "app_menu.cc",
      "avatar_toolbar_button_interface.cc",
      "back_forward_button.cc",
++    "boring_assist_button.cc",
 +    "boring_protection_button.cc",
 +    "boring_reader_button.cc",
      "browser_app_menu_button.cc",
      "chrome_labs/chrome_labs_bubble_view.cc",
      "chrome_labs/chrome_labs_coordinator.cc",
-@@ -188,6 +194,7 @@ source_set("impl") {
+@@ -188,6 +198,7 @@
      "//chrome/browser/actor/ui/task_list_bubble:controller",
      "//chrome/browser/actor/ui/task_list_bubble:ui",
      "//chrome/browser/bookmarks",
@@ -106,11 +118,12 @@ diff --git a/chrome/browser/ui/views/toolbar/BUILD.gn b/chrome/browser/ui/views/
      "//chrome/browser/extensions",
      "//chrome/browser/external_protocol",
      "//chrome/browser/favicon",
-@@ -268,11 +275,19 @@ source_set("impl") {
+@@ -268,11 +279,20 @@
      "//chrome/common:chrome_features",
      "//chrome/common:constants",
      "//components/autofill/core/common:features",
 +    "//components/boring/adblock:browser",
++    "//components/boring/assistance",
 +    "//components/boring/core",
 +    "//components/boring/performance",
 +    "//components/boring/protection",
@@ -129,7 +142,7 @@ diff --git a/chrome/browser/ui/views/toolbar/BUILD.gn b/chrome/browser/ui/views/
 diff --git a/chrome/browser/ui/layout_constants.cc b/chrome/browser/ui/layout_constants.cc
 --- a/chrome/browser/ui/layout_constants.cc
 +++ b/chrome/browser/ui/layout_constants.cc
-@@ -74,7 +74,8 @@ int GetLayoutConstant(LayoutConstant constant) {
+@@ -74,7 +74,8 @@
      case LayoutConstant::kLocationBarTrailingDecorationInnerPadding:
        return touch_ui ? 3 : 8;
      case LayoutConstant::kLocationBarHeight:
@@ -139,7 +152,7 @@ diff --git a/chrome/browser/ui/layout_constants.cc b/chrome/browser/ui/layout_co
      // LINT.IfChange(LocationBarIconSize)
      case LayoutConstant::kLocationBarIconSize:
        return touch_ui ? 20 : 16;
-@@ -126,7 +127,8 @@ int GetLayoutConstant(LayoutConstant constant) {
+@@ -126,7 +127,8 @@
      case LayoutConstant::kTabstripToolbarOverlap:
        return 1;
      case LayoutConstant::kToolbarButtonHeight:
@@ -149,7 +162,7 @@ diff --git a/chrome/browser/ui/layout_constants.cc b/chrome/browser/ui/layout_co
      case LayoutConstant::kToolbarButtonIconSize:
        return touch_ui ? kDefaultTouchableIconSize
                        : kDefaultIconSizeChromeRefresh;
-@@ -143,7 +145,9 @@ int GetLayoutConstant(LayoutConstant constant) {
+@@ -143,7 +145,9 @@
      case LayoutConstant::kToolbarIconDefaultMargin:
        return touch_ui ? 0 : 2;
      case LayoutConstant::kLocationBarMargin:
@@ -160,7 +173,7 @@ diff --git a/chrome/browser/ui/layout_constants.cc b/chrome/browser/ui/layout_co
      case LayoutConstant::kSidePanelInset:
        return 8;
      case LayoutConstant::kPageInfoIconSize:
-@@ -218,7 +222,10 @@ gfx::Insets GetLayoutInsets(LayoutInset inset) {
+@@ -218,7 +222,10 @@
      }
  
      case TOOLBAR_BUTTON:
@@ -175,7 +188,7 @@ diff --git a/chrome/browser/ui/layout_constants.cc b/chrome/browser/ui/layout_co
 diff --git a/chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.cc b/chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.cc
 --- a/chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.cc
 +++ b/chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.cc
-@@ -170,6 +170,15 @@ PinnedToolbarActionsContainer::PinnedToolbarActionsContainer(
+@@ -170,6 +170,15 @@
                GetLayoutConstant(LayoutConstant::kToolbarIconDefaultMargin),
            0, GetLayoutConstant(LayoutConstant::kToolbarDividerSpacing)));
    toolbar_divider_ = AddChildView(std::move(toolbar_divider));
