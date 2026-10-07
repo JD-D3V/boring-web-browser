@@ -1,0 +1,35 @@
+# Copyright 2026 boring. BSD style license.
+
+# Page assistance scripts: the page reader, the protocol and the Gemini
+# adapter, embedded in a header. They stay plain .js files so node and
+# WebDriver test them as they ship; embed_scripts.py turns them into a header.
+action("scripts") {
+  script = "embed_scripts.py"
+  sources = [
+    "gemini_adapter.js",
+    "page_context.js",
+    "protocol.js",
+  ]
+  outputs = [ "$target_gen_dir/assistance_scripts.h" ]
+  args = [
+    rebase_path(outputs[0], root_build_dir),
+    "kAssistancePageScript=" + rebase_path("page_context.js", root_build_dir),
+    "kAssistanceProtocolScript=" + rebase_path("protocol.js", root_build_dir),
+    "kAssistanceGeminiScript=" +
+        rebase_path("gemini_adapter.js", root_build_dir),
+  ]
+}
+
+static_library("assistance") {
+  sources = [
+    "assistance_session.cc",
+    "assistance_session.h",
+  ]
+  deps = [
+    ":scripts",
+    "//base",
+    "//content/public/browser",
+    "//content/public/common",
+    "//url",
+  ]
+}
