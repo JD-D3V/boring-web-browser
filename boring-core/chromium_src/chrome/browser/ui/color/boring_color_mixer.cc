@@ -2,6 +2,9 @@
 
 #include "chrome/browser/ui/color/boring_color_mixer.h"
 
+#include <string>
+
+#include "base/command_line.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_mixer.h"
@@ -9,12 +12,20 @@
 
 namespace {
 
-// The palette. Same values as our own pages use, so the window and the
-// page inside it are one browser rather than two designs.
+// A scheme is a palette for light and one for dark. Cool is the default
+// and follows the system light/dark setting. Beige is the warm scheme we
+// shipped first.
+//
+// The top of the window is built from three tones: the frame band behind
+// the tabs, the toolbar, and the open tab, which is the toolbar's own
+// colour so the two read as one piece (the tab is a folder tab joined to
+// the bar). The address bar is a field a little off that surface.
 struct Palette {
   SkColor window;   // A window that is not the one in front.
-  SkColor chrome;   // The whole band at the top: frame, tabs, toolbar.
-  SkColor paper;    // The tab you are on, and the address bar.
+  SkColor frame;    // The band behind the tabs.
+  SkColor toolbar;  // The toolbar and the open tab, one surface.
+  SkColor field;    // The address bar.
+  SkColor paper;    // Popovers, dialogs and result lists.
   SkColor ink;      // Text and icons.
   SkColor muted;    // Text and icons that are not the point.
   SkColor line;     // Edges and separators.
@@ -22,31 +33,57 @@ struct Palette {
   SkColor tint;     // A wash of the accent, behind accented things.
 };
 
-constexpr Palette kLight = {SkColorSetRGB(0xe8, 0xe7, 0xe2),
-                            SkColorSetRGB(0xee, 0xed, 0xe8),
-                            SK_ColorWHITE,
-                            SkColorSetRGB(0x24, 0x2e, 0x2d),
-                            SkColorSetRGB(0x5d, 0x69, 0x66),
-                            SkColorSetRGB(0xd8, 0xdd, 0xd7),
-                            SkColorSetRGB(0x17, 0x6b, 0x5b),
-                            SkColorSetRGB(0xe5, 0xf1, 0xeb)};
+constexpr Palette kCoolLight = {
+    SkColorSetRGB(0xdc, 0xde, 0xe8), SkColorSetRGB(0xd3, 0xd6, 0xe3),
+    SK_ColorWHITE,                   SkColorSetRGB(0xee, 0xf0, 0xf6),
+    SK_ColorWHITE,                   SkColorSetRGB(0x23, 0x24, 0x2e),
+    SkColorSetRGB(0x50, 0x52, 0x65), SkColorSetRGB(0xd9, 0xdb, 0xe6),
+    SkColorSetRGB(0x4f, 0x46, 0xe5), SkColorSetRGB(0xe6, 0xe5, 0xfb)};
 
-constexpr Palette kDark = {
-    SkColorSetRGB(0x13, 0x18, 0x17), SkColorSetRGB(0x17, 0x1f, 0x1d),
+constexpr Palette kCoolDark = {
+    SkColorSetRGB(0x07, 0x08, 0x0b), SkColorSetRGB(0x0a, 0x0b, 0x0f),
+    SkColorSetRGB(0x1d, 0x1e, 0x28), SkColorSetRGB(0x0f, 0x10, 0x15),
+    SkColorSetRGB(0x1d, 0x1e, 0x28), SkColorSetRGB(0xdc, 0xdd, 0xe6),
+    SkColorSetRGB(0xa0, 0xa2, 0xb4), SkColorSetRGB(0x2c, 0x2d, 0x3a),
+    SkColorSetRGB(0x9d, 0x9a, 0xff), SkColorSetRGB(0x2a, 0x29, 0x50)};
+
+constexpr Palette kBeigeLight = {
+    SkColorSetRGB(0xe8, 0xe7, 0xe2), SkColorSetRGB(0xe3, 0xe2, 0xdc),
+    SkColorSetRGB(0xf7, 0xf6, 0xf2), SK_ColorWHITE,
+    SK_ColorWHITE,                   SkColorSetRGB(0x24, 0x2e, 0x2d),
+    SkColorSetRGB(0x5d, 0x69, 0x66), SkColorSetRGB(0xd8, 0xdd, 0xd7),
+    SkColorSetRGB(0x17, 0x6b, 0x5b), SkColorSetRGB(0xe5, 0xf1, 0xeb)};
+
+constexpr Palette kBeigeDark = {
+    SkColorSetRGB(0x13, 0x18, 0x17), SkColorSetRGB(0x0e, 0x13, 0x12),
+    SkColorSetRGB(0x1c, 0x25, 0x23), SkColorSetRGB(0x13, 0x18, 0x17),
     SkColorSetRGB(0x25, 0x2e, 0x2b), SkColorSetRGB(0xe8, 0xed, 0xe7),
     SkColorSetRGB(0xad, 0xb9, 0xb2), SkColorSetRGB(0x41, 0x4e, 0x47),
     SkColorSetRGB(0x92, 0xd4, 0xbb), SkColorSetRGB(0x27, 0x3f, 0x35)};
 
-// The seed colour we register as the default. Anyone who picks their own
+// The seed colours we recognise. Cool is registered as the default (see
+// frame-color.patch). Beige's is the teal we shipped first, so a profile
+// that already holds it keeps the look it has. Anyone who picks their own
 // colour, or grey, in Customize Chrome gets Chromium's palette instead of
 // ours, which is what they asked for.
-constexpr SkColor kSeed = SkColorSetRGB(0x17, 0x6b, 0x5b);
+constexpr SkColor kCoolSeed = SkColorSetRGB(0x4f, 0x46, 0xe5);
+constexpr SkColor kBeigeSeed = SkColorSetRGB(0x17, 0x6b, 0x5b);
 
 bool UsingOurTheme(const ui::ColorProviderKey& key) {
   return !key.custom_theme &&
          key.user_color_source ==
              ui::ColorProviderKey::UserColorSource::kAccent &&
-         key.user_color == kSeed;
+         (key.user_color == kCoolSeed || key.user_color == kBeigeSeed);
+}
+
+// Beige when the profile holds Beige's seed, or when launched with
+// --boring-scheme=beige. A settings control for this comes later.
+bool WantsBeige(const ui::ColorProviderKey& key) {
+  if (key.user_color == kBeigeSeed) {
+    return true;
+  }
+  return base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
+             "boring-scheme") == "beige";
 }
 
 }  // namespace
@@ -57,25 +94,27 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
     return;
   }
   const bool dark = key.color_mode == ui::ColorProviderKey::ColorMode::kDark;
-  const Palette& p = dark ? kDark : kLight;
+  const bool beige = WantsBeige(key);
+  const Palette& p = beige ? (dark ? kBeigeDark : kBeigeLight)
+                           : (dark ? kCoolDark : kCoolLight);
   ui::ColorMixer& mixer = provider->AddMixer();
 
-  // The top of the window is one flat band: frame, tab strip and
-  // toolbar are the same colour, so the open tab can sit on it as a
-  // card. A window that is not in front steps back a little.
-  mixer[ui::kColorFrameActive] = {p.chrome};
+  // The band behind the tabs is its own tone. The toolbar and the open
+  // tab are one surface below it, so the open tab reads as joined to the
+  // bar. A window that is not in front steps back a little.
+  mixer[ui::kColorFrameActive] = {p.frame};
   mixer[ui::kColorFrameInactive] = {p.window};
-  mixer[kColorToolbar] = {p.chrome};
+  mixer[kColorToolbar] = {p.toolbar};
   mixer[kColorToolbarContentAreaSeparator] = {p.line};
   mixer[kColorToolbarTopSeparatorFrameActive] = {SK_ColorTRANSPARENT};
   mixer[kColorToolbarTopSeparatorFrameInactive] = {SK_ColorTRANSPARENT};
 
-  // Tabs. The open tab is a page-white card lifted off the band, with an
-  // accent line along its bottom edge painted by the tab itself. The
-  // rest have no background at all and are just their titles.
-  mixer[kColorTabBackgroundActiveFrameActive] = {p.paper};
-  mixer[kColorTabBackgroundActiveFrameInactive] = {p.paper};
-  mixer[kColorTabBackgroundInactiveFrameActive] = {p.chrome};
+  // Tabs. The open tab is the toolbar's own colour, with an accent line
+  // along its bottom edge painted by the tab itself. The rest have no
+  // background of their own and sit on the band as just their titles.
+  mixer[kColorTabBackgroundActiveFrameActive] = {p.toolbar};
+  mixer[kColorTabBackgroundActiveFrameInactive] = {p.toolbar};
+  mixer[kColorTabBackgroundInactiveFrameActive] = {p.frame};
   mixer[kColorTabBackgroundInactiveFrameInactive] = {p.window};
   mixer[kColorTabForegroundActiveFrameActive] = {p.ink};
   mixer[kColorTabForegroundActiveFrameInactive] = {p.muted};
@@ -98,10 +137,10 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   // The address bar reads as a field you can type in, like the boxes on
   // our own pages. The location bar reads its own two ids, not the
   // subtle-emphasis pair, so both have to be set.
-  mixer[kColorLocationBarBackground] = {p.paper};
-  mixer[kColorLocationBarBackgroundHovered] = {p.paper};
-  mixer[kColorToolbarBackgroundSubtleEmphasis] = {p.paper};
-  mixer[kColorToolbarBackgroundSubtleEmphasisHovered] = {p.paper};
+  mixer[kColorLocationBarBackground] = {p.field};
+  mixer[kColorLocationBarBackgroundHovered] = {p.field};
+  mixer[kColorToolbarBackgroundSubtleEmphasis] = {p.field};
+  mixer[kColorToolbarBackgroundSubtleEmphasisHovered] = {p.field};
   mixer[kColorOmniboxText] = {p.ink};
   mixer[kColorOmniboxTextDimmed] = {p.muted};
   mixer[kColorLocationBarBorder] = {p.line};
