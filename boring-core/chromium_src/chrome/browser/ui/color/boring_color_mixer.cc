@@ -174,4 +174,17 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   mixer[ui::kColorLabelForeground] = {p.ink};
   mixer[ui::kColorLabelForegroundSecondary] = {p.muted};
   mixer[ui::kColorLinkForeground] = {p.accent};
+
+  // Menus: the main menu and context menus read as the same paper panel
+  // as our popovers. A row you hover takes a wash of the accent, the
+  // shortcut beside it is quiet, and the separators are the same hairline
+  // as everywhere else.
+  mixer[ui::kColorMenuBackground] = {p.paper};
+  mixer[ui::kColorMenuBorder] = {p.line};
+  mixer[ui::kColorMenuItemForeground] = {p.ink};
+  mixer[ui::kColorMenuItemForegroundSecondary] = {p.muted};
+  mixer[ui::kColorMenuSeparator] = {p.line};
+  mixer[ui::kColorMenuIcon] = {p.ink};
+  mixer[ui::kColorMenuItemBackgroundHighlighted] = {p.tint};
+  mixer[ui::kColorMenuItemBackgroundSelected] = {p.tint};
 }

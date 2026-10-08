@@ -1,0 +1,22 @@
+--- a/ui/views/controls/menu/menu_config_win.cc
++++ b/ui/views/controls/menu/menu_config_win.cc
+@@ -22,8 +22,18 @@
+        show_cues == TRUE);
+ 
+   SystemParametersInfo(SPI_GETMENUSHOWDELAY, 0, &show_delay, 0);
++  // boring: the menu we drew in design/v7/icons-dotted. Every number is
++  // read back from that mock's CSS by tests/test_menu_style.py.
++  corner_radius = 14;
++  item_corner_radius = 10;
++  rounded_menu_vertical_border_size = 6;
++  item_vertical_margin = 7;
++  item_horizontal_padding = 12;
+   separator_upper_height = 5;
+-  separator_lower_height = 7;
++  separator_lower_height = 5;
++  // One pixel above the system menu font; the mock's 13.5 px rounds to 13.
++  font_list = font_list.DeriveWithSizeDelta(1);
++  context_menu_font_list = font_list;
+ 
+   use_bubble_border = corner_radius > 0;
+ }

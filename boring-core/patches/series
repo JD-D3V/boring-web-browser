@@ -34,6 +34,8 @@ tab-underline.patch
 bookmark-bar.patch
 app-menu-icon.patch
 vector-icon-round-joins.patch
+app-menu-test-hook.patch
+menu-style.patch
 settings-restyle.patch
 settings-page-dividers.patch
 settings-saved-info.patch
