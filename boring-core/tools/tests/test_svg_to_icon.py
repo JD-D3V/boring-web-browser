@@ -17,7 +17,7 @@ sys.path.insert(0, str(TOOLS))
 import svg_to_icon  # noqa: E402
 
 REPO = TOOLS.parents[1]
-ICONS_SVG = REPO / "design" / "v7" / "icons-full" / "icons.svg"
+ICONS_SVG = REPO / "design" / "v7" / "icons-dotted" / "icons.svg"
 
 BACK = ('<symbol id="b-back" viewBox="0 0 20 20" fill="none" stroke="currentColor" '
         'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
@@ -86,6 +86,13 @@ class ConvertSymbolTest(unittest.TestCase):
         self.assertNotIn("FLIPS_IN_RTL,",
                          lines(svg_to_icon.convert_symbol(BACK, "arrow_back_old")))
 
+    def test_flips_in_rtl_only_when_asked_for(self):
+        # An icon that replaces one Chromium flips itself keeps that
+        # behaviour: menu chevrons flip, button arrows do not.
+        flipped = lines(svg_to_icon.convert_symbol(BACK, "x", flips_in_rtl=True))
+        self.assertIn("FLIPS_IN_RTL,", flipped)
+        self.assertLess(flipped.index("CANVAS_DIMENSIONS, 20,"), flipped.index("FLIPS_IN_RTL,"))
+
     def test_scale_transform_scales_coordinates_and_stroke(self):
         sym = ('<symbol id="b-s" viewBox="0 0 20 20" fill="none" stroke="currentColor" '
                'stroke-width="2"><path transform="scale(.5)" stroke-width="4" '
@@ -109,10 +116,10 @@ class ConvertSymbolTest(unittest.TestCase):
 
 
 class ConvertFileTest(unittest.TestCase):
-    def test_all_44_symbols_convert(self):
+    def test_all_58_symbols_convert(self):
         with tempfile.TemporaryDirectory() as out:
             paths = svg_to_icon.convert_file(str(ICONS_SVG), out)
-            self.assertEqual(len(paths), 44)
+            self.assertEqual(len(paths), 58)
             for p in paths:
                 text = Path(p).read_text(encoding="utf-8")
                 self.assertTrue(text.startswith("// Copyright 2026 boring."), p)

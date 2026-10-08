@@ -137,12 +137,14 @@ def element_geometry(el, scale=1.0):
     raise ValueError("unsupported element: " + tag)
 
 
-def convert_symbol(symbol_xml, name, canvas=None):
+def convert_symbol(symbol_xml, name, canvas=None, flips_in_rtl=False):
     """The text of one .icon file for a <symbol> element.
 
     `canvas` is the size the file declares. Pass the size of the Chromium
     icon being replaced, so callers that draw it at its default size get
     the same size as before; coordinates and stroke widths scale to match.
+    `flips_in_rtl` copies the replaced icon's behaviour: menu chevrons
+    flip themselves, while button arrows are flipped by the button.
     """
     sym = ET.fromstring(symbol_xml)
     view = sym.get("viewBox", "0 0 20 20").split()
@@ -184,6 +186,8 @@ def convert_symbol(symbol_xml, name, canvas=None):
             "// %s, from the rounded icon set (design/v7/icons-full/icons.svg)." % name,
             "// 2 px stroke on a %d grid, round caps." % size,
             "", line("CANVAS_DIMENSIONS", canvas)]
+    if flips_in_rtl:
+        head.append("FLIPS_IN_RTL,")
     return "\n".join(head + body) + "\n"
 
 

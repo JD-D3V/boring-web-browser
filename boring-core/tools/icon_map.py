@@ -26,7 +26,7 @@ import svg_to_icon
 
 CORE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(CORE)
-ICONS_SVG = os.path.join(REPO, "design", "v7", "icons-full", "icons.svg")
+ICONS_SVG = os.path.join(REPO, "design", "v7", "icons-dotted", "icons.svg")
 DEFAULT_TREE = r"E:\ung-154\build\src"
 SEARCH_ROOTS = ("chrome", "components", "ui")
 REFERENCE_SIZE_DIP = 48
@@ -64,7 +64,7 @@ ICON_MAP = {
     "b-group": ["tab_group_old"],
     "b-lock": ["lock", "lock_old", "https_valid_old",
                "secure_page_info_chrome_refresh_old"],
-    "b-search": ["search", "search_chrome_refresh_old"],
+    "b-search": ["search", "search_chrome_refresh_old", "search_menu_old"],
     "b-page-info": ["tune"],
     "b-share": ["share", "share_chrome_refresh_old",
                 "share_win_chrome_refresh_old", "share_windows"],
@@ -72,19 +72,42 @@ ICON_MAP = {
     "b-settings": ["settings", "settings_menu_old"],
     "b-history": ["history", "history_old"],
     "b-bookmarks": ["bookmarks_side_panel_refresh_old",
-                    "bookmarks_side_panel_old"],
+                    "bookmarks_side_panel_old", "bookmarks_lists_menu_old"],
     "b-print": ["print", "print_menu_old"],
     "b-find": ["find_in_page"],
     "b-incognito": ["incognito_refresh_menu_old"],
     "b-new-window": ["new_window", "new_window_old"],
-    "b-fullscreen": ["fullscreen"],
+    "b-fullscreen": ["fullscreen", "fullscreen_old", "fullscreen_refresh_old"],
     "b-tools": ["more_tools_menu_old"],
     "b-help": ["help_menu_old"],
     "b-check": ["check"],
-    "b-info": ["info", "http_chrome_refresh_old"],
+    "b-info": ["info", "http_chrome_refresh_old", "info_refresh_old"],
     "b-audio-on": ["volume_up", "volume_up_old", "volume_up_chrome_refresh_old"],
     "b-audio-muted": ["volume_off", "volume_off_chrome_refresh_old"],
     "b-pin": ["pin_old"],
+    "b-zoom": ["zoom_in", "zoom_in_old"],
+    "b-profile": ["account_circle_chrome_refresh_old", "account_circle"],
+    "b-key": ["password_manager_old", "password_manager"],
+    "b-trash": ["trash_can_refresh_old", "trash_can_old"],
+    "b-cast": ["cast_chrome_refresh_old", "cast"],
+    "b-save": ["file_save_chrome_refresh_old", "file_save_old", "file_save"],
+    "b-exit": ["exit_menu_old", "exit_to_app"],
+    "b-tab-groups": ["saved_tab_group_bar_everything_old"],
+    "b-plus": ["zoom_plus_menu_refresh_old", "zoom_plus_chrome_refresh_old",
+               "add_chrome_refresh_old"],
+    "b-minus": ["zoom_minus_menu_refresh_old", "zoom_minus_chrome_refresh_old",
+                "zoom_minus_old", "remove_old"],
+    "b-copy": ["copy_menu_old", "copy_old", "content_copy"],
+    "b-link": ["link_chrome_refresh_old", "link"],
+    "b-chevron-right": ["submenu_arrow_chrome_refresh_old",
+                        "chevron_right_chrome_refresh_old", "chevron_right_old",
+                        "chevron_right", "keyboard_arrow_right",
+                        "keyboard_arrow_right_flippable"],
+    "b-chevron-left": ["keyboard_arrow_left"],
+    "b-chevron-down": ["keyboard_arrow_down_chrome_refresh_old",
+                       "keyboard_arrow_down_old", "keyboard_arrow_down"],
+    "b-chevron-up": ["keyboard_arrow_up_chrome_refresh_old",
+                     "keyboard_arrow_up_old", "keyboard_arrow_up"],
 }
 
 
@@ -118,6 +141,18 @@ def _symbols():
             for m in re.finditer(r"<symbol\b.*?</symbol>", text, re.S)}
 
 
+def flips_in_rtl(tree_root, rel):
+    """Whether Chromium's own icon flips itself in right-to-left languages.
+
+    Menu chevrons do; button arrows do not, because the button mirrors its
+    whole canvas. A replacement copies whichever its original does, so it
+    never ends up flipped twice or not at all.
+    """
+    if rel.endswith("boring_menu.icon"):
+        return False
+    return "FLIPS_IN_RTL" in pristine.text(tree_root, rel)
+
+
 def original_canvas(tree_root, rel):
     """The canvas size of Chromium's own icon, from the pristine store.
 
@@ -145,7 +180,8 @@ def generate(tree_root, out_root):
                 rels = [(rel, original_canvas(tree_root, rel))
                         for rel in resolved.get(name, [])]
             for rel, canvas in rels:
-                text = svg_to_icon.convert_symbol(symbols[sid], name, canvas)
+                flips = flips_in_rtl(tree_root, rel)
+                text = svg_to_icon.convert_symbol(symbols[sid], name, canvas, flips)
                 dest = os.path.join(out_root, *rel.split("/"))
                 os.makedirs(os.path.dirname(dest), exist_ok=True)
                 with open(dest, "w", encoding="utf-8", newline="\n") as f:

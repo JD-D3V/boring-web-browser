@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boring Icons, Rounded</title>
+<style>
+  :root{
+    color-scheme: light;
+    --bg:#f4f4f8;
+    --surface:#ffffff;
+    --chrome:#e6e8f0;
+    --pill:#f1f2f7;
+    --ink:#23242e;
+    --muted:#656777;
+    --line:#e0e1ea;
+    --accent:#4f46e5;
+    --accent-soft:rgba(79,70,229,.10);
+    --accent-soft-2:rgba(79,70,229,.16);
+    --hover:rgba(35,36,46,.07);
+    --gridline:rgba(79,70,229,.22);
+    --shadow:0 1px 2px rgba(20,20,40,.06),0 8px 24px rgba(20,20,40,.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      color-scheme: dark;
+      --bg:#0f1015;
+      --surface:#17181f;
+      --chrome:#20212a;
+      --pill:#0f1015;
+      --ink:#dcdde6;
+      --muted:#9a9cad;
+      --line:#2a2b36;
+      --accent:#9d9aff;
+      --accent-soft:rgba(157,154,255,.14);
+      --accent-soft-2:rgba(157,154,255,.22);
+      --hover:rgba(220,221,230,.09);
+      --gridline:rgba(157,154,255,.28);
+      --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --bg:#0f1015;
+    --surface:#17181f;
+    --chrome:#20212a;
+    --pill:#0f1015;
+    --ink:#dcdde6;
+    --muted:#9a9cad;
+    --line:#2a2b36;
+    --accent:#9d9aff;
+    --accent-soft:rgba(157,154,255,.14);
+    --accent-soft-2:rgba(157,154,255,.22);
+    --hover:rgba(220,221,230,.09);
+    --gridline:rgba(157,154,255,.28);
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.35);
+  }
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  .wrap{max-width:1240px;margin:0 auto;padding:32px 20px 72px}
+  .top{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:28px}
+  .top h1{margin:0 0 4px;font-size:26px;line-height:1.2;letter-spacing:-.01em;font-weight:650}
+  .top p{margin:0;max-width:64ch;color:var(--muted)}
+
+  .toggle{
+    display:inline-flex;align-items:center;gap:10px;padding:7px 14px 7px 8px;border-radius:999px;
+    border:1px solid var(--line);background:var(--surface);color:var(--ink);font:inherit;font-size:14px;cursor:pointer;
+  }
+  .toggle .track{width:34px;height:20px;border-radius:999px;background:var(--line);position:relative;transition:background .15s}
+  .toggle .track::after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:var(--surface);box-shadow:0 0 0 1px rgba(0,0,0,.14);transition:transform .15s}
+  .toggle[aria-checked="true"] .track{background:var(--accent)}
+  .toggle[aria-checked="true"] .track::after{transform:translateX(14px)}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+  .icons-sprite{position:absolute;width:0;height:0;overflow:hidden}
+  .i{display:block;flex:none;color:inherit}
+  .s12{width:12px;height:12px}.s16{width:16px;height:16px}.s20{width:20px;height:20px}.s24{width:24px;height:24px}
+
+  section.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:22px;margin-bottom:20px}
+  section.card > h2{margin:0 0 4px;font-size:18px;font-weight:650;letter-spacing:-.005em}
+  section.card > p.lede{margin:0 0 18px;color:var(--muted);font-size:14px;max-width:72ch}
+  h3.cat{margin:22px 0 8px;font-size:11px;font-weight:650;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  h3.cat:first-of-type{margin-top:6px}
+
+  /* 1. grid */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+  .tile{
+    display:flex;flex-direction:column;align-items:center;gap:10px;padding:14px 8px 10px;
+    border:1px solid var(--line);border-radius:12px;background:transparent;
+  }
+  .tile .row{display:flex;align-items:center;justify-content:center;gap:16px;height:28px}
+  .tile:hover{border-color:var(--accent-soft-2);background:var(--accent-soft)}
+  .tile:hover .row{color:var(--accent)}
+  .tile code{font:12px/1.2 ui-monospace,SFMono-Regular,Consolas,Menlo,monospace;color:var(--muted)}
+
+  /* 2. mock browser */
+  .stage{display:grid;gap:20px;grid-template-columns:minmax(0,1fr);align-items:start}
+  @media (min-width:1000px){ .stage{grid-template-columns:minmax(0,1fr) 250px} }
+  .win{border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--chrome);box-shadow:var(--shadow)}
+  .strip{display:flex;align-items:flex-end;gap:2px;padding:8px 8px 0;min-height:44px}
+  .tab{
+    position:relative;display:flex;align-items:center;gap:8px;height:36px;min-width:0;flex:0 1 190px;
+    padding:0 6px 0 12px;border-radius:12px 12px 0 0;font-size:13px;color:var(--muted);cursor:default;
+    transition:background-color .12s,color .12s;
+  }
+  .tab:not(.active):hover{background:var(--hover);color:var(--ink)}
+  .tab.active{background:var(--surface);color:var(--ink)}
+  .tab .fav{flex:none;display:grid;place-items:center;width:16px;height:16px;border-radius:5px;font-size:10px;font-weight:700;color:#fff;background:#6366f1}
+  .tab .fav.b{background:#0ea5a4}.tab .fav.c{background:#e0663c}.tab .fav.d{background:#8b5cf6}
+  .tab .ttl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tab.pinned{flex:0 0 44px;padding:0;justify-content:center}
+  .tab .sep{position:absolute;right:-2px;top:11px;height:14px;width:1px;background:var(--line)}
+  .tab.active .sep,.tab:hover .sep{display:none}
+  .mini{
+    appearance:none;border:0;background:transparent;color:inherit;padding:0;flex:none;cursor:pointer;
+    width:24px;height:24px;border-radius:999px;display:grid;place-items:center;
+    transition:color .12s,background-color .12s,transform .08s;
+  }
+  .mini:hover{background:var(--hover);color:var(--ink)}
+  .mini:active{transform:scale(.94)}
+  .mini.audio{color:var(--accent)}
+  .strip .newtab{margin:0 0 6px 4px;width:28px;height:28px;color:var(--muted)}
+
+  .bar{display:flex;align-items:center;gap:2px;padding:6px 8px;background:var(--surface);border-top:1px solid var(--line)}
+  .tb{
+    appearance:none;border:0;background:transparent;color:var(--ink);padding:0;flex:none;cursor:pointer;
+    width:32px;height:32px;border-radius:999px;display:grid;place-items:center;
+    transition:color .12s,background-color .12s,transform .08s;
+  }
+  .tb:hover{background:var(--hover);color:var(--accent)}
+  .tb:active{transform:scale(.94);background:var(--accent-soft-2)}
+  .tb[disabled]{opacity:.38;cursor:default;pointer-events:none}
+  .tb.sm{width:28px;height:28px}
+  .pill{
+    flex:1 1 0;min-width:0;height:34px;margin:0 8px;border-radius:999px;background:var(--pill);
+    border:1px solid var(--line);display:flex;align-items:center;gap:2px;padding:0 3px 0 4px;
+  }
+  .pill:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  .pill .lk{color:var(--muted)}
+  .pill .url{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13.5px;padding:0 4px}
+  .pill .url b{font-weight:400;color:var(--muted)}
+  .page{height:92px;background:var(--surface);border-top:1px solid var(--line);display:flex;flex-direction:column;justify-content:center;gap:10px;padding:0 20px}
+  .page u{display:block;height:9px;border-radius:5px;background:var(--line);text-decoration:none}
+  .menu{
+    border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:6px;box-shadow:var(--shadow);align-self:start;
+  }
+  .menu button{
+    appearance:none;border:0;background:transparent;color:var(--ink);font:inherit;font-size:13.5px;width:100%;text-align:left;
+    display:flex;align-items:center;gap:12px;padding:7px 10px;border-radius:10px;cursor:pointer;transition:background-color .12s,transform .08s;
+  }
+  .menu button:hover{background:var(--hover)}
+  .menu button:hover svg{color:var(--accent)}
+  .menu button:active{transform:scale(.97)}
+  .menu button span{flex:1}
+  .menu button kbd{font:11.5px/1 system-ui,sans-serif;color:var(--muted)}
+  .menu hr{border:0;border-top:1px solid var(--line);margin:5px 6px}
+
+  /* 3. pixel check */
+  .pxrow{display:flex;flex-wrap:wrap;gap:14px 12px;align-items:flex-end}
+  .pxlabel{width:100%;margin:2px 0 -4px;font-size:12px;color:var(--muted)}
+  .px{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11.5px;color:var(--muted)}
+  .pxbox{position:relative;border:1px solid var(--line);background:var(--surface);line-height:0}
+  .pxbox canvas{image-rendering:pixelated;image-rendering:crisp-edges;display:block}
+  .pxbox::after{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background-image:linear-gradient(to right,var(--gridline) 1px,transparent 1px),linear-gradient(to bottom,var(--gridline) 1px,transparent 1px);
+    background-size:8px 8px;
+  }
+  .pxnote{margin:14px 0 0;font-size:12.5px;color:var(--muted);max-width:80ch}
+
+  /* 4. states */
+  .states{display:grid;grid-template-columns:140px repeat(4,minmax(0,1fr));gap:2px 8px;align-items:center;max-width:720px}
+  .states .h{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:650;padding:0 0 6px;text-align:center}
+  .states .h:first-child{text-align:left}
+  .states .nm{font-size:13px;color:var(--muted)}
+  .states .c{display:grid;place-items:center;height:44px}
+  .chip{display:grid;place-items:center;width:36px;height:36px;border-radius:999px;color:var(--ink)}
+  .chip.hov{background:var(--hover);color:var(--accent)}
+  .chip.sel{color:var(--accent)}
+  .chip.dis{opacity:.38}
+  .statebtn{appearance:none;border:0;background:transparent;cursor:pointer;color:var(--ink);padding:0;
+    width:36px;height:36px;border-radius:999px;display:grid;place-items:center;transition:color .12s,background-color .12s,transform .08s}
+  .statebtn:hover{background:var(--hover)}
+  .statebtn:active{transform:scale(.94)}
+  .statebtn[aria-pressed="true"]{color:var(--accent)}
+  .states-extra{margin-top:18px;display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+  footer.note{margin-top:8px;color:var(--muted);font-size:13px;max-width:84ch}
+
+  @media (prefers-reduced-motion: reduce){ *{transition:none !important} }
+</style>
+</head>
+<body>
+<svg class="icons-sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg">
+<defs>
+@@SPRITE@@
+</defs>
+</svg>
+
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>Boring icons, rounded and friendly</h1>
+      <p>@@COUNT@@ icons on a 20 px grid. One 2 px stroke, round caps and joins, and a small solid dot that shows up in most of them. Drawn once, shown here at 16, 20 and 24 px.</p>
+    </div>
+    <button class="toggle" id="themeToggle" role="switch" aria-checked="false" type="button">
+      <span class="track" aria-hidden="true"></span>
+      <span id="themeLabel">Light mode</span>
+    </button>
+  </div>
+
+  <section class="card" aria-labelledby="h-all">
+    <h2 id="h-all">All icons</h2>
+    <p class="lede">Each tile shows 16, 20 and 24 px. Hover a tile to see the accent tint.</p>
+@@GRID@@
+  </section>
+
+  <section class="card" aria-labelledby="h-ctx">
+    <h2 id="h-ctx">In context</h2>
+    <p class="lede">Tab strip icons are 16 px, toolbar icons are 20 px. Hover for the tint and round background, press to scale to 0.94. Click the speaker on the second tab to mute it.</p>
+    <div class="stage">
+      <div class="win" aria-label="Browser top preview">
+        <div class="strip">
+          <div class="tab pinned" title="Pinned tab"><span class="fav d">M</span></div>
+          <div class="tab active"><span class="fav">B</span><span class="ttl">Boring start page</span>
+            <button class="mini" type="button" aria-label="Close tab">[[close 16]]</button></div>
+          <div class="tab"><span class="fav c">V</span><span class="ttl">Garden video, part two</span>
+            <button class="mini audio" type="button" id="audioBtn" aria-label="Mute tab" aria-pressed="false">[[audio-on 16]]</button>
+            <button class="mini" type="button" aria-label="Close tab">[[close 16]]</button><span class="sep"></span></div>
+          <div class="tab"><span class="fav b">D</span><span class="ttl">Docs and notes</span>
+            <button class="mini" type="button" aria-label="Close tab">[[close 16]]</button></div>
+          <button class="mini newtab" type="button" aria-label="New tab">[[new-tab 16]]</button>
+        </div>
+        <div class="bar">
+          <button class="tb" type="button" aria-label="Back">[[back 20]]</button>
+          <button class="tb" type="button" aria-label="Forward" disabled>[[forward 20]]</button>
+          <button class="tb" type="button" aria-label="Reload">[[reload 20]]</button>
+          <div class="pill">
+            <span class="tb sm lk" aria-hidden="true" style="pointer-events:none">[[lock 20]]</span>
+            <span class="url"><b>https://</b>boring.example/start</span>
+            <button class="tb sm" type="button" aria-label="Zoom">[[zoom 20]]</button>
+            <button class="tb sm" type="button" aria-label="Bookmark this page">[[star 20]]</button>
+          </div>
+          <button class="tb" type="button" aria-label="Extensions">[[extensions 20]]</button>
+          <button class="tb" type="button" aria-label="Downloads">[[download 20]]</button>
+          <button class="tb" type="button" aria-label="Profile">[[profile 20]]</button>
+          <button class="tb" type="button" aria-label="Menu">[[menu 20]]</button>
+        </div>
+        <div class="page"><u style="width:34%"></u><u style="width:58%"></u><u style="width:42%"></u></div>
+      </div>
+      <div class="menu" role="menu" aria-label="Menu preview">
+        <button type="button">[[new-window 20]]<span>New window</span><kbd>Ctrl N</kbd></button>
+        <button type="button">[[incognito 20]]<span>New private window</span></button>
+        <hr>
+        <button type="button">[[history 20]]<span>History</span></button>
+        <button type="button">[[bookmarks 20]]<span>Bookmarks</span></button>
+        <button type="button">[[downloads-tray 20]]<span>Downloads</span></button>
+        <hr>
+        <button type="button">[[print 20]]<span>Print</span></button>
+        <button type="button">[[find 20]]<span>Find in page</span></button>
+        <button type="button">[[fullscreen 20]]<span>Full screen</span></button>
+        <button type="button">[[tools 20]]<span>More tools</span></button>
+        <hr>
+        <button type="button">[[settings 20]]<span>Settings</span></button>
+        <button type="button">[[help 20]]<span>Help</span></button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="h-px">
+    <h2 id="h-px">Pixel check</h2>
+    <p class="lede">Each icon is rasterised at its true size (1 device pixel per grid unit at 20 px, 0.8 at 16 px) then enlarged 8 times with no smoothing. The faint grid marks single pixels.</p>
+    <div class="pxrow" id="pxrow20"><div class="pxlabel">20 px</div></div>
+    <div class="pxrow" id="pxrow16" style="margin-top:20px"><div class="pxlabel">16 px (scaled from the same SVG)</div></div>
+    <p class="pxnote">Strokes sit on whole units, so at 20 px the 2 px lines land on full pixels. At 16 px the 2 unit stroke becomes 1.6 px and shows a little anti-aliasing, which is expected when one drawing serves both sizes.</p>
+  </section>
+
+  <section class="card" aria-labelledby="h-st">
+    <h2 id="h-st">States</h2>
+    <p class="lede">Selected changes the icon colour only. The shape and fill stay the same. Disabled drops the opacity. The row of buttons below is live: click to toggle.</p>
+    <div class="states">
+      <div class="h">Icon</div><div class="h">Default</div><div class="h">Hover</div><div class="h">Selected</div><div class="h">Disabled</div>
+@@STATES@@
+    </div>
+    <div class="states-extra">
+      <span>Live toggles</span>
+      <button class="statebtn" type="button" aria-pressed="false" aria-label="Reader view">[[reader 20]]</button>
+      <button class="statebtn" type="button" aria-pressed="true" aria-label="Protection on">[[protection 20]]</button>
+      <button class="statebtn" type="button" aria-pressed="false" aria-label="Split view">[[split-view 20]]</button>
+      <button class="statebtn" type="button" aria-pressed="false" aria-label="Pin tab">[[pin 20]]</button>
+    </div>
+  </section>
+
+  <footer class="note">Every icon uses currentColor, so colour comes from the surrounding text. Nothing on this page loads from the network.</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var root = document.documentElement;
+  var btn = document.getElementById("themeToggle");
+  var label = document.getElementById("themeLabel");
+  var mq = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+
+  function isDark(){
+    var t = root.getAttribute("data-theme");
+    if (t === "dark") return true;
+    if (t === "light") return false;
+    return !!(mq && mq.matches);
+  }
+  function sync(){
+    var d = isDark();
+    btn.setAttribute("aria-checked", d ? "true" : "false");
+    label.textContent = d ? "Dark mode" : "Light mode";
+    drawPixels();
+  }
+  btn.addEventListener("click", function(){
+    root.setAttribute("data-theme", isDark() ? "light" : "dark");
+    sync();
+  });
+  if (mq && mq.addEventListener) mq.addEventListener("change", function(){
+    if (!root.getAttribute("data-theme")) sync();
+  });
+
+  /* audio toggle */
+  var audio = document.getElementById("audioBtn");
+  audio.addEventListener("click", function(){
+    var muted = audio.getAttribute("aria-pressed") !== "true";
+    audio.setAttribute("aria-pressed", muted ? "true" : "false");
+    audio.setAttribute("aria-label", muted ? "Unmute tab" : "Mute tab");
+    audio.querySelector("use").setAttribute("href", muted ? "#b-audio-muted" : "#b-audio-on");
+  });
+
+  /* live state toggles */
+  var live = document.querySelectorAll(".statebtn");
+  for (var i = 0; i < live.length; i++) {
+    live[i].addEventListener("click", function(){
+      this.setAttribute("aria-pressed", this.getAttribute("aria-pressed") === "true" ? "false" : "true");
+    });
+  }
+
+  /* pixel check: rasterise at true size, enlarge 8x */
+  var PX_NAMES = ["back","reload","star","lock","search","settings","protection","menu","incognito","translate","help","warning","pin","download","history","share"];
+  var SCALE = 8;
+  var tokens = [];
+
+  function svgFor(name, size, color){
+    var sym = document.getElementById("b-" + name);
+    if (!sym) return null;
+    var s = '<svg xmlns="http://www.w3.org/2000/svg" width="' + size + '" height="' + size + '" viewBox="0 0 20 20" ' +
+      'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:' + color + '">' +
+      sym.innerHTML + '</svg>';
+    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(s);
+  }
+
+  function drawOne(host, name, size, color){
+    var url = svgFor(name, size, color);
+    if (!url) return;
+    var cv = host.querySelector("canvas");
+    if (!cv) {
+      cv = document.createElement("canvas");
+      cv.width = size; cv.height = size;
+      cv.style.width = (size * SCALE) + "px";
+      cv.style.height = (size * SCALE) + "px";
+      host.appendChild(cv);
+    }
+    var img = new Image();
+    img.onload = function(){
+      var ctx = cv.getContext("2d");
+      ctx.clearRect(0, 0, size, size);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(img, 0, 0, size, size);
+    };
+    img.src = url;
+  }
+
+  function build(rowId, size){
+    var row = document.getElementById(rowId);
+    for (var i = 0; i < PX_NAMES.length; i++) {
+      var w = document.createElement("div");
+      w.className = "px";
+      var box = document.createElement("div");
+      box.className = "pxbox";
+      box.setAttribute("data-name", PX_NAMES[i]);
+      box.setAttribute("data-size", size);
+      var cap = document.createElement("span");
+      cap.textContent = PX_NAMES[i];
+      w.appendChild(box); w.appendChild(cap);
+      row.appendChild(w);
+    }
+  }
+  build("pxrow20", 20);
+  build("pxrow16", 16);
+
+  function drawPixels(){
+    var color = getComputedStyle(document.body).color;
+    var boxes = document.querySelectorAll(".pxbox");
+    for (var i = 0; i < boxes.length; i++) {
+      drawOne(boxes[i], boxes[i].getAttribute("data-name"), parseInt(boxes[i].getAttribute("data-size"), 10), color);
+    }
+  }
+  sync();
+})();
+</script>
+</body>
+</html>
