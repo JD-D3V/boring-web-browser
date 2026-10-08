@@ -1,0 +1,12 @@
+--- a/ui/gfx/paint_vector_icon.cc
++++ b/ui/gfx/paint_vector_icon.cc
+@@ -148,6 +148,9 @@ void PaintPath(Canvas* canvas,
+       flags_array.back().setColor(color);
+       flags_array.back().setAntiAlias(true);
+       flags_array.back().setStrokeCap(cc::PaintFlags::kRound_Cap);
++      // boring: round joins, so stroked corners match our icon drawings
++      // and not Skia's default miter spikes.
++      flags_array.back().setStrokeJoin(cc::PaintFlags::kRound_Join);
+     };
+ 
+     if (paths.empty() || command_type == NEW_PATH) {

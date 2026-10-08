@@ -78,12 +78,34 @@ class ConvertSymbolTest(unittest.TestCase):
         # s reflects it: first control (10,14), then s 4 4 6 0 gives (14,10).
         self.assertEqual(cubics[1], "CUBIC_TO, 10, 14, 12, 14, 14, 10,")
 
-    def test_directional_icons_flip_in_rtl(self):
-        self.assertIn("FLIPS_IN_RTL,", lines(svg_to_icon.convert_symbol(BACK, "back")))
-        # Mapped files carry Chromium's names; the flip follows the symbol id.
-        self.assertIn("FLIPS_IN_RTL,",
-                      lines(svg_to_icon.convert_symbol(BACK, "arrow_back_old")))
-        self.assertNotIn("FLIPS_IN_RTL,", lines(svg_to_icon.convert_symbol(DOT, "home")))
+    def test_plain_icons_do_not_flip_in_rtl(self):
+        # Chromium's buttons already mirror the whole canvas in RTL, so an
+        # icon that flips itself points the wrong way. Only *_flippable
+        # icons carry the command, and we map none of those.
+        self.assertNotIn("FLIPS_IN_RTL,", lines(svg_to_icon.convert_symbol(BACK, "back")))
+        self.assertNotIn("FLIPS_IN_RTL,",
+                         lines(svg_to_icon.convert_symbol(BACK, "arrow_back_old")))
+
+    def test_scale_transform_scales_coordinates_and_stroke(self):
+        sym = ('<symbol id="b-s" viewBox="0 0 20 20" fill="none" stroke="currentColor" '
+               'stroke-width="2"><path transform="scale(.5)" stroke-width="4" '
+               'd="M10 10L20 20"/></symbol>')
+        body = lines(svg_to_icon.convert_symbol(sym, "s"))
+        self.assertIn("STROKE, 2,", body)
+        self.assertIn("MOVE_TO, 5, 5,", body)
+        self.assertIn("LINE_TO, 10, 10,", body)
+
+    def test_attribute_it_cannot_honour_raises(self):
+        sym = ('<symbol id="b-s" viewBox="0 0 20 20" fill="none" stroke="currentColor" '
+               'stroke-width="2"><path opacity="0.5" d="M1 1L2 2"/></symbol>')
+        with self.assertRaises(ValueError):
+            svg_to_icon.convert_symbol(sym, "s")
+
+    def test_canvas_argument_keeps_the_original_icon_size(self):
+        body = lines(svg_to_icon.convert_symbol(BACK, "x", canvas=24))
+        self.assertIn("CANVAS_DIMENSIONS, 24,", body)
+        self.assertIn("STROKE, 2.4,", body)
+        self.assertIn("MOVE_TO, 19.2, 12,", body)
 
 
 class ConvertFileTest(unittest.TestCase):
@@ -97,6 +119,25 @@ class ConvertFileTest(unittest.TestCase):
                 self.assertIn("CANVAS_DIMENSIONS, 20,", text, p)
                 self.assertRegex(Path(p).name, r"^[a-z0-9_]+\.icon$")
                 self.assertIsNone(re.search(r"\d\s*e\d", text), p)
+
+    def test_every_coordinate_is_inside_the_canvas(self):
+        with tempfile.TemporaryDirectory() as out:
+            for p in svg_to_icon.convert_file(str(ICONS_SVG), out):
+                for ln in lines(Path(p).read_text(encoding="utf-8")):
+                    name, *nums = [t.strip() for t in ln.split(",") if t.strip()]
+                    n = [float(x) for x in nums]
+                    if name in ("MOVE_TO", "LINE_TO", "H_LINE_TO", "V_LINE_TO", "CUBIC_TO"):
+                        vals = n
+                    elif name == "ARC_TO":
+                        vals = n[5:7]
+                    elif name == "CIRCLE":
+                        vals = [n[0] - n[2], n[0] + n[2], n[1] - n[2], n[1] + n[2]]
+                    elif name == "ROUND_RECT":
+                        vals = [n[0], n[0] + n[2], n[1], n[1] + n[3]]
+                    else:
+                        continue
+                    for v in vals:
+                        self.assertTrue(-0.01 <= v <= 20.01, "%s: %s" % (Path(p).name, ln))
 
     def test_only_filters_by_id(self):
         with tempfile.TemporaryDirectory() as out:

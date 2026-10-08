@@ -15,11 +15,13 @@ Usage:
 """
 
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 
+import pristine
 import svg_to_icon
 
 CORE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -27,24 +29,29 @@ REPO = os.path.dirname(CORE)
 ICONS_SVG = os.path.join(REPO, "design", "v7", "icons-full", "icons.svg")
 DEFAULT_TREE = r"E:\ung-154\build\src"
 SEARCH_ROOTS = ("chrome", "components", "ui")
+REFERENCE_SIZE_DIP = 48
 SKIP_DIRS = {"out", "third_party", "node_modules", "test", "tests"}
 
 # Our id -> Chromium icon base names (file name without .icon). Our ids
 # with no entry here (protection, split-view, sleeping, vertical and
 # horizontal tabs, zoom, lock-open, reader, profile) have no Chromium
-# counterpart worth replacing; they stay in the set for new UI.
+# counterpart worth replacing; they stay in the set for new UI. The
+# warning icons also stay Chromium's: they are filled, which says
+# "danger" more strongly than our outline, and a scam-safe browser keeps
+# the stronger cue.
 ICON_MAP = {
     "b-back": ["arrow_back", "arrow_back_old", "arrow_back_chrome_refresh_old",
-               "back_arrow_old", "back_arrow_touch_old"],
+               "back_arrow_old", "back_arrow_chrome_refresh_old",
+               "back_arrow_touch_old"],
     "b-forward": ["arrow_forward", "arrow_forward_old", "forward_arrow_old",
-                  "forward_arrow_touch_old"],
+                  "forward_arrow_chrome_refresh_old", "forward_arrow_touch_old"],
     "b-reload": ["autorenew", "autorenew_old", "reload_chrome_refresh_old",
                  "reload_touch_old"],
     "b-stop": ["navigate_stop_chrome_refresh_old", "navigate_stop_touch_old"],
     "b-home": ["navigate_home_chrome_refresh_old", "navigate_home_touch_old",
                "home"],
-    "b-star": ["star", "star_old"],
-    "b-star-filled": ["star_filled"],
+    "b-star": ["star", "star_old", "star_chrome_refresh_old"],
+    "b-star-filled": ["star_filled", "star_active_chrome_refresh_old"],
     "b-download": ["download_toolbar_button_chrome_refresh_old",
                    "download_toolbar_button_old",
                    "download_toolbar_button_touch_old"],
@@ -53,9 +60,10 @@ ICON_MAP = {
     "b-menu": ["boring_menu"],
     "b-close": ["close_tab_chrome_refresh_old", "close_chrome_refresh_old",
                 "close"],
-    "b-new-tab": ["new_tab_refresh_old"],
+    "b-new-tab": ["new_tab_refresh_old", "add_old"],
     "b-group": ["tab_group_old"],
-    "b-lock": ["lock", "lock_old", "https_valid_old"],
+    "b-lock": ["lock", "lock_old", "https_valid_old",
+               "secure_page_info_chrome_refresh_old"],
     "b-search": ["search", "search_chrome_refresh_old"],
     "b-page-info": ["tune"],
     "b-share": ["share", "share_chrome_refresh_old",
@@ -72,9 +80,8 @@ ICON_MAP = {
     "b-fullscreen": ["fullscreen"],
     "b-tools": ["more_tools_menu_old"],
     "b-help": ["help_menu_old"],
-    "b-warning": ["warning_filled"],
     "b-check": ["check"],
-    "b-info": ["info"],
+    "b-info": ["info", "http_chrome_refresh_old"],
     "b-audio-on": ["volume_up", "volume_up_old", "volume_up_chrome_refresh_old"],
     "b-audio-muted": ["volume_off", "volume_off_chrome_refresh_old"],
     "b-pin": ["pin_old"],
@@ -111,6 +118,19 @@ def _symbols():
             for m in re.finditer(r"<symbol\b.*?</symbol>", text, re.S)}
 
 
+def original_canvas(tree_root, rel):
+    """The canvas size of Chromium's own icon, from the pristine store.
+
+    The tree holds our replacements once apply.py has run, so the
+    original has to come from the store apply.py keeps. Callers that draw
+    an icon without naming a size get its canvas size, so ours keeps it.
+    """
+    original = pristine.text(tree_root, rel)
+    m = re.search(r"CANVAS_DIMENSIONS,\s*(\d+)", original)
+    # An icon with no CANVAS_DIMENSIONS is drawn on Chromium's 48 grid.
+    return int(m.group(1)) if m else REFERENCE_SIZE_DIP
+
+
 def generate(tree_root, out_root):
     """Write the replacement icons under out_root; returns the paths."""
     resolved = resolve(tree_root)
@@ -118,13 +138,14 @@ def generate(tree_root, out_root):
     written = []
     for sid, names in ICON_MAP.items():
         for name in names:
-            text = svg_to_icon.convert_symbol(symbols[sid], name)
             if name == "boring_menu":
                 # Ours already, not in the Chromium tree.
-                rels = ["chrome/app/vector_icons/boring_menu.icon"]
+                rels = [("chrome/app/vector_icons/boring_menu.icon", None)]
             else:
-                rels = resolved.get(name, [])
-            for rel in rels:
+                rels = [(rel, original_canvas(tree_root, rel))
+                        for rel in resolved.get(name, [])]
+            for rel, canvas in rels:
+                text = svg_to_icon.convert_symbol(symbols[sid], name, canvas)
                 dest = os.path.join(out_root, *rel.split("/"))
                 os.makedirs(os.path.dirname(dest), exist_ok=True)
                 with open(dest, "w", encoding="utf-8", newline="\n") as f:

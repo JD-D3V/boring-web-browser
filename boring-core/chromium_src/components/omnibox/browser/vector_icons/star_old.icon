@@ -1,20 +1,20 @@
 // Copyright 2026 boring. BSD style license.
 
 // star_old, from the rounded icon set (design/v7/icons-full/icons.svg).
-// 2 px stroke on a 20 grid, round caps; the dot is the signature.
+// 2 px stroke on a 20 grid, round caps.
 
-CANVAS_DIMENSIONS, 20,
-STROKE, 2,
-MOVE_TO, 10, 3.4,
-LINE_TO, 12.23, 7.73,
-LINE_TO, 17.04, 8.51,
-LINE_TO, 13.61, 11.97,
-LINE_TO, 14.35, 16.79,
-LINE_TO, 10, 14.6,
-LINE_TO, 5.65, 16.79,
-LINE_TO, 6.39, 11.97,
-LINE_TO, 2.96, 8.51,
-LINE_TO, 7.77, 7.73,
+CANVAS_DIMENSIONS, 16,
+STROKE, 1.6,
+MOVE_TO, 8, 2.72,
+LINE_TO, 9.784, 6.184,
+LINE_TO, 13.632, 6.808,
+LINE_TO, 10.888, 9.576,
+LINE_TO, 11.48, 13.432,
+LINE_TO, 8, 11.68,
+LINE_TO, 4.52, 13.432,
+LINE_TO, 5.112, 9.576,
+LINE_TO, 2.368, 6.808,
+LINE_TO, 6.216, 6.184,
 CLOSE,
 NEW_PATH,
-CIRCLE, 10, 10.8, 1.25,
+CIRCLE, 8, 8.64, 1,

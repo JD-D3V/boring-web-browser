@@ -1,20 +1,20 @@
 // Copyright 2026 boring. BSD style license.
 
 // find_in_page, from the rounded icon set (design/v7/icons-full/icons.svg).
-// 2 px stroke on a 20 grid, round caps; the dot is the signature.
+// 2 px stroke on a 20 grid, round caps.
 
-CANVAS_DIMENSIONS, 20,
-STROKE, 2,
-MOVE_TO, 3, 4,
-H_LINE_TO, 13,
-MOVE_TO, 3, 8,
-H_LINE_TO, 7,
+CANVAS_DIMENSIONS, 16,
+STROKE, 1.6,
+MOVE_TO, 2.4, 3.2,
+H_LINE_TO, 10.4,
+MOVE_TO, 2.4, 6.4,
+H_LINE_TO, 5.6,
 NEW_PATH,
-STROKE, 2,
-CIRCLE, 12, 12, 4,
+STROKE, 1.6,
+CIRCLE, 9.6, 9.6, 3.2,
 NEW_PATH,
-STROKE, 2,
-MOVE_TO, 15, 15,
-LINE_TO, 17, 17,
+STROKE, 1.6,
+MOVE_TO, 12, 12,
+LINE_TO, 13.6, 13.6,
 NEW_PATH,
-CIRCLE, 4, 12, 1.25,
+CIRCLE, 3.2, 9.6, 1,

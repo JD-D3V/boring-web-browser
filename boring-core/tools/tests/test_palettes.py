@@ -84,13 +84,12 @@ class PaletteTest(unittest.TestCase):
                 self.assertGreaterEqual(contrast(p["ink"], p[surface]), 4.5,
                                         "%s ink on %s" % (name, surface))
 
-    def test_muted_contrast_at_least_4_5_on_toolbar_and_field_and_3_on_frame(self):
+    def test_muted_contrast_at_least_4_5_on_every_surface(self):
+        # Inactive tab titles are small text on the frame band.
         for name, p in PALETTES.items():
-            for surface in ("toolbar", "field", "paper"):
+            for surface in ("frame", "window", "toolbar", "field", "paper"):
                 self.assertGreaterEqual(contrast(p["muted"], p[surface]), 4.5,
                                         "%s muted on %s" % (name, surface))
-            self.assertGreaterEqual(contrast(p["muted"], p["frame"]), 3,
-                                    "%s muted on frame" % name)
 
     def test_accent_is_legible_on_toolbar(self):
         for name, p in PALETTES.items():
