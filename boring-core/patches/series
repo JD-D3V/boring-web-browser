@@ -31,6 +31,7 @@ toolbar-buttons.patch
 search-engine-menu.patch
 tab-sleep-dim.patch
 tab-underline.patch
+tab-mock-metrics.patch
 bookmark-bar.patch
 app-menu-icon.patch
 vector-icon-round-joins.patch

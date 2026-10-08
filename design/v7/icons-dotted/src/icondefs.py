@@ -50,7 +50,7 @@ def star(cx, cy, R, r):
         pts.append((cx + r * math.cos(a2), cy + r * math.sin(a2)))
     return pts
 
-def gear(cnt=6, Rt=7.2, Rr=5.0, ta=11, ra=17):
+def gear(cnt=8, Rt=8.4, Rr=6.5, ta=9, ra=15):
     pts = []
     for k in range(cnt):
         th = k * 360.0 / cnt - 90
@@ -101,7 +101,7 @@ CATS = [
   ("reader", '<path d="M10 17c-1.5-1.5-4-2-7-2V4c3 0 5.5.5 7 2z"/><path d="M10 17c1.5-1.5 4-2 7-2V4c-3 0-5.5.5-7 2z"/>' + dot(6.5, 9.5)),
  ]),
  ("Menus and panels", [
-  ("settings", '<path d="%s"/>' % GEAR_D + dot(10, 10)),
+  ("settings", '<path d="%s"/>' % GEAR_D + '<circle cx="10" cy="10" r="2.6"/>'),
   ("history", '<circle cx="10" cy="10" r="7"/><path d="M10 6v4l3 2"/>' + dot(10, 10)),
   ("bookmarks", '<path d="M3 17V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v12l-5-3.5z"/><path d="M17 7v8"/>' + dot(8, 8)),
   ("downloads-tray", '<path d="M5.2 4h9.6a1 1 0 0 1 .95.7L17 11v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4l1.25-6.3A1 1 0 0 1 5.2 4z"/><path d="M3 11h4l1 2h4l1-2h4"/>' + dot(10, 7.5)),
