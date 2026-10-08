@@ -1,0 +1,20 @@
+// Copyright 2026 boring. BSD style license.
+
+// navigate_home_touch_old, from the rounded icon set (design/v7/icons-full/icons.svg).
+// 2 px stroke on a 20 grid, round caps; the dot is the signature.
+
+CANVAS_DIMENSIONS, 20,
+STROKE, 2,
+MOVE_TO, 3, 10,
+LINE_TO, 10, 4,
+LINE_TO, 17, 10,
+NEW_PATH,
+STROKE, 2,
+MOVE_TO, 5, 9,
+V_LINE_TO, 15,
+ARC_TO, 2, 2, 0, 0, 0, 7, 17,
+H_LINE_TO, 13,
+ARC_TO, 2, 2, 0, 0, 0, 15, 15,
+V_LINE_TO, 9,
+NEW_PATH,
+CIRCLE, 10, 13, 1.25,

@@ -80,6 +80,9 @@ class ConvertSymbolTest(unittest.TestCase):
 
     def test_directional_icons_flip_in_rtl(self):
         self.assertIn("FLIPS_IN_RTL,", lines(svg_to_icon.convert_symbol(BACK, "back")))
+        # Mapped files carry Chromium's names; the flip follows the symbol id.
+        self.assertIn("FLIPS_IN_RTL,",
+                      lines(svg_to_icon.convert_symbol(BACK, "arrow_back_old")))
         self.assertNotIn("FLIPS_IN_RTL,", lines(svg_to_icon.convert_symbol(DOT, "home")))
 
 

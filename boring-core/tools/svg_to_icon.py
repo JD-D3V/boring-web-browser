@@ -149,7 +149,7 @@ def convert_symbol(symbol_xml, name):
             "// %s, from the rounded icon set (design/v7/icons-full/icons.svg)." % name,
             "// 2 px stroke on a %d grid, round caps; the dot is the signature." % size,
             "", line("CANVAS_DIMENSIONS", size)]
-    if name in FLIPS_IN_RTL:
+    if icon_file_name(sym.get("id", "")) in FLIPS_IN_RTL:
         head.append("FLIPS_IN_RTL,")
     return "\n".join(head + body) + "\n"
 

@@ -1,0 +1,28 @@
+// Copyright 2026 boring. BSD style license.
+
+// settings_menu_old, from the rounded icon set (design/v7/icons-full/icons.svg).
+// 2 px stroke on a 20 grid, round caps; the dot is the signature.
+
+CANVAS_DIMENSIONS, 20,
+STROKE, 2,
+MOVE_TO, 3, 5,
+H_LINE_TO, 5,
+MOVE_TO, 9, 5,
+H_LINE_TO, 17,
+MOVE_TO, 3, 10,
+H_LINE_TO, 11,
+MOVE_TO, 15, 10,
+H_LINE_TO, 17,
+MOVE_TO, 3, 15,
+H_LINE_TO, 6,
+MOVE_TO, 10, 15,
+H_LINE_TO, 17,
+NEW_PATH,
+STROKE, 2,
+CIRCLE, 7, 5, 2,
+NEW_PATH,
+STROKE, 2,
+CIRCLE, 13, 10, 2,
+NEW_PATH,
+STROKE, 2,
+CIRCLE, 8, 15, 2,
