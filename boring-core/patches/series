@@ -34,6 +34,7 @@ tab-underline.patch
 tab-mock-metrics.patch
 tab-connected.patch
 tab-center-content.patch
+colour-picker-schemes.patch
 bookmark-bar.patch
 app-menu-icon.patch
 vector-icon-round-joins.patch

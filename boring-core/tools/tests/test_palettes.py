@@ -139,6 +139,21 @@ class PaletteTest(unittest.TestCase):
         self.assertIn("!key.custom_theme", src)
         self.assertRegex(src, r"if \(!UsingOurTheme\(key\)\)\s*\{\s*return;")
 
+    def test_tab_hover_is_a_neutral_wash_of_ink_not_chromiums_tinted_default(self):
+        src = MIXER.read_text(encoding="utf-8")
+        for name, base in (("kColorTabBackgroundInactiveHoverFrameActive", "frame"),
+                           ("kColorTabBackgroundInactiveHoverFrameInactive", "window")):
+            self.assertRegex(
+                src, r"mixer\[%s\]\s*=\s*\{\s*color_utils::AlphaBlend\(p\.ink,\s*p\.%s,\s*[\d.]+f?\)\}" % (name, base))
+
+    def test_multi_selected_tabs_use_the_accent_not_chromiums_default(self):
+        src = MIXER.read_text(encoding="utf-8")
+        for name in ("kColorTabBackgroundSelectedFrameActive",
+                     "kColorTabBackgroundSelectedFrameInactive",
+                     "kColorTabBackgroundSelectedHoverFrameActive",
+                     "kColorTabBackgroundSelectedHoverFrameInactive"):
+            self.assertRegex(src, r"mixer\[%s\]\s*=\s*\{\s*color_utils::AlphaBlend\(p\.accent," % name)
+
     def test_scheme_switch_reads_the_command_line(self):
         src = MIXER.read_text(encoding="utf-8")
         self.assertIn('"boring-scheme"', src)

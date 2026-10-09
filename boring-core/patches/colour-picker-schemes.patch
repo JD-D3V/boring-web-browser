@@ -1,0 +1,24 @@
+--- a/chrome/browser/ui/webui/cr_components/theme_color_picker/customize_chrome_colors.cc
++++ b/chrome/browser/ui/webui/cr_components/theme_color_picker/customize_chrome_colors.cc
+@@ -42,14 +42,17 @@
+     std::array<DynamicColorInfo, 13>{
+         // ID 0 reserved for other colors.
+         // ID 1 reserved for grayscale theme.
++        // boring: our two schemes take the first two swatches. Picking one
++        // stores its seed, which boring_color_mixer.cc recognises. The
++        // names are strings Chromium already ships.
+         DynamicColorInfo(/*id=*/2,
+-                         SkColorSetRGB(140, 171, 228),
++                         SkColorSetRGB(0x4f, 0x46, 0xe5),
+                          IDS_NTP_COLORS_BLUE,
+                          ui::mojom::BrowserColorVariant::kTonalSpot),
+         DynamicColorInfo(/*id=*/3,
+-                         SkColorSetRGB(140, 171, 228),
+-                         IDS_NTP_COLORS_COOL_GREY,
+-                         ui::mojom::BrowserColorVariant::kNeutral),
++                         SkColorSetRGB(0xc8, 0xbd, 0xa4),
++                         IDS_NTP_COLORS_BEIGE,
++                         ui::mojom::BrowserColorVariant::kTonalSpot),
+         DynamicColorInfo(/*id=*/4,
+                          SkColorSetRGB(136, 136, 136),
+                          IDS_NTP_COLORS_GREY,

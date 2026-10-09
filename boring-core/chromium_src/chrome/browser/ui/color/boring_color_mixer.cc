@@ -9,6 +9,7 @@
 #include "ui/color/color_id.h"
 #include "ui/color/color_mixer.h"
 #include "ui/color/color_recipe.h"
+#include "ui/gfx/color_utils.h"
 
 namespace {
 
@@ -67,19 +68,26 @@ constexpr Palette kBeigeDark = {
 // colour, or grey, in Customize Chrome gets Chromium's palette instead of
 // ours, which is what they asked for.
 constexpr SkColor kCoolSeed = SkColorSetRGB(0x4f, 0x46, 0xe5);
-constexpr SkColor kBeigeSeed = SkColorSetRGB(0x17, 0x6b, 0x5b);
+// A warm sand colour, so the swatch and the tonal palette Chromium derives
+// for its own pages are warm, matching the scheme. Both swatches are in
+// Customize Chrome's colour picker (patches/colour-picker-schemes.patch).
+constexpr SkColor kBeigeSeed = SkColorSetRGB(0xc8, 0xbd, 0xa4);
+// The teal Beige used as its seed before it had a swatch. A profile that
+// stored it keeps the look it has.
+constexpr SkColor kLegacyBeigeSeed = SkColorSetRGB(0x17, 0x6b, 0x5b);
 
 bool UsingOurTheme(const ui::ColorProviderKey& key) {
   return !key.custom_theme &&
          key.user_color_source ==
              ui::ColorProviderKey::UserColorSource::kAccent &&
-         (key.user_color == kCoolSeed || key.user_color == kBeigeSeed);
+         (key.user_color == kCoolSeed || key.user_color == kBeigeSeed ||
+          key.user_color == kLegacyBeigeSeed);
 }
 
-// Beige when the profile holds Beige's seed, or when launched with
-// --boring-scheme=beige. A settings control for this comes later.
+// Beige when the profile holds one of Beige's seeds, or when launched with
+// --boring-scheme=beige (kept for the capture tools).
 bool WantsBeige(const ui::ColorProviderKey& key) {
-  if (key.user_color == kBeigeSeed) {
+  if (key.user_color == kBeigeSeed || key.user_color == kLegacyBeigeSeed) {
     return true;
   }
   return base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
@@ -120,6 +128,21 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   mixer[kColorTabForegroundActiveFrameInactive] = {p.muted};
   mixer[kColorTabForegroundInactiveFrameActive] = {p.muted};
   mixer[kColorTabForegroundInactiveFrameInactive] = {p.muted};
+  // A tab you hover is a soft neutral wash of the ink on the band, as in the
+  // approved mock, not the tinted colour Chromium derives from the seed.
+  // Tabs picked together (ctrl-click) take a wash of the accent.
+  mixer[kColorTabBackgroundInactiveHoverFrameActive] = {
+      color_utils::AlphaBlend(p.ink, p.frame, 0.11f)};
+  mixer[kColorTabBackgroundInactiveHoverFrameInactive] = {
+      color_utils::AlphaBlend(p.ink, p.window, 0.11f)};
+  mixer[kColorTabBackgroundSelectedFrameActive] = {
+      color_utils::AlphaBlend(p.accent, p.frame, 0.22f)};
+  mixer[kColorTabBackgroundSelectedFrameInactive] = {
+      color_utils::AlphaBlend(p.accent, p.window, 0.22f)};
+  mixer[kColorTabBackgroundSelectedHoverFrameActive] = {
+      color_utils::AlphaBlend(p.accent, p.frame, 0.33f)};
+  mixer[kColorTabBackgroundSelectedHoverFrameInactive] = {
+      color_utils::AlphaBlend(p.accent, p.window, 0.33f)};
   mixer[kColorTabStrokeFrameActive] = {p.line};
   mixer[kColorTabStrokeFrameInactive] = {p.line};
   mixer[kColorTabDividerFrameActive] = {p.line};
