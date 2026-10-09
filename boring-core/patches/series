@@ -33,6 +33,7 @@ tab-sleep-dim.patch
 tab-underline.patch
 tab-mock-metrics.patch
 tab-connected.patch
+tab-center-content.patch
 bookmark-bar.patch
 app-menu-icon.patch
 vector-icon-round-joins.patch
