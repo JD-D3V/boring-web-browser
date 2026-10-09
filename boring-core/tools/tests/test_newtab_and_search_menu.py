@@ -64,8 +64,8 @@ class SearchMenuLookTest(unittest.TestCase):
         self.assertIn("views::InstallRoundRectHighlightPathGenerator(pick, gfx::Insets(), 10);", text)
         self.assertIn("views::InstallRoundRectHighlightPathGenerator(make_default, gfx::Insets(), 8);", text)
 
-    def test_row_hover_uses_the_menus_accent_wash(self):
-        self.assertRegex(read(MIXER), r"mixer\[kColorHoverButtonBackgroundHovered\]\s*=\s*\{p\.tint\}")
+    def test_row_hover_is_a_see_through_accent_wash_so_the_text_stays_visible(self):
+        self.assertRegex(read(MIXER), r"mixer\[kColorHoverButtonBackgroundHovered\]\s*=\s*\{SkColorSetA\(p\.accent,\s*0x[0-9a-fA-F]+\)\}")
 
     def test_the_bubble_corners_match_the_main_menu(self):
         self.assertIn("delegate_->set_corner_radius(14);", read(MENU))

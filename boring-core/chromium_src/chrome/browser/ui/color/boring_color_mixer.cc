@@ -211,5 +211,7 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   mixer[ui::kColorMenuItemBackgroundHighlighted] = {p.tint};
   mixer[ui::kColorMenuItemBackgroundSelected] = {p.tint};
   // Rows in our own popups (the search engine list) hover the same way.
-  mixer[kColorHoverButtonBackgroundHovered] = {p.tint};
+  // It is painted over the row, so it has to be see-through or it covers
+  // the text: a light wash of the accent.
+  mixer[kColorHoverButtonBackgroundHovered] = {SkColorSetA(p.accent, 0x24)};
 }

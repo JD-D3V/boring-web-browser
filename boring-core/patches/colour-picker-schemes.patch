@@ -1,6 +1,6 @@
 --- a/chrome/browser/ui/webui/cr_components/theme_color_picker/customize_chrome_colors.cc
 +++ b/chrome/browser/ui/webui/cr_components/theme_color_picker/customize_chrome_colors.cc
-@@ -42,14 +42,17 @@
+@@ -42,13 +42,16 @@ const decltype(kDynamicCustomizeChromeColors) kDynamicCustomizeChromeColors =
      std::array<DynamicColorInfo, 13>{
          // ID 0 reserved for other colors.
          // ID 1 reserved for grayscale theme.
@@ -15,10 +15,8 @@
          DynamicColorInfo(/*id=*/3,
 -                         SkColorSetRGB(140, 171, 228),
 -                         IDS_NTP_COLORS_COOL_GREY,
--                         ui::mojom::BrowserColorVariant::kNeutral),
 +                         SkColorSetRGB(0xc8, 0xbd, 0xa4),
 +                         IDS_NTP_COLORS_BEIGE,
-+                         ui::mojom::BrowserColorVariant::kTonalSpot),
+                          ui::mojom::BrowserColorVariant::kNeutral),
          DynamicColorInfo(/*id=*/4,
                           SkColorSetRGB(136, 136, 136),
-                          IDS_NTP_COLORS_GREY,
