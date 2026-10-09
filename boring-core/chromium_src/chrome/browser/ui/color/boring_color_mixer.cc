@@ -210,4 +210,6 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   mixer[ui::kColorMenuIcon] = {p.ink};
   mixer[ui::kColorMenuItemBackgroundHighlighted] = {p.tint};
   mixer[ui::kColorMenuItemBackgroundSelected] = {p.tint};
+  // Rows in our own popups (the search engine list) hover the same way.
+  mixer[kColorHoverButtonBackgroundHovered] = {p.tint};
 }

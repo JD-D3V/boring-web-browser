@@ -105,9 +105,9 @@ def main():
             "!html.includes('Your web') && !html.includes('Room to breathe') && "
             "!document.querySelector('.eyebrow')"
         )
-        checks["'Find what you came for.' is kept"] = b.run(
+        checks["'Find what you're looking for.' is kept"] = b.run(
             "var p=document.querySelector('.intro');"
-            "return !!p && p.textContent==='Find what you came for.'"
+            "return !!p && p.textContent==='Find what you\u2019re looking for.'"
         )
         checks["tab title is still New Tab"] = b.run(
             "return document.title==='New Tab'"

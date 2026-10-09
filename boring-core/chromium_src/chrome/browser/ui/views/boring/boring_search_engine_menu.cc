@@ -16,8 +16,10 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "cc/paint/paint_flags.h"
+#include "chrome/app/chrome_command_ids.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
+#include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
 #include "chrome/browser/ui/omnibox/omnibox_controller.h"
@@ -66,7 +68,7 @@
 #include "ui/views/bubble/bubble_border.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/controls/button/label_button.h"
-#include "ui/views/controls/button/md_text_button.h"
+#include "ui/views/controls/highlight_path_generator.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/controls/scroll_view.h"
 #include "ui/views/focus/focus_manager.h"
@@ -406,10 +408,11 @@ void BoringSearchEngineMenu::BuildContents(
         base::BindRepeating(&BoringSearchEngineMenu::OnPick,
                             base::Unretained(this), i),
         icon, row.name));
-    pick->SetTooltipText(u"Search with " + row.name);
     if (row.is_default) {
       pick->GetViewAccessibility().SetDescription(u"Default");
     }
+    // Rounded hover, as in the browser's main menu.
+    views::InstallRoundRectHighlightPathGenerator(pick, gfx::Insets(), 10);
     line_layout->SetFlexForView(pick, 1);
     row.pick = pick;
     row.make_default = nullptr;
@@ -420,12 +423,15 @@ void BoringSearchEngineMenu::BuildContents(
           views::style::STYLE_SECONDARY));
       label->SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(0, 12)));
     } else if (row.can_be_default) {
+      // A quiet text link, not a filled pill.
       auto* make_default =
-          line->AddChildView(std::make_unique<views::MdTextButton>(
+          line->AddChildView(std::make_unique<views::LabelButton>(
               base::BindRepeating(&BoringSearchEngineMenu::OnMakeDefault,
                                   base::Unretained(this), i),
               u"Make default"));
-      make_default->SetStyle(ui::ButtonStyle::kText);
+      make_default->SetEnabledTextColors(ui::kColorLinkForeground);
+      make_default->SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(6, 10)));
+      views::InstallRoundRectHighlightPathGenerator(make_default, gfx::Insets(), 8);
       make_default->GetViewAccessibility().SetName(u"Make " + row.name +
                                                    u" the default");
       row.make_default = make_default;
@@ -463,6 +469,7 @@ void BoringSearchEngineMenu::Open(views::View* anchor_view,
   delegate_->SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
   delegate_->SetEnableArrowKeyTraversal(true);
   delegate_->set_margins(gfx::Insets::TLBR(4, 0, 12, 0));
+  delegate_->set_corner_radius(14);
   delegate_->set_highlight_button_when_shown(true);
 
   auto contents = std::make_unique<views::View>();
@@ -493,10 +500,13 @@ void BoringSearchEngineMenu::Open(views::View* anchor_view,
           views::BoxLayout::Orientation::kHorizontal, gfx::Insets::VH(4, 8)));
   done_layout->set_main_axis_alignment(
       views::BoxLayout::MainAxisAlignment::kEnd);
-  done_row->AddChildView(std::make_unique<views::MdTextButton>(
+  auto* done = done_row->AddChildView(std::make_unique<views::LabelButton>(
       base::BindRepeating(&BoringSearchEngineMenu::RollUp,
                           base::Unretained(this)),
       u"Done"));
+  done->SetEnabledTextColors(ui::kColorLinkForeground);
+  done->SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(6, 10)));
+  views::InstallRoundRectHighlightPathGenerator(done, gfx::Insets(), 8);
 
   delegate_->set_fixed_width(kMenuWidth);
   contents_ = delegate_->SetContentsView(std::move(contents));
@@ -695,6 +705,19 @@ base::WeakPtr<content::WebContents>& TestTab() {
 }
 
 }  // namespace
+
+bool OpenColourPickerForPage(content::WebContents* page) {
+  BrowserWindowInterface* window =
+      page ? GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(page)
+           : nullptr;
+  BrowserView* view =
+      window ? BrowserView::GetBrowserViewForBrowser(window) : nullptr;
+  if (!view) {
+    return false;
+  }
+  chrome::ExecuteCommand(view->browser(), IDC_CUSTOMIZE_CHROME);
+  return true;
+}
 
 bool ShowSearchEngineMenuForPage(
     content::WebContents* page,

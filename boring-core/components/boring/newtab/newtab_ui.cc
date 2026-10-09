@@ -182,6 +182,7 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
                     border-radius: 10px; padding: 10px 16px;
                     width: fit-content; max-width: 100%;
                     margin-inline: auto; }
+  .home-colours { margin: 14px 0 0; font-size: 12px; text-align: center; }
   .status-dot { flex: none; width: 7px; height: 7px; border-radius: 50%;
          background: var(--accent); }
   .home-bottom.off .status-dot { background: var(--warn); }
@@ -214,7 +215,7 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   <img class="home-brand" src="brand.svg" width="44" height="44" alt=""
       aria-hidden="true">
   <h1>Just a Browser.</h1>
-  <p class="intro">Find what you came for.</p>
+  <p class="intro">Find what you&rsquo;re looking for.</p>
   <form class="search-form" id="search" role="search">
     <button id="engine" class="engine" type="button"
         aria-haspopup="dialog" aria-expanded="false"
@@ -261,6 +262,7 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
     <span class="status-dot" aria-hidden="true"></span>
     <span id="protection-text"></span>
   </p>
+  <p class="home-colours"><button class="text-button" id="colours" type="button">Colours</button></p>
 </main>
 <script src="newtab.js"></script>
 </body>
@@ -570,6 +572,10 @@ window.loadShortcuts = function(list, added, rejected) {
   }
 };
 window.loadProtection = showProtection;
+// Opens the browser's colour picker (Cool, Beige, light and dark).
+el('colours').addEventListener('click', function() {
+  chrome.send('openColours');
+});
 chrome.send('getShortcuts');
 chrome.send('getSearch');
 chrome.send('getProtection');
@@ -682,6 +688,10 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
     web_ui()->RegisterMessageCallback(
         "showEngineMenu",
         base::BindRepeating(&NewTabMessageHandler::HandleShowEngineMenu,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "openColours",
+        base::BindRepeating(&NewTabMessageHandler::HandleOpenColours,
                             base::Unretained(this)));
     // Test only: nothing a page can ask for without the switch.
     if (base::CommandLine::ForCurrentProcess()->HasSwitch(
@@ -883,6 +893,12 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
   }
 
   void RetryGetSearch() { HandleGetSearch(base::ListValue()); }
+
+  // Opens the browser's own colour picker (Customize Chrome), where the
+  // colour schemes and the light or dark mode are chosen.
+  void HandleOpenColours(const base::ListValue& args) {
+    OpenColourPickerForPage(web_ui()->GetWebContents());
+  }
 
   // [left, top, width, height] of the engine button, in the page's CSS
   // pixels. The browser shows its own search engine menu under it.
