@@ -57,17 +57,22 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
 <meta charset="utf-8">
 <title>New Tab</title>
 <link rel="icon" type="image/svg+xml" href="brand.svg">
+<link rel="stylesheet" href="chrome://theme/colors.css?sets=ui,chrome">
 <style>
+  /* The colours are the window's own, read from the browser's theme, so the
+     page follows the colour scheme and the light or dark mode. The values
+     in light-dark() are only the fallback if the theme stylesheet fails. */
   :root { color-scheme: light dark;
-    --surface: light-dark(#faf9f6, #1c2422);
-    --paper: light-dark(#ffffff, #252e2b);
-    --ink: light-dark(#242e2d, #e8ede7);
-    --muted: light-dark(#5d6966, #adb9b2);
-    --line: light-dark(#d8ddd7, #414e47);
-    /* Field edges: 3:1 or more against the page in both themes. */
-    --field: light-dark(#7d8985, #8b9891);
-    --accent: light-dark(#176b5b, #92d4bb);
-    --soft: light-dark(#e5f1eb, #273f35);
+    --surface: var(--color-location-bar-background, light-dark(#faf9f6, #1c2422));
+    --paper: var(--color-dialog-background, light-dark(#ffffff, #252e2b));
+    --ink: var(--color-dialog-foreground, light-dark(#242e2d, #e8ede7));
+    --muted: var(--color-label-foreground-secondary, light-dark(#5d6966, #adb9b2));
+    --line: var(--color-bubble-border, light-dark(#d8ddd7, #414e47));
+    /* Field edges: 3:1 or more against the page in every scheme, so derived
+       from the ink and the page rather than fixed. */
+    --field: color-mix(in srgb, var(--ink) 52%, var(--surface));
+    --accent: var(--color-sys-primary, light-dark(#176b5b, #92d4bb));
+    --soft: var(--color-sys-primary-container, light-dark(#e5f1eb, #273f35));
     --warn: light-dark(#9e3e24, #ffb69c);
     --warn-soft: light-dark(#fbebe4, #412f28);
   }
