@@ -1,0 +1,33 @@
+--- a/chrome/browser/ui/views/tabs/horizontal_tab_style_views.cc
++++ b/chrome/browser/ui/views/tabs/horizontal_tab_style_views.cc
+@@ -750,12 +750,14 @@
+     bool hovered,
+     std::optional<int> fill_id) const {
+   const TabStyle::TabSelectionState selection_state = GetSelectionState();
+-  // boring: every tab, open or not, is the same detached rounded shape.
+-  // Chromium gives the open one feet that flare into the toolbar so the
+-  // two merge; ours is a card of its own colour sitting on the band, so
+-  // the feet would only be a white smear under it.
++  // boring: the open tab has Chromium's feet that flare into the toolbar,
++  // so the tab and the bar are one surface with no strip of the frame
++  // between them. The other tabs stay detached rounded cards.
+   const SkPath fill_path =
+-      GetPath(TabStyle::PathType::kHighlight, canvas->image_scale(), {});
++      GetPath(selection_state == TabStyle::TabSelectionState::kActive
++                  ? TabStyle::PathType::kActiveTab
++                  : TabStyle::PathType::kHighlight,
++              canvas->image_scale(), {});
+   gfx::ScopedCanvas scoped_canvas(canvas);
+   const float scale = canvas->UndoDeviceScaleFactor();
+ 
+@@ -823,9 +825,8 @@
+     return;
+   }
+ 
+-  // boring: the outline follows the same detached shape the fill uses.
+   SkPath outer_path =
+-      GetPath(TabStyle::PathType::kHighlight, canvas->image_scale(),
++      GetPath(TabStyle::PathType::kBorder, canvas->image_scale(),
+               {.should_paint_extension = false});
+   gfx::ScopedCanvas scoped_canvas(canvas);
+   float scale = canvas->UndoDeviceScaleFactor();
