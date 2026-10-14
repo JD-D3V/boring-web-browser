@@ -43,7 +43,15 @@
        color_provider->GetColor(kColorBookmarkButtonIcon);
 --- a/chrome/browser/ui/views/bookmarks/bookmark_bar_view.h
 +++ b/chrome/browser/ui/views/bookmarks/bookmark_bar_view.h
-@@ -487,6 +487,9 @@
+@@ -65,6 +65,7 @@
+ namespace views {
+ class MenuButton;
+ class MenuItemView;
++class Label;
+ class LabelButton;
+ }  // namespace views
+ 
+@@ -487,6 +488,9 @@
    // Shows the Apps page shortcut.
    raw_ptr<views::LabelButton> apps_page_shortcut_ = nullptr;
  
