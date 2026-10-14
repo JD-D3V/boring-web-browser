@@ -25,11 +25,10 @@
 name: lists
 
 on:
-  # By hand until JD has made the protected "lists" environment and its
-  # secret. Then add the twice weekly schedule back:
-  #
-  #   schedule:
-  #     - cron: "17 4 * * 1,4"
+  # Twice a week. The browser looks at most once a day, and only once
+  # its lists are a week old.
+  schedule:
+    - cron: "17 4 * * 1,4"
   workflow_dispatch:
 
 permissions:
