@@ -144,7 +144,15 @@ class PaletteTest(unittest.TestCase):
         for name, base in (("kColorTabBackgroundInactiveHoverFrameActive", "frame"),
                            ("kColorTabBackgroundInactiveHoverFrameInactive", "window")):
             self.assertRegex(
-                src, r"mixer\[%s\]\s*=\s*\{\s*color_utils::AlphaBlend\(p\.ink,\s*p\.%s,\s*[\d.]+f?\)\}" % (name, base))
+                src, r"mixer\[%s\]\s*=\s*\{\s*color_utils::AlphaBlend\(p\.ink,\s*p\.%s,\s*hover_wash\)\}" % (name, base))
+        self.assertIn("const float hover_wash = dark ? 0.09f : 0.07f;", src)
+
+    def test_toolbar_buttons_wash_on_hover_and_turn_accent_like_the_mock(self):
+        src = MIXER.read_text(encoding="utf-8")
+        for name in ("kColorToolbarButtonIconHovered", "kColorToolbarButtonIconPressed"):
+            self.assertRegex(src, r"mixer\[%s\]\s*=\s*\{p\.accent\}" % name)
+        self.assertRegex(src, r"mixer\[kColorToolbarInkDropHover\]\s*=\s*\{\s*SkColorSetA\(p\.ink,")
+        self.assertRegex(src, r"mixer\[kColorToolbarInkDropRipple\]\s*=\s*\{\s*SkColorSetA\(p\.accent,")
 
     def test_multi_selected_tabs_use_the_accent_not_chromiums_default(self):
         src = MIXER.read_text(encoding="utf-8")
