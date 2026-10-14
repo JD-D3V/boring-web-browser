@@ -33,6 +33,29 @@ class NewTabTextTest(unittest.TestCase):
         self.assertIn("looking for", text)
 
 
+class NewTabFitsShortWindowTest(unittest.TestCase):
+    def test_top_spacing_is_trimmed_so_the_footer_fits(self):
+        text = read(NEWTAB)
+        self.assertIn("padding: 36px 24px 32px;", text)
+        self.assertIn("justify-content: center; margin: 32px 0 0;", text)
+        self.assertNotIn("padding: 70px 24px 56px;", text)
+
+
+class WelcomePageTest(unittest.TestCase):
+    WELCOME = CORE / "components" / "boring" / "welcome" / "welcome_ui.cc"
+
+    def test_senior_row_explains_itself_without_em_dash(self):
+        text = read(self.WELCOME)
+        self.assertIn("Bigger text, fewer distractions, extra scam checks.", text)
+        self.assertNotIn("—", text)
+        self.assertNotIn("&mdash;", text)
+
+    def test_logo_and_heading_are_centred(self):
+        text = read(self.WELCOME)
+        self.assertRegex(text, r"\.brand \{[^}]*margin: 0 auto 24px")
+        self.assertRegex(text, r"h1 \{[^}]*text-align: center")
+
+
 class ColoursLinkTest(unittest.TestCase):
     def test_page_has_a_colours_button_that_asks_the_browser(self):
         text = read(NEWTAB)

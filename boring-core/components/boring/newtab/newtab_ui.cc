@@ -82,10 +82,10 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   /* Always wins over any author display rule, no matter its specificity,
      so a form given the hidden attribute is always actually hidden. */
   [hidden] { display: none !important; }
-  .home { max-width: 640px; margin: 0 auto; padding: 70px 24px 56px;
+  .home { max-width: 640px; margin: 0 auto; padding: 36px 24px 32px;
           text-align: center; }
   .home-brand { display: block; width: 44px; height: 44px;
-                margin: 0 auto 24px; }
+                margin: 0 auto 20px; }
   .home h1 { font: 550 52px/1.08 system-ui, sans-serif;
        letter-spacing: -0.045em; color: var(--ink); margin: 12px 0 18px; }
   .intro { font-size: 15px; color: var(--muted); margin: 0 0 32px; }
@@ -213,7 +213,7 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
                  font-size: 13px; cursor: pointer; text-decoration: none; }
   .bad { color: var(--warn); margin: 0; font-size: 13px; }
   .home-bottom { display: flex; gap: 9px; align-items: center;
-                 justify-content: center; margin: 58px 0 0;
+                 justify-content: center; margin: 32px 0 0;
                  font-size: 12px; color: var(--muted); }
   .home-bottom.off { color: var(--warn); background: var(--warn-soft);
                     border-radius: 10px; padding: 10px 16px;

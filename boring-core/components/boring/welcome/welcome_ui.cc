@@ -50,9 +50,9 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
          background: var(--surface); color: var(--ink);
          padding: 4em 1.5em; display: flex; justify-content: center; }
   .page { width: 40em; max-width: 100%; }
-  .brand { display: block; width: 44px; height: 44px; margin: 0 0 24px; }
+  .brand { display: block; width: 44px; height: 44px; margin: 0 auto 24px; }
   h1 { font-size: 2.3em; letter-spacing: -0.045em; font-weight: 550;
-       line-height: 1.1; margin: 0 0 1em; }
+       line-height: 1.1; margin: 0 0 1em; text-align: center; }
   .panel { background: var(--paper); border: 1px solid var(--line);
            border-radius: 12px; padding: 1.3em 1.5em; margin: 0 0 1.2em; }
   .row { display: flex; align-items: center; justify-content: space-between;
@@ -64,6 +64,7 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   .primary { background: var(--accent); color: var(--on-accent); }
   .secondary { border: 1px solid var(--line); background: var(--paper);
                color: var(--ink); }
+  .why { margin: 0.2em 0 0; font-size: 13px; color: var(--muted); }
   .done { color: var(--accent); font-weight: 600; font-size: 13px;
           margin: 0; }
   a { color: var(--accent); font-weight: 600; font-size: 13px;
@@ -111,7 +112,10 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
 
   <div class="panel">
     <div id="senior-off" class="row">
-      <strong>Senior Safe Mode</strong>
+      <div>
+        <strong>Senior Safe Mode</strong>
+        <p class="why">Bigger text, fewer distractions, extra scam checks.</p>
+      </div>
       <button class="secondary" id="senior-on">Turn on</button>
     </div>
     <p id="senior-done" class="done hidden" tabindex="-1">Senior Safe Mode
