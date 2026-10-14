@@ -1,0 +1,55 @@
+--- a/chrome/browser/ui/views/bookmarks/bookmark_bar_view.cc
++++ b/chrome/browser/ui/views/bookmarks/bookmark_bar_view.cc
+@@ -903,6 +903,19 @@
+   overflow_button_->SetVisible(show_bookmarks_overflow);
+   x += overflow_pref.width();
+ 
++  // boring: with nothing on the bar, say what it is for.
++  if (empty_hint_) {
++    const bool show_hint = bookmark_buttons_.empty() &&
++                           bookmark_bar_children_count == 0 &&
++                           bookmark_service_->loaded();
++    empty_hint_->SetVisible(show_hint);
++    if (show_hint) {
++      const int hint_width = std::min(empty_hint_->GetPreferredSize().width(),
++                                      std::max(0, max_x - x));
++      empty_hint_->SetBounds(x, y, hint_width, button_height);
++    }
++  }
++
+   // Bookmarks Separator.
+   if (bookmarks_separator_view_->GetVisible()) {
+     bookmarks_separator_view_->SetBounds(
+@@ -1595,6 +1608,11 @@
+   // they are added matches the visual order.
+   apps_page_shortcut_ = AddChildView(CreateAppsPageShortcutButton());
+ 
++  empty_hint_ = AddChildView(
++      std::make_unique<views::Label>(u"Bookmarks you add show here"));
++  empty_hint_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
++  empty_hint_->SetVisible(false);
++
+   managed_bookmarks_button_ = AddChildView(CreateManagedBookmarksButton());
+   // Also re-enabled when the model is loaded.
+   managed_bookmarks_button_->SetEnabled(false);
+@@ -2167,6 +2185,8 @@
+   }
+ 
+   apps_page_shortcut_->SetEnabledTextColors(color);
++  empty_hint_->SetEnabledColor(
++      color_provider->GetColor(ui::kColorLabelForegroundSecondary));
+ 
+   const SkColor overflow_color =
+       color_provider->GetColor(kColorBookmarkButtonIcon);
+--- a/chrome/browser/ui/views/bookmarks/bookmark_bar_view.h
++++ b/chrome/browser/ui/views/bookmarks/bookmark_bar_view.h
+@@ -487,6 +487,9 @@
+   // Shows the Apps page shortcut.
+   raw_ptr<views::LabelButton> apps_page_shortcut_ = nullptr;
+ 
++  // boring: shown only while the bar has no bookmarks at all.
++  raw_ptr<views::Label> empty_hint_ = nullptr;
++
+   // Used to track drops on the bookmark bar view.
+   std::unique_ptr<DropInfo> drop_info_;
+ 

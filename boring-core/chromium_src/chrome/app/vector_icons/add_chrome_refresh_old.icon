@@ -1,0 +1,11 @@
+// Copyright 2026 boring. BSD style license.
+
+// add_chrome_refresh_old, from the rounded icon set (design/v7/icons-full/icons.svg).
+// 2 px stroke on a 20 grid, round caps.
+
+CANVAS_DIMENSIONS, 16,
+STROKE, 1.6,
+MOVE_TO, 8, 4,
+V_LINE_TO, 12,
+MOVE_TO, 4, 8,
+H_LINE_TO, 12,

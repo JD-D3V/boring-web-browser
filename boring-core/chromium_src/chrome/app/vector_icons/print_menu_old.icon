@@ -1,0 +1,33 @@
+// Copyright 2026 boring. BSD style license.
+
+// print_menu_old, from the rounded icon set (design/v7/icons-full/icons.svg).
+// 2 px stroke on a 20 grid, round caps.
+
+CANVAS_DIMENSIONS, 16,
+STROKE, 1.6,
+MOVE_TO, 4.8, 5.6,
+V_LINE_TO, 3.2,
+ARC_TO, 0.8, 0.8, 0, 0, 1, 5.6, 2.4,
+H_LINE_TO, 10.4,
+ARC_TO, 0.8, 0.8, 0, 0, 1, 11.2, 3.2,
+V_LINE_TO, 5.6,
+NEW_PATH,
+STROKE, 1.6,
+MOVE_TO, 5.6, 11.2,
+H_LINE_TO, 4,
+ARC_TO, 1.6, 1.6, 0, 0, 1, 2.4, 9.6,
+V_LINE_TO, 7.2,
+ARC_TO, 1.6, 1.6, 0, 0, 1, 4, 5.6,
+H_LINE_TO, 12,
+ARC_TO, 1.6, 1.6, 0, 0, 1, 13.6, 7.2,
+V_LINE_TO, 9.6,
+ARC_TO, 1.6, 1.6, 0, 0, 1, 12, 11.2,
+H_LINE_TO, 10.4,
+NEW_PATH,
+STROKE, 1.6,
+MOVE_TO, 5.6, 11.2,
+V_LINE_TO, 13.6,
+H_LINE_TO, 10.4,
+V_LINE_TO, 11.2,
+NEW_PATH,
+CIRCLE, 11.2, 8, 1,

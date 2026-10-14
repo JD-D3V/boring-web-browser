@@ -1,0 +1,12 @@
+// Copyright 2026 boring. BSD style license.
+
+// arrow_forward, from the rounded icon set (design/v7/icons-full/icons.svg).
+// 2 px stroke on a 20 grid, round caps.
+
+CANVAS_DIMENSIONS, 24,
+STROKE, 2.4,
+MOVE_TO, 4.8, 12,
+H_LINE_TO, 19.2,
+MOVE_TO, 12.6, 5.4,
+LINE_TO, 19.2, 12,
+LINE_TO, 12.6, 18.6,

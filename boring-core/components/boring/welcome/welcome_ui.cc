@@ -33,24 +33,26 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
 <meta charset="utf-8">
 <title>Welcome to Boring Browser</title>
 <link rel="icon" type="image/svg+xml" href="brand.svg">
+<link rel="stylesheet" href="chrome://theme/colors.css?sets=ui,chrome">
 <style>
   :root { color-scheme: light dark;
-    --surface: light-dark(#faf9f6, #1c2422);
-    --paper: light-dark(#ffffff, #252e2b);
-    --ink: light-dark(#242e2d, #e8ede7);
-    --muted: light-dark(#5d6966, #adb9b2);
-    --line: light-dark(#d8ddd7, #414e47);
-    --accent: light-dark(#176b5b, #92d4bb);
-    --soft: light-dark(#e5f1eb, #273f35);
+    --surface: var(--color-location-bar-background, light-dark(#faf9f6, #1c2422));
+    --paper: var(--color-dialog-background, light-dark(#ffffff, #252e2b));
+    --ink: var(--color-dialog-foreground, light-dark(#242e2d, #e8ede7));
+    --muted: var(--color-label-foreground-secondary, light-dark(#5d6966, #adb9b2));
+    --line: var(--color-bubble-border, light-dark(#d8ddd7, #414e47));
+    --accent: var(--color-sys-primary, light-dark(#176b5b, #92d4bb));
+    --on-accent: var(--color-sys-on-primary, light-dark(#faf9f6, #092b25));
+    --soft: var(--color-sys-primary-container, light-dark(#e5f1eb, #273f35));
   }
   * { box-sizing: border-box; }
   body { font: 14px/1.6 "Segoe UI", system-ui, sans-serif; margin: 0;
          background: var(--surface); color: var(--ink);
          padding: 4em 1.5em; display: flex; justify-content: center; }
   .page { width: 40em; max-width: 100%; }
-  .brand { display: block; width: 44px; height: 44px; margin: 0 0 24px; }
+  .brand { display: block; width: 44px; height: 44px; margin: 0 auto 24px; }
   h1 { font-size: 2.3em; letter-spacing: -0.045em; font-weight: 550;
-       line-height: 1.1; margin: 0 0 1em; }
+       line-height: 1.1; margin: 0 0 1em; text-align: center; }
   .panel { background: var(--paper); border: 1px solid var(--line);
            border-radius: 12px; padding: 1.3em 1.5em; margin: 0 0 1.2em; }
   .row { display: flex; align-items: center; justify-content: space-between;
@@ -59,11 +61,10 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
                           border-radius: 7px; font-weight: 600;
                           font-size: 13px; border: none; cursor: pointer;
                           font-family: inherit; }
-  .primary { background: var(--accent); color: var(--surface); }
-  .primary:hover { filter: brightness(0.92); }
+  .primary { background: var(--accent); color: var(--on-accent); }
   .secondary { border: 1px solid var(--line); background: var(--paper);
                color: var(--ink); }
-  .secondary:hover { background: var(--soft); }
+  .why { margin: 0.2em 0 0; font-size: 13px; color: var(--muted); }
   .done { color: var(--accent); font-weight: 600; font-size: 13px;
           margin: 0; }
   a { color: var(--accent); font-weight: 600; font-size: 13px;
@@ -71,8 +72,23 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   .links { display: grid; gap: 0.7em; }
   .links button { justify-self: start; }
   .start { margin-top: 1.5em; display: flex; justify-content: flex-end; }
+  /* Press and hover: colour and a small scale only, so input never waits. */
+  .primary, .secondary, .text-button {
+    transition: background-color 150ms ease-out, color 150ms ease-out,
+                border-color 150ms ease-out, transform 150ms ease-out; }
+  .primary:active, .secondary:active { transform: scale(0.98); }
+  .text-button:active { transform: scale(0.98); }
+  @media (hover: hover) {
+    .primary:hover { background: color-mix(in srgb, var(--accent) 86%, var(--ink)); }
+    .text-button:hover { text-decoration: underline; text-underline-offset: 3px; }
+  }
+  @media (hover: hover) { .secondary:hover { background: var(--soft); } }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .hidden { display: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .primary, .secondary, .text-button { transition: none; }
+    .primary:active, .secondary:active, .text-button:active { transform: none; }
+  }
   @media (forced-colors: active) {
     button, .panel { border: 1px solid ButtonText; }
     .primary { background: Highlight; color: HighlightText; }
@@ -96,7 +112,10 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
 
   <div class="panel">
     <div id="senior-off" class="row">
-      <strong>Senior Safe Mode</strong>
+      <div>
+        <strong>Senior Safe Mode</strong>
+        <p class="why">Bigger text, fewer distractions, extra scam checks.</p>
+      </div>
       <button class="secondary" id="senior-on">Turn on</button>
     </div>
     <p id="senior-done" class="done hidden" tabindex="-1">Senior Safe Mode

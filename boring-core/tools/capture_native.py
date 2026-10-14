@@ -7,6 +7,7 @@ screen, so tabs, toolbar and window buttons are in the picture.
 
     python capture_native.py --out shot.png --url chrome://boring-newtab
     python capture_native.py --out dark.png --dark --size 1404x631
+    python capture_native.py --out focus.png --focus-omnibox
 
 Nothing here contacts the network unless the url given does.
 """
@@ -18,6 +19,11 @@ import time
 from ctypes import wintypes
 
 from drive import OFFSCREEN, Browser
+
+# Test hook that focuses the address bar once the toolbar is built, so the
+# focused field and its glow can be photographed without sending any input.
+FOCUS_HOOK = "--boring-focus-omnibox"
+FOCUS_HOOK_WAIT = 6.0
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 gdi32 = ctypes.WinDLL("gdi32", use_last_error=True)
@@ -244,6 +250,11 @@ def main():
     ap.add_argument("--profile", default=None)
     ap.add_argument("--extra", action="append", default=[])
     ap.add_argument(
+        "--focus-omnibox",
+        action="store_true",
+        help="focus the address bar via the test hook, to photograph the glow",
+    )
+    ap.add_argument(
         "--automation-banner",
         action="store_true",
         help="keep chromedriver's 'controlled by automated test software' bar",
@@ -260,6 +271,11 @@ def main():
         "--disable-features=CalculateNativeWinOcclusion",
     ]
     chrome_args += list(args.extra)
+    if args.focus_omnibox:
+        chrome_args.append(FOCUS_HOOK)
+        # The hook focuses the field four seconds after the toolbar is
+        # built; wait that out before the grab.
+        args.settle = max(args.settle, FOCUS_HOOK_WAIT)
     if args.dark:
         chrome_args.append("--force-dark-mode")
     chrome_args.append(f"--window-size={w},{h}")

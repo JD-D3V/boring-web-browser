@@ -7,8 +7,8 @@
 #include "base/functional/bind.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
-#include "cc/paint/paint_flags.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -30,11 +30,8 @@
 #include "ui/base/models/image_model.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_provider.h"
-#include "ui/gfx/canvas.h"
 #include "ui/gfx/font_list.h"
 #include "ui/gfx/geometry/insets.h"
-#include "ui/gfx/geometry/point_f.h"
-#include "ui/gfx/image/canvas_image_source.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/animation/ink_drop.h"
@@ -61,41 +58,12 @@ constexpr base::TimeDelta kWhileLoading = base::Seconds(1);
 // The panel is one calm column.
 constexpr int kPanelWidth = 300;
 
-// Diameter, in DIP, of the status dot painted before the label. Small on
-// purpose, the word does the talking and the dot is just a glance-check.
-constexpr int kDotDiameter = 7;
+// The shield from the approved icon set, drawn in the state's colour.
+constexpr int kShieldSize = 16;
 
-// Paints a single filled circle in one colour. This is a real image rather
-// than a text bullet, so it scales with the DIP scale factor and can be
-// redrawn in whatever colour the current state and theme call for.
-class DotImageSource : public gfx::CanvasImageSource {
- public:
-  explicit DotImageSource(SkColor color)
-      : gfx::CanvasImageSource(gfx::Size(kDotDiameter, kDotDiameter)),
-        color_(color) {}
-
-  DotImageSource(const DotImageSource&) = delete;
-  DotImageSource& operator=(const DotImageSource&) = delete;
-
-  ~DotImageSource() override = default;
-
-  // gfx::CanvasImageSource:
-  void Draw(gfx::Canvas* canvas) override {
-    cc::PaintFlags flags;
-    flags.setStyle(cc::PaintFlags::kFill_Style);
-    flags.setColor(color_);
-    flags.setAntiAlias(true);
-    const float radius = kDotDiameter / 2.0f;
-    canvas->DrawCircle(gfx::PointF(radius, radius), radius, flags);
-  }
-
- private:
-  const SkColor color_;
-};
-
-ui::ImageModel MakeDotImageModel(SkColor color) {
-  return ui::ImageModel::FromImageSkia(
-      gfx::CanvasImageSource::MakeImageSkia<DotImageSource>(color));
+ui::ImageModel MakeShieldImageModel(ui::ColorId color_id) {
+  return ui::ImageModel::FromVectorIcon(kBoringProtectionIcon, color_id,
+                                        kShieldSize);
 }
 
 // A plain row that acts, like a menu item: full width, left aligned,
@@ -140,7 +108,7 @@ BoringProtectionButton::BoringProtectionButton(BrowserWindowInterface* browser)
     : ToolbarButton(base::BindRepeating(&BoringProtectionButton::OnPressed,
                                         base::Unretained(this))),
       browser_(browser) {
-  // The dot and the label are painted below, by UpdateState().
+  // The shield and the label are painted below, by UpdateState().
 
   // Opening a window is a good moment to make sure the lists are loading,
   // the same as opening the Protection page, so what the shield says is
@@ -169,8 +137,8 @@ BoringProtectionButton::BoringProtectionButton(BrowserWindowInterface* browser)
   FollowActiveTab();
 
   // boring: the reference's Protection control is 10 DIP of horizontal
-  // padding around the dot and the word, 7 DIP between them, and 12px
-  // text, not a generic toolbar button's sizing. Comes after
+  // padding around the shield and the word, 7 DIP between them, and 13px
+  // medium-weight text, as big as the rest of the toolbar's text, not a generic toolbar button's sizing. Comes after
   // UpdateState() because SetLabelSideSpacing() only adds space when
   // there is already text to space away from, and this button always
   // has some (see ReadState(): every branch leaves a non-empty label).
@@ -178,7 +146,8 @@ BoringProtectionButton::BoringProtectionButton(BrowserWindowInterface* browser)
   SetLabelSideSpacing(7);
   const gfx::FontList& current_font = label()->font_list();
   label()->SetFontList(
-      current_font.DeriveWithSizeDelta(12 - current_font.GetFontSize()));
+      current_font.DeriveWithSizeDelta(13 - current_font.GetFontSize())
+          .DeriveWithWeight(gfx::Font::Weight::MEDIUM));
 }
 
 BoringProtectionButton::~BoringProtectionButton() {
@@ -189,7 +158,7 @@ BoringProtectionButton::~BoringProtectionButton() {
 
 void BoringProtectionButton::OnThemeChanged() {
   ToolbarButton::OnThemeChanged();
-  // The dot and the label both carry a colour, so both have to be
+  // The shield and the label both carry a colour, so both have to be
   // repainted once a new theme is in place.
   UpdateState();
 }
@@ -274,7 +243,7 @@ void BoringProtectionButton::UpdateState() {
 
   if (state_ == State::kFailed) {
     // Say it on the toolbar rather than waiting to be asked. Coloured
-    // text and a coloured dot, not a filled chip: this is a browser that
+    // text and a coloured shield, not a filled chip: this is a browser that
     // stays quiet, and a red pill in the toolbar is shouting.
     color_id = ui::kColorAlertHighSeverity;
     label = u"Needs attention";
@@ -300,13 +269,7 @@ void BoringProtectionButton::UpdateState() {
   // label alone ("Protection") would not tell a screen reader the state.
   GetViewAccessibility().SetName(accessible_name);
   SetEnabledTextColors(color_id);
-  // The dot bakes in a concrete colour, so it needs an actual provider to
-  // resolve one. There is none yet the first time this runs, before the
-  // button is in a Widget; OnThemeChanged() calls back in once there is.
-  if (const ui::ColorProvider* colors = GetColorProvider()) {
-    SetImageModel(views::Button::STATE_NORMAL,
-                  MakeDotImageModel(colors->GetColor(color_id)));
-  }
+  SetImageModel(views::Button::STATE_NORMAL, MakeShieldImageModel(color_id));
 
   // Ask again only while there is nothing to report yet.
   if (state_ == State::kLoading) {

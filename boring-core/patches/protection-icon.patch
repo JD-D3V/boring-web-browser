@@ -1,0 +1,10 @@
+--- a/chrome/app/vector_icons/BUILD.gn
++++ b/chrome/app/vector_icons/BUILD.gn
+@@ -64,6 +64,7 @@
+     "bookmarks_side_panel_old.icon",
+     "bookmarks_side_panel_refresh_old.icon",
+     "boring_menu.icon",
++    "boring_protection.icon",
+     "bottom_panel_close.icon",
+     "bottom_panel_close_old.icon",
+     "browser_logo_old.icon",

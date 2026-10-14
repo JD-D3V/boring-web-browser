@@ -34,7 +34,7 @@ constexpr char kPageTop[] = R"HTML(<!DOCTYPE html>
     --ink: light-dark(#242e2d, #e8ede7);
     --muted: light-dark(#5d6966, #adb9b2);
     --line: light-dark(#d8ddd7, #414e47);
-    --accent: light-dark(#176b5b, #92d4bb);
+    --accent: light-dark(#4f46e5, #9d9aff);
     --warning: light-dark(#9e3e24, #ffb69c);
     --warning-soft: light-dark(#fbebe4, #412f28);
   }
@@ -63,15 +63,28 @@ constexpr char kPageTop[] = R"HTML(<!DOCTYPE html>
   .primary { min-height: 40px; padding: 10px 18px; border-radius: 7px;
              font-weight: 600; font-size: 13px; border: none;
              cursor: pointer; font-family: inherit;
-             background: var(--accent); color: var(--surface); }
-  .primary:hover { filter: brightness(0.92); }
+             background: var(--accent); color: light-dark(#ffffff, #1b1a4a); }
   .text-button { background: none; border: none; color: var(--accent);
                  font-weight: 600; padding: 8px 0; text-align: left;
                  font-size: 13px; cursor: pointer; font-family: inherit; }
+  /* Press and hover: colour and a small scale only, so input never waits. */
+  .primary, .text-button {
+    transition: background-color 150ms ease-out, color 150ms ease-out,
+                border-color 150ms ease-out, transform 150ms ease-out; }
+  .primary:active { transform: scale(0.98); }
+  .text-button:active { transform: scale(0.98); }
+  @media (hover: hover) {
+    .primary:hover { background: color-mix(in srgb, var(--accent) 86%, var(--ink)); }
+    .text-button:hover { text-decoration: underline; text-underline-offset: 3px; }
+  }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   details { margin-top: 28px; font-size: 12px; color: var(--muted); }
   summary { cursor: pointer; }
   .panel-note { font-size: 12px; color: var(--muted); margin-top: 28px; }
+  @media (prefers-reduced-motion: reduce) {
+    .primary, .text-button { transition: none; }
+    .primary:active, .text-button:active { transform: none; }
+  }
   @media (max-width: 480px) { .warning-page { padding: 0 22px 22px; } }
   @media (forced-colors: active) {
     button { border: 1px solid ButtonText; }

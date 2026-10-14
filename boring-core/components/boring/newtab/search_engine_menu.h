@@ -38,6 +38,10 @@ bool ShowSearchEngineMenuForPage(
     base::RepeatingClosure on_default_changed,
     base::OnceClosure on_closed);
 
+// Opens the browser's colour picker (Customize Chrome) for the window that
+// holds `page`. False when `page` is not in a browser window.
+bool OpenColourPickerForPage(content::WebContents* page);
+
 // Runs one test command, see kSearchMenuTestSwitch. Returns none
 // without the switch.
 base::Value RunSearchEngineMenuTestCommand(content::WebContents* page,

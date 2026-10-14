@@ -5,15 +5,14 @@ diff --git a/components/bookmarks/browser/bookmark_utils.cc b/components/bookmar
  }
  
  void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
-+  // boring: off in a fresh profile. `BookmarkBarController::
-+  // ShouldShowBookmarkBar()` treats this pref as an always-show
-+  // override (see bookmark-bar.patch), so leaving Chromium's default of
-+  // true here put a second row under the toolbar on every page, not
-+  // just the new tab page, before a single bookmark existed. Settings
-+  // still flips it, same as Ctrl+Shift+B.
++  // boring: on in a fresh profile, so the bookmarks bar is always under
++  // the toolbar. `BookmarkBarController::ShouldShowBookmarkBar()`
++  // treats this pref as an always-show, so the bar is there before a
++  // first bookmark exists. Ctrl+Shift+B and Settings flip this same
++  // pref. True is Chromium's own default and is kept on purpose; the
++  // test in tools/tests fails if a rebase ever flips it.
    registry->RegisterBooleanPref(
--      prefs::kShowBookmarkBar, true,
-+      prefs::kShowBookmarkBar, false,
+       prefs::kShowBookmarkBar, true,
        user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
    // `BookmarkBarVisibilityState::kOnlyShowOnNtp` is equivalent to
    // `kShowBookmarkBar` set to false.

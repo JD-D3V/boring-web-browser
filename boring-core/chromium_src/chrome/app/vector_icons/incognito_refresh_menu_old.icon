@@ -1,0 +1,21 @@
+// Copyright 2026 boring. BSD style license.
+
+// incognito_refresh_menu_old, from the rounded icon set (design/v7/icons-full/icons.svg).
+// 2 px stroke on a 20 grid, round caps.
+
+CANVAS_DIMENSIONS, 16,
+STROKE, 1.6,
+MOVE_TO, 3.2, 13.6,
+V_LINE_TO, 7.2,
+ARC_TO, 4.8, 4.8, 0, 0, 1, 12.8, 7.2,
+V_LINE_TO, 13.6,
+LINE_TO, 11.2, 12,
+LINE_TO, 9.6, 13.6,
+LINE_TO, 8, 12,
+LINE_TO, 6.4, 13.6,
+LINE_TO, 4.8, 12,
+CLOSE,
+NEW_PATH,
+CIRCLE, 6, 7.6, 1,
+NEW_PATH,
+CIRCLE, 10, 7.6, 1,

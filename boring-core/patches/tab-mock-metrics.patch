@@ -1,0 +1,93 @@
+--- a/chrome/browser/ui/views/tabs/horizontal_tab_style_views.cc
++++ b/chrome/browser/ui/views/tabs/horizontal_tab_style_views.cc
+@@ -404,8 +404,8 @@
+   // nothing. A pinned tab's favicon is centered by
+   // Tab::MaybeAdjustLeftForPinnedTab() independent of these insets
+   // anyway, so this asymmetry is inert there either way.
+-  base_style_insets.set_left(13);
+-  base_style_insets.set_right(32);
++  base_style_insets.set_left(12);
++  base_style_insets.set_right(30);
+   gfx::Insets split_insets = gfx::Insets(0);
+ 
+   // For split tabs, remove insets equal to the total separator width between
+@@ -739,29 +739,8 @@
+ 
+   PaintBackgroundStroke(canvas, group_color.value_or(tab_stroke_color));
+ 
+-  // boring: the tab you are on carries a 2 DIP line in the accent colour
+-  // along its bottom edge (V2 design; it was 3). It is painted over the
+-  // fill and clipped to the same shape, so it follows the tab's corners
+-  // and cannot reach the strip.
+-  if (GetSelectionState() == TabStyle::TabSelectionState::kActive) {
+-    constexpr int kUnderlineHeight = 2;
+-    const SkPath tab_path =
+-        GetPath(TabStyle::PathType::kHighlight, canvas->image_scale(), {});
+-    gfx::ScopedCanvas underline_canvas(canvas);
+-    const float underline_scale = canvas->UndoDeviceScaleFactor();
+-    canvas->ClipPath(tab_path, true);
+-    const SkRect tab_bounds = tab_path.getBounds();
+-    cc::PaintFlags underline_flags;
+-    underline_flags.setAntiAlias(true);
+-    underline_flags.setColor(
+-        widget->GetColorProvider()->GetColor(ui::kColorSysPrimary));
+-    canvas->sk_canvas()->drawRect(
+-        SkRect::MakeLTRB(
+-            tab_bounds.left(),
+-            tab_bounds.bottom() - kUnderlineHeight * underline_scale,
+-            tab_bounds.right(), tab_bounds.bottom()),
+-        underline_flags);
+-  }
++  // boring: no line under the tab you are on. The open tab is the
++  // toolbar's own colour, so it already reads as joined to the bar.
+ 
+   PaintSeparators(canvas);
+ }
+--- a/chrome/browser/ui/tabs/tab_style.cc
++++ b/chrome/browser/ui/tabs/tab_style.cc
+@@ -32,7 +32,7 @@
+ // The standard tab width, excluding separators and overlap. 195 DIP is
+ // about as much page title as anyone reads, and it keeps more tabs
+ // legible before they start shrinking.
+-constexpr int kTabWidth = 195;
++constexpr int kTabWidth = 190;
+ 
+ }  // namespace
+ 
+@@ -110,9 +110,8 @@
+ }
+ 
+ int TabStyle::GetTopCornerRadius() const {
+-  // A calmer corner than Chromium's, matching the cards and fields on our
+-  // own pages.
+-  return 8;
++  // boring: the 12 DIP top corners of the tab in the approved mock.
++  return 12;
+ }
+ 
+ int TabStyle::GetBottomCornerRadius() const {
+--- a/chrome/browser/ui/layout_constants.cc
++++ b/chrome/browser/ui/layout_constants.cc
+@@ -105,7 +105,7 @@
+       // TabStyleViews::GetPath, which subtracts kTabStripPadding and
+       // kTabstripToolbarOverlap from this to get the painted height),
+       // matching the reference's tab height rather than Chromium's 34.
+-      return 44 + GetLayoutConstant(LayoutConstant::kTabstripToolbarOverlap);
++      return 42 + GetLayoutConstant(LayoutConstant::kTabstripToolbarOverlap);
+     case LayoutConstant::kTabStripHeight:
+       return GetLayoutConstant(LayoutConstant::kTabHeight) +
+              GetLayoutConstant(LayoutConstant::kTabStripPadding);
+@@ -114,10 +114,9 @@
+     case LayoutConstant::kTabSeparatorHeight:
+       return touch_ui ? 24 : 20;
+     case LayoutConstant::kTabPreTitlePadding:
+-      // boring: 10 DIP between the favicon and the title, matching the
+-      // reference (Tab::Layout() reads this directly as the gap after
+-      // the favicon before the title starts).
+-      return 10;
++      // boring: 8 DIP between the favicon and the title, as in the
++      // approved mock (Tab::Layout() reads this directly).
++      return 8;
+     case LayoutConstant::kTabVerticalPadding:
+       return 6;
+     case LayoutConstant::kTabHorizontalPadding:

@@ -1,0 +1,10 @@
+// Copyright 2026 boring. BSD style license.
+
+// keyboard_arrow_down, from the rounded icon set (design/v7/icons-full/icons.svg).
+// 2 px stroke on a 20 grid, round caps.
+
+CANVAS_DIMENSIONS, 16,
+STROKE, 1.6,
+MOVE_TO, 4, 6.4,
+LINE_TO, 8, 10.4,
+LINE_TO, 12, 6.4,

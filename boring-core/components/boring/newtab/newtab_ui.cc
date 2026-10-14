@@ -57,17 +57,22 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
 <meta charset="utf-8">
 <title>New Tab</title>
 <link rel="icon" type="image/svg+xml" href="brand.svg">
+<link rel="stylesheet" href="chrome://theme/colors.css?sets=ui,chrome">
 <style>
+  /* The colours are the window's own, read from the browser's theme, so the
+     page follows the colour scheme and the light or dark mode. The values
+     in light-dark() are only the fallback if the theme stylesheet fails. */
   :root { color-scheme: light dark;
-    --surface: light-dark(#faf9f6, #1c2422);
-    --paper: light-dark(#ffffff, #252e2b);
-    --ink: light-dark(#242e2d, #e8ede7);
-    --muted: light-dark(#5d6966, #adb9b2);
-    --line: light-dark(#d8ddd7, #414e47);
-    /* Field edges: 3:1 or more against the page in both themes. */
-    --field: light-dark(#7d8985, #8b9891);
-    --accent: light-dark(#176b5b, #92d4bb);
-    --soft: light-dark(#e5f1eb, #273f35);
+    --surface: var(--color-location-bar-background, light-dark(#faf9f6, #1c2422));
+    --paper: var(--color-dialog-background, light-dark(#ffffff, #252e2b));
+    --ink: var(--color-dialog-foreground, light-dark(#242e2d, #e8ede7));
+    --muted: var(--color-label-foreground-secondary, light-dark(#5d6966, #adb9b2));
+    --line: var(--color-bubble-border, light-dark(#d8ddd7, #414e47));
+    /* Field edges: 3:1 or more against the page in every scheme, so derived
+       from the ink and the page rather than fixed. */
+    --field: color-mix(in srgb, var(--ink) 52%, var(--surface));
+    --accent: var(--color-sys-primary, light-dark(#176b5b, #92d4bb));
+    --soft: var(--color-sys-primary-container, light-dark(#e5f1eb, #273f35));
     --warn: light-dark(#9e3e24, #ffb69c);
     --warn-soft: light-dark(#fbebe4, #412f28);
   }
@@ -77,10 +82,10 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   /* Always wins over any author display rule, no matter its specificity,
      so a form given the hidden attribute is always actually hidden. */
   [hidden] { display: none !important; }
-  .home { max-width: 640px; margin: 0 auto; padding: 70px 24px 56px;
+  .home { max-width: 640px; margin: 0 auto; padding: 36px 24px 32px;
           text-align: center; }
   .home-brand { display: block; width: 44px; height: 44px;
-                margin: 0 auto 24px; }
+                margin: 0 auto 20px; }
   .home h1 { font: 550 52px/1.08 system-ui, sans-serif;
        letter-spacing: -0.045em; color: var(--ink); margin: 12px 0 18px; }
   .intro { font-size: 15px; color: var(--muted); margin: 0 0 32px; }
@@ -88,9 +93,14 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
             gap: 10px;
             background: var(--paper); border: 1px solid var(--field);
             border-radius: 12px; padding: 5px 8px 5px 16px; margin: 0;
-            box-shadow: 0 3px 12px #00000003; text-align: start; }
-  .search-form:has(#q:focus-visible) { outline: 2px solid var(--accent);
-            outline-offset: 3px; }
+            box-shadow: 0 3px 12px #00000003; text-align: start;
+            outline: 2px solid transparent; outline-offset: 3px;
+            transition: outline-color 120ms ease-out,
+                        border-color 120ms ease-out; }
+  .search-form:has(#q:focus-visible) { outline-color: var(--accent); }
+  @media (hover: hover) {
+    .search-form:hover { border-color: var(--ink); }
+  }
   .search-form .icon { flex: none; color: var(--muted); }
   .search-form .engine { width: auto; min-width: 36px; gap: 4px;
         display: flex; align-items: center; padding: 0 6px;
@@ -103,8 +113,10 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
         z-index: 2; min-width: 220px; margin: 0; padding: 6px;
         list-style: none; background: var(--paper);
         border: 1px solid var(--field); border-radius: 12px;
-        box-shadow: 0 8px 24px #0000001a; }
+        box-shadow: 0 8px 24px #0000001a;
+        transform-origin: top left; animation: pop-in 150ms ease-out; }
   .engines[hidden] { display: none; }
+  @keyframes pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
   .search-form .engines button { width: 100%; height: auto; min-height: 36px;
         display: flex; align-items: center; gap: 10px; padding: 6px 10px;
         border-radius: 8px; text-align: start; font: inherit; }
@@ -122,7 +134,12 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   .search-form button { flex: none; width: 36px; height: 36px; border: none;
         border-radius: 8px; background: transparent; color: var(--ink);
         display: grid; place-items: center; padding: 0; cursor: pointer; }
-  .search-form button:hover { background: var(--soft); }
+  .search-form button { transition: background-color 120ms ease-out,
+        transform 120ms ease-out; }
+  .search-form button:active { transform: scale(0.94); }
+  @media (hover: hover) {
+    .search-form button:hover { background: var(--soft); }
+  }
   .search-form button svg { display: block; }
   .shortcuts { display: flex; flex-wrap: wrap; justify-content: center;
                gap: 32px; margin: 30px 0 0; padding: 0; list-style: none; }
@@ -136,7 +153,16 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
                         align-items: center; gap: 10px; width: 72px;
                         color: inherit; text-decoration: none;
                         background: transparent; border: none;
-                        padding: 9px; font: inherit; cursor: pointer; }
+                        padding: 9px; font: inherit; cursor: pointer;
+                        border-radius: 14px;
+                        transition: background-color 150ms ease-out,
+                                    transform 120ms ease-out; }
+  .shortcut:active { transform: scale(0.97); }
+  @media (hover: hover) {
+    .shortcut:hover { background: var(--soft); }
+    .shortcut:hover .shortcut-mark { border-color: var(--accent); }
+  }
+  .shortcut-mark { transition: border-color 150ms ease-out; }
   .shortcut-mark { width: 42px; height: 42px; border-radius: 11px;
           display: grid; place-items: center; background: var(--paper);
           border: 1px solid var(--line); font: 21px/1 Georgia, serif;
@@ -144,12 +170,19 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   .shortcut .name { max-width: 72px; overflow: hidden;
           text-overflow: ellipsis; white-space: nowrap; font-size: 12px;
           text-align: center; }
-  .remove { position: absolute; top: 3px; right: -6px; width: 20px;
-            height: 20px; border-radius: 8px; border: none; padding: 0;
+  /* 24px hit target; always faintly there on touch, where there is no hover. */
+  .remove { position: absolute; top: 1px; right: -8px; width: 24px;
+            height: 24px; border-radius: 8px; border: none; padding: 0;
             background: var(--paper); color: var(--muted);
             cursor: pointer; font: inherit; line-height: 1; opacity: 0;
-            transition: opacity 120ms ease; }
+            transition: opacity 120ms ease-out, background-color 120ms ease-out,
+                        transform 120ms ease-out; }
   .shortcuts li:hover .remove, .remove:focus-visible { opacity: 1; }
+  .remove:active { transform: scale(0.92); }
+  @media (hover: hover) {
+    .remove:hover { background: var(--soft); color: var(--ink); }
+  }
+  @media (hover: none) { .remove { opacity: 0.7; } }
   .editor { display: grid; gap: 10px; background: var(--paper);
               border: 1px solid var(--line); border-radius: 10px;
               padding: 16px 18px; margin-top: 24px; text-align: start; }
@@ -162,21 +195,31 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   .buttons { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
   button.primary { background: var(--accent); color: var(--surface);
                    border: none; border-radius: 9px; padding: 9px 16px;
-                   font: inherit; cursor: pointer; }
+                   font: inherit; cursor: pointer;
+                   transition: background-color 150ms ease-out,
+                               transform 120ms ease-out; }
+  button.primary:active, button.secondary:active { transform: scale(0.98); }
+  @media (hover: hover) {
+    button.primary:hover { background: color-mix(in srgb, var(--accent) 86%, var(--ink)); }
+    button.secondary:hover { background: var(--soft); }
+  }
   button.secondary { background: transparent; color: inherit;
                       border: 1px solid var(--line); border-radius: 9px;
-                      padding: 9px 16px; font: inherit; cursor: pointer; }
+                      padding: 9px 16px; font: inherit; cursor: pointer;
+                      transition: background-color 150ms ease-out,
+                                  transform 120ms ease-out; }
   .text-button { background: none; border: none; padding: 0; margin: 0;
                  color: var(--accent); font: inherit; font-weight: 600;
                  font-size: 13px; cursor: pointer; text-decoration: none; }
   .bad { color: var(--warn); margin: 0; font-size: 13px; }
   .home-bottom { display: flex; gap: 9px; align-items: center;
-                 justify-content: center; margin: 58px 0 0;
+                 justify-content: center; margin: 32px 0 0;
                  font-size: 12px; color: var(--muted); }
   .home-bottom.off { color: var(--warn); background: var(--warn-soft);
                     border-radius: 10px; padding: 10px 16px;
                     width: fit-content; max-width: 100%;
                     margin-inline: auto; }
+  .home-colours { margin: 14px 0 0; font-size: 12px; text-align: center; }
   .status-dot { flex: none; width: 7px; height: 7px; border-radius: 50%;
          background: var(--accent); }
   .home-bottom.off .status-dot { background: var(--warn); }
@@ -191,7 +234,11 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
     .home-bottom { flex-wrap: wrap; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .remove { transition: none; }
+    .remove, .shortcut, .shortcut-mark, .search-form, .search-form button,
+    button.primary, button.secondary { transition: none; }
+    .shortcut:active, .search-form button:active, .remove:active,
+    button.primary:active, button.secondary:active { transform: none; }
+    .engines { animation: none; }
     .shortcuts.appear li { animation: tile-fade 150ms ease-out both;
           animation-delay: 0ms; }
   }
@@ -209,7 +256,7 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   <img class="home-brand" src="brand.svg" width="44" height="44" alt=""
       aria-hidden="true">
   <h1>Just a Browser.</h1>
-  <p class="intro">Find what you came for.</p>
+  <p class="intro">Find what you&rsquo;re looking for.</p>
   <form class="search-form" id="search" role="search">
     <button id="engine" class="engine" type="button"
         aria-haspopup="dialog" aria-expanded="false"
@@ -256,6 +303,7 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
     <span class="status-dot" aria-hidden="true"></span>
     <span id="protection-text"></span>
   </p>
+  <p class="home-colours"><button class="text-button" id="colours" type="button">Colours</button></p>
 </main>
 <script src="newtab.js"></script>
 </body>
@@ -565,6 +613,10 @@ window.loadShortcuts = function(list, added, rejected) {
   }
 };
 window.loadProtection = showProtection;
+// Opens the browser's colour picker (Cool, Beige, light and dark).
+el('colours').addEventListener('click', function() {
+  chrome.send('openColours');
+});
 chrome.send('getShortcuts');
 chrome.send('getSearch');
 chrome.send('getProtection');
@@ -677,6 +729,10 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
     web_ui()->RegisterMessageCallback(
         "showEngineMenu",
         base::BindRepeating(&NewTabMessageHandler::HandleShowEngineMenu,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "openColours",
+        base::BindRepeating(&NewTabMessageHandler::HandleOpenColours,
                             base::Unretained(this)));
     // Test only: nothing a page can ask for without the switch.
     if (base::CommandLine::ForCurrentProcess()->HasSwitch(
@@ -878,6 +934,12 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
   }
 
   void RetryGetSearch() { HandleGetSearch(base::ListValue()); }
+
+  // Opens the browser's own colour picker (Customize Chrome), where the
+  // colour schemes and the light or dark mode are chosen.
+  void HandleOpenColours(const base::ListValue& args) {
+    OpenColourPickerForPage(web_ui()->GetWebContents());
+  }
 
   // [left, top, width, height] of the engine button, in the page's CSS
   // pixels. The browser shows its own search engine menu under it.

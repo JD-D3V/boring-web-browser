@@ -47,6 +47,16 @@
  }
 
  bool ToolbarView::UpdateSecurityState() {
+@@ -1738,7 +1759,8 @@
+ 
++  // boring: no divider ahead of the extensions; the mock has none.
+   if (toolbar_divider_ && extensions_container_) {
+     views::ManualLayoutUtil(layout_manager_)
+-        .SetViewHidden(toolbar_divider_, !extensions_container_->GetVisible());
++        .SetViewHidden(toolbar_divider_, true);
+   }
+   // Cast button visibility is controlled externally.
+ }
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.h
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.h
 @@ -49,6 +49,8 @@
@@ -125,23 +135,13 @@
      "//components/signin/public/base:signin_buildflags",
 --- a/chrome/browser/ui/layout_constants.cc
 +++ b/chrome/browser/ui/layout_constants.cc
-@@ -74,7 +74,8 @@
-     case LayoutConstant::kLocationBarTrailingDecorationInnerPadding:
-       return touch_ui ? 3 : 8;
-     case LayoutConstant::kLocationBarHeight:
--      return touch_ui ? 36 : 34;
-+      // boring: 38 DIP, matching the reference's address field.
-+      return touch_ui ? 36 : 38;
-     // LINT.IfChange(LocationBarIconSize)
-     case LayoutConstant::kLocationBarIconSize:
-       return touch_ui ? 20 : 16;
 @@ -119,7 +120,8 @@
      case LayoutConstant::kTabstripToolbarOverlap:
        return 1;
      case LayoutConstant::kToolbarButtonHeight:
 -      return touch_ui ? 48 : 34;
-+      // boring: 36 DIP, matching the reference's square icon buttons.
-+      return touch_ui ? 48 : 36;
++      // boring: 32 DIP, the round buttons of the approved mock.
++      return touch_ui ? 48 : 32;
      case LayoutConstant::kToolbarButtonIconSize:
        return touch_ui ? kDefaultTouchableIconSize
                        : kDefaultIconSizeChromeRefresh;
@@ -161,10 +161,10 @@
 
      case TOOLBAR_BUTTON:
 -      return gfx::Insets(touch_ui ? 12 : 7);
-+      // boring: 8 DIP of padding around the 20 DIP glyph, so the button
-+      // itself lands on 36 DIP square (see kToolbarButtonHeight above,
++      // boring: 6 DIP of padding around the 20 DIP glyph, so the button
++      // itself lands on 32 DIP square (see kToolbarButtonHeight above,
 +      // which ToolbarButton::GetTargetSize() derives from this).
-+      return gfx::Insets(touch_ui ? 12 : 8);
++      return gfx::Insets(touch_ui ? 12 : 6);
 
      case BROWSER_APP_MENU_CHIP_PADDING:
        if (touch_ui) {

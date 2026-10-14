@@ -1,0 +1,43 @@
+--- a/chrome/browser/ui/views/tabs/horizontal_tab_style_views.cc
++++ b/chrome/browser/ui/views/tabs/horizontal_tab_style_views.cc
+@@ -406,6 +406,13 @@
+   // anyway, so this asymmetry is inert there either way.
+   base_style_insets.set_left(12);
+   base_style_insets.set_right(30);
++  // boring: Chromium's insets put the content area a few DIP above the
++  // middle of the visible tab. The overlap with the toolbar is added by
++  // the caller, so the bottom inset is only the vertical padding; the
++  // content area is then centred on the tab body, where the favicon, the
++  // title and the close button all sit.
++  base_style_insets.set_bottom(
++      GetLayoutConstant(LayoutConstant::kTabVerticalPadding));
+   gfx::Insets split_insets = gfx::Insets(0);
+ 
+   // For split tabs, remove insets equal to the total separator width between
+--- a/chrome/browser/ui/views/tabs/tab.cc
++++ b/chrome/browser/ui/views/tabs/tab.cc
+@@ -522,6 +522,11 @@
+     // Add space for insets outside the favicon bounds.
+     favicon_bounds.Inset(-icon_->GetInsets());
+     favicon_bounds.set_size(icon_->GetPreferredSize());
++    // boring: centre the icon in the content area. Chromium sets it at the
++    // top edge, which only lines up when the tab is exactly as tall as the
++    // icon needs.
++    favicon_bounds.set_y(contents_rect.y() +
++                         Center(contents_rect.height(), favicon_bounds.height()));
+   }
+   icon_->SetBoundsRect(favicon_bounds);
+   icon_->SetVisible(showing_icon_);
+@@ -620,8 +625,10 @@
+     const int title_width = std::max(title_right - title_left, 0);
+     // The Label will automatically center the font's cap height within the
+     // provided vertical space.
+-    const gfx::Rect title_bounds(title_left, GetLocalBounds().y(), title_width,
+-                                 GetLocalBounds().height());
++    // boring: centred in the content area, which sits on the centre of the
++    // visible tab body, not in the whole view.
++    const gfx::Rect title_bounds(title_left, contents_rect.y(), title_width,
++                                 contents_rect.height());
+     show_title = title_width > 0;
+ 
+     if (title_bounds != target_title_bounds_) {

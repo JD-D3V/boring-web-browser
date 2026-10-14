@@ -55,17 +55,19 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
 <meta charset="utf-8">
 <title>Protection</title>
 <link rel="icon" type="image/svg+xml" href="brand.svg">
+<link rel="stylesheet" href="chrome://theme/colors.css?sets=ui,chrome">
 <style>
   :root { color-scheme: light dark;
-    --surface: light-dark(#faf9f6, #1c2422);
-    --paper: light-dark(#ffffff, #252e2b);
-    --ink: light-dark(#242e2d, #e8ede7);
-    --muted: light-dark(#5d6966, #adb9b2);
-    --line: light-dark(#d8ddd7, #414e47);
+    --surface: var(--color-location-bar-background, light-dark(#faf9f6, #1c2422));
+    --paper: var(--color-dialog-background, light-dark(#ffffff, #252e2b));
+    --ink: var(--color-dialog-foreground, light-dark(#242e2d, #e8ede7));
+    --muted: var(--color-label-foreground-secondary, light-dark(#5d6966, #adb9b2));
+    --line: var(--color-bubble-border, light-dark(#d8ddd7, #414e47));
     /* Control edges: 3:1 or more against the page in both themes. */
-    --field: light-dark(#7d8985, #8b9891);
-    --accent: light-dark(#176b5b, #92d4bb);
-    --soft: light-dark(#e5f1eb, #273f35);
+    --field: color-mix(in srgb, var(--ink) 52%, var(--surface));
+    --accent: var(--color-sys-primary, light-dark(#176b5b, #92d4bb));
+    --on-accent: var(--color-sys-on-primary, light-dark(#faf9f6, #092b25));
+    --soft: var(--color-sys-primary-container, light-dark(#e5f1eb, #273f35));
     --warning: light-dark(#9e3e24, #ffb69c);
     --warning-soft: light-dark(#fbebe4, #412f28);
   }
@@ -90,7 +92,7 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   .state-row p { font-size: 12px; margin: 6px 0 0; color: var(--muted); }
   .setting-row { display: flex; gap: 20px; justify-content: space-between;
                  align-items: center; border-top: 1px solid var(--line);
-                 padding: 18px 0; cursor: pointer; }
+                 padding: 16px 0; cursor: pointer; }
   .setting-row strong { font-size: 14px; font-weight: 600; display: block; }
   .setting-row p { font-size: 12px; margin: 5px 0 0; color: var(--muted);
                    max-width: 430px; }
@@ -122,11 +124,23 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
                           border-radius: 7px; font-weight: 600;
                           font-size: 13px; border: none; cursor: pointer;
                           font-family: inherit; }
-  .primary { background: var(--accent); color: var(--surface); }
-  .primary:hover { filter: brightness(0.92); }
+  .primary { background: var(--accent); color: var(--on-accent); }
   .secondary { border: 1px solid var(--line); background: var(--paper);
                color: var(--ink); }
-  .secondary:hover { background: var(--soft); }
+  /* Press and hover: colour and a small scale only, so input never waits. */
+  .primary, .secondary, .text-button {
+    transition: background-color 150ms ease-out, color 150ms ease-out,
+                border-color 150ms ease-out, transform 150ms ease-out; }
+  .primary:active, .secondary:active { transform: scale(0.98); }
+  .text-button:active { transform: scale(0.98); }
+  @media (hover: hover) {
+    .primary:hover { background: color-mix(in srgb, var(--accent) 86%, var(--ink)); }
+    .text-button:hover { text-decoration: underline; text-underline-offset: 3px; }
+  }
+  @media (hover: hover) { .secondary:hover { background: var(--soft); } }
+  /* Status text and list reloads fade in rather than swap. */
+  @keyframes settle { from { opacity: 0; } }
+  .state-value, .site-list li, .problem-list li { animation: settle 150ms ease-out; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .hidden { display: none; }
   .text-button { color: var(--accent); }
@@ -136,7 +150,7 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
                   font-size: 13px; }
   .site-list .secondary { min-height: 32px; padding: 6px 14px; }
   .regional { border: none; border-top: 1px solid var(--line);
-              margin: 0; padding: 18px 0 10px; min-width: 0; }
+              margin: 0; padding: 16px 0; min-width: 0; }
   .regional legend { float: left; width: 100%; padding: 0;
                      font-size: 14px; font-weight: 600;
                      margin-bottom: 8px; }
@@ -149,7 +163,7 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   h2.section { font-size: 1.3em; font-weight: 550; letter-spacing: -0.02em;
                margin: 2em 0 0.2em; }
   .choice { border: none; border-top: 1px solid var(--line); margin: 0;
-            padding: 18px 0 10px; min-width: 0; }
+            padding: 16px 0; min-width: 0; }
   .choice legend { float: left; width: 100%; padding: 0; font-size: 14px;
                    font-weight: 600; margin-bottom: 8px; }
   .choice > label { clear: both; }
@@ -170,6 +184,9 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
              clip-path: inset(50%); white-space: nowrap; }
   @media (prefers-reduced-motion: reduce) {
     .switch, .switch::before { transition: none; }
+    .primary, .secondary, .text-button { transition: none; }
+    .primary:active, .secondary:active, .text-button:active { transform: none; }
+    .state-value, .site-list li, .problem-list li { animation: none; }
   }
   @media (forced-colors: active) {
     button, input, select, textarea { border: 1px solid ButtonText; }

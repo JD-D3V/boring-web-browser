@@ -1,20 +1,20 @@
 // Copyright 2026 boring. BSD style license.
 
-// The bookmark star for a page that is not yet bookmarked, from the V2
-// icon family (icons.js "star"), 24 grid scaled to this 20 canvas. The
-// bookmarked (filled) state keeps Chromium's own icon, since a solid
-// fill is exactly what should change when the toggle flips.
+// star_chrome_refresh_old, from the rounded icon set (design/v7/icons-full/icons.svg).
+// 2 px stroke on a 20 grid, round caps.
 
 CANVAS_DIMENSIONS, 20,
-STROKE, 1.42,
-MOVE_TO, 10, 2.5,
-LINE_TO, 12.33, 7.25,
-LINE_TO, 17.5, 8,
-LINE_TO, 13.75, 11.67,
-LINE_TO, 14.67, 16.83,
-LINE_TO, 10, 14.33,
-LINE_TO, 5.33, 16.83,
-LINE_TO, 6.25, 11.67,
-LINE_TO, 2.5, 8,
-LINE_TO, 7.67, 7.25,
+STROKE, 2,
+MOVE_TO, 10, 3.4,
+LINE_TO, 12.23, 7.73,
+LINE_TO, 17.04, 8.51,
+LINE_TO, 13.61, 11.97,
+LINE_TO, 14.35, 16.79,
+LINE_TO, 10, 14.6,
+LINE_TO, 5.65, 16.79,
+LINE_TO, 6.39, 11.97,
+LINE_TO, 2.96, 8.51,
+LINE_TO, 7.77, 7.73,
 CLOSE,
+NEW_PATH,
+CIRCLE, 10, 10.8, 1.25,

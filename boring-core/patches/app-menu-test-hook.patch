@@ -1,0 +1,34 @@
+--- a/chrome/browser/ui/views/toolbar/browser_app_menu_button.cc
++++ b/chrome/browser/ui/views/toolbar/browser_app_menu_button.cc
+@@ -6,6 +6,7 @@
+ 
+ #include <set>
+ 
++#include "base/command_line.h"
+ #include "base/feature_list.h"
+ #include "base/functional/bind.h"
+ #include "base/location.h"
+@@ -69,6 +70,23 @@
+   label()->SetSkipSubpixelRenderingOpacityCheck(true);
+   label()->layer()->SetFillsBoundsOpaquely(false);
+   label()->SetSubpixelRenderingEnabled(false);
++
++  // boring: test hook. Photographing the menu means opening it without
++  // sending input to the desktop, as --boring-search-menu-test does for
++  // the search menu. Does nothing unless the switch is given.
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
++          "boring-open-app-menu")) {
++    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
++        FROM_HERE,
++        base::BindOnce(
++            [](base::WeakPtr<BrowserAppMenuButton> button) {
++              if (button) {
++                button->ShowMenu(views::MenuRunner::NO_FLAGS);
++              }
++            },
++            weak_factory_.GetWeakPtr()),
++        base::Seconds(4));
++  }
+ }
+ 
+ BrowserAppMenuButton::~BrowserAppMenuButton() = default;

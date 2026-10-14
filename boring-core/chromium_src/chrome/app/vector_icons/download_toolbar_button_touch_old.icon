@@ -1,0 +1,14 @@
+// Copyright 2026 boring. BSD style license.
+
+// download_toolbar_button_touch_old, from the rounded icon set (design/v7/icons-full/icons.svg).
+// 2 px stroke on a 20 grid, round caps.
+
+CANVAS_DIMENSIONS, 24,
+STROKE, 2.4,
+MOVE_TO, 12, 3.6,
+V_LINE_TO, 14.4,
+MOVE_TO, 7.2, 9.6,
+LINE_TO, 12, 14.4,
+LINE_TO, 16.8, 9.6,
+NEW_PATH,
+CIRCLE, 12, 19.2, 1.5,
