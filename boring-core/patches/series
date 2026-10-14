@@ -60,3 +60,4 @@ location-bar-focus-glow.patch
 menu-icon-hover.patch
 toolbar-press-scale.patch
 tab-separator-pinned.patch
+tab-chrome-sizes.patch
