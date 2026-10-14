@@ -5,11 +5,11 @@
          }));
      views::FocusRing::Get(this)->SetOutsetFocusRingDisabled(true);
 +    // boring: the glow of the approved mock, a 3 DIP soft accent ring just
-+    // outside the edge. The ring is drawn centred on bounds outset by half
-+    // its thickness, so it sits wholly outside the 1 DIP border. Its
-+    // colour is the palette's soft accent (see boring_color_mixer.cc).
++    // outside the edge. FocusRing insets its bounds by the halo inset and
++    // centres the stroke on the path, so the inset is the full thickness for
++    // the stroke to sit wholly outside the 1 DIP border (accent: mixer).
 +    views::FocusRing::Get(this)->SetHaloThickness(3.0f);
-+    views::FocusRing::Get(this)->SetHaloInset(-1.5f);
++    views::FocusRing::Get(this)->SetHaloInset(-3.0f);
 +    views::FocusRing::Get(this)->SetColorId(kColorLocationBarBorderOnMismatch);
      views::InstallPillHighlightPathGenerator(this);
  

@@ -45,7 +45,7 @@ class NativeGapsTest(unittest.TestCase):
         self.assertIn("location-bar-focus-glow.patch", text("", "series").split())
         t = text("", "location-bar-focus-glow.patch")
         self.assertIn("SetHaloThickness(3.0f)", t)
-        self.assertIn("SetHaloInset(-1.5f)", t)  # wholly outside the border
+        self.assertIn("SetHaloInset(-3.0f)", t)  # full thickness: stroke wholly outside the border
         self.assertIn("border_color = color_provider->GetColor(ui::kColorSysPrimary);", t)
         mixer = (CORE / "chromium_src" / "chrome" / "browser" / "ui" / "color" / "boring_color_mixer.cc").read_text(encoding="utf-8")
         self.assertIn("mixer[kColorLocationBarBorderOnMismatch] = {", mixer)
