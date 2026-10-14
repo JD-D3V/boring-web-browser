@@ -4,20 +4,20 @@
          display: block;
          padding-bottom: 5px; /* Prevents focus outlines from being cropped. */
          padding-top: 8px;
-+        --boring-ink: #242e2d;
-+        --boring-muted: #5d6966;
-+        --boring-line: #d8ddd7;
-+        --boring-accent: #176b5b;
-+        --boring-soft: #e5f1eb;
++        --boring-ink: var(--color-dialog-foreground, #242e2d);
++        --boring-muted: var(--color-label-foreground-secondary, #5d6966);
++        --boring-line: var(--color-bubble-border, #d8ddd7);
++        --boring-accent: var(--color-sys-primary, #176b5b);
++        --boring-soft: var(--color-sys-primary-container, #e5f1eb);
 +      }
 +
 +      @media (prefers-color-scheme: dark) {
 +        :host {
-+          --boring-ink: #e8ede7;
-+          --boring-muted: #adb9b2;
-+          --boring-line: #414e47;
-+          --boring-accent: #92d4bb;
-+          --boring-soft: #273f35;
++          --boring-ink: var(--color-dialog-foreground, #e8ede7);
++          --boring-muted: var(--color-label-foreground-secondary, #adb9b2);
++          --boring-line: var(--color-bubble-border, #414e47);
++          --boring-accent: var(--color-sys-primary, #92d4bb);
++          --boring-soft: var(--color-sys-primary-container, #273f35);
 +        }
        }
  

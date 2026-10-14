@@ -55,17 +55,19 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
 <meta charset="utf-8">
 <title>Protection</title>
 <link rel="icon" type="image/svg+xml" href="brand.svg">
+<link rel="stylesheet" href="chrome://theme/colors.css?sets=ui,chrome">
 <style>
   :root { color-scheme: light dark;
-    --surface: light-dark(#faf9f6, #1c2422);
-    --paper: light-dark(#ffffff, #252e2b);
-    --ink: light-dark(#242e2d, #e8ede7);
-    --muted: light-dark(#5d6966, #adb9b2);
-    --line: light-dark(#d8ddd7, #414e47);
+    --surface: var(--color-location-bar-background, light-dark(#faf9f6, #1c2422));
+    --paper: var(--color-dialog-background, light-dark(#ffffff, #252e2b));
+    --ink: var(--color-dialog-foreground, light-dark(#242e2d, #e8ede7));
+    --muted: var(--color-label-foreground-secondary, light-dark(#5d6966, #adb9b2));
+    --line: var(--color-bubble-border, light-dark(#d8ddd7, #414e47));
     /* Control edges: 3:1 or more against the page in both themes. */
-    --field: light-dark(#7d8985, #8b9891);
-    --accent: light-dark(#176b5b, #92d4bb);
-    --soft: light-dark(#e5f1eb, #273f35);
+    --field: color-mix(in srgb, var(--ink) 52%, var(--surface));
+    --accent: var(--color-sys-primary, light-dark(#176b5b, #92d4bb));
+    --on-accent: var(--color-sys-on-primary, light-dark(#faf9f6, #092b25));
+    --soft: var(--color-sys-primary-container, light-dark(#e5f1eb, #273f35));
     --warning: light-dark(#9e3e24, #ffb69c);
     --warning-soft: light-dark(#fbebe4, #412f28);
   }
@@ -122,11 +124,23 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
                           border-radius: 7px; font-weight: 600;
                           font-size: 13px; border: none; cursor: pointer;
                           font-family: inherit; }
-  .primary { background: var(--accent); color: var(--surface); }
-  .primary:hover { filter: brightness(0.92); }
+  .primary { background: var(--accent); color: var(--on-accent); }
   .secondary { border: 1px solid var(--line); background: var(--paper);
                color: var(--ink); }
-  .secondary:hover { background: var(--soft); }
+  /* Press and hover: colour and a small scale only, so input never waits. */
+  .primary, .secondary, .text-button {
+    transition: background-color 150ms ease-out, color 150ms ease-out,
+                border-color 150ms ease-out, transform 150ms ease-out; }
+  .primary:active, .secondary:active { transform: scale(0.98); }
+  .text-button:active { transform: scale(0.98); }
+  @media (hover: hover) {
+    .primary:hover { background: color-mix(in srgb, var(--accent) 86%, var(--ink)); }
+    .text-button:hover { text-decoration: underline; text-underline-offset: 3px; }
+  }
+  @media (hover: hover) { .secondary:hover { background: var(--soft); } }
+  /* Status text and list reloads fade in rather than swap. */
+  @keyframes settle { from { opacity: 0; } }
+  .state-value, .site-list li, .problem-list li { animation: settle 150ms ease-out; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .hidden { display: none; }
   .text-button { color: var(--accent); }
@@ -170,6 +184,9 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
              clip-path: inset(50%); white-space: nowrap; }
   @media (prefers-reduced-motion: reduce) {
     .switch, .switch::before { transition: none; }
+    .primary, .secondary, .text-button { transition: none; }
+    .primary:active, .secondary:active, .text-button:active { transform: none; }
+    .state-value, .site-list li, .problem-list li { animation: none; }
   }
   @media (forced-colors: active) {
     button, input, select, textarea { border: 1px solid ButtonText; }

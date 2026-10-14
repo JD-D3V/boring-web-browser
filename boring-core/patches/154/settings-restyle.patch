@@ -595,16 +595,16 @@
 +   * the actual --cr-* and --color-* remapping lives on settings-ui's :host in
 +   * settings_ui.html so the tokens never leak outside chrome://settings. */
 +  --boring-chrome: #eeede8;
-+  --boring-surface: #faf9f6;
-+  --boring-paper: #fff;
-+  --boring-ink: #242e2d;
-+  --boring-muted: #5d6966;
-+  --boring-line: #d8ddd7;
++  --boring-surface: var(--color-location-bar-background, #faf9f6);
++  --boring-paper: var(--color-dialog-background, #fff);
++  --boring-ink: var(--color-dialog-foreground, #242e2d);
++  --boring-muted: var(--color-label-foreground-secondary, #5d6966);
++  --boring-line: var(--color-bubble-border, #d8ddd7);
 +  /* Field and control edges: 3.45:1 on surface, 3.63:1 on paper. */
-+  --boring-field: #7d8985;
-+  --boring-accent: #176b5b;
-+  --boring-accent-on: #faf9f6;
-+  --boring-soft: #e5f1eb;
++  --boring-field: color-mix(in srgb, var(--boring-ink) 52%, var(--boring-surface, #7d8985));
++  --boring-accent: var(--color-sys-primary, #176b5b);
++  --boring-accent-on: var(--color-sys-on-primary, #faf9f6);
++  --boring-soft: var(--color-sys-primary-container, #e5f1eb);
 +  --boring-warning: #9e3e24;
 +  --boring-warning-soft: #fbebe4;
 +
@@ -622,16 +622,16 @@
    html {
 +    /* boring browser design tokens (dark). */
 +    --boring-chrome: #171f1d;
-+    --boring-surface: #1c2422;
-+    --boring-paper: #252e2b;
-+    --boring-ink: #e8ede7;
-+    --boring-muted: #adb9b2;
-+    --boring-line: #414e47;
++    --boring-surface: var(--color-location-bar-background, #1c2422);
++    --boring-paper: var(--color-dialog-background, #252e2b);
++    --boring-ink: var(--color-dialog-foreground, #e8ede7);
++    --boring-muted: var(--color-label-foreground-secondary, #adb9b2);
++    --boring-line: var(--color-bubble-border, #414e47);
 +    /* 5.28:1 on surface, 4.65:1 on paper. */
-+    --boring-field: #8b9891;
-+    --boring-accent: #92d4bb;
-+    --boring-accent-on: #092b25;
-+    --boring-soft: #273f35;
++    --boring-field: color-mix(in srgb, var(--boring-ink) 52%, var(--boring-surface, #8b9891));
++    --boring-accent: var(--color-sys-primary, #92d4bb);
++    --boring-accent-on: var(--color-sys-on-primary, #092b25);
++    --boring-soft: var(--color-sys-primary-container, #273f35);
 +    --boring-warning: #ffb69c;
 +    --boring-warning-soft: #412f28;
 +

@@ -34,17 +34,19 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
 <meta charset="utf-8">
 <title>AI summaries</title>
 <link rel="icon" type="image/svg+xml" href="brand.svg">
+<link rel="stylesheet" href="chrome://theme/colors.css?sets=ui,chrome">
 <style>
   :root { color-scheme: light dark;
-    --surface: light-dark(#faf9f6, #1c2422);
-    --paper: light-dark(#ffffff, #252e2b);
-    --ink: light-dark(#242e2d, #e8ede7);
-    --muted: light-dark(#5d6966, #adb9b2);
+    --surface: var(--color-location-bar-background, light-dark(#faf9f6, #1c2422));
+    --paper: var(--color-dialog-background, light-dark(#ffffff, #252e2b));
+    --ink: var(--color-dialog-foreground, light-dark(#242e2d, #e8ede7));
+    --muted: var(--color-label-foreground-secondary, light-dark(#5d6966, #adb9b2));
     /* Field edges need 3:1 against the panel; --line is too faint. */
-    --field: light-dark(#7d8985, #8b9891);
-    --line: light-dark(#d8ddd7, #414e47);
-    --accent: light-dark(#176b5b, #92d4bb);
-    --soft: light-dark(#e5f1eb, #273f35);
+    --field: color-mix(in srgb, var(--ink) 52%, var(--surface));
+    --line: var(--color-bubble-border, light-dark(#d8ddd7, #414e47));
+    --accent: var(--color-sys-primary, light-dark(#176b5b, #92d4bb));
+    --on-accent: var(--color-sys-on-primary, light-dark(#faf9f6, #092b25));
+    --soft: var(--color-sys-primary-container, light-dark(#e5f1eb, #273f35));
     --warning: light-dark(#9e3e24, #ffb69c);
     --warning-soft: light-dark(#fbebe4, #412f28);
   }
@@ -80,11 +82,9 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
     min-height: 40px; padding: 10px 18px; border-radius: 7px;
     font-weight: 600; font-size: 13px; border: none; cursor: pointer;
     font-family: inherit; }
-  .primary { background: var(--accent); color: var(--surface); }
-  .primary:hover { filter: brightness(0.92); }
+  .primary { background: var(--accent); color: var(--on-accent); }
   .secondary { border: 1px solid var(--line); background: var(--paper);
                color: var(--ink); }
-  .secondary:hover { background: var(--soft); }
   .text-button { background: none; color: var(--accent); padding: 8px 0;
                  text-align: left; min-height: 0; }
   .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px;
@@ -93,6 +93,17 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
                  border-radius: 8px; color: var(--ink); font-size: 13px;
                  line-height: 1.6; margin-top: 24px; }
   .warning-note { background: var(--warning-soft); }
+  /* Press and hover: colour and a small scale only, so input never waits. */
+  .primary, .secondary, .text-button {
+    transition: background-color 150ms ease-out, color 150ms ease-out,
+                border-color 150ms ease-out, transform 150ms ease-out; }
+  .primary:active, .secondary:active { transform: scale(0.98); }
+  .text-button:active { transform: scale(0.98); }
+  @media (hover: hover) {
+    .primary:hover { background: color-mix(in srgb, var(--accent) 86%, var(--ink)); }
+    .text-button:hover { text-decoration: underline; text-underline-offset: 3px; }
+  }
+  @media (hover: hover) { .secondary:hover { background: var(--soft); } }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .hidden { display: none; }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden;
@@ -107,6 +118,10 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   #ask .summary-destination p { margin: 8px 0 0; font-size: 13px; }
   #summary { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 16px; }
   #summary-settings { margin-bottom: 1.5em; }
+  @media (prefers-reduced-motion: reduce) {
+    .primary, .secondary, .text-button { transition: none; }
+    .primary:active, .secondary:active, .text-button:active { transform: none; }
+  }
   @media (forced-colors: active) {
     button, input, select { border: 1px solid ButtonText; }
     .primary { background: Highlight; color: HighlightText; }

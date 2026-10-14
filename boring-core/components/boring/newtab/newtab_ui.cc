@@ -93,9 +93,14 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
             gap: 10px;
             background: var(--paper); border: 1px solid var(--field);
             border-radius: 12px; padding: 5px 8px 5px 16px; margin: 0;
-            box-shadow: 0 3px 12px #00000003; text-align: start; }
-  .search-form:has(#q:focus-visible) { outline: 2px solid var(--accent);
-            outline-offset: 3px; }
+            box-shadow: 0 3px 12px #00000003; text-align: start;
+            outline: 2px solid transparent; outline-offset: 3px;
+            transition: outline-color 120ms ease-out,
+                        border-color 120ms ease-out; }
+  .search-form:has(#q:focus-visible) { outline-color: var(--accent); }
+  @media (hover: hover) {
+    .search-form:hover { border-color: var(--ink); }
+  }
   .search-form .icon { flex: none; color: var(--muted); }
   .search-form .engine { width: auto; min-width: 36px; gap: 4px;
         display: flex; align-items: center; padding: 0 6px;
@@ -108,8 +113,10 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
         z-index: 2; min-width: 220px; margin: 0; padding: 6px;
         list-style: none; background: var(--paper);
         border: 1px solid var(--field); border-radius: 12px;
-        box-shadow: 0 8px 24px #0000001a; }
+        box-shadow: 0 8px 24px #0000001a;
+        transform-origin: top left; animation: pop-in 150ms ease-out; }
   .engines[hidden] { display: none; }
+  @keyframes pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
   .search-form .engines button { width: 100%; height: auto; min-height: 36px;
         display: flex; align-items: center; gap: 10px; padding: 6px 10px;
         border-radius: 8px; text-align: start; font: inherit; }
@@ -127,7 +134,12 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   .search-form button { flex: none; width: 36px; height: 36px; border: none;
         border-radius: 8px; background: transparent; color: var(--ink);
         display: grid; place-items: center; padding: 0; cursor: pointer; }
-  .search-form button:hover { background: var(--soft); }
+  .search-form button { transition: background-color 120ms ease-out,
+        transform 120ms ease-out; }
+  .search-form button:active { transform: scale(0.94); }
+  @media (hover: hover) {
+    .search-form button:hover { background: var(--soft); }
+  }
   .search-form button svg { display: block; }
   .shortcuts { display: flex; flex-wrap: wrap; justify-content: center;
                gap: 32px; margin: 30px 0 0; padding: 0; list-style: none; }
@@ -141,7 +153,16 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
                         align-items: center; gap: 10px; width: 72px;
                         color: inherit; text-decoration: none;
                         background: transparent; border: none;
-                        padding: 9px; font: inherit; cursor: pointer; }
+                        padding: 9px; font: inherit; cursor: pointer;
+                        border-radius: 14px;
+                        transition: background-color 150ms ease-out,
+                                    transform 120ms ease-out; }
+  .shortcut:active { transform: scale(0.97); }
+  @media (hover: hover) {
+    .shortcut:hover { background: var(--soft); }
+    .shortcut:hover .shortcut-mark { border-color: var(--accent); }
+  }
+  .shortcut-mark { transition: border-color 150ms ease-out; }
   .shortcut-mark { width: 42px; height: 42px; border-radius: 11px;
           display: grid; place-items: center; background: var(--paper);
           border: 1px solid var(--line); font: 21px/1 Georgia, serif;
@@ -149,12 +170,19 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   .shortcut .name { max-width: 72px; overflow: hidden;
           text-overflow: ellipsis; white-space: nowrap; font-size: 12px;
           text-align: center; }
-  .remove { position: absolute; top: 3px; right: -6px; width: 20px;
-            height: 20px; border-radius: 8px; border: none; padding: 0;
+  /* 24px hit target; always faintly there on touch, where there is no hover. */
+  .remove { position: absolute; top: 1px; right: -8px; width: 24px;
+            height: 24px; border-radius: 8px; border: none; padding: 0;
             background: var(--paper); color: var(--muted);
             cursor: pointer; font: inherit; line-height: 1; opacity: 0;
-            transition: opacity 120ms ease; }
+            transition: opacity 120ms ease-out, background-color 120ms ease-out,
+                        transform 120ms ease-out; }
   .shortcuts li:hover .remove, .remove:focus-visible { opacity: 1; }
+  .remove:active { transform: scale(0.92); }
+  @media (hover: hover) {
+    .remove:hover { background: var(--soft); color: var(--ink); }
+  }
+  @media (hover: none) { .remove { opacity: 0.7; } }
   .editor { display: grid; gap: 10px; background: var(--paper);
               border: 1px solid var(--line); border-radius: 10px;
               padding: 16px 18px; margin-top: 24px; text-align: start; }
@@ -167,10 +195,19 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   .buttons { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
   button.primary { background: var(--accent); color: var(--surface);
                    border: none; border-radius: 9px; padding: 9px 16px;
-                   font: inherit; cursor: pointer; }
+                   font: inherit; cursor: pointer;
+                   transition: background-color 150ms ease-out,
+                               transform 120ms ease-out; }
+  button.primary:active, button.secondary:active { transform: scale(0.98); }
+  @media (hover: hover) {
+    button.primary:hover { background: color-mix(in srgb, var(--accent) 86%, var(--ink)); }
+    button.secondary:hover { background: var(--soft); }
+  }
   button.secondary { background: transparent; color: inherit;
                       border: 1px solid var(--line); border-radius: 9px;
-                      padding: 9px 16px; font: inherit; cursor: pointer; }
+                      padding: 9px 16px; font: inherit; cursor: pointer;
+                      transition: background-color 150ms ease-out,
+                                  transform 120ms ease-out; }
   .text-button { background: none; border: none; padding: 0; margin: 0;
                  color: var(--accent); font: inherit; font-weight: 600;
                  font-size: 13px; cursor: pointer; text-decoration: none; }
@@ -197,7 +234,11 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
     .home-bottom { flex-wrap: wrap; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .remove { transition: none; }
+    .remove, .shortcut, .shortcut-mark, .search-form, .search-form button,
+    button.primary, button.secondary { transition: none; }
+    .shortcut:active, .search-form button:active, .remove:active,
+    button.primary:active, button.secondary:active { transform: none; }
+    .engines { animation: none; }
     .shortcuts.appear li { animation: tile-fade 150ms ease-out both;
           animation-delay: 0ms; }
   }
