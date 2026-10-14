@@ -1,0 +1,58 @@
+--- a/chrome/browser/ui/toolbar/app_menu_model.cc
++++ b/chrome/browser/ui/toolbar/app_menu_model.cc
+@@ -2129,23 +2129,6 @@
+ 
+   AddSeparator(ui::NORMAL_SEPARATOR);
+ 
+-#if !BUILDFLAG(IS_CHROMEOS)
+-  sub_menus_.push_back(std::make_unique<ProfileSubMenuModel>(
+-      this, browser()->GetProfile(),
+-      BrowserWindow::FromBrowser(browser())->GetColorProvider()));
+-  auto* const profile_submenu_model =
+-      static_cast<ProfileSubMenuModel*>(sub_menus_.back().get());
+-  AddSubMenu(kProfileMenuPlaceholder, profile_submenu_model->profile_name(),
+-             profile_submenu_model);
+-  SetIconForCommandId(kProfileMenuPlaceholder,
+-                      profile_submenu_model->avatar_image_model());
+-  SetElementIdentifierAt(GetIndexOfCommandId(kProfileMenuPlaceholder).value(),
+-                         kProfileMenuItem);
+-  SetAccessibleNameAt(GetIndexOfCommandId(kProfileMenuPlaceholder).value(),
+-                      profile_submenu_model->accessible_name());
+-  AddSeparator(ui::SPACING_SEPARATOR);
+-#endif
+-
+   if (!browser_->GetProfile()->IsGuestSession()) {
+     sub_menus_.push_back(
+         std::make_unique<PasswordsAndAutofillSubMenuModel>(this));
+@@ -2191,19 +2174,6 @@
+     SetElementIdentifierAt(
+         GetIndexOfCommandId(kBookmarksMenuPlaceholder).value(),
+         kBookmarksMenuItem);
+-  }
+-
+-  if (browser_->GetProfile()->IsRegularProfile()) {
+-    auto saved_tab_groups_model = std::make_unique<ui::SimpleMenuModel>(this);
+-    sub_menus_.push_back(std::move(saved_tab_groups_model));
+-    AddSubMenuWithStringIdAndVectorIcon(
+-        this, kSavedTabGroupsMenuPlaceholder, IDS_SAVED_TAB_GROUPS_MENU,
+-        sub_menus_.back().get(),
+-        features::IsRoundedIconsEnabled() ? kGridViewIcon
+-                                          : kSavedTabGroupBarEverythingOldIcon);
+-    SetElementIdentifierAt(
+-        GetIndexOfCommandId(kSavedTabGroupsMenuPlaceholder).value(),
+-        kTabGroupsMenuItem);
+   }
+ 
+   // Extensions sub menu.
+@@ -2285,9 +2255,8 @@
+ 
+   sub_menus_.push_back(
+       std::make_unique<SaveAndShareSubMenuModel>(this, browser_));
+-  int string_id = media_router::MediaRouterEnabled(browser()->GetProfile())
+-                      ? IDS_CAST_SAVE_AND_SHARE_MENU
+-                      : IDS_SAVE_AND_SHARE_MENU;
++  // boring: no Cast in the name; the approved menu has no such row.
++  int string_id = IDS_SAVE_AND_SHARE_MENU;
+   AddSubMenuWithStringIdAndVectorIcon(
+       this, kSaveAndShareMenuPlaceholder, string_id, sub_menus_.back().get(),
+       features::IsRoundedIconsEnabled() ? kFileSaveIcon

@@ -106,6 +106,8 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   const Palette& p = beige ? (dark ? kBeigeDark : kBeigeLight)
                            : (dark ? kCoolDark : kCoolLight);
   ui::ColorMixer& mixer = provider->AddMixer();
+  // The mock's hover wash: 7% of the ink in light, 9% in dark.
+  const float hover_wash = dark ? 0.09f : 0.07f;
 
   // The band behind the tabs is its own tone. The toolbar and the open
   // tab are one surface below it, so the open tab reads as joined to the
@@ -132,9 +134,9 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   // approved mock, not the tinted colour Chromium derives from the seed.
   // Tabs picked together (ctrl-click) take a wash of the accent.
   mixer[kColorTabBackgroundInactiveHoverFrameActive] = {
-      color_utils::AlphaBlend(p.ink, p.frame, 0.11f)};
+      color_utils::AlphaBlend(p.ink, p.frame, hover_wash)};
   mixer[kColorTabBackgroundInactiveHoverFrameInactive] = {
-      color_utils::AlphaBlend(p.ink, p.window, 0.11f)};
+      color_utils::AlphaBlend(p.ink, p.window, hover_wash)};
   mixer[kColorTabBackgroundSelectedFrameActive] = {
       color_utils::AlphaBlend(p.accent, p.frame, 0.22f)};
   mixer[kColorTabBackgroundSelectedFrameInactive] = {
@@ -152,7 +154,16 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   mixer[kColorToolbarText] = {p.ink};
   mixer[kColorToolbarButtonIcon] = {p.ink};
   mixer[kColorToolbarButtonIconInactive] = {p.muted};
-  mixer[kColorToolbarButtonIconHovered] = {p.ink};
+  // As in the mock, a button you hover or press gets a wash of the ink
+  // behind it and its icon turns accent; pressing deepens the wash to
+  // the accent's own.
+  mixer[kColorToolbarButtonIconHovered] = {p.accent};
+  mixer[kColorToolbarButtonIconPressed] = {p.accent};
+  mixer[kColorToolbarInkDrop] = {p.ink};
+  mixer[kColorToolbarInkDropHover] = {
+      SkColorSetA(p.ink, dark ? 0x17 : 0x12)};
+  mixer[kColorToolbarInkDropRipple] = {
+      SkColorSetA(p.accent, dark ? 0x38 : 0x29)};
   mixer[kColorToolbarSeparator] = {p.line};
   mixer[kColorNewTabButtonForegroundFrameActive] = {p.ink};
   mixer[kColorNewTabButtonForegroundFrameInactive] = {p.muted};
