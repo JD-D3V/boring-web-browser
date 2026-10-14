@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Cool and Beige are choices in Customize Chrome's colour picker.
+"""Cool, Beige and Green are choices in Customize Chrome's colour picker.
 
 Chromium's picker saves the picked colour per profile and already has a
-Light / Dark / Device mode. Two of its swatches become our schemes: picking
+Light / Dark / Device mode. Three of its swatches become our schemes: picking
 one stores that scheme's seed colour, and boring_color_mixer.cc recognises
 the seed. The tests keep the swatches and the mixer in step.
 
@@ -63,17 +63,22 @@ class ColourPickerTest(unittest.TestCase):
         src = MIXER.read_text(encoding="utf-8")
         self.assertEqual(picker_entry("IDS_NTP_COLORS_BEIGE"), seed(src, "kBeigeSeed"))
 
-    def test_the_two_seeds_differ_and_the_old_teal_still_means_beige(self):
+    def test_green_swatch_stores_the_mixers_green_seed_under_the_name_green(self):
         src = MIXER.read_text(encoding="utf-8")
-        self.assertNotEqual(seed(src, "kCoolSeed"), seed(src, "kBeigeSeed"))
+        self.assertEqual(picker_entry("IDS_NTP_COLORS_GREEN"), seed(src, "kGreenSeed"))
+
+    def test_the_seeds_differ_and_the_old_teal_still_means_beige(self):
+        src = MIXER.read_text(encoding="utf-8")
+        seeds = [seed(src, n) for n in ("kCoolSeed", "kBeigeSeed", "kLegacyBeigeSeed", "kGreenSeed")]
+        self.assertEqual(len(set(seeds)), 4)
         self.assertEqual(seed(src, "kLegacyBeigeSeed"), (0x17, 0x6b, 0x5b))
         self.assertRegex(src, r"key\.user_color == kLegacyBeigeSeed")
         self.assertRegex(src, r"key\.user_color == kBeigeSeed")
 
-    def test_both_schemes_are_recognised_as_ours(self):
+    def test_all_schemes_are_recognised_as_ours(self):
         src = MIXER.read_text(encoding="utf-8")
         body = re.search(r"bool UsingOurTheme.*?\n\}", src, re.S).group(0)
-        for name in ("kCoolSeed", "kBeigeSeed", "kLegacyBeigeSeed"):
+        for name in ("kCoolSeed", "kBeigeSeed", "kLegacyBeigeSeed", "kGreenSeed"):
             self.assertIn(name, body)
 
     def test_labels_are_strings_chromium_already_ships(self):
@@ -82,7 +87,13 @@ class ColourPickerTest(unittest.TestCase):
         text = after()
         self.assertIn("IDS_NTP_COLORS_BLUE", text)
         self.assertIn("IDS_NTP_COLORS_BEIGE", text)
+        self.assertIn("IDS_NTP_COLORS_GREEN", text)
         self.assertNotIn("generated_resources.grd", PATCH.read_text(encoding="utf-8"))
+
+    def test_green_is_picked_by_its_seed_and_has_its_own_palette(self):
+        src = MIXER.read_text(encoding="utf-8")
+        self.assertRegex(src, r"bool WantsGreen[^{]*\{\s*if \(key\.user_color == kGreenSeed\)")
+        self.assertRegex(src, r"WantsGreen\(key\)\s*\?\s*\(dark \? kGreenDark : kGreenLight\)")
 
     def test_only_the_picker_file_changes(self):
         files = sorted(ln for ln in PATCH.read_text(encoding="utf-8").splitlines() if ln.startswith("+++ "))

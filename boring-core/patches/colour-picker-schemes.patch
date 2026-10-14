@@ -20,3 +20,13 @@
                           ui::mojom::BrowserColorVariant::kNeutral),
          DynamicColorInfo(/*id=*/4,
                           SkColorSetRGB(136, 136, 136),
+@@ -59,7 +62,8 @@ const decltype(kDynamicCustomizeChromeColors) kDynamicCustomizeChromeColors =
+                          IDS_NTP_COLORS_AQUA,
+                          ui::mojom::BrowserColorVariant::kTonalSpot),
++        // boring: the Green scheme's seed.
+         DynamicColorInfo(/*id=*/6,
+-                         SkColorSetRGB(0, 255, 0),
++                         SkColorSetRGB(0x1f, 0x8a, 0x72),
+                          IDS_NTP_COLORS_GREEN,
+                          ui::mojom::BrowserColorVariant::kTonalSpot),
+         DynamicColorInfo(/*id=*/7,

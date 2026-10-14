@@ -19,7 +19,8 @@ FRAME_PATCH = CORE / "patches" / "frame-color.patch"
 
 FIELDS = ["window", "frame", "toolbar", "field", "paper", "ink", "muted",
           "line", "accent", "tint"]
-NAMES = ["kCoolLight", "kCoolDark", "kBeigeLight", "kBeigeDark"]
+NAMES = ["kCoolLight", "kCoolDark", "kBeigeLight", "kBeigeDark",
+         "kGreenLight", "kGreenDark"]
 
 RGB = re.compile(r"SkColorSetRGB\(\s*0x([0-9a-fA-F]{2}),\s*0x([0-9a-fA-F]{2}),\s*0x([0-9a-fA-F]{2})\s*\)")
 TOKEN = re.compile(RGB.pattern + r"|SK_ColorWHITE")
@@ -68,7 +69,7 @@ PALETTES = parse_palettes()
 
 
 class PaletteTest(unittest.TestCase):
-    def test_four_palettes_exist_with_ten_colours_each(self):
+    def test_six_palettes_exist_with_ten_colours_each(self):
         self.assertEqual(sorted(PALETTES), sorted(NAMES))
         for name, p in PALETTES.items():
             self.assertEqual(p["_count"], len(FIELDS), name)
@@ -123,6 +124,24 @@ class PaletteTest(unittest.TestCase):
         self.assertEqual(hexof(dark["accent"]), "#92d4bb")
         self.assertEqual(hexof(dark["tint"]), "#273f35")
 
+    def test_green_is_cool_surfaces_with_the_brand_green_accent(self):
+        for mode in ("Light", "Dark"):
+            green, cool = PALETTES["kGreen" + mode], PALETTES["kCool" + mode]
+            for field in FIELDS:
+                if field not in ("accent", "tint"):
+                    self.assertEqual(green[field], cool[field], "%s %s" % (mode, field))
+        self.assertEqual(hexof(PALETTES["kGreenLight"]["accent"]), "#176b5b")
+        self.assertEqual(hexof(PALETTES["kGreenDark"]["accent"]), "#4fc9ae")
+
+    def test_green_tints_are_washes_of_the_accent(self):
+        # About 11% over white in light and 18% over the toolbar in dark.
+        for mode, base, alpha in (("Light", (255, 255, 255), 0.11), ("Dark", None, 0.18)):
+            p = PALETTES["kGreen" + mode]
+            base = base or p["toolbar"]
+            want = tuple(round(b + (a - b) * alpha) for a, b in zip(p["accent"], base))
+            for got, w in zip(p["tint"], want):
+                self.assertLessEqual(abs(got - w), 1, "%s tint %s vs %s" % (mode, hexof(p["tint"]), hexof(want)))
+
     def test_default_seed_in_the_frame_patch_is_the_cool_seed(self):
         src = MIXER.read_text(encoding="utf-8")
         cool = RGB.search(re.search(r"kCoolSeed\s*=\s*([^;]+);", src).group(1))
@@ -166,6 +185,7 @@ class PaletteTest(unittest.TestCase):
         src = MIXER.read_text(encoding="utf-8")
         self.assertIn('"boring-scheme"', src)
         self.assertIn("beige", src)
+        self.assertIn("green", src)
 
 
 if __name__ == "__main__":

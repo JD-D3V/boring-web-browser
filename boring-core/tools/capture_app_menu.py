@@ -91,7 +91,7 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--size", default="1404x900", help="window size, WxH")
     ap.add_argument("--dark", action="store_true")
-    ap.add_argument("--scheme", choices=["cool", "beige"], default="cool")
+    ap.add_argument("--scheme", choices=["cool", "beige", "green"], default="cool")
     ap.add_argument("--url", default="chrome://boring-newtab")
     args = ap.parse_args()
 
@@ -108,8 +108,8 @@ def main():
     ]
     if args.dark:
         chrome_args.append("--force-dark-mode")
-    if args.scheme == "beige":
-        chrome_args.append("--boring-scheme=beige")
+    if args.scheme in ("beige", "green"):
+        chrome_args.append("--boring-scheme=" + args.scheme)
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
