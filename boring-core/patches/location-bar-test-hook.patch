@@ -31,7 +31,7 @@
 +        base::BindOnce(
 +            [](base::WeakPtr<LocationBarView> bar) {
 +              if (bar) {
-+                bar->FocusLocation(/*is_user_initiated=*/true);
++                bar->FocusLocation(true, false);
 +              }
 +            },
 +            weak_factory_.GetWeakPtr()),
