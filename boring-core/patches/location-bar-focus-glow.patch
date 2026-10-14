@@ -1,0 +1,36 @@
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -237,6 +237,13 @@
+                  !v->GetOmniboxController()->IsPopupOpen();
+         }));
+     views::FocusRing::Get(this)->SetOutsetFocusRingDisabled(true);
++    // boring: the glow of the approved mock, a 3 DIP soft accent ring just
++    // outside the edge. The ring is drawn centred on bounds outset by half
++    // its thickness, so it sits wholly outside the 1 DIP border. Its
++    // colour is the palette's soft accent (see boring_color_mixer.cc).
++    views::FocusRing::Get(this)->SetHaloThickness(3.0f);
++    views::FocusRing::Get(this)->SetHaloInset(-1.5f);
++    views::FocusRing::Get(this)->SetColorId(kColorLocationBarBorderOnMismatch);
+     views::InstallPillHighlightPathGenerator(this);
+ 
+ #if BUILDFLAG(OS_LEVEL_GEOLOCATION_PERMISSION_SUPPORTED)
+@@ -1384,11 +1391,16 @@
+         is_caret_visible
+             ? color_provider->GetColor(kColorOmniboxResultsBackground)
+             : color_provider->GetColor(kColorLocationBarBorder);
+-  } else if (!is_caret_visible && input_in_progress) {
++  } else if (is_caret_visible) {
++    // boring: a focused field takes the accent on its edge, and the focus
++    // ring adds the soft glow around it.
++    border_color = color_provider->GetColor(ui::kColorSysPrimary);
++  } else if (input_in_progress) {
+     // Under CR23 guidelines, if the (regular contrast) Omnibox is unfocused,
+     // but still contains in-progress user input, a unique border color will be
+-    // applied.
+-    border_color = color_provider->GetColor(kColorLocationBarBorderOnMismatch);
++    // applied. boring: kColorLocationBarBorderOnMismatch is the focus glow's
++    // colour, so this reads the plain border like Chromium's own mapping.
++    border_color = color_provider->GetColor(kColorLocationBarBorder);
+   }
+ 
+   if (is_popup_mode_) {

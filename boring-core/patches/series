@@ -56,3 +56,4 @@ spellcheck-dictionary-dir.patch
 memory-saver-defaults.patch
 performance-tab-sleeping.patch
 background-mode-keep-running.patch
+location-bar-focus-glow.patch

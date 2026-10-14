@@ -179,6 +179,11 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   mixer[kColorOmniboxTextDimmed] = {p.muted};
   mixer[kColorLocationBarBorder] = {p.line};
   mixer[kColorLocationBarBorderOpaque] = {p.line};
+  // The focus glow around the address bar: the mock's soft accent, 10% in
+  // light and 14% in dark. LocationBarView reads this id for its focus
+  // ring (see location-bar-focus-glow.patch).
+  mixer[kColorLocationBarBorderOnMismatch] = {
+      SkColorSetA(p.accent, dark ? 0x24 : 0x1A)};
   mixer[kColorOmniboxResultsBackground] = {p.paper};
 
   // One accent, used where something is focused or selected.
