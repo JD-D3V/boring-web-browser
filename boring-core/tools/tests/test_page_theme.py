@@ -59,5 +59,15 @@ class PageThemeTest(unittest.TestCase):
                              (color_id, field, color_id, field), token)
 
 
+    def test_settings_always_loads_the_theme_stylesheet(self):
+        # Upstream only adds colors.css when a webui-refresh flag is on, which
+        # it is not here, so --boring-* silently stayed on their fallbacks.
+        for sub in ("", "153/", "154/"):
+            text = (CORE / "patches" / sub / "settings-restyle.patch").read_text(encoding="utf-8")
+            self.assertIn("-    const enableThemedColors =", text, sub)
+            self.assertIn("+    this.addThemedColors_();", text, sub)
+            self.assertNotIn("+    if (enableThemedColors)", text, sub)
+
+
 if __name__ == "__main__":
     unittest.main()

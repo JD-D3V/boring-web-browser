@@ -341,7 +341,24 @@
        </div>
 --- a/chrome/browser/resources/settings/settings_ui/settings_ui.ts
 +++ b/chrome/browser/resources/settings/settings_ui/settings_ui.ts
-@@ -281,12 +281,19 @@
+@@ -157,12 +157,9 @@
+     super.connectedCallback();
+ 
+-    const enableThemedColors =
+-        loadTimeData.getString('webuiRefresh2026') !== '' ||
+-        loadTimeData.getString('settingsRefresh2026') !== '';
+-    if (enableThemedColors) {
+-      this.addThemedColors_();
+-      ColorChangeUpdater.forDocument().start();
+-    }
++    // Always load chrome://theme/colors.css: the page's --boring-* tokens read
++    // --color-* from it, and without it they fall back to the fixed palette.
++    this.addThemedColors_();
++    ColorChangeUpdater.forDocument().start();
+     document.documentElement.classList.remove('loading');
+ 
+     // Preload bold Roboto so it doesn't load and flicker the first time used.
+@@ -281,12 +278,19 @@
        this.$.drawer.close();
      }
  
