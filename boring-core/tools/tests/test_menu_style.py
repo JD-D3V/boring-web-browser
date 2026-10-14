@@ -16,6 +16,8 @@ from pathlib import Path
 CORE = Path(__file__).resolve().parents[2]
 REPO = CORE.parent
 PATCH = CORE / "patches" / "menu-style.patch"
+WIDTH_PATCH = CORE / "patches" / "menu-width.patch"
+BUTTON = CORE / "chromium_src" / "chrome" / "browser" / "ui" / "views" / "toolbar" / "boring_protection_button.cc"
 SERIES = CORE / "patches" / "series"
 MIXER = CORE / "chromium_src" / "chrome" / "browser" / "ui" / "color" / "boring_color_mixer.cc"
 MOCK = REPO / "design" / "v7" / "icons-dotted" / "src" / "template.html"
@@ -77,6 +79,19 @@ class MenuStyleTest(unittest.TestCase):
         # Chromium sizes fonts in whole pixels, so 13 is the nearest.
         text = PATCH.read_text(encoding="utf-8")
         self.assertIn("DeriveWithSizeDelta(1)", text)
+
+    def test_app_menu_has_a_minimum_width_and_a_wide_shortcut_gap(self):
+        # The dark menu came out 22 px narrower than the light one, and
+        # "Delete browsing data..." sat 12 px from its shortcut.
+        text = WIDTH_PATCH.read_text(encoding="utf-8")
+        self.assertIn("menu-width.patch", SERIES.read_text().split())
+        self.assertIn("set_minimum_preferred_width(360)", text)
+        self.assertIn("max_minor_text_width_ += 2 * config.item_horizontal_padding;", text)
+
+    def test_protection_chip_text_is_13px_medium(self):
+        src = BUTTON.read_text(encoding="utf-8")
+        self.assertIn("DeriveWithSizeDelta(13 - current_font.GetFontSize())", src)
+        self.assertIn("DeriveWithWeight(gfx::Font::Weight::MEDIUM)", src)
 
     def test_menu_colours_come_from_the_palette(self):
         src = MIXER.read_text(encoding="utf-8")

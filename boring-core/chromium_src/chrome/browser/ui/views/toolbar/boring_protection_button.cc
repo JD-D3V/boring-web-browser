@@ -137,8 +137,8 @@ BoringProtectionButton::BoringProtectionButton(BrowserWindowInterface* browser)
   FollowActiveTab();
 
   // boring: the reference's Protection control is 10 DIP of horizontal
-  // padding around the shield and the word, 7 DIP between them, and 12px
-  // text, not a generic toolbar button's sizing. Comes after
+  // padding around the shield and the word, 7 DIP between them, and 13px
+  // medium-weight text, as big as the rest of the toolbar's text, not a generic toolbar button's sizing. Comes after
   // UpdateState() because SetLabelSideSpacing() only adds space when
   // there is already text to space away from, and this button always
   // has some (see ReadState(): every branch leaves a non-empty label).
@@ -146,7 +146,8 @@ BoringProtectionButton::BoringProtectionButton(BrowserWindowInterface* browser)
   SetLabelSideSpacing(7);
   const gfx::FontList& current_font = label()->font_list();
   label()->SetFontList(
-      current_font.DeriveWithSizeDelta(12 - current_font.GetFontSize()));
+      current_font.DeriveWithSizeDelta(13 - current_font.GetFontSize())
+          .DeriveWithWeight(gfx::Font::Weight::MEDIUM));
 }
 
 BoringProtectionButton::~BoringProtectionButton() {
