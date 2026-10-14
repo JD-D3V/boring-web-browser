@@ -60,6 +60,19 @@ class NativeGapsTest(unittest.TestCase):
         self.assertIn("+            icon_color = GetColorProvider()->GetColor(ui::kColorSysPrimary);", t)
         self.assertIn("-            icon_color = colors.icon_color;", t)
 
+    def test_toolbar_press_scales_to_the_mocks_94_percent_and_respects_reduced_motion(self):
+        # .tb:active{transform:scale(.94)...}
+        mock = (CORE.parent / "design" / "v7" / "icons-dotted" / "index.html").read_text(encoding="utf-8")
+        self.assertIn(".tb:active{transform:scale(.94)", mock)
+        self.assertIn("toolbar-press-scale.patch", text("", "series").split())
+        t = text("", "toolbar-press-scale.patch")
+        self.assertIn("0.94f", t)
+        self.assertIn("PrefersReducedMotion()", t)
+        self.assertIn("ShouldRenderRichAnimation()", t)
+        self.assertIn("IMMEDIATELY_ANIMATE_TO_NEW_TARGET", t)  # interruptible
+        self.assertIn("pressed ? 70 : 120", t)  # short
+        self.assertNotIn("OnMousePressed", t.replace("+", ""))  # input path untouched
+
 
 if __name__ == "__main__":
     unittest.main()

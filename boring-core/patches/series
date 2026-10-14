@@ -58,3 +58,4 @@ performance-tab-sleeping.patch
 background-mode-keep-running.patch
 location-bar-focus-glow.patch
 menu-icon-hover.patch
+toolbar-press-scale.patch
