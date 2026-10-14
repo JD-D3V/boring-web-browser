@@ -1,10 +1,11 @@
 --- a/chrome/browser/ui/views/bookmarks/bookmark_bar_view.cc
 +++ b/chrome/browser/ui/views/bookmarks/bookmark_bar_view.cc
-@@ -903,6 +903,19 @@
-   overflow_button_->SetVisible(show_bookmarks_overflow);
-   x += overflow_pref.width();
+@@ -895,6 +895,20 @@
+         (bookmarks_button_visible || show_bookmarks_overflow));
+   }
  
-+  // boring: with nothing on the bar, say what it is for.
++  // boring: with nothing on the bar, say what it is for. It sits where the
++  // first bookmark would, before x jumps to the right-hand buttons.
 +  if (empty_hint_) {
 +    const bool show_hint = bookmark_buttons_.empty() &&
 +                           bookmark_bar_children_count == 0 &&
@@ -17,10 +18,10 @@
 +    }
 +  }
 +
-   // Bookmarks Separator.
-   if (bookmarks_separator_view_->GetVisible()) {
-     bookmarks_separator_view_->SetBounds(
-@@ -1595,6 +1608,11 @@
+   // Layout the right side buttons.
+   x = max_x + bookmark_bar_button_padding;
+ 
+@@ -1595,6 +1609,11 @@
    // they are added matches the visual order.
    apps_page_shortcut_ = AddChildView(CreateAppsPageShortcutButton());
  
@@ -32,7 +33,7 @@
    managed_bookmarks_button_ = AddChildView(CreateManagedBookmarksButton());
    // Also re-enabled when the model is loaded.
    managed_bookmarks_button_->SetEnabled(false);
-@@ -2167,6 +2185,8 @@
+@@ -2167,6 +2186,8 @@
    }
  
    apps_page_shortcut_->SetEnabledTextColors(color);
