@@ -164,6 +164,19 @@ class IconMapTest(unittest.TestCase):
                 got = re.search(r"CANVAS_DIMENSIONS,\s*(\d+)", Path(dest).read_text()).group(1)
                 self.assertEqual(got, want, str(rel))
 
+    def test_back_forward_reload_and_home_are_solid_strokes_without_the_dot(self):
+        # JD chose solid arrows over the dotted set for these four (2026-10-14).
+        vi = CHROMIUM_SRC / "chrome" / "app" / "vector_icons"
+        for name in ("arrow_back_old", "arrow_forward_old", "autorenew_old",
+                     "navigate_home_chrome_refresh_old", "home", "reload_touch_old",
+                     "back_arrow_touch_old", "forward_arrow_touch_old",
+                     "navigate_home_touch_old", "autorenew"):
+            self.assertNotIn("CIRCLE,", (vi / (name + ".icon")).read_text(), name)
+        svg = (TOOLS.parents[1] / "design" / "v7" / "icons-dotted" / "icons.svg").read_text(encoding="utf-8")
+        for sid in ("b-back", "b-forward", "b-reload", "b-home"):
+            symbol = re.search(r'<symbol id="%s".*?</symbol>' % sid, svg, re.S).group(0)
+            self.assertNotIn("<circle", symbol, sid)
+
     def test_menu_icon_is_dots(self):
         text = (CHROMIUM_SRC / "chrome" / "app" / "vector_icons" / "boring_menu.icon").read_text()
         self.assertEqual(text.count("CIRCLE,"), 3)

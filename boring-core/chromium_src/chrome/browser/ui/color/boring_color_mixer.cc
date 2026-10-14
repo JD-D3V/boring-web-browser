@@ -15,7 +15,8 @@ namespace {
 
 // A scheme is a palette for light and one for dark. Cool is the default
 // and follows the system light/dark setting. Beige is the warm scheme we
-// shipped first.
+// shipped first. Green is Cool's surfaces with the brand mark's green as
+// the accent.
 //
 // The top of the window is built from three tones: the frame band behind
 // the tabs, the toolbar, and the open tab, which is the toolbar's own
@@ -62,6 +63,24 @@ constexpr Palette kBeigeDark = {
     SkColorSetRGB(0xad, 0xb9, 0xb2), SkColorSetRGB(0x41, 0x4e, 0x47),
     SkColorSetRGB(0x92, 0xd4, 0xbb), SkColorSetRGB(0x27, 0x3f, 0x35)};
 
+// Green keeps Cool's surfaces; only the accent and its washes change. The
+// accent is the brand mark's green, lifted in dark so it reads on the dark
+// toolbar. The tint is the accent at about 11% over white in light and 18%
+// over the toolbar in dark, as the other palettes derive theirs.
+constexpr Palette kGreenLight = {
+    SkColorSetRGB(0xdc, 0xde, 0xe8), SkColorSetRGB(0xd3, 0xd6, 0xe3),
+    SK_ColorWHITE,                   SkColorSetRGB(0xee, 0xf0, 0xf6),
+    SK_ColorWHITE,                   SkColorSetRGB(0x23, 0x24, 0x2e),
+    SkColorSetRGB(0x50, 0x52, 0x65), SkColorSetRGB(0xd9, 0xdb, 0xe6),
+    SkColorSetRGB(0x17, 0x6b, 0x5b), SkColorSetRGB(0xe5, 0xef, 0xed)};
+
+constexpr Palette kGreenDark = {
+    SkColorSetRGB(0x07, 0x08, 0x0b), SkColorSetRGB(0x0a, 0x0b, 0x0f),
+    SkColorSetRGB(0x1d, 0x1e, 0x28), SkColorSetRGB(0x0f, 0x10, 0x15),
+    SkColorSetRGB(0x1d, 0x1e, 0x28), SkColorSetRGB(0xdc, 0xdd, 0xe6),
+    SkColorSetRGB(0xa0, 0xa2, 0xb4), SkColorSetRGB(0x2c, 0x2d, 0x3a),
+    SkColorSetRGB(0x4f, 0xc9, 0xae), SkColorSetRGB(0x26, 0x3d, 0x40)};
+
 // The seed colours we recognise. Cool is registered as the default (see
 // frame-color.patch). Beige's is the teal we shipped first, so a profile
 // that already holds it keeps the look it has. Anyone who picks their own
@@ -75,13 +94,16 @@ constexpr SkColor kBeigeSeed = SkColorSetRGB(0xc8, 0xbd, 0xa4);
 // The teal Beige used as its seed before it had a swatch. A profile that
 // stored it keeps the look it has.
 constexpr SkColor kLegacyBeigeSeed = SkColorSetRGB(0x17, 0x6b, 0x5b);
+// Green's swatch. Not the accent itself, which is the legacy Beige seed
+// above, so a profile that holds that teal stays Beige.
+constexpr SkColor kGreenSeed = SkColorSetRGB(0x1f, 0x8a, 0x72);
 
 bool UsingOurTheme(const ui::ColorProviderKey& key) {
   return !key.custom_theme &&
          key.user_color_source ==
              ui::ColorProviderKey::UserColorSource::kAccent &&
          (key.user_color == kCoolSeed || key.user_color == kBeigeSeed ||
-          key.user_color == kLegacyBeigeSeed);
+          key.user_color == kLegacyBeigeSeed || key.user_color == kGreenSeed);
 }
 
 // Beige when the profile holds one of Beige's seeds, or when launched with
@@ -94,6 +116,15 @@ bool WantsBeige(const ui::ColorProviderKey& key) {
              "boring-scheme") == "beige";
 }
 
+// Green when the profile holds Green's seed, or with --boring-scheme=green.
+bool WantsGreen(const ui::ColorProviderKey& key) {
+  if (key.user_color == kGreenSeed) {
+    return true;
+  }
+  return base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
+             "boring-scheme") == "green";
+}
+
 }  // namespace
 
 void AddBoringColorMixer(ui::ColorProvider* provider,
@@ -102,9 +133,10 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
     return;
   }
   const bool dark = key.color_mode == ui::ColorProviderKey::ColorMode::kDark;
-  const bool beige = WantsBeige(key);
-  const Palette& p = beige ? (dark ? kBeigeDark : kBeigeLight)
-                           : (dark ? kCoolDark : kCoolLight);
+  const Palette& p = WantsBeige(key)
+                         ? (dark ? kBeigeDark : kBeigeLight)
+                         : WantsGreen(key) ? (dark ? kGreenDark : kGreenLight)
+                                           : (dark ? kCoolDark : kCoolLight);
   ui::ColorMixer& mixer = provider->AddMixer();
   // The mock's hover wash: 7% of the ink in light, 9% in dark.
   const float hover_wash = dark ? 0.09f : 0.07f;
