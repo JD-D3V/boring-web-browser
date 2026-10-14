@@ -92,7 +92,7 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   .state-row p { font-size: 12px; margin: 6px 0 0; color: var(--muted); }
   .setting-row { display: flex; gap: 20px; justify-content: space-between;
                  align-items: center; border-top: 1px solid var(--line);
-                 padding: 18px 0; cursor: pointer; }
+                 padding: 16px 0; cursor: pointer; }
   .setting-row strong { font-size: 14px; font-weight: 600; display: block; }
   .setting-row p { font-size: 12px; margin: 5px 0 0; color: var(--muted);
                    max-width: 430px; }
@@ -150,7 +150,7 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
                   font-size: 13px; }
   .site-list .secondary { min-height: 32px; padding: 6px 14px; }
   .regional { border: none; border-top: 1px solid var(--line);
-              margin: 0; padding: 18px 0 10px; min-width: 0; }
+              margin: 0; padding: 16px 0; min-width: 0; }
   .regional legend { float: left; width: 100%; padding: 0;
                      font-size: 14px; font-weight: 600;
                      margin-bottom: 8px; }
@@ -163,7 +163,7 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   h2.section { font-size: 1.3em; font-weight: 550; letter-spacing: -0.02em;
                margin: 2em 0 0.2em; }
   .choice { border: none; border-top: 1px solid var(--line); margin: 0;
-            padding: 18px 0 10px; min-width: 0; }
+            padding: 16px 0; min-width: 0; }
   .choice legend { float: left; width: 100%; padding: 0; font-size: 14px;
                    font-weight: 600; margin-bottom: 8px; }
   .choice > label { clear: both; }

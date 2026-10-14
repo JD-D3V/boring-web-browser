@@ -36,6 +36,7 @@ tab-connected.patch
 tab-center-content.patch
 colour-picker-schemes.patch
 bookmark-bar.patch
+bookmark-bar-hint.patch
 app-menu-icon.patch
 protection-icon.patch
 app-menu-rows.patch
