@@ -1,0 +1,42 @@
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -10,11 +10,14 @@
+ #include <string_view>
+ #include <utility>
+ 
++#include "base/command_line.h"
+ #include "base/feature_list.h"
+ #include "base/functional/bind.h"
+ #include "base/functional/callback_helpers.h"
+ #include "base/metrics/field_trial_params.h"
++#include "base/task/single_thread_task_runner.h"
++#include "base/time/time.h"
+ #include "base/trace_event/trace_event.h"
+ #include "build/build_config.h"
+ #include "chrome/app/vector_icons/vector_icons.h"
+ #include "chrome/browser/actor/ui/actor_ui_window_controller.h"
+@@ -509,6 +512,24 @@
+   RegisterOmniboxActions(browser_);
+
+   is_initialized_ = true;
++
++  // boring: test hook. Photographing the focused address bar and its
++  // glow means focusing it without sending input to the desktop, as
++  // --boring-open-app-menu does for the main menu. Does nothing unless
++  // the switch is given.
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
++          "boring-focus-omnibox")) {
++    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
++        FROM_HERE,
++        base::BindOnce(
++            [](base::WeakPtr<LocationBarView> bar) {
++              if (bar) {
++                bar->FocusLocation(/*is_user_initiated=*/true);
++              }
++            },
++            weak_factory_.GetWeakPtr()),
++        base::Seconds(4));
++  }
+ }
+
+ bool LocationBarView::IsInitialized() const {

@@ -168,6 +168,17 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   mixer[kColorNewTabButtonForegroundFrameActive] = {p.ink};
   mixer[kColorNewTabButtonForegroundFrameInactive] = {p.muted};
 
+  // The bookmarks bar is one surface with the toolbar above it (Chromium's
+  // Material mixer gives it the page base colour instead). Its buttons
+  // are made with the toolbar's ink drop, so they already take the same
+  // hover and press wash.
+  mixer[kColorBookmarkBarBackground] = {p.toolbar};
+  mixer[kColorBookmarkBarForeground] = {p.ink};
+  mixer[kColorBookmarkBarForegroundDisabled] = {p.muted};
+  mixer[kColorBookmarkButtonIcon] = {p.ink};
+  mixer[kColorBookmarkFolderIcon] = {p.ink};
+  mixer[kColorBookmarkBarSeparatorChromeRefresh] = {p.line};
+
   // The address bar reads as a field you can type in, like the boxes on
   // our own pages. The location bar reads its own two ids, not the
   // subtle-emphasis pair, so both have to be set.

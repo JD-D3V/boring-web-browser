@@ -57,6 +57,7 @@ memory-saver-defaults.patch
 performance-tab-sleeping.patch
 background-mode-keep-running.patch
 location-bar-focus-glow.patch
+location-bar-test-hook.patch
 menu-icon-hover.patch
 toolbar-press-scale.patch
 tab-separator-pinned.patch
