@@ -51,6 +51,15 @@ class NativeGapsTest(unittest.TestCase):
         self.assertIn("mixer[kColorLocationBarBorderOnMismatch] = {", mixer)
         self.assertIn("dark ? 0x24 : 0x1A", mixer)  # 14% dark, 10% light
 
+    def test_menu_row_icon_turns_accent_on_hover(self):
+        # .menu button:hover svg{color:var(--accent)}
+        mock = (CORE.parent / "design" / "v7" / "icons-dotted" / "index.html").read_text(encoding="utf-8")
+        self.assertIn(".menu button:hover svg{color:var(--accent)}", mock)
+        self.assertIn("menu-icon-hover.patch", text("", "series").split())
+        t = text("", "menu-icon-hover.patch")
+        self.assertIn("+            icon_color = GetColorProvider()->GetColor(ui::kColorSysPrimary);", t)
+        self.assertIn("-            icon_color = colors.icon_color;", t)
+
 
 if __name__ == "__main__":
     unittest.main()

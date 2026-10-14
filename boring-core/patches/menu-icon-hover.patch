@@ -1,0 +1,13 @@
+--- a/ui/views/controls/menu/menu_item_view.cc
++++ b/ui/views/controls/menu/menu_item_view.cc
+@@ -1752,7 +1752,9 @@
+               !icon_color_.has_value() ||
+               icon_color_.value() == ui::kColorMenuIcon;
+           if (is_default_icon) {
+-            icon_color = colors.icon_color;
++            // boring: a row you hover turns its icon accent, as in the
++            // approved mock. A row with its own icon colour keeps it.
++            icon_color = GetColorProvider()->GetColor(ui::kColorSysPrimary);
+           }
+         }
+       }
