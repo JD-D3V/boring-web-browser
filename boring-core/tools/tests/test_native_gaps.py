@@ -73,6 +73,16 @@ class NativeGapsTest(unittest.TestCase):
         self.assertIn("pressed ? 70 : 120", t)  # short
         self.assertNotIn("OnMousePressed", t.replace("+", ""))  # input path untouched
 
+    def test_tab_separator_and_pinned_width_follow_the_mock(self):
+        # .tab.pinned{flex:0 0 44px...} .tab .sep{...height:14px;width:1px...}
+        mock = (CORE.parent / "design" / "v7" / "icons-dotted" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("flex:0 0 44px", mock)
+        self.assertIn("height:14px;width:1px", mock)
+        self.assertIn("tab-separator-pinned.patch", text("", "series").split())
+        t = text("", "tab-separator-pinned.patch")
+        self.assertIn("+constexpr int kSeparatorHeight = 14;", t)
+        self.assertIn("+  constexpr int standard_pinned_width = 44;", t)
+
 
 if __name__ == "__main__":
     unittest.main()

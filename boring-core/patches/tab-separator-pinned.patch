@@ -1,0 +1,27 @@
+--- a/chrome/browser/ui/tabs/tab_style.cc
++++ b/chrome/browser/ui/tabs/tab_style.cc
+@@ -26,7 +26,8 @@
+ // tab's own visible width and leave only the gap).
+ constexpr int kSeparatorThickness = 1;
+ constexpr int kSeparatorHorizontalMargin = 1;
+-constexpr int kSeparatorHeight = 16;
++// boring: the 14 DIP hairline between tabs in the approved mock.
++constexpr int kSeparatorHeight = 14;
+ 
+ 
+ // The standard tab width, excluding separators and overlap. 195 DIP is
+@@ -54,10 +55,10 @@
+ }
+ 
+ int TabStyle::GetPinnedWidth(const bool is_split) const {
+-  constexpr int kTabPinnedContentWidth = 24;
+-  const int standard_pinned_width = kTabPinnedContentWidth +
+-                                    GetContentsInsets().left() +
+-                                    GetContentsInsets().right();
++  // boring: a pinned tab is 44 DIP wide, as in the approved mock, not the
++  // 24 DIP of content plus the asymmetric insets (about 66). Its favicon is
++  // centred by Tab::MaybeAdjustLeftForPinnedTab(), not by those insets.
++  constexpr int standard_pinned_width = 44;
+   if (is_split) {
+     // Split tabs will recoup half of the tab overlap to reduce extra
+     // whitespace.
