@@ -212,6 +212,7 @@ diff --git a/chrome/browser/ui/webui/settings/settings_ui.cc b/chrome/browser/ui
    AddSettingsPageUIHandler(std::make_unique<ResetSettingsHandler>(profile));
  
 diff --git a/chrome/browser/resources/settings/boring_page/boring_protection_page.html b/chrome/browser/resources/settings/boring_page/boring_protection_page.html
+new file mode 100644
 --- /dev/null
 +++ b/chrome/browser/resources/settings/boring_page/boring_protection_page.html
 @@ -0,0 +1,68 @@
@@ -284,6 +285,7 @@ diff --git a/chrome/browser/resources/settings/boring_page/boring_protection_pag
 +      </settings-toggle-button>
 +    </settings-section>
 diff --git a/chrome/browser/resources/settings/boring_page/boring_protection_page.ts b/chrome/browser/resources/settings/boring_page/boring_protection_page.ts
+new file mode 100644
 --- /dev/null
 +++ b/chrome/browser/resources/settings/boring_page/boring_protection_page.ts
 @@ -0,0 +1,122 @@
@@ -410,6 +412,7 @@ diff --git a/chrome/browser/resources/settings/boring_page/boring_protection_pag
 +customElements.define(
 +    BoringProtectionPageElement.is, BoringProtectionPageElement);
 diff --git a/chrome/browser/resources/settings/boring_page/boring_reading_page.html b/chrome/browser/resources/settings/boring_page/boring_reading_page.html
+new file mode 100644
 --- /dev/null
 +++ b/chrome/browser/resources/settings/boring_page/boring_reading_page.html
 @@ -0,0 +1,61 @@
@@ -475,6 +478,7 @@ diff --git a/chrome/browser/resources/settings/boring_page/boring_reading_page.h
 +        the page and choose "Open in reader view".</div>
 +    </settings-section>
 diff --git a/chrome/browser/resources/settings/boring_page/boring_reading_page.ts b/chrome/browser/resources/settings/boring_page/boring_reading_page.ts
+new file mode 100644
 --- /dev/null
 +++ b/chrome/browser/resources/settings/boring_page/boring_reading_page.ts
 @@ -0,0 +1,45 @@
@@ -524,6 +528,7 @@ diff --git a/chrome/browser/resources/settings/boring_page/boring_reading_page.t
 +
 +customElements.define(BoringReadingPageElement.is, BoringReadingPageElement);
 diff --git a/chrome/browser/resources/settings/boring_page/boring_summaries_page.html b/chrome/browser/resources/settings/boring_page/boring_summaries_page.html
+new file mode 100644
 --- /dev/null
 +++ b/chrome/browser/resources/settings/boring_page/boring_summaries_page.html
 @@ -0,0 +1,63 @@
@@ -591,6 +596,7 @@ diff --git a/chrome/browser/resources/settings/boring_page/boring_summaries_page
 +      </div>
 +    </settings-section>
 diff --git a/chrome/browser/resources/settings/boring_page/boring_summaries_page.ts b/chrome/browser/resources/settings/boring_page/boring_summaries_page.ts
+new file mode 100644
 --- /dev/null
 +++ b/chrome/browser/resources/settings/boring_page/boring_summaries_page.ts
 @@ -0,0 +1,98 @@
