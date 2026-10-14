@@ -32,8 +32,12 @@ SEARCH_ROOTS = ("chrome", "components", "ui")
 REFERENCE_SIZE_DIP = 48
 SKIP_DIRS = {"out", "third_party", "node_modules", "test", "tests"}
 
+# Icons that are ours alone: no Chromium file to replace.
+OURS = ("boring_menu", "boring_protection")
+OURS_SUFFIXES = tuple(n + ".icon" for n in OURS)
+
 # Our id -> Chromium icon base names (file name without .icon). Our ids
-# with no entry here (protection, split-view, sleeping, vertical and
+# with no entry here (split-view, sleeping, vertical and
 # horizontal tabs, zoom, lock-open, reader, profile) have no Chromium
 # counterpart worth replacing; they stay in the set for new UI. The
 # warning icons also stay Chromium's: they are filled, which says
@@ -58,6 +62,7 @@ ICON_MAP = {
     "b-downloads-tray": ["download_menu_old"],
     "b-extensions": ["extension_chrome_refresh_old", "extension_old"],
     "b-menu": ["boring_menu"],
+    "b-protection": ["boring_protection"],
     "b-close": ["close_tab_chrome_refresh_old", "close_chrome_refresh_old",
                 "close"],
     "b-new-tab": ["new_tab_refresh_old", "add_old"],
@@ -148,7 +153,7 @@ def flips_in_rtl(tree_root, rel):
     whole canvas. A replacement copies whichever its original does, so it
     never ends up flipped twice or not at all.
     """
-    if rel.endswith("boring_menu.icon"):
+    if rel.endswith(OURS_SUFFIXES):
         return False
     return "FLIPS_IN_RTL" in pristine.text(tree_root, rel)
 
@@ -173,9 +178,9 @@ def generate(tree_root, out_root):
     written = []
     for sid, names in ICON_MAP.items():
         for name in names:
-            if name == "boring_menu":
+            if name in OURS:
                 # Ours already, not in the Chromium tree.
-                rels = [("chrome/app/vector_icons/boring_menu.icon", None)]
+                rels = [("chrome/app/vector_icons/%s.icon" % name, None)]
             else:
                 rels = [(rel, original_canvas(tree_root, rel))
                         for rel in resolved.get(name, [])]

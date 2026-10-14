@@ -74,7 +74,7 @@ class IconMapTest(unittest.TestCase):
 
     def test_every_mapped_name_exists_in_the_tree(self):
         missing = [n for names in icon_map.ICON_MAP.values() for n in names
-                   if not self.resolved.get(n)]
+                   if n not in icon_map.OURS and not self.resolved.get(n)]
         self.assertEqual(missing, [])
 
     def test_no_chromium_icon_is_mapped_twice(self):
@@ -133,6 +133,8 @@ class IconMapTest(unittest.TestCase):
             icon_map.generate(TREE, out)
             for dest in icon_map.generate(TREE, out):
                 rel = str(Path(dest).relative_to(out)).replace("\\", "/")
+                if Path(rel).name in icon_map.OURS_SUFFIXES:
+                    continue  # ours alone, nothing to match
                 original = pristine.text(TREE, rel)
                 got = "FLIPS_IN_RTL" in Path(dest).read_text()
                 self.assertEqual(got, "FLIPS_IN_RTL" in original, rel)
@@ -152,7 +154,7 @@ class IconMapTest(unittest.TestCase):
             for dest in icon_map.generate(TREE, out):
                 rel = Path(dest).relative_to(out)
                 original = Path(TREE) / rel  # overlaid by apply.py once it has run
-                if rel.name == "boring_menu.icon":  # ours, not Chromium's
+                if rel.name in ("boring_menu.icon", "boring_protection.icon"):  # ours, not Chromium's
                     continue
                 # The tree holds our overlays once apply.py has run; the
                 # originals are in the pristine store.
@@ -166,6 +168,11 @@ class IconMapTest(unittest.TestCase):
         text = (CHROMIUM_SRC / "chrome" / "app" / "vector_icons" / "boring_menu.icon").read_text()
         self.assertEqual(text.count("CIRCLE,"), 3)
         self.assertNotIn("LINE_TO", text)
+
+    def test_protection_icon_is_the_mocks_shield(self):
+        text = (CHROMIUM_SRC / "chrome" / "app" / "vector_icons" / "boring_protection.icon").read_text()
+        self.assertIn("MOVE_TO, 10, 3,", text)
+        self.assertEqual(text.count("CIRCLE,"), 1)
 
     def test_committed_icons_match_the_generator(self):
         with tempfile.TemporaryDirectory() as out:
