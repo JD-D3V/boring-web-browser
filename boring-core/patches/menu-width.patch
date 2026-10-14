@@ -1,0 +1,25 @@
+--- a/ui/views/controls/menu/submenu_view.cc
++++ b/ui/views/controls/menu/submenu_view.cc
+@@ -283,7 +283,9 @@
+   }
+   const auto& config = MenuConfig::instance();
+   if (max_minor_text_width_ > 0) {
+-    max_minor_text_width_ += config.item_horizontal_padding;
++    // boring: 24 DIP between a label and its shortcut, not the 12 of the
++    // icon gap, so "Delete browsing data..." does not touch "Ctrl+Shift+Del".
++    max_minor_text_width_ += 2 * config.item_horizontal_padding;
+   }
+ 
+   // Finish calculating our optimum width.
+--- a/chrome/browser/ui/views/toolbar/app_menu.cc
++++ b/chrome/browser/ui/views/toolbar/app_menu.cc
+@@ -1034,6 +1034,9 @@
+   auto root = std::make_unique<MenuItemView>(/*delegate=*/this);
+   root_ = root.get();
+   PopulateMenu(root_, model);
++  // boring: one width for every colour scheme, so the menu does not shrink
++  // to its widest row.
++  root_->GetSubmenu()->set_minimum_preferred_width(360);
+ 
+   int32_t types = views::MenuRunner::HAS_MNEMONICS;
+   if (for_drop()) {
