@@ -250,6 +250,11 @@ def main():
     ap.add_argument("--profile", default=None)
     ap.add_argument("--extra", action="append", default=[])
     ap.add_argument(
+        "--focus-omnibox",
+        action="store_true",
+        help="focus the address bar via the test hook, to photograph the glow",
+    )
+    ap.add_argument(
         "--automation-banner",
         action="store_true",
         help="keep chromedriver's 'controlled by automated test software' bar",
