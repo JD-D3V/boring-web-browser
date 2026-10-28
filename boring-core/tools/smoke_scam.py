@@ -65,7 +65,7 @@ def check_switch(b, failures):
     asked = b.run(
         "return document.getElementById('no-bypass').checked && "
         "!document.getElementById('confirm-off').classList.contains('hidden')"
-        " && /ask you to turn this off/.test("
+        " && /ask\\s+you to turn this off/.test("
         "document.getElementById('confirm-text').textContent)"
     )
     if not asked:
