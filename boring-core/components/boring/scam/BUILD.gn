@@ -22,6 +22,9 @@ static_library("scam") {
     "//content/public/browser",
     "//net",
     "//ui/base",
+    "//ui/color",
+    "//ui/color:color_headers",
+    "//ui/gfx",
     "//url",
   ]
 }

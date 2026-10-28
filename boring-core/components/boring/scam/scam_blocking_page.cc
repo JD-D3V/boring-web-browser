@@ -13,14 +13,18 @@
 #include "components/user_prefs/user_prefs.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/web_contents.h"
+#include "third_party/skia/include/core/SkColor.h"
+#include "ui/color/color_id.h"
+#include "ui/color/color_provider.h"
+#include "ui/gfx/color_utils.h"
 
 namespace boring {
 
 namespace {
 
 // The page is written directly here, in plain language, with big text.
-// It stays calm on purpose, and shares its colours with the AI and
-// protection pages.
+// It stays calm on purpose, and takes its colours from the window's own
+// palette (see ColourVariables).
 constexpr char kPageTop[] = R"HTML(<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -28,18 +32,9 @@ constexpr char kPageTop[] = R"HTML(<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Warning: this site looks dangerous</title>
 <style>
-  :root { color-scheme: light dark;
-    --surface: light-dark(#faf9f6, #1c2422);
-    --paper: light-dark(#ffffff, #252e2b);
-    --ink: light-dark(#242e2d, #e8ede7);
-    --muted: light-dark(#5d6966, #adb9b2);
-    --line: light-dark(#d8ddd7, #414e47);
-    --accent: light-dark(#4f46e5, #9d9aff);
-    --warning: light-dark(#9e3e24, #ffb69c);
-    --warning-soft: light-dark(#fbebe4, #412f28);
-  }
+  %COLOURS%
   * { box-sizing: border-box; }
-  body { background: var(--surface); color: var(--ink);
+  body { background: var(--paper); color: var(--ink);
          font: 14px/1.6 "Segoe UI", system-ui, sans-serif;
          margin: 0; display: flex; min-height: 100vh; align-items: center;
          justify-content: center; }
@@ -57,13 +52,13 @@ constexpr char kPageTop[] = R"HTML(<!DOCTYPE html>
   p { color: var(--muted); font-size: 14px; line-height: 1.65;
       margin: 0 0 1em; }
   .host { font-size: 14px; padding: 14px 18px; border: 1px solid var(--line);
-          border-radius: 8px; background: var(--paper); color: var(--ink);
+          border-radius: 8px; background: var(--chip); color: var(--ink);
           font-weight: 600; overflow-wrap: anywhere; margin: 0 0 1.2em; }
   .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
   .primary { min-height: 40px; padding: 10px 18px; border-radius: 7px;
              font-weight: 600; font-size: 13px; border: none;
              cursor: pointer; font-family: inherit;
-             background: var(--accent); color: light-dark(#ffffff, #1b1a4a); }
+             background: var(--accent); color: var(--on-accent); }
   .text-button { background: none; border: none; color: var(--accent);
                  font-weight: 600; padding: 8px 0; text-align: left;
                  font-size: 13px; cursor: pointer; font-family: inherit; }
@@ -131,9 +126,45 @@ constexpr char kContinueLink[] =
     "<button type=\"button\" class=\"text-button\" "
     "onclick=\"return proceedAnyway()\">Continue anyway</button></details>";
 
-constexpr char kSeniorNote[] =
-    "<p class=\"panel-note\">Senior Safe Mode is on. This site cannot be "
-    "opened from this warning.</p>";
+constexpr char kNoWayPastNote[] =
+    "<p class=\"panel-note\">\"No way past scam warnings\" is on, so this "
+    "site cannot be opened from here.</p>";
+
+// The page is not a chrome:// page, so it cannot load the theme's
+// colors.css the way the Protection page does. The colours are read from
+// the tab's own colour provider when the page is built instead, which is
+// the same palette the window is using: Cool, Beige or Green, light or
+// dark. Dark is told from the page colour itself, not from a setting, so
+// it cannot disagree with what the provider handed back.
+std::string ColourVariables(content::WebContents* contents) {
+  const ui::ColorProvider& colours = contents->GetColorProvider();
+  const SkColor paper = colours.GetColor(ui::kColorDialogBackground);
+  const bool dark = color_utils::IsDark(paper);
+  const auto rgb = [&colours](ui::ColorId id) {
+    return color_utils::SkColorToRgbString(colours.GetColor(id));
+  };
+  return base::StrCat(
+      {":root { color-scheme: ", dark ? "dark" : "light", ";\n",
+       "    --paper: rgb(", color_utils::SkColorToRgbString(paper), ");\n",
+       "    --ink: rgb(", rgb(ui::kColorDialogForeground), ");\n",
+       "    --muted: rgb(", rgb(ui::kColorLabelForegroundSecondary), ");\n",
+       "    --line: rgb(", rgb(ui::kColorBubbleBorder), ");\n",
+       "    --accent: rgb(", rgb(ui::kColorSysPrimary), ");\n",
+       "    --on-accent: rgb(", rgb(ui::kColorSysOnPrimary), ");\n",
+       "    --chip: color-mix(in srgb, var(--ink) 6%, var(--paper));\n",
+       "    --warning: ", dark ? "#ffb69c" : "#9e3e24", ";\n",
+       "    --warning-soft: ", dark ? "#412f28" : "#fbebe4", ";\n",
+       "  }"});
+}
+
+void ReplaceFirst(std::string& text,
+                  const std::string& marker,
+                  const std::string& with) {
+  const size_t pos = text.find(marker);
+  if (pos != std::string::npos) {
+    text.replace(pos, marker.size(), with);
+  }
+}
 
 }  // namespace
 
@@ -147,23 +178,26 @@ std::unique_ptr<ScamBlockingPage> ScamBlockingPage::Create(
     const GURL& request_url) {
   PrefService* prefs =
       user_prefs::UserPrefs::Get(web_contents->GetBrowserContext());
-  bool senior = IsSeniorSafeMode(prefs);
+  // "No way past scam warnings" is, for now, what Senior Safe Mode
+  // switches on. The switches branch maps it to its own pref; this is
+  // the one line that changes.
+  const bool no_way_past = IsSeniorSafeMode(prefs);
   return std::make_unique<ScamBlockingPage>(
-      web_contents, request_url, senior,
+      web_contents, request_url, no_way_past,
       std::make_unique<ScamControllerClient>(web_contents, request_url, prefs));
 }
 
 ScamBlockingPage::ScamBlockingPage(
     content::WebContents* web_contents,
     const GURL& request_url,
-    bool senior_safe_mode,
+    bool no_way_past,
     std::unique_ptr<
         security_interstitials::SecurityInterstitialControllerClient>
         controller)
     : security_interstitials::SecurityInterstitialPage(web_contents,
                                                        request_url,
                                                        std::move(controller)),
-      senior_safe_mode_(senior_safe_mode) {}
+      no_way_past_(no_way_past) {}
 
 ScamBlockingPage::~ScamBlockingPage() = default;
 
@@ -174,14 +208,12 @@ std::string ScamBlockingPage::GetHTMLContents() {
        "may try to steal your passwords, payment details, or money.</p>"
        "<div class=\"host\">",
        host, "</div>"});
+  std::string top(kPageTop);
+  ReplaceFirst(top, "%COLOURS%", ColourVariables(web_contents()));
   std::string bottom(kPageBottom);
-  std::string marker = "%CONTINUE%";
-  std::string link = senior_safe_mode_ ? kSeniorNote : kContinueLink;
-  size_t marker_pos = bottom.find(marker);
-  if (marker_pos != std::string::npos) {
-    bottom.replace(marker_pos, marker.size(), link);
-  }
-  return base::StrCat({kPageTop, body, bottom});
+  ReplaceFirst(bottom, "%CONTINUE%",
+               no_way_past_ ? kNoWayPastNote : kContinueLink);
+  return base::StrCat({top, body, bottom});
 }
 
 void ScamBlockingPage::OnInterstitialClosing() {}
@@ -191,7 +223,7 @@ void ScamBlockingPage::CommandReceived(const std::string& command) {
   if (!base::StringToInt(command, &command_id)) {
     return;
   }
-  if (command_id == security_interstitials::CMD_PROCEED && !senior_safe_mode_) {
+  if (command_id == security_interstitials::CMD_PROCEED && !no_way_past_) {
     controller()->Proceed();
     return;
   }

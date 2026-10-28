@@ -113,10 +113,8 @@ BoringProtectionButton::BoringProtectionButton(BrowserWindowInterface* browser)
   // Opening a window is a good moment to make sure the lists are loading,
   // the same as opening the Protection page, so what the shield says is
   // about the lists and not about timing.
-  // Only the services this build actually has. Starting the scam
-  // service on a build that ships no list would log a missing-list
-  // error at every window and leave it reporting a failure that is not
-  // one.
+  // Only the services this build actually has; see
+  // components/boring/core/boring_capabilities.h.
   if (boring::kScamBlockingAvailable) {
     boring::ScamService::GetInstance()->EnsureLoading();
   }
@@ -200,12 +198,8 @@ BoringProtectionButton::State BoringProtectionButton::ReadState() const {
   }
   const auto ads = boring::AdblockService::GetInstance()->status();
 
-  // The shield speaks for the protections this build has. Scam blocking
-  // is not one of them in this version, and a service with no list to
-  // load reports a failure for a reason that is not a fault, so asking
-  // it would put a red shield on a browser that is working exactly as
-  // intended. The Protection page is where the absence is stated; see
-  // components/boring/core/boring_capabilities.h.
+  // The shield speaks for the protections this build has, scam blocking
+  // among them; see components/boring/core/boring_capabilities.h.
   if (boring::kScamBlockingAvailable) {
     const auto scam = boring::ScamService::GetInstance()->status();
     // A failure anywhere is the thing worth saying, so it wins over a
