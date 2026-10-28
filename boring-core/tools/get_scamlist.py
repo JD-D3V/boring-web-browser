@@ -1,21 +1,18 @@
 #!/usr/bin/env python3
-"""Build the scam and phishing blocklist. No source is cleared for v1.
+"""Build the scam and phishing blocklist from the feeds we may redistribute.
 
-PERMITTED_SOURCES is empty, so this tool writes nothing and exits
-non-zero. That is the whole point of it right now.
+Two feeds are used, each because its licence was read at the source and
+allows passing the data on inside an installer and a public update feed
+(see PERMITTED_SOURCES for the terms; every other feed looked at was
+turned down or is waiting on its provenance). URLhaus and OpenPhish stay out: their terms cover getting at the
+data, not handing it on. See docs/release/URLHAUS_PERMISSION_REVIEW.md.
 
-Two feeds were used while this was being built, URLhaus and OpenPhish.
-Neither grants permission to redistribute its data inside an installer
-and a public update feed: their terms cover getting at the data, not
-handing it on. See docs/release/URLHAUS_PERMISSION_REVIEW.md. Fetching a
-list we may not pass on, and shipping it anyway, is not a thing to do
-quietly, so v1 ships no scam list at all and says so in the browser.
-components/boring/core/boring_capabilities.h is the switch that keeps
-the browser's claims matching this file.
+Adding a feed here is a distribution decision, not a coding one: the
+permission has to be written down in PERMITTED_SOURCES before the entry
+goes in. components/boring/core/boring_capabilities.h is the switch that
+keeps the browser's claims matching this file.
 
-Everything else here is kept on purpose: the parsers, the floors and the
-truncation checks are all tested, and the day a feed we may redistribute
-is in place, adding it back to PERMITTED_SOURCES is the whole change.
+The parsers, the floors and the truncation checks are all tested.
 
 A fixed test entry is always written into a list when one is built. It
 lives below a marker line and is never counted as coverage: a list
@@ -27,6 +24,7 @@ Usage: python get_scamlist.py [--out DIR]
 """
 
 import argparse
+import datetime
 import os
 import re
 import sys
@@ -38,9 +36,10 @@ from get_filterlists import (
     SourceStatus,
     decode_payload,
     fetch_url,
+    utc_stamp,
 )
 
-DEFAULT_OUT = r"E:\ung\build\src\out\Default"
+DEFAULT_OUT = os.environ.get("BORING_OUT", r"E:\ung-154\build\src\out\Default")
 
 # Always present, used by the smoke tests. Never counted as coverage.
 TEST_HOSTS = ("boring-scam-test.invalid",)
@@ -56,6 +55,12 @@ TEST_MARKER = "# --- test entries below this line, not protection ---"
 # send. Neither is fetched: see PERMITTED_SOURCES below.
 URLHAUS_URL = "https://urlhaus.abuse.ch/downloads/hostfile/"
 OPENPHISH_URL = "https://openphish.com/feed.txt"
+
+# The two feeds we may pass on, see PERMITTED_SOURCES.
+CERT_URL = "https://hole.cert.pl/domains/v2/domains.txt"
+DURABLENAPKIN_URL = (
+    "https://raw.githubusercontent.com/durablenapkin/scamblocklist/master/hosts.txt"
+)
 
 # The addresses a hostfile points blocked names at.
 HOSTFILE_SINKS = ("127.0.0.1", "0.0.0.0")
@@ -81,6 +86,55 @@ MIN_PARSE_RATIO = 0.90
 MIN_SOURCE_HOSTS = 25
 
 
+def is_blockable_host(host: str) -> bool:
+    """Whether a feed's entry is a name we are willing to block.
+
+    HOSTNAME_RE alone lets a dotted quad through, because digits are
+    letters as far as it is concerned. An address is not a site name and
+    nothing here blocks by address, so a name whose last label is all
+    digits is out. No real top level domain is all digits.
+    """
+    if not HOSTNAME_RE.match(host):
+        return False
+    return not host.rstrip(".").rsplit(".", 1)[-1].isdigit()
+
+
+# Hosts a feed must never get to block. The browser blocks a listed host
+# and every name under it, so one bad line would block a platform that
+# millions of honest pages sit on. Neither feed lists any of these today
+# (checked 2026-10-28); this is the guard for the day one does. A scam
+# page under one of them (name.pages.dev) is still blocked.
+NEVER_BLOCK = frozenset(
+    {
+        "google.com",
+        "docs.google.com",
+        "drive.google.com",
+        "sites.google.com",
+        "github.com",
+        "github.io",
+        "githubusercontent.com",
+        "pages.dev",
+        "workers.dev",
+        "vercel.app",
+        "netlify.app",
+        "web.app",
+        "firebaseapp.com",
+        "herokuapp.com",
+        "blogspot.com",
+        "wordpress.com",
+        "weebly.com",
+        "wixsite.com",
+        "wix.com",
+        "microsoft.com",
+        "apple.com",
+        "amazon.com",
+        "amazonaws.com",
+        "facebook.com",
+        "youtube.com",
+    }
+)
+
+
 def parse_hostfile(text: str) -> set[str]:
     """The hosts a hostfile blocks. FeedError if it is not a hostfile."""
     lines = text.splitlines()
@@ -103,7 +157,7 @@ def parse_hostfile(text: str) -> set[str]:
         if len(parts) != 2 or parts[0] not in HOSTFILE_SINKS:
             continue
         host = parts[1].lower().rstrip(".")
-        if not HOSTNAME_RE.match(host):
+        if not is_blockable_host(host):
             continue
         accepted += 1
         hosts.add(host)
@@ -147,7 +201,7 @@ def parse_url_feed(text: str) -> set[str]:
         if parsed.scheme not in ("http", "https"):
             continue
         host = (parsed.hostname or "").lower().rstrip(".")
-        if not HOSTNAME_RE.match(host):
+        if not is_blockable_host(host):
             continue
         accepted += 1
         hosts.add(host)
@@ -167,6 +221,63 @@ def parse_url_feed(text: str) -> set[str]:
     return hosts
 
 
+# CERT Polska measured 2026-10-28: 125,420 domains in 2.57 MB, every line
+# a name. The list only keeps the last six months, so it moves, but it
+# has not been anywhere near these limits. The floor is what catches a
+# download cut short, since the file has no trailer and no final newline
+# to prove it arrived whole. The ceiling catches a feed that has become
+# something else.
+CERT_MIN_HOSTS = 20_000
+CERT_MAX_HOSTS = 1_000_000
+
+
+def parse_domain_list(
+    text: str, min_hosts: int = 1, max_hosts: int | None = None
+) -> set[str]:
+    """The hosts in a list of one domain per line. FeedError if it is not one.
+
+    Blank lines and # comments are skipped. An address is not a domain
+    and is dropped, and everything is lowercased and deduplicated. With
+    no trailer to count against, a list that arrived whole is told from
+    one that did not by its size (min_hosts and max_hosts) and by its
+    last line being a whole name.
+    """
+    hosts: set[str] = set()
+    records = 0
+    accepted = 0
+    last = ""
+
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        records += 1
+        last = line.lower().rstrip(".")
+        if not is_blockable_host(last):
+            continue
+        accepted += 1
+        hosts.add(last)
+
+    if records == 0:
+        raise FeedError("no domains at all")
+    ratio = accepted / records
+    if ratio < MIN_PARSE_RATIO:
+        raise FeedError(f"only {ratio:.0%} of lines are domains")
+    # An address as the last line is a whole record, only not one we keep.
+    if not HOSTNAME_RE.match(last):
+        raise FeedError("last line is not a whole domain, looks truncated")
+    if len(hosts) < min_hosts:
+        raise FeedError(f"only {len(hosts)} domains, expected at least {min_hosts}")
+    if max_hosts is not None and len(hosts) > max_hosts:
+        raise FeedError(f"{len(hosts)} domains, more than the {max_hosts} allowed")
+    return hosts
+
+
+def parse_cert_list(text: str) -> set[str]:
+    """CERT Polska's domains.txt, held to the size it is known to have."""
+    return parse_domain_list(text, CERT_MIN_HOSTS, CERT_MAX_HOSTS)
+
+
 def _collect(name: str, url: str, parse, fetch_fn) -> tuple[SourceStatus, set[str]]:
     """Fetches and parses one source, and says how it went either way."""
     status = SourceStatus(name=name, url=url)
@@ -183,6 +294,7 @@ def _collect(name: str, url: str, parse, fetch_fn) -> tuple[SourceStatus, set[st
     # it. Stripped here, before anything is counted, so a source's own
     # figure is real coverage too.
     hosts -= set(TEST_HOSTS)
+    hosts -= NEVER_BLOCK
 
     if len(hosts) < MIN_SOURCE_HOSTS:
         status.entries = len(hosts)
@@ -194,22 +306,84 @@ def _collect(name: str, url: str, parse, fetch_fn) -> tuple[SourceStatus, set[st
     return status, hosts
 
 
-# The feeds this tool is allowed to fetch and pass on. Empty: no
-# provider has given that permission, so nothing is fetched. Adding an
-# entry here is a distribution decision, not a coding one, and the
-# permission has to be written down before the entry goes in.
-PERMITTED_SOURCES: tuple[tuple[str, str, object], ...] = ()
+# The feeds this tool is allowed to fetch and pass on. Adding an entry is
+# a distribution decision, not a coding one: the permission has to be
+# written down here before the entry goes in. Read at the source on
+# 2026-10-28.
+#
+# cert-polska: CERT Polska's Warning List (NASK), cert.pl/en/warning-list,
+#   "Data usage policy": "may be used by any user for any purpose,
+#   including commercial purposes". Attribution is not required, and
+#   where given it must not imply endorsement or partnership by NASK or
+#   CERT Polska. No warranty. Entries last six months. It lists phishing
+#   aimed at Polish users, so coverage is thin elsewhere. Its rule is to
+#   block a listed host and its subdomains but not the parent domain,
+#   which is how boring_scamlist_contains matches (tested in lib.rs).
+# durablenapkin: Scam Blocklist by DurableNapkin, MIT licence, (c) 2019
+#   durablenapkin, github.com/durablenapkin/scamblocklist. The MIT notice
+#   has to travel with every copy: see notice_text().
+PERMITTED_SOURCES: tuple[tuple[str, str, object], ...] = (
+    ("cert-polska", CERT_URL, parse_cert_list),
+    ("durablenapkin", DURABLENAPKIN_URL, parse_hostfile),
+)
+
+# What the notice beside the browser says about each permitted feed.
+SOURCE_NOTES = {
+    "cert-polska": (
+        "CERT Polska Warning List, published by NASK",
+        "https://cert.pl/en/warning-list/",
+        "Used under CERT Polska's data usage policy, which allows any use,\n"
+        "including commercial, without attribution. Nothing here is endorsed\n"
+        "by, or connected with, NASK or CERT Polska. The list comes with no\n"
+        "warranty that it is complete or accurate.",
+    ),
+    "durablenapkin": (
+        "Scam Blocklist by DurableNapkin",
+        "https://github.com/durablenapkin/scamblocklist",
+        "Used under the MIT licence, whose text follows.",
+    ),
+}
+
+DURABLENAPKIN_COPYRIGHT = "2019 durablenapkin"
+NOTICE_NAME = "NOTICES-scam-blocklist.txt"
+MIT_TEXT_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "licence_texts", "MIT.txt"
+)
+
+
+def notice_text(fetched_at: str) -> str:
+    """The notice that ships beside chrome.exe for the scam blocklist.
+
+    The MIT licence asks for its notice and text in every copy, and the
+    list holds durablenapkin's entries, so both go in whatever else the
+    list is made from.
+    """
+    lines = [
+        "Scam and phishing blocklist",
+        "===========================",
+        "",
+        "boring\\scamlist.txt, in the version folder beside chrome.dll, is",
+        "built from the lists below, merged and deduplicated. Nothing in",
+        "an entry is changed.",
+        f"Fetched: {fetched_at}.",
+        "",
+    ]
+    for name, _url, _parse in PERMITTED_SOURCES:
+        title, url, terms = SOURCE_NOTES[name]
+        lines += [title, "-" * len(title), url, "", terms, ""]
+    with open(MIT_TEXT_PATH, encoding="utf-8") as f:
+        mit = f.read().replace("{copyright}", DURABLENAPKIN_COPYRIGHT)
+    lines.append(mit.rstrip("\n"))
+    return "\n".join(lines) + "\n"
 
 
 def build_scam_list(fetch=fetch_url) -> BuildResult:
     """Downloads every permitted feed and says how it went.
 
-    With no permitted feeds this returns an empty result and no text
-    worth writing, which is what the caller checks. The fetch is a
-    parameter so tests can hand in their own without reaching the
-    network. Real hosts and test hosts are kept in separate collections
-    all the way through, so the count returned is only ever real
-    coverage.
+    The fetch is a parameter so tests can hand in their own without
+    reaching the network. Real hosts and test hosts are kept in separate
+    collections all the way through, so the count returned is only ever
+    real coverage.
     """
     real: set[str] = set()
     sources: list[SourceStatus] = []
@@ -247,12 +421,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     if not PERMITTED_SOURCES:
-        print(
-            "no scam feed is cleared for redistribution, so no list is built.\n"
-            "This version of the browser ships without scam blocking and says\n"
-            "so on its Protection page. See the module docstring and\n"
-            "docs/release/URLHAUS_PERMISSION_REVIEW.md."
-        )
+        print("no scam feed is cleared for redistribution, so no list is built.")
         return 2
 
     built = build_scam_list()
@@ -270,6 +439,10 @@ def main(argv: list[str] | None = None) -> int:
     with open(out_path, "w", encoding="utf-8", newline="\n") as f:
         f.write(built.text)
     print("wrote", out_path, "with", built.entries, "real hosts")
+    notice_path = os.path.join(args.out, NOTICE_NAME)
+    with open(notice_path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(notice_text(utc_stamp(datetime.datetime.now(datetime.UTC))))
+    print("wrote", notice_path)
     if built.degraded:
         print("WARNING: written from some sources only,", built.describe_failures())
     return 0

@@ -753,6 +753,45 @@ mod tests {
         Owned(handle)
     }
 
+    fn scam_list_blocks(list: &str, host: &str) -> bool {
+        let handle = unsafe { boring_scamlist_new(list.as_ptr(), list.len()) };
+        assert!(!handle.is_null());
+        let host = std::ffi::CString::new(host).unwrap();
+        let hit = unsafe { boring_scamlist_contains(handle, host.as_ptr()) } == 1;
+        unsafe { boring_scamlist_free(handle) };
+        hit
+    }
+
+    // CERT Polska's rule for its Warning List: block the listed host and
+    // its subdomains, never the parent domain.
+    #[test]
+    fn scam_list_blocks_a_listed_host_and_its_subdomains_but_not_the_parent() {
+        let list = "# a list
+a.example.com
+bad.test
+";
+        assert!(scam_list_blocks(list, "a.example.com"));
+        assert!(scam_list_blocks(list, "b.a.example.com"));
+        assert!(scam_list_blocks(list, "x.y.a.example.com"));
+        assert!(scam_list_blocks(list, "A.Example.COM."));
+        assert!(!scam_list_blocks(list, "example.com"));
+        assert!(!scam_list_blocks(list, "b.example.com"));
+        assert!(!scam_list_blocks(list, "com"));
+        assert!(!scam_list_blocks(list, "notbad.test"));
+        assert!(scam_list_blocks(list, "bad.test"));
+        assert!(scam_list_blocks(list, "www.bad.test"));
+    }
+
+    #[test]
+    fn scam_list_reads_hosts_file_lines() {
+        let list = "0.0.0.0 a.example.com
+127.0.0.1	b.example.org
+";
+        assert!(scam_list_blocks(list, "www.a.example.com"));
+        assert!(scam_list_blocks(list, "b.example.org"));
+        assert!(!scam_list_blocks(list, "example.org"));
+    }
+
     fn resource(name: &str, kind: serde_json::Value, body: &str, permission: u8) -> String {
         serde_json::json!({
             "name": name,
