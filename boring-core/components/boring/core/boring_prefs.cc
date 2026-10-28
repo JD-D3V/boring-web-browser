@@ -5,7 +5,6 @@
 #include <string>
 #include <string_view>
 
-#include "base/command_line.h"
 #include "base/values.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
@@ -16,14 +15,18 @@
 namespace boring {
 
 namespace {
-constexpr char kSeniorSafeModeSwitch[] = "senior-safe-mode";
-}
+// The all-in-one mode these three switches replaced. Registered only so
+// MigrateObsoleteProfilePrefs() can read it once and clear it.
+constexpr char kObsoleteModePref[] = "boring.senior_safe_mode";
+}  // namespace
 
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
-  registry->RegisterBooleanPref(prefs::kSeniorSafeMode, false);
-  // Sponsored results are removed out of the box. Turning this off in
-  // Protection leaves them in place with a quiet "Sponsored" chip.
-  registry->RegisterBooleanPref(prefs::kHideSponsoredResults, true);
+  registry->RegisterBooleanPref(kObsoleteModePref, false);
+  registry->RegisterBooleanPref(prefs::kStopTakeovers, true);
+  registry->RegisterBooleanPref(prefs::kNoScamBypass, false);
+  // Sponsored results are labeled out of the box. Turning this on in
+  // Protection hides them instead.
+  registry->RegisterBooleanPref(prefs::kHideSponsoredResults, false);
   registry->RegisterBooleanPref(prefs::kListUpdates, true);
   registry->RegisterBooleanPref(prefs::kFingerprintNoise, true);
   registry->RegisterBooleanPref(prefs::kStripTrackingParams, true);
@@ -37,16 +40,16 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterListPref(prefs::kBoringNeverSleepSites);
 }
 
-bool IsSeniorSafeMode(const PrefService* prefs) {
-  if (IsSeniorSafeModeForced()) {
-    return true;
+void MigrateObsoleteProfilePrefs(PrefService* prefs) {
+  if (!prefs) {
+    return;
   }
-  return prefs && prefs->GetBoolean(prefs::kSeniorSafeMode);
-}
-
-bool IsSeniorSafeModeForced() {
-  return base::CommandLine::ForCurrentProcess()->HasSwitch(
-      kSeniorSafeModeSwitch);
+  if (prefs->GetBoolean(kObsoleteModePref)) {
+    prefs->SetBoolean(prefs::kStopTakeovers, true);
+    prefs->SetBoolean(prefs::kNoScamBypass, true);
+    prefs->SetBoolean(prefs::kHideSponsoredResults, true);
+  }
+  prefs->ClearPref(kObsoleteModePref);
 }
 
 std::string GetBlockingSite(const GURL& url) {

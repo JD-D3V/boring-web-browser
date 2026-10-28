@@ -17,11 +17,17 @@ namespace boring {
 
 namespace prefs {
 
-// One switch that makes every protection strict. Set once by the user
-// or by a caregiver.
-inline constexpr char kSeniorSafeMode[] = "boring.senior_safe_mode";
+// "Stop screen takeovers": do not let a page lock the screen, keyboard
+// or pointer behind fake alerts. On by default. The rules that read it
+// come in a later change; for now this is the switch and its pref.
+inline constexpr char kStopTakeovers[] = "boring.protection.stop_takeovers";
 
-// Hide sponsored results on search pages instead of only labeling them.
+// "No way past scam warnings": the scam warning page has no "continue
+// anyway". Off by default.
+inline constexpr char kNoScamBypass[] = "boring.protection.no_scam_bypass";
+
+// "Hide sponsored results": hide sponsored results on search pages
+// instead of only labeling them. Off by default.
 inline constexpr char kHideSponsoredResults[] = "boring.hide_sponsored_results";
 
 // Keep the ad and tracker lists current by downloading newer ones.
@@ -74,13 +80,11 @@ inline constexpr char kBoringNeverSleepSites[] =
 
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
 
-// True when Senior Safe Mode is on, from the pref or the command line
-// switch --senior-safe-mode.
-bool IsSeniorSafeMode(const PrefService* prefs);
-
-// True when the command line switch turned Senior Safe Mode on. The
-// settings page cannot turn it off then, and says so.
-bool IsSeniorSafeModeForced();
+// Run once for each profile as it loads, from Chromium's
+// MigrateObsoleteProfilePrefs(). A profile that had the old all-in-one
+// mode on starts with all three switches it covered on, and the old
+// pref is cleared either way.
+void MigrateObsoleteProfilePrefs(PrefService* prefs);
 
 // The key the per site switch is stored under: the registrable domain
 // of the page (eTLD+1, counting private registries such as github.io),
