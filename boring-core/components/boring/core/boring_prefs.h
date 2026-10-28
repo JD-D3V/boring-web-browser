@@ -76,6 +76,11 @@ inline constexpr char kBoringCustomRules[] = "boring.adblock.custom_rules";
 inline constexpr char kBoringNeverSleepSites[] =
     "boring.performance.never_sleep_sites";
 
+// Stop screen takeovers: pages that lock the keyboard or flood dialogs
+// to scare a person into calling a number. On by default. See
+// components/boring/scam/takeover/DESIGN.md.
+inline constexpr char kStopTakeovers[] = "boring.protection.stop_takeovers";
+
 }  // namespace prefs
 
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
