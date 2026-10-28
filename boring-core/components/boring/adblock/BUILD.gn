@@ -50,6 +50,8 @@ static_library("browser") {
     "adblock_service.h",
     "adblock_throttle.cc",
     "adblock_throttle.h",
+    "blocked_counts.cc",
+    "blocked_counts.h",
     "blocking_off_sites.cc",
     "blocking_off_sites.h",
     "cname_uncloaker.cc",

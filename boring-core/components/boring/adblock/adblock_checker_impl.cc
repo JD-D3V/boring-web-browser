@@ -14,6 +14,7 @@
 #include "base/task/thread_pool.h"
 #include "components/boring/adblock/adblock_redirect_proxy.h"
 #include "components/boring/adblock/adblock_service.h"
+#include "components/boring/adblock/blocked_counts.h"
 #include "components/boring/adblock/cname_uncloaker.h"
 #include "mojo/public/cpp/bindings/self_owned_receiver.h"
 
@@ -45,6 +46,7 @@ void BindOnTaskRunner(int render_process_id,
 // listed under its own domain, so that is where it gets caught.
 void CheckAliases(GURL url,
                   GURL initiator,
+                  GURL top_frame_url,
                   std::string request_type,
                   EnabledLists lists,
                   AdblockCheckerImpl::CheckCallback callback,
@@ -66,6 +68,7 @@ void CheckAliases(GURL url,
     if (decision.block) {
       // Blocked, never stubbed: a stub is chosen for a URL, and this is
       // not the URL the page asked for.
+      BlockedCounts::Note(top_frame_url, url, request_type);
       std::move(callback).Run(true, std::nullopt);
       return;
     }
@@ -115,13 +118,16 @@ void AdblockCheckerImpl::Check(const GURL& url,
   if (!decision.block && AdblockService::GetInstance()->IsReady()) {
     CnameUncloaker::GetAliases(
         render_process_id_, url, initiator, top_frame_url,
-        base::BindOnce(&CheckAliases, url, initiator, request_type, lists,
-                       std::move(callback)));
+        base::BindOnce(&CheckAliases, url, initiator, top_frame_url,
+                       request_type, lists, std::move(callback)));
     return;
   }
   // Offering the stub tells the renderer to let the request go on, for
   // the proxy to answer. Without a proxy in front of this renderer it
   // would reach the real server, so it is plainly blocked instead.
+  if (decision.block) {
+    BlockedCounts::Note(top_frame_url, url, request_type);
+  }
   std::optional<std::string> redirect;
   if (decision.block && !decision.redirect.empty() &&
       AdblockRedirectProxy::CoversProcess(render_process_id_)) {
