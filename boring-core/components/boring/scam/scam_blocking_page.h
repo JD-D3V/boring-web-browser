@@ -16,7 +16,7 @@ namespace boring {
 
 // The full page warning wall shown before a known scam or phishing site
 // loads. Plain language, one safe way out, and a small continue link
-// that Senior Safe Mode removes.
+// that "No way past scam warnings" removes.
 class ScamBlockingPage
     : public security_interstitials::SecurityInterstitialPage {
  public:
@@ -30,7 +30,7 @@ class ScamBlockingPage
   ScamBlockingPage(
       content::WebContents* web_contents,
       const GURL& request_url,
-      bool senior_safe_mode,
+      bool no_bypass,
       std::unique_ptr<
           security_interstitials::SecurityInterstitialControllerClient>
           controller);
@@ -46,7 +46,7 @@ class ScamBlockingPage
   void PopulateInterstitialStrings(base::DictValue& load_time_data) override;
 
  private:
-  const bool senior_safe_mode_;
+  const bool no_bypass_;
 };
 
 }  // namespace boring

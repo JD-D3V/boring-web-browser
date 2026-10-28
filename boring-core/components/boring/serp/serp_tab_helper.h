@@ -9,8 +9,8 @@
 namespace boring {
 
 // Marks the sponsored blocks on Google and Bing search result pages
-// with a clear label, or hides them when the user asked for that (or
-// Senior Safe Mode is on). Runs a small script in an isolated world on
+// with a clear label, or hides them when the user asked for that with
+// "Hide sponsored results". Runs a small script in an isolated world on
 // search pages only.
 class SerpTabHelper : public content::WebContentsObserver,
                       public content::WebContentsUserData<SerpTabHelper> {

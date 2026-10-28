@@ -13,7 +13,7 @@ inline constexpr char kBoringWelcomeHost[] = "boring-welcome";
 inline constexpr char kBoringWelcomeUrl[] = "chrome://boring-welcome";
 
 // Shown the first time the browser opens: import, default browser, and
-// Senior Safe Mode for someone setting it up for another person.
+// the two protection switches that start off.
 class BoringWelcomeUI : public content::WebUIController {
  public:
   explicit BoringWelcomeUI(content::WebUI* web_ui);

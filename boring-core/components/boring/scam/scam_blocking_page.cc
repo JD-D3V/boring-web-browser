@@ -9,6 +9,7 @@
 #include "base/strings/string_number_conversions.h"
 #include "components/boring/core/boring_prefs.h"
 #include "components/boring/scam/scam_controller_client.h"
+#include "components/prefs/pref_service.h"
 #include "components/security_interstitials/core/controller_client.h"
 #include "components/user_prefs/user_prefs.h"
 #include "content/public/browser/browser_context.h"
@@ -131,9 +132,9 @@ constexpr char kContinueLink[] =
     "<button type=\"button\" class=\"text-button\" "
     "onclick=\"return proceedAnyway()\">Continue anyway</button></details>";
 
-constexpr char kSeniorNote[] =
-    "<p class=\"panel-note\">Senior Safe Mode is on. This site cannot be "
-    "opened from this warning.</p>";
+constexpr char kNoBypassNote[] =
+    "<p class=\"panel-note\">No way past scam warnings is on. This site "
+    "cannot be opened from this warning.</p>";
 
 }  // namespace
 
@@ -147,23 +148,23 @@ std::unique_ptr<ScamBlockingPage> ScamBlockingPage::Create(
     const GURL& request_url) {
   PrefService* prefs =
       user_prefs::UserPrefs::Get(web_contents->GetBrowserContext());
-  bool senior = IsSeniorSafeMode(prefs);
+  bool no_bypass = prefs && prefs->GetBoolean(prefs::kNoScamBypass);
   return std::make_unique<ScamBlockingPage>(
-      web_contents, request_url, senior,
+      web_contents, request_url, no_bypass,
       std::make_unique<ScamControllerClient>(web_contents, request_url, prefs));
 }
 
 ScamBlockingPage::ScamBlockingPage(
     content::WebContents* web_contents,
     const GURL& request_url,
-    bool senior_safe_mode,
+    bool no_bypass,
     std::unique_ptr<
         security_interstitials::SecurityInterstitialControllerClient>
         controller)
     : security_interstitials::SecurityInterstitialPage(web_contents,
                                                        request_url,
                                                        std::move(controller)),
-      senior_safe_mode_(senior_safe_mode) {}
+      no_bypass_(no_bypass) {}
 
 ScamBlockingPage::~ScamBlockingPage() = default;
 
@@ -176,7 +177,7 @@ std::string ScamBlockingPage::GetHTMLContents() {
        host, "</div>"});
   std::string bottom(kPageBottom);
   std::string marker = "%CONTINUE%";
-  std::string link = senior_safe_mode_ ? kSeniorNote : kContinueLink;
+  std::string link = no_bypass_ ? kNoBypassNote : kContinueLink;
   size_t marker_pos = bottom.find(marker);
   if (marker_pos != std::string::npos) {
     bottom.replace(marker_pos, marker.size(), link);
@@ -191,7 +192,7 @@ void ScamBlockingPage::CommandReceived(const std::string& command) {
   if (!base::StringToInt(command, &command_id)) {
     return;
   }
-  if (command_id == security_interstitials::CMD_PROCEED && !senior_safe_mode_) {
+  if (command_id == security_interstitials::CMD_PROCEED && !no_bypass_) {
     controller()->Proceed();
     return;
   }

@@ -323,17 +323,17 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
     <input class="switch" type="checkbox" id="fingerprint">
   </label>
 
-  <label class="setting-row" for="hide-ads">
-    <span><strong>Hide sponsored search results</strong>
-      <p>Remove supported paid placements on Google and Bing. Paid
-      placements are not the only bad link on a page.</p></span>
-    <input class="switch" type="checkbox" id="hide-ads">
+  <label class="setting-row" for="stop-takeovers">
+    <span><strong>Stop screen takeovers</strong>
+      <p>Stops a page from locking your screen or keyboard with fake
+      alerts.</p></span>
+    <input class="switch" type="checkbox" id="stop-takeovers">
   </label>
 
-  <label class="setting-row" for="senior">
-    <span><strong>Senior Safe Mode</strong>
-      <p id="senior-why">Keeps sponsored search results hidden.</p></span>
-    <input class="switch" type="checkbox" id="senior">
+  <label class="setting-row" for="no-bypass">
+    <span><strong>No way past scam warnings</strong>
+      <p>Takes away the continue anyway link on a scam warning.</p></span>
+    <input class="switch" type="checkbox" id="no-bypass">
   </label>
   <div id="confirm-off" class="information warning-note hidden"
       role="alertdialog" aria-labelledby="confirm-text">
@@ -344,6 +344,12 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
       <button class="secondary" id="turn-off">Turn it off</button>
     </div>
   </div>
+
+  <label class="setting-row" for="hide-ads">
+    <span><strong>Hide sponsored results</strong>
+      <p>Removes paid results from Google and Bing searches.</p></span>
+    <input class="switch" type="checkbox" id="hide-ads">
+  </label>
 
   <h2 class="section">Memory</h2>
   <label class="setting-row" for="memory-saver" id="memory-saver-row">
@@ -667,14 +673,9 @@ function load(s) {
   showMemory(s.memory);
   showNeverSleep(s.neverSleep);
 
-  var senior = el('senior');
-  senior.checked = s.senior;
-  senior.disabled = s.seniorForced;
-  el('senior-why').textContent = s.seniorForced ? 'Set for this computer.' :
-      'Keeps sponsored search results hidden.';
-  var hide = el('hide-ads');
-  hide.checked = s.hideSponsored || s.senior;
-  hide.disabled = s.senior;
+  el('stop-takeovers').checked = s.stopTakeovers;
+  el('no-bypass').checked = s.noBypass;
+  el('hide-ads').checked = s.hideSponsored;
 
   // Keep asking only while something is still starting up.
   var starting = s.scam === 'loading' || s.ads === 'loading' ||
@@ -693,10 +694,16 @@ function say(text) {
   el('status').textContent = text;
 }
 
-el('senior').addEventListener('change', function(e) {
+el('stop-takeovers').addEventListener('change', function(e) {
+  chrome.send('setStopTakeovers', [e.target.checked]);
+  say(e.target.checked ? 'Screen takeovers will be stopped.'
+                       : 'Screen takeovers will not be stopped.');
+});
+
+el('no-bypass').addEventListener('change', function(e) {
   if (e.target.checked) {
-    chrome.send('setSeniorSafeMode', [true]);
-    say('Senior Safe Mode on.');
+    chrome.send('setNoScamBypass', [true]);
+    say('Scam warnings have no way past them.');
     return;
   }
   // Turning it off is the one change a scammer asks for, so ask first.
@@ -707,14 +714,14 @@ el('senior').addEventListener('change', function(e) {
 
 el('keep-on').addEventListener('click', function() {
   el('confirm-off').classList.add('hidden');
-  el('senior').focus();
+  el('no-bypass').focus();
 });
 
 el('turn-off').addEventListener('click', function() {
   el('confirm-off').classList.add('hidden');
-  chrome.send('setSeniorSafeMode', [false]);
-  el('senior').focus();
-  say('Senior Safe Mode off.');
+  chrome.send('setNoScamBypass', [false]);
+  el('no-bypass').focus();
+  say('Scam warnings can be continued past.');
 });
 
 el('strip-params').addEventListener('change', function(e) {
@@ -851,8 +858,12 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
         base::BindRepeating(&ProtectionMessageHandler::HandleGet,
                             base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
-        "setSeniorSafeMode",
-        base::BindRepeating(&ProtectionMessageHandler::HandleSetSenior,
+        "setStopTakeovers",
+        base::BindRepeating(&ProtectionMessageHandler::HandleSetStopTakeovers,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "setNoScamBypass",
+        base::BindRepeating(&ProtectionMessageHandler::HandleSetNoScamBypass,
                             base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
         "setHideSponsored",
@@ -1153,8 +1164,9 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     out.Set("offSites", OffSites());
     out.Set("webStore", WebStoreState());
     out.Set("adsProblem", ads->status_message());
-    out.Set("senior", IsSeniorSafeMode(prefs));
-    out.Set("seniorForced", IsSeniorSafeModeForced());
+    out.Set("stopTakeovers",
+            prefs && prefs->GetBoolean(prefs::kStopTakeovers));
+    out.Set("noBypass", prefs && prefs->GetBoolean(prefs::kNoScamBypass));
     out.Set("hideSponsored",
             prefs && prefs->GetBoolean(prefs::kHideSponsoredResults));
     out.Set("listDays", ListAgeInDays(ads, scam));
@@ -1186,10 +1198,18 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     LoadRegionalIndex();
   }
 
-  void HandleSetSenior(const base::ListValue& args) {
+  void HandleSetStopTakeovers(const base::ListValue& args) {
     PrefService* prefs = GetPrefs();
     if (prefs && !args.empty() && args[0].is_bool()) {
-      prefs->SetBoolean(prefs::kSeniorSafeMode, args[0].GetBool());
+      prefs->SetBoolean(prefs::kStopTakeovers, args[0].GetBool());
+    }
+    HandleGet(args);
+  }
+
+  void HandleSetNoScamBypass(const base::ListValue& args) {
+    PrefService* prefs = GetPrefs();
+    if (prefs && !args.empty() && args[0].is_bool()) {
+      prefs->SetBoolean(prefs::kNoScamBypass, args[0].GetBool());
     }
     HandleGet(args);
   }
