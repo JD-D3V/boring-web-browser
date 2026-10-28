@@ -13,7 +13,7 @@ browser. Starting a profile that has it set must:
   - run once only: a switch turned off afterwards stays off on the next
     start.
 
-A fresh profile starts at the defaults (takeovers on, the other two off)
+A fresh profile starts at the defaults (takeovers and hiding on, bypass off)
 and carries no old pref. A profile with the old pref present but off
 starts at the defaults too, with the old pref cleared.
 
@@ -95,11 +95,11 @@ def start(profile, then=None):
 
 
 def welcome_state(b):
-    """Which of the two Welcome switches say they are already on."""
+    """Whether the Welcome switch says it is already on."""
     b.get(WELCOME_URL)
     time.sleep(1.5)
     return b.run(
-        "return ['no-bypass','hide-sponsored'].map(function(id){"
+        "return ['no-bypass'].map(function(id){"
         "return !document.getElementById(id+'-done').classList"
         ".contains('hidden');})"
     )
@@ -117,7 +117,7 @@ def main():
     with tempfile.TemporaryDirectory(
         prefix="switches-", dir=tmp, ignore_cleanup_errors=True
     ) as root:
-        defaults = {"takeovers": True, "bypass": False, "hide": False}
+        defaults = {"takeovers": True, "bypass": False, "hide": True}
         on = {"takeovers": True, "bypass": True, "hide": True}
 
         # 1. A fresh profile: the defaults, and no old pref anywhere.
@@ -140,8 +140,8 @@ def main():
         check(checks, "old mode on: all three switches start on", seen == on, seen)
         check(
             checks,
-            "old mode on: Welcome shows both of its switches on",
-            welcome == [[True, True]],
+            "old mode on: Welcome shows its switch on",
+            welcome == [[True]],
             welcome,
         )
         after = stored(old_on)

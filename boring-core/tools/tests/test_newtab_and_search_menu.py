@@ -47,7 +47,6 @@ class WelcomePageTest(unittest.TestCase):
     def test_switch_rows_explain_themselves_without_em_dash(self):
         text = read(self.WELCOME)
         self.assertIn("Takes away the continue anyway link on a scam", text)
-        self.assertIn("Removes paid results from Google and Bing", text)
         self.assertNotIn("—", text)
         self.assertNotIn("&mdash;", text)
 

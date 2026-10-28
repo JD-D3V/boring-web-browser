@@ -24,9 +24,9 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterBooleanPref(kObsoleteModePref, false);
   registry->RegisterBooleanPref(prefs::kStopTakeovers, true);
   registry->RegisterBooleanPref(prefs::kNoScamBypass, false);
-  // Sponsored results are labeled out of the box. Turning this on in
-  // Protection hides them instead.
-  registry->RegisterBooleanPref(prefs::kHideSponsoredResults, false);
+  // Sponsored results are removed out of the box. Turning this off in
+  // Protection leaves them in place with a quiet "Sponsored" chip.
+  registry->RegisterBooleanPref(prefs::kHideSponsoredResults, true);
   registry->RegisterBooleanPref(prefs::kListUpdates, true);
   registry->RegisterBooleanPref(prefs::kFingerprintNoise, true);
   registry->RegisterBooleanPref(prefs::kStripTrackingParams, true);

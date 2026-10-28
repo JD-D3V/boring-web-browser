@@ -64,8 +64,6 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   .primary { background: var(--accent); color: var(--on-accent); }
   .secondary { border: 1px solid var(--line); background: var(--paper);
                color: var(--ink); }
-  .option + .option { margin-top: 1em; padding-top: 1em;
-                      border-top: 1px solid var(--line); }
   .why { margin: 0.2em 0 0; font-size: 13px; color: var(--muted); }
   .done { color: var(--accent); font-weight: 600; font-size: 13px;
           margin: 0; }
@@ -125,18 +123,6 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
       <p id="no-bypass-done" class="done hidden" tabindex="-1">No way past
       scam warnings is on.</p>
     </div>
-    <div class="option">
-      <div id="hide-sponsored-off" class="row">
-        <div>
-          <strong>Hide sponsored results</strong>
-          <p class="why">Removes paid results from Google and Bing
-          searches.</p>
-        </div>
-        <button class="secondary" id="hide-sponsored-on">Turn on</button>
-      </div>
-      <p id="hide-sponsored-done" class="done hidden" tabindex="-1">Hide
-      sponsored results is on.</p>
-    </div>
   </div>
 
   <div class="start">
@@ -152,7 +138,7 @@ constexpr char kScript[] = R"SCRIPT(
 function el(id) { return document.getElementById(id); }
 
 // The switches that start off, by the id their elements are named with.
-var switches = ['no-bypass', 'hide-sponsored'];
+var switches = ['no-bypass'];
 
 switches.forEach(function(id) {
   el(id + '-on').addEventListener('click', function() {
@@ -239,8 +225,6 @@ class WelcomeMessageHandler : public content::WebUIMessageHandler {
     base::DictValue out;
     PrefService* prefs = GetPrefs();
     out.Set("no-bypass", prefs && prefs->GetBoolean(prefs::kNoScamBypass));
-    out.Set("hide-sponsored",
-            prefs && prefs->GetBoolean(prefs::kHideSponsoredResults));
     out.Set("chromium", chromium_.value_or(false));
     web_ui()->CallJavascriptFunctionUnsafe("loadWelcome", out);
   }
@@ -256,8 +240,6 @@ class WelcomeMessageHandler : public content::WebUIMessageHandler {
       const std::string& id = args[0].GetString();
       if (id == "no-bypass") {
         prefs->SetBoolean(prefs::kNoScamBypass, true);
-      } else if (id == "hide-sponsored") {
-        prefs->SetBoolean(prefs::kHideSponsoredResults, true);
       }
     }
     HandleGet(args);

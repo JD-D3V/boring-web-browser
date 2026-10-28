@@ -27,7 +27,7 @@ inline constexpr char kStopTakeovers[] = "boring.protection.stop_takeovers";
 inline constexpr char kNoScamBypass[] = "boring.protection.no_scam_bypass";
 
 // "Hide sponsored results": hide sponsored results on search pages
-// instead of only labeling them. Off by default.
+// instead of only labeling them. On by default.
 inline constexpr char kHideSponsoredResults[] = "boring.hide_sponsored_results";
 
 // Keep the ad and tracker lists current by downloading newer ones.

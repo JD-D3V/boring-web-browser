@@ -211,7 +211,7 @@ def check_switches(b, checks):
     checks["turn it off turns it off"] = is_on(b, "no-bypass", False)
 
     # The other two ask nothing: they just move, and stay moved.
-    for switch, start in (("stop-takeovers", True), ("hide-ads", False)):
+    for switch, start in (("stop-takeovers", True), ("hide-ads", True)):
         click(b, switch)
         checks[f"{switch} switches"] = is_on(b, switch, not start)
         reload_page(b)
@@ -283,8 +283,8 @@ def main():
             checks["no way past scam warnings starts off"] = b.run(
                 "return !document.getElementById('no-bypass').checked"
             )
-            checks["hide sponsored results starts off"] = b.run(
-                "return !document.getElementById('hide-ads').checked"
+            checks["hide sponsored results starts on"] = b.run(
+                "return document.getElementById('hide-ads').checked"
             )
             icon = b.run_async(ICON_LOADS)
             checks["tab icon brand.svg loads"] = icon == "ok"

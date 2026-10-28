@@ -68,11 +68,11 @@ class DefaultsTest(unittest.TestCase):
             'kHideSponsoredResults[] = "boring.hide_sponsored_results"', text
         )
 
-    def test_takeovers_on_the_other_two_off(self):
+    def test_takeovers_and_hide_sponsored_on_the_bypass_switch_off(self):
         text = read(PREFS_CC)
         self.assertIn("RegisterBooleanPref(prefs::kStopTakeovers, true)", text)
         self.assertIn("RegisterBooleanPref(prefs::kNoScamBypass, false)", text)
-        self.assertIn("RegisterBooleanPref(prefs::kHideSponsoredResults, false)", text)
+        self.assertIn("RegisterBooleanPref(prefs::kHideSponsoredResults, true)", text)
 
     def test_one_pref_for_hiding_sponsored_results(self):
         # The existing setting is kept; no second pref for the same thing.
@@ -128,12 +128,12 @@ class PagesTest(unittest.TestCase):
         # Only the turn off button sends the off message.
         self.assertEqual(text.count("setNoScamBypass', [false]"), 1)
 
-    def test_welcome_offers_only_the_two_that_start_off(self):
+    def test_welcome_offers_only_the_one_that_starts_off(self):
         text = flat(read(WELCOME))
         self.assertIn("No way past scam warnings", text)
-        self.assertIn("Hide sponsored results", text)
+        self.assertNotIn("sponsored", text.lower())
         self.assertNotIn("screen takeovers", text.lower())
-        for line in list(LINES.values())[1:]:
+        for line in [LINES["No way past scam warnings"]]:
             self.assertIn(line, text)
 
     def test_no_em_dash_in_either_page(self):
