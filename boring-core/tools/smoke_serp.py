@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Check what happens to sponsored search results.
 
-Out of the box they are removed. With hiding turned off in Protection,
-they stay where the site put them and get a quiet "Sponsored" chip in
-our palette, never a red outline.
+Out of the box they stay where the site put them and get a quiet
+"Sponsored" chip in our palette, never a red outline. With "Hide
+sponsored results" turned on in Protection they are removed.
 
 The checks use a real search page (our script only runs on Google, Bing
 and DuckDuckGo) and add an ad shaped element to it, because a live
@@ -12,10 +12,9 @@ components/boring/serp/serp_tab_helper.cc treats it like any other ad
 block.
 
 Covered here:
-  1. a default profile hides ad blocks
-  2. hiding off shows the chip, in our colours, with no outline
-  3. Senior Safe Mode forces hiding even with the pref off
-  4. a fresh profile still searches with DuckDuckGo
+  1. a default profile shows the chip, in our colours, with no outline
+  2. Hide sponsored results on hides ad blocks
+  3. a fresh profile still searches with DuckDuckGo
 """
 
 import json
@@ -103,21 +102,13 @@ def main():
     failures = []
 
     with tempfile.TemporaryDirectory() as profile:
+        # 1. Out of the box: the quiet chip, and nothing else.
         ran, ad = plant_and_read(profile)
-        print(
-            "default profile: script ran:", ran == "1", "ad hidden:", ad.get("hidden")
-        )
+        print("default profile:", json.dumps(ad, sort_keys=True))
         if ran != "1":
             failures.append("the marker script did not run on a search page")
-        if not ad.get("hidden"):
-            failures.append("a default profile did not hide a sponsored result")
-
-        # 2. Hiding off: the quiet chip, and nothing else.
-        set_hide_pref(profile, False)
-        ran, ad = plant_and_read(profile)
-        print("hiding off:", json.dumps(ad, sort_keys=True))
         if ad.get("hidden"):
-            failures.append("sponsored results were hidden with hiding turned off")
+            failures.append("a default profile hid a sponsored result")
         if ad.get("chip") != "Sponsored":
             failures.append("no Sponsored chip on a marked ad block")
         # Style, not width. An outline with style none paints nothing
@@ -141,13 +132,14 @@ def main():
         if ad.get("radius") != "6px":
             failures.append(f"the chip corner is {ad.get('radius')}, not 6px")
 
-        # 3. Senior Safe Mode overrides the pref.
-        ran, ad = plant_and_read(profile, args=["--senior-safe-mode"])
-        print("Senior Safe Mode: ad hidden:", ad.get("hidden"))
+        # 2. Hide sponsored results turned on: the block is gone.
+        set_hide_pref(profile, True)
+        ran, ad = plant_and_read(profile)
+        print("Hide sponsored results on: ad hidden:", ad.get("hidden"))
         if not ad.get("hidden"):
-            failures.append("Senior Safe Mode did not force sponsored results hidden")
+            failures.append("Hide sponsored results on did not hide a sponsored result")
 
-    # 4. The script still runs on DuckDuckGo, and search works out of the box.
+    # 3. The script still runs on DuckDuckGo, and search works out of the box.
     with tempfile.TemporaryDirectory() as fresh, Browser(user_data_dir=fresh) as b:
         b.get(DDG_URL)
         time.sleep(4)
@@ -169,7 +161,7 @@ def main():
         print("FAIL:", failure)
     if failures:
         return 1
-    print("PASS: sponsored results are hidden by default and marked quietly when not")
+    print("PASS: sponsored results are marked quietly by default and hidden when asked")
     return 0
 
 

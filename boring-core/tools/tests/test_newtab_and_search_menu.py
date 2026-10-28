@@ -44,9 +44,10 @@ class NewTabFitsShortWindowTest(unittest.TestCase):
 class WelcomePageTest(unittest.TestCase):
     WELCOME = CORE / "components" / "boring" / "welcome" / "welcome_ui.cc"
 
-    def test_senior_row_explains_itself_without_em_dash(self):
+    def test_switch_rows_explain_themselves_without_em_dash(self):
         text = read(self.WELCOME)
-        self.assertIn("Bigger text, fewer distractions, extra scam checks.", text)
+        self.assertIn("Takes away the continue anyway link on a scam", text)
+        self.assertIn("Removes paid results from Google and Bing", text)
         self.assertNotIn("—", text)
         self.assertNotIn("&mdash;", text)
 

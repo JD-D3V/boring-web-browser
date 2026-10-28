@@ -2,9 +2,10 @@
 """Check the welcome page and the links into our pages from settings.
 
 The test driver starts the browser with --no-first-run, so the welcome
-page is opened directly. It must turn Senior Safe Mode on, and must not
-offer a way to turn it off, and it shows the B mark and uses it as its
-tab icon. The settings side menu must link to the Protection and AI
+page is opened directly. It offers the two protection switches that start
+off (No way past scam warnings, Hide sponsored results), turns each one
+on, and must not offer a way to turn them off. It shows the B mark and
+uses it as its tab icon. The settings side menu must link to the Protection and AI
 pages. Screenshots go to artifacts/ui-implemented.
 
 "Import from Chrome or Edge" shows only when a Chrome or Edge profile is
@@ -113,11 +114,33 @@ def run_with_chrome(checks, switches):
     ):
         b.get("chrome://boring-welcome")
         time.sleep(1)
-        checks["welcome offers senior mode"] = b.run(
-            "return !document.getElementById('senior-off').classList.contains('hidden')"
+        checks["welcome has no Senior Safe Mode"] = b.run(
+            "return !/senior/i.test(document.body.innerText)"
         )
-        checks["welcome has no way to turn it off"] = b.run(
-            "return !document.body.innerText.match(/turn (it|this) off/i)"
+        checks["welcome offers the two switches that start off"] = b.run(
+            "return ['no-bypass','hide-sponsored'].every(function(id){"
+            "return !document.getElementById(id+'-off').classList"
+            ".contains('hidden') && document.getElementById(id+'-done')"
+            ".classList.contains('hidden');})"
+        )
+        checks["welcome does not offer stop screen takeovers"] = b.run(
+            "return !/screen takeovers/i.test(document.body.innerText)"
+        )
+        checks["welcome switch labels and lines"] = b.run(
+            "function t(id){var r=document.getElementById(id+'-off');"
+            "return [r.querySelector('strong').textContent,"
+            "r.querySelector('.why').textContent.replace(/\\s+/g,' ').trim()];}"
+            "return JSON.stringify([t('no-bypass'),t('hide-sponsored')])==="
+            "JSON.stringify([['No way past scam warnings','Takes away the "
+            "continue anyway link on a scam warning.'],"
+            "['Hide sponsored results','Removes paid results from Google "
+            "and Bing searches.']])"
+        )
+        checks["welcome has no way to turn them off"] = b.run(
+            "return !document.body.innerText.match(/turn (it|this|them) off/i)"
+        )
+        checks["welcome text has no em dash"] = b.run(
+            "return !/\\u2014/.test(document.body.innerText)"
         )
         icon = b.run_async(ICON_LOADS)
         checks["welcome tab icon brand.svg loads"] = icon == "ok"
@@ -139,16 +162,22 @@ def run_with_chrome(checks, switches):
         )
         checks["Chrome found: general link gives way"] = state.get("other") is False
         b.screenshot(str(OUT / "welcome.png"))
-        b.run("document.getElementById('senior-on').click()")
-        time.sleep(1)
-        checks["welcome turns senior mode on"] = b.run(
-            "return !document.getElementById('senior-done').classList"
-            ".contains('hidden')"
-        )
+        for switch in ("no-bypass", "hide-sponsored"):
+            b.run(f"document.getElementById('{switch}-on').click()")
+            time.sleep(1)
+            checks[f"welcome turns {switch} on"] = b.run(
+                f"return !document.getElementById('{switch}-done').classList"
+                ".contains('hidden') && "
+                f"document.getElementById('{switch}-off').classList"
+                ".contains('hidden')"
+            )
+        b.screenshot(str(OUT / "welcome-switches-on.png"))
         b.get("chrome://boring-protection")
-        time.sleep(1)
+        time.sleep(2)
         checks["protection page agrees"] = b.run(
-            "return document.getElementById('senior').checked"
+            "return document.getElementById('no-bypass').checked && "
+            "document.getElementById('hide-ads').checked && "
+            "document.getElementById('stop-takeovers').checked"
         )
 
         b.get("chrome://boring-welcome")

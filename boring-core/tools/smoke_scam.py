@@ -12,20 +12,76 @@ state plainly that scam blocking is not in this version. The warning
 page itself is still built and still tested by its own unit tests; what
 is missing is data, not code.
 
+The "No way past scam warnings" switch is part of this build even so: it
+is off by default, asks before it is turned off, and is stored where the
+warning page reads it. The page cannot be reached with no list, so the
+stored value is what shows the switch works.
+
 When a redistributable feed is in place, flip kScamBlockingAvailable and
 this file goes back to checking the wall appears.
 """
 
+import json
+import os
 import sys
+import time
 
 from drive import PROFILE, Browser
 
 BAD_URL = "http://boring-scam-test.invalid/"
 PROTECTION_URL = "chrome://boring-protection"
+PREF = "no_scam_bypass"
 
 
 def page_text(b):
     return b.run("return document.body ? document.body.innerText : ''")
+
+
+def switch_on(b, want):
+    """True once the switch reads `want`, false after five seconds."""
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        if b.run("return document.getElementById('no-bypass').checked") is want:
+            return True
+        time.sleep(0.2)
+    return False
+
+
+def check_switch(b, failures):
+    """The switch is off, turns on, and asks before it turns off."""
+    # The page fills itself in a moment after it loads, so wait for a
+    # row that only the answer writes before reading the switch.
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        if b.run("return document.getElementById('ads-state').textContent") == "On":
+            break
+        time.sleep(0.2)
+    if b.run("return document.getElementById('no-bypass').checked"):
+        failures.append("No way past scam warnings starts on")
+    b.run("document.getElementById('no-bypass').click()")
+    if not switch_on(b, True):
+        failures.append("No way past scam warnings did not turn on")
+    b.run("document.getElementById('no-bypass').click()")
+    asked = b.run(
+        "return document.getElementById('no-bypass').checked && "
+        "!document.getElementById('confirm-off').classList.contains('hidden')"
+        " && /ask you to turn this off/.test("
+        "document.getElementById('confirm-text').textContent)"
+    )
+    if not asked:
+        failures.append("turning off No way past scam warnings did not ask first")
+    b.run("document.getElementById('keep-on').click()")
+    if not switch_on(b, True):
+        failures.append("Keep it on did not keep No way past scam warnings on")
+    else:
+        print("PASS: No way past scam warnings is off, turns on, asks before off")
+
+
+def stored_pref(profile):
+    """The value the browser wrote, read once it has quit."""
+    with open(os.path.join(profile, "Default", "Preferences"), encoding="utf-8") as f:
+        prefs = json.load(f)
+    return prefs.get("boring", {}).get("protection", {}).get(PREF)
 
 
 def main():
@@ -77,6 +133,17 @@ def main():
             print("PASS: ad and tracker blocking is still on the page")
         else:
             failures.append("the Protection page lost its ads and trackers row")
+
+        check_switch(b, failures)
+
+    # The browser has quit, so the value is on disk where the warning
+    # page reads it from.
+    if stored_pref(PROFILE) is not True:
+        failures.append(
+            f"boring.protection.{PREF} was not stored as true: {stored_pref(PROFILE)!r}"
+        )
+    else:
+        print("PASS: the switch is stored for the warning page")
 
     if failures:
         for f in failures:

@@ -3,9 +3,11 @@
 
 Opens chrome://boring-protection in a throwaway profile. Checks that
 both protections report a real state, that the tab icon is the B, that
-Senior Safe Mode turns on,
-asks before it turns off, and survives a reload, and that turning it on
-forces sponsored results hidden. Also that the Chrome Web Store row
+the three switches (Stop screen takeovers, No way past scam warnings,
+Hide sponsored results) start at their defaults, turn on and off and
+survive a reload, that turning off No way past scam warnings asks first,
+and that Senior Safe Mode is nowhere on the page. Also that the Chrome
+Web Store row
 follows the bundled extension (the copy smoke_webstore.py checks) as it
 is turned off and on, and when it is not installed, and that a fresh
 profile has no sites with blocking off. Also the blocking level
@@ -152,11 +154,70 @@ def check_new_sections(b, checks):
         "&& !document.querySelector('#never-sleep li')",
     )
     checks["switches move calmly, or not at all with reduced motion"] = b.run(
-        "var d=getComputedStyle(document.getElementById('senior'),'::before')"
+        "var d=getComputedStyle(document.getElementById('no-bypass'),'::before')"
         ".transitionDuration;"
         "return matchMedia('(prefers-reduced-motion: reduce)').matches ?"
         " /^0s/.test(d) : d.indexOf('0.18s')===0"
     )
+
+
+def click(b, switch):
+    b.run(f"document.getElementById('{switch}').click()")
+
+
+def is_on(b, switch, want=True):
+    """True once the switch reads `want` (the page answers a moment later)."""
+    return wait_for(
+        b, f"document.getElementById('{switch}').checked==={str(want).lower()}"
+    )
+
+
+def reload_page(b):
+    """Open the page again and wait until it has been filled in. Before
+    that every switch reads off, which would pass a check for off."""
+    b.get("chrome://boring-protection")
+    wait_for(b, "document.getElementById('ads-state').textContent==='On'")
+
+
+def check_switches(b, checks):
+    """Each switch moves, and the choice survives a reload.
+
+    Turning off No way past scam warnings is the one change a scammer
+    asks for, so it asks first.
+    """
+    click(b, "no-bypass")
+    checks["no way past scam warnings turns on"] = is_on(b, "no-bypass")
+
+    click(b, "no-bypass")
+    checks["turning it off asks first"] = b.run(
+        "return document.getElementById('no-bypass').checked && "
+        "!document.getElementById('confirm-off').classList"
+        ".contains('hidden') && "
+        "document.activeElement.id==='keep-on'"
+    )
+    b.screenshot(str(OUT / "protection-confirm-off.png"))
+    b.run("document.getElementById('keep-on').click()")
+    checks["keep it on keeps it on"] = b.run(
+        "return document.getElementById('no-bypass').checked && "
+        "document.getElementById('confirm-off').classList"
+        ".contains('hidden')"
+    )
+
+    reload_page(b)
+    checks["no way past scam warnings survives a reload"] = is_on(b, "no-bypass")
+
+    click(b, "no-bypass")
+    b.run("document.getElementById('turn-off').click()")
+    checks["turn it off turns it off"] = is_on(b, "no-bypass", False)
+
+    # The other two ask nothing: they just move, and stay moved.
+    for switch, start in (("stop-takeovers", True), ("hide-ads", False)):
+        click(b, switch)
+        checks[f"{switch} switches"] = is_on(b, switch, not start)
+        reload_page(b)
+        checks[f"{switch} survives a reload"] = is_on(b, switch, not start)
+        click(b, switch)
+        checks[f"{switch} switches back"] = is_on(b, switch, start)
 
 
 def main():
@@ -195,19 +256,43 @@ def main():
                 "return document.getElementById('webstore-state').textContent==='On'",
                 40,
             )
-            checks["senior mode text says only what it does"] = b.run(
-                "return document.getElementById('senior-why').textContent"
-                "==='Keeps sponsored search results hidden.'"
+            checks["no Senior Safe Mode on the page"] = b.run(
+                "return !/senior/i.test(document.body.innerText) && "
+                "!document.getElementById('senior')"
             )
-            checks["senior mode starts off"] = b.run(
-                "return !document.getElementById('senior').checked"
+            # Each switch has one plain line saying what it does.
+            checks["switch labels and lines"] = b.run(
+                "function t(id){var l=document.getElementById(id).labels[0];"
+                "return [l.querySelector('strong').textContent,"
+                "l.querySelector('p').textContent.replace(/\\s+/g,' ').trim()];}"
+                "return JSON.stringify([t('stop-takeovers'),t('no-bypass'),"
+                "t('hide-ads')])===JSON.stringify(["
+                "['Stop screen takeovers','Stops a page from locking your "
+                "screen or keyboard with fake alerts.'],"
+                "['No way past scam warnings','Takes away the continue anyway "
+                "link on a scam warning.'],"
+                "['Hide sponsored results','Removes paid results from Google "
+                "and Bing searches.']])"
+            )
+            checks["switch text has no em dash"] = b.run(
+                "return !/\\u2014/.test(document.body.innerText)"
+            )
+            checks["stop takeovers starts on"] = b.run(
+                "return document.getElementById('stop-takeovers').checked"
+            )
+            checks["no way past scam warnings starts off"] = b.run(
+                "return !document.getElementById('no-bypass').checked"
+            )
+            checks["hide sponsored results starts off"] = b.run(
+                "return !document.getElementById('hide-ads').checked"
             )
             icon = b.run_async(ICON_LOADS)
             checks["tab icon brand.svg loads"] = icon == "ok"
             if icon != "ok":
                 print("  icon:", icon)
             checks["switches are still real checkboxes"] = b.run(
-                "return ['senior','hide-ads','fingerprint','strip-params']"
+                "return ['stop-takeovers','no-bypass','hide-ads','fingerprint',"
+                "'strip-params']"
                 ".every(function(id){"
                 "var e=document.getElementById(id);"
                 "return e.type==='checkbox' && e.labels.length===1;})"
@@ -217,41 +302,7 @@ def main():
             b.get("chrome://boring-protection")
             wait_for(b, "document.getElementById('ads-state').textContent==='On'")
 
-            b.run("document.getElementById('senior').click()")
-            checks["senior mode turns on"] = wait_for(
-                b,
-                "document.getElementById('senior').checked && "
-                "document.getElementById('hide-ads').checked && "
-                "document.getElementById('hide-ads').disabled",
-            )
-
-            b.run("document.getElementById('senior').click()")
-            checks["turning off asks first"] = b.run(
-                "return document.getElementById('senior').checked && "
-                "!document.getElementById('confirm-off').classList"
-                ".contains('hidden') && "
-                "document.activeElement.id==='keep-on'"
-            )
-            b.screenshot(str(OUT / "protection-confirm-off.png"))
-            b.run("document.getElementById('keep-on').click()")
-            checks["keep it on keeps it on"] = b.run(
-                "return document.getElementById('senior').checked && "
-                "document.getElementById('confirm-off').classList"
-                ".contains('hidden')"
-            )
-
-            b.get("chrome://boring-protection")
-            checks["senior mode survives a reload"] = wait_for(
-                b, "document.getElementById('senior').checked"
-            )
-
-            b.run("document.getElementById('senior').click()")
-            b.run("document.getElementById('turn-off').click()")
-            checks["turn it off turns it off"] = wait_for(
-                b,
-                "!document.getElementById('senior').checked && "
-                "!document.getElementById('hide-ads').disabled",
-            )
+            check_switches(b, checks)
 
             # Turn the store extension off and on again the way
             # chrome://extensions does, and check the row follows. Removing
@@ -302,17 +353,6 @@ def main():
                 b,
                 "document.getElementById('never-sleep-state').textContent"
                 "==='None' && !document.querySelector('#never-sleep li')",
-            )
-
-        with Browser(
-            user_data_dir=profile,
-            args=["--senior-safe-mode", "--window-size=1360,900"],
-        ) as b:
-            b.get("chrome://boring-protection")
-            checks["switch locks senior mode on"] = wait_for(
-                b,
-                "document.getElementById('senior').checked && "
-                "document.getElementById('senior').disabled",
             )
 
     (OUT / "protection-checks.json").write_text(

@@ -34,7 +34,7 @@ def _scratch_profile():
     by one Chromium version and handed to another migrates itself, and a
     browser busy upgrading a profile is not the browser the test meant
     to check. And every test sharing one profile means one test's
-    leftovers decide what the next one sees: Senior Safe Mode still on,
+    leftovers decide what the next one sees: a switch still turned on,
     a dialog already dismissed, a list already cached. A suite whose
     result depends on the order it ran in is not measuring the browser.
 

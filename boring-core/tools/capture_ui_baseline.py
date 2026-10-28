@@ -128,16 +128,21 @@ def main():
                     ".dataset.boringLabeled"
                 )
                 b.screenshot(str(OUT / f"search-{'hidden' if hide else 'labeled'}.png"))
-        with Browser(
-            user_data_dir=profile, args=["--senior-safe-mode", "--window-size=1360,900"]
-        ) as b:
+        # No way past scam warnings, set while the browser is closed.
+        prefs_file = Path(profile) / "Default" / "Preferences"
+        prefs = json.loads(prefs_file.read_text(encoding="utf-8"))
+        prefs.setdefault("boring", {}).setdefault("protection", {})[
+            "no_scam_bypass"
+        ] = True
+        prefs_file.write_text(json.dumps(prefs), encoding="utf-8")
+        with Browser(user_data_dir=profile, args=["--window-size=1360,900"]) as b:
             b.get("http://boring-scam-test.invalid/")
             text = b.run("return document.body.innerText")
-            checks["senior_blocks_without_bypass"] = (
+            checks["no_bypass_blocks_without_continue"] = (
                 "This site looks dangerous" in text
                 and "continue anyway" not in text.lower()
             )
-            b.screenshot(str(OUT / "scam-warning-senior.png"))
+            b.screenshot(str(OUT / "scam-warning-no-bypass.png"))
     (OUT / "results.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(json.dumps(report, indent=2))
 
