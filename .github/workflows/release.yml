@@ -139,6 +139,10 @@ jobs:
         shell: cmd
         run: python "%LOCK%" --owner "%LOCK_OWNER%" --job filterlists -- python boring-core\tools\get_filterlists.py
 
+      - name: Build the scam blocklist
+        shell: cmd
+        run: python "%LOCK%" --owner "%LOCK_OWNER%" --job scamlist -- python boring-core\tools\get_scamlist.py
+
       # uBO's scriptlets and redirect stubs, from a pinned uBO release.
       # Needs node 22 on the runner.
       - name: Build the scriptlet and redirect resources
