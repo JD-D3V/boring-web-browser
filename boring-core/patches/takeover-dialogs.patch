@@ -1,0 +1,50 @@
+diff --git a/components/javascript_dialogs/tab_modal_dialog_manager.cc b/components/javascript_dialogs/tab_modal_dialog_manager.cc
+--- a/components/javascript_dialogs/tab_modal_dialog_manager.cc
++++ b/components/javascript_dialogs/tab_modal_dialog_manager.cc
+@@ -11,6 +11,7 @@
+ #include "base/functional/callback.h"
+ #include "base/memory/ptr_util.h"
+ #include "base/strings/stringprintf.h"
++#include "components/boring/scam/takeover/takeover_tab_helper.h"
+ #include "components/javascript_dialogs/app_modal_dialog_manager.h"
+ #include "components/javascript_dialogs/tab_modal_dialog_view.h"
+ #include "components/navigation_metrics/navigation_metrics.h"
+@@ -81,6 +82,13 @@ void TabModalDialogManager::RunJavaScriptDialog(
+ 
+   content::WebContents* web_contents = WebContentsObserver::web_contents();
+ 
++  // boring: a page looping alert(), confirm() or prompt() does not get
++  // the dialog after the third. See components/boring/scam/takeover.
++  if (boring::TakeoverTabHelper::ShouldSuppressDialog(web_contents)) {
++    *did_suppress_message = true;
++    return;
++  }
++
+   // Close any dialog already showing.
+   CloseDialog(DismissalCause::kSubsequentDialogShown, false, std::u16string());
+ 
+@@ -218,6 +226,13 @@ void TabModalDialogManager::RunBeforeUnloadDialog(
+   DCHECK_EQ(web_contents,
+             content::WebContents::FromRenderFrameHost(render_frame_host));
+ 
++  // boring: a tab the takeover screen is replacing cannot hold itself open
++  // with a leave-page prompt.
++  if (boring::TakeoverTabHelper::ShouldSkipBeforeUnload(web_contents)) {
++    std::move(callback).Run(/*success=*/true, std::u16string());
++    return;
++  }
++
+   // onbeforeunload dialogs are always handled with an app-modal dialog, because
+   // - they are critical to the user not losing data
+   // - they can be requested for tabs that are not foremost
+diff --git a/components/javascript_dialogs/BUILD.gn b/components/javascript_dialogs/BUILD.gn
+--- a/components/javascript_dialogs/BUILD.gn
++++ b/components/javascript_dialogs/BUILD.gn
+@@ -23,6 +23,7 @@ static_library("javascript_dialogs") {
+ 
+   deps = [
+     "//base",
++    "//components/boring/scam/takeover",
+     "//components/javascript_dialogs/core:util",
+     "//components/navigation_metrics/",
+     "//components/strings",

@@ -1,0 +1,30 @@
+diff --git a/chrome/browser/ui/webui/chrome_web_ui_configs.cc b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -63,6 +63,7 @@
+ #include "components/boring/ai/ai_ui.h"
+ #include "components/boring/newtab/newtab_ui.h"
+ #include "components/boring/protection/protection_ui.h"
++#include "components/boring/scam/takeover/takeover_ui.h"
+ #include "components/boring/welcome/welcome_ui.h"
+ #include "components/enterprise/buildflags/buildflags.h"
+ #include "components/safe_browsing/buildflags.h"
+@@ -257,6 +258,7 @@ void RegisterChromeWebUIConfigs() {
+   auto& map = content::WebUIConfigMap::GetInstance();
+   map.AddWebUIConfig(std::make_unique<boring::ai::BoringAiUIConfig>());
+   map.AddWebUIConfig(std::make_unique<boring::BoringProtectionUIConfig>());
++  map.AddWebUIConfig(std::make_unique<boring::BoringTakeoverUIConfig>());
+   map.AddWebUIConfig(std::make_unique<boring::BoringNewTabUIConfig>());
+   map.AddWebUIConfig(std::make_unique<boring::BoringWelcomeUIConfig>());
+   map.AddWebUIConfig(std::make_unique<AccessibilityUIConfig>());
+diff --git a/chrome/browser/ui/webui/BUILD.gn b/chrome/browser/ui/webui/BUILD.gn
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -99,6 +99,7 @@ source_set("configs") {
+     "//components/boring/ai",
+     "//components/boring/newtab",
+     "//components/boring/protection",
++    "//components/boring/scam/takeover",
+     "//components/boring/welcome",
+     "//components/lens:buildflags",
+     "//components/notebooks/internals/webui",

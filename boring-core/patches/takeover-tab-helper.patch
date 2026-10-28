@@ -1,0 +1,30 @@
+diff --git a/chrome/browser/ui/tab_helpers.cc b/chrome/browser/ui/tab_helpers.cc
+--- a/chrome/browser/ui/tab_helpers.cc
++++ b/chrome/browser/ui/tab_helpers.cc
+@@ -108,6 +108,7 @@
+ #include "components/blocked_content/popup_blocker_tab_helper.h"
+ #include "components/blocked_content/popup_opener_tab_helper.h"
+ #include "components/boring/lists/list_updater.h"
++#include "components/boring/scam/takeover/takeover_tab_helper.h"
+ #include "components/boring/serp/serp_tab_helper.h"
+ #include "components/boring/update/browser_updater.h"
+ #include "components/breadcrumbs/core/breadcrumbs_status.h"
+@@ -555,6 +556,7 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents,
+       web_contents, base::DefaultTickClock::GetInstance(),
+       HostContentSettingsMapFactory::GetForProfile(profile));
+   boring::SerpTabHelper::CreateForWebContents(web_contents);
++  boring::TakeoverTabHelper::CreateForWebContents(web_contents);
+   // Opening a tab is a quiet moment to see whether the blocking lists
+   // have been replaced. Not in incognito: this has nothing to do with
+   // what is being browsed and should not ride on a session that is
+diff --git a/chrome/browser/ui/BUILD.gn b/chrome/browser/ui/BUILD.gn
+--- a/chrome/browser/ui/BUILD.gn
++++ b/chrome/browser/ui/BUILD.gn
+@@ -830,6 +830,7 @@ static_library("ui") {
+     "//components/autofill/core/common:credit_card_number_validation",
+     "//components/boring/core",
+     "//components/boring/lists",
++    "//components/boring/scam/takeover",
+     "//components/boring/serp",
+     "//components/boring/update",
+     "//components/breadcrumbs/core:status",
