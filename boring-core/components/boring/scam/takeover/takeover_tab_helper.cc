@@ -82,9 +82,9 @@ bool TakeoverTabHelper::CountDialog() {
 
 void TakeoverTabHelper::DidToggleFullscreenModeForTab(bool entered_fullscreen,
                                                       bool will_cause_resize) {
-  in_fullscreen_ = entered_fullscreen;
   base::TimeTicks now = base::TimeTicks::Now();
   if (entered_fullscreen) {
+    fullscreen_seen_ = true;
     if (last_exit_ && now - *last_exit_ <= kReentryWindow) {
       reentries_.push_back(now);
     }
@@ -149,7 +149,7 @@ void TakeoverTabHelper::DidFinishNavigation(content::NavigationHandle* handle) {
 }
 
 void TakeoverTabHelper::ResetForNewDocument() {
-  in_fullscreen_ = web_contents()->IsFullscreen();
+  fullscreen_seen_ = web_contents()->IsFullscreen();
   video_fullscreen_ = false;
   keyboard_lock_ = false;
   audio_without_video_ = false;
@@ -164,7 +164,7 @@ void TakeoverTabHelper::ResetForNewDocument() {
 }
 
 void TakeoverTabHelper::Evaluate() {
-  if (tripped_ || !in_fullscreen_ || video_fullscreen_ ||
+  if (tripped_ || !fullscreen_seen_ || video_fullscreen_ ||
       !IsStopTakeoversEnabled(web_contents())) {
     return;
   }

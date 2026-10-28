@@ -67,7 +67,10 @@ class TakeoverTabHelper
   void ResetForNewDocument();
 
   // What this document has done so far.
-  bool in_fullscreen_ = false;
+  // The page has been in fullscreen at some point. A JavaScript dialog
+  // drops fullscreen, so a locker that loops them is windowed again by
+  // the time the loop is plain to see.
+  bool fullscreen_seen_ = false;
   bool video_fullscreen_ = false;
   bool keyboard_lock_ = false;
   bool audio_without_video_ = false;

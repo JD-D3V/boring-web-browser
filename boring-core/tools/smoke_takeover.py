@@ -149,8 +149,11 @@ def main():
         t.open_tab()
         b.get(f"{base}/takeover_video.html")
         checks["video page ready"] = wait(lambda: b.run("return window.ready"))
-        w, h = b.run("return [innerWidth, innerHeight]")
-        t.click(632, 350)
+        x, y = b.run(
+            "var r = document.getElementById('fs').getBoundingClientRect();"
+            "return [r.x + r.width / 2, r.y + r.height / 2]"
+        )
+        t.click(x, y)
         checks["video goes fullscreen"] = wait(lambda: fullscreen(b))
         time.sleep(4)
         checks["video stays fullscreen"] = fullscreen(b)
