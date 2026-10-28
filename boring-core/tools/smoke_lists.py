@@ -251,12 +251,11 @@ def main():
         checks["the downloaded list is the one served"] = (
             landed and (downloads / "easylist.txt").read_text() == FILTERS
         )
-        # The feed above offers a scamlist.txt as well. This version
-        # ships no scam list and must not start using one an update
-        # feed hands it, so the file must not be here.
-        checks["a scam list offered by the feed is refused"] = not (
+        # The feed above offers a scamlist.txt as well. Scam blocking is
+        # on, so the browser takes it like any other list.
+        checks["a scam list offered by the feed is downloaded"] = (
             downloads / "scamlist.txt"
-        ).exists()
+        ).exists() and (downloads / "scamlist.txt").read_text() == SCAM
         checks["a regional list in the bundle lands in the regional folder"] = (
             downloads / "regional" / "de.txt"
         ).exists() and (downloads / "regional" / "de.txt").read_text() == REGIONAL
