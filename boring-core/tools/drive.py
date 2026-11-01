@@ -22,6 +22,8 @@ import time
 import urllib.error
 import urllib.request
 
+import focus_lock
+
 OUT = os.environ.get("BORING_OUT", r"E:\ung\build\src\out\Default")
 CHROME = os.path.join(OUT, "chrome.exe")
 DRIVER = os.path.join(OUT, "chromedriver.exe")
@@ -67,6 +69,17 @@ def free_port():
 
 class Browser:
     def __init__(self, user_data_dir=None, args=None, keep_switches=None):
+        # Off screen is not enough: the browser still takes the focus,
+        # and the person's typing lands in a window they cannot see.
+        # The foreground stays locked until quit() (see focus_lock.py).
+        self._focus = focus_lock.hold()
+        try:
+            self._start(user_data_dir, args, keep_switches)
+        except BaseException:
+            self._focus.release()
+            raise
+
+    def _start(self, user_data_dir, args, keep_switches):
         # A fixed port meant that a chromedriver left behind by another
         # session, with a different environment, kept the port and every
         # test silently talked to it instead. A whole run reported
@@ -100,7 +113,8 @@ class Browser:
         # they are doing. So the window opens far off the desktop by
         # default and stays there: WebDriver and CDP do not care where
         # it is, and PrintWindow photographs an offscreen window fine.
-        # Set BORING_WINDOW_POSITION to put it back on screen.
+        # Set BORING_WINDOW_POSITION to put it back on screen (that also
+        # lets it take the focus, see focus_lock.py).
         chrome_args = [
             "--no-first-run",
             "--disable-fre",
@@ -197,6 +211,7 @@ class Browser:
             self._req("DELETE", f"/session/{self.sid}")
         finally:
             self.proc.terminate()
+            self._focus.release()
 
     def __enter__(self):
         return self
