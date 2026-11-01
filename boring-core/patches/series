@@ -68,4 +68,6 @@ takeover-keyboard-lock.patch
 takeover-dialogs.patch
 takeover-tab-helper.patch
 takeover-webui-config.patch
+scam-guards-clipboard.patch
+scam-guards-download.patch
 site-rules.patch

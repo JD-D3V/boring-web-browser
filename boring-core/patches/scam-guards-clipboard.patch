@@ -1,0 +1,27 @@
+--- a/chrome/browser/chrome_content_browser_client.cc
++++ b/chrome/browser/chrome_content_browser_client.cc
+@@ -255,6 +255,7 @@
+ #include "components/contextual_tasks/public/utils.h"
+ #include "components/custom_handlers/protocol_handler_registry.h"
+ #include "components/custom_handlers/protocol_handler_throttle.h"
++#include "components/boring/guards/clipboard_guard.h"
+ #include "components/dom_distiller/core/dom_distiller_switches.h"
+ #include "components/dom_distiller/core/url_constants.h"
+ #include "components/embedder_support/content_settings_utils.h"
+@@ -7919,6 +7920,16 @@
+     IsClipboardCopyAllowedCallback callback) {
+   glic::OnBeforeClipboardCopy(source);
+ 
++  // boring: the ClickFix guard. A page that copies a command for the
++  // person to paste into Windows gets a harmless line on the clipboard
++  // instead, and a warning bar. See components/boring/guards.
++  if (std::optional<std::u16string> replacement =
++          boring::guards::CheckClipboardCopy(source, metadata, data)) {
++    std::move(callback).Run(metadata.format_type, data,
++                            std::move(replacement));
++    return;
++  }
++
+ #if BUILDFLAG(ENTERPRISE_DATA_CONTROLS)
+   enterprise_data_protection::IsClipboardCopyAllowedByPolicy(
+       source, metadata, data, std::move(callback));

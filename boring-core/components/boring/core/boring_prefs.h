@@ -22,6 +22,12 @@ namespace prefs {
 // come in a later change; for now this is the switch and its pref.
 inline constexpr char kStopTakeovers[] = "boring.protection.stop_takeovers";
 
+// "Warn about scam tricks": ask before a download of a remote access tool
+// (AnyDesk, TeamViewer and the like) and stop a page from putting a
+// command on the clipboard for the person to paste into Windows. On by
+// default. See components/boring/guards.
+inline constexpr char kWarnScamTricks[] = "boring.protection.warn_scam_tricks";
+
 // "No way past scam warnings": the scam warning page has no "continue
 // anyway". Off by default.
 inline constexpr char kNoScamBypass[] = "boring.protection.no_scam_bypass";

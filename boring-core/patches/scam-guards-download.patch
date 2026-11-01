@@ -1,0 +1,39 @@
+--- a/chrome/browser/download/chrome_download_manager_delegate.cc
++++ b/chrome/browser/download/chrome_download_manager_delegate.cc
+@@ -62,6 +62,7 @@
+ #include "chrome/grit/generated_resources.h"
+ #include "components/actor/core/actor_features.h"
+ #include "components/actor/public/mojom/actor_types.mojom.h"
++#include "components/boring/guards/download_guard.h"
+ #include "components/download/public/common/download_danger_type.h"
+ #include "components/download/public/common/download_features.h"
+ #include "components/download/public/common/download_interrupt_reasons.h"
+@@ -875,9 +876,25 @@
+     action = DownloadPathReservationTracker::UNIQUIFY;
+   }
+ #endif
+-  DownloadTargetDeterminer::Start(download, download_path, action,
+-                                  download_prefs_.get(), this,
+-                                  std::move(target_determined_callback));
++  // boring: the remote access guard may hold the download until the
++  // person answers a bar in its tab, then run this. See
++  // components/boring/guards.
++  base::OnceClosure start = base::BindOnce(
++      [](base::WeakPtr<ChromeDownloadManagerDelegate> self,
++         DownloadItem* item, base::FilePath path,
++         DownloadPathReservationTracker::FilenameConflictAction action,
++         DownloadTargetDeterminer::CompletionCallback callback) {
++        if (self) {
++          DownloadTargetDeterminer::Start(item, path, action,
++                                          self->download_prefs_.get(),
++                                          self.get(), std::move(callback));
++        }
++      },
++      weak_ptr_factory_.GetWeakPtr(), download, download_path, action,
++      std::move(target_determined_callback));
++  if (!boring::guards::HoldRemoteAccessDownload(download, &start)) {
++    std::move(start).Run();
++  }
+   return true;
+ }
+ 
