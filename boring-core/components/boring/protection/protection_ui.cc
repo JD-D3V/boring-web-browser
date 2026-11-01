@@ -636,37 +636,8 @@ function showNeverSleep(sites) {
 var pollTimer = null;
 
 function load(s) {
-  if (s.scam === 'off') {
-    // No blocklist ships in this version. What protects against known
-    // dangerous sites is the resolver: Quad9 refuses to look them up.
-    // Say exactly that, including what it looks like when it works,
-    // and say plainly when the person has moved away from it.
-    var badge = el('scam-state');
-    var desc = el('scam-desc');
-    desc.textContent = '';
-    if (s.dnsFiltersThreats) {
-      badge.className = 'state-value';
-      badge.textContent = 'On';
-      desc.append('Known malware and phishing sites are refused by ' +
-          'Quad9 secure DNS, a Swiss non-profit, so they do not open. ' +
-          'There is no warning page: a blocked site shows as not found. ');
-    } else {
-      badge.className = 'state-value warn';
-      badge.textContent = s.dnsManaged ? 'Set by your organisation' : 'Off';
-      desc.append('Secure DNS is not using Quad9, so known dangerous ' +
-          'sites are not blocked by name. ');
-    }
-    if (!s.dnsManaged) {
-      var change = document.createElement('a');
-      change.className = 'text-button';
-      change.textContent = 'Secure DNS settings';
-      change.href = 'chrome://settings/security';
-      desc.append(change);
-    }
-  } else {
-    showState('scam', s.scam,
-        'Known listed sites are blocked before they open.', s.scamProblem);
-  }
+  showState('scam', s.scam,
+      'Known listed sites are blocked before they open.', s.scamProblem);
   showState('ads', s.ads,
       'Known advertising and tracking requests are blocked.', s.adsProblem);
   showOffSites(s.offSites);
@@ -1198,8 +1169,6 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     out.Set("listUpdates", ListUpdater::IsEnabled(prefs));
     out.Set("listUpdatesAvailable", ListUpdater::CanUpdate());
     const PrivacyState privacy = GetPrivacyState(context);
-    out.Set("dnsFiltersThreats", privacy.dns_filters_threats);
-    out.Set("dnsManaged", privacy.dns_managed);
     out.Set("httpsFirst", privacy.https_first);
     out.Set("httpsBalanced", privacy.https_balanced);
     out.Set("webrtc", privacy.webrtc_policy);
