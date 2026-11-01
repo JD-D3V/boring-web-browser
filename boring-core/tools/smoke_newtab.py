@@ -7,6 +7,7 @@ state, start with the Reading and Wikipedia shortcuts, and let a person
 add and remove shortcuts, with removed defaults staying removed. Only
 web addresses may become shortcuts, never script or local files. The
 tiles arrive with a short motion (a plain fade with reduced motion),
+the page fits a 1404x631 window with no scrollbar,
 and the engine button opens
 the browser's own search engine menu under itself, driven through the
 test hook in smoke_search_menu.py. Screenshots go to
@@ -90,7 +91,10 @@ def main():
     with (
         tempfile.TemporaryDirectory(prefix="newtab-", dir=OUT) as profile,
         Browser(
-            user_data_dir=profile, args=[TEST_SWITCH, "--window-size=1360,900"]
+            user_data_dir=profile,
+            args=[TEST_SWITCH, "--window-size=1360,900"],
+            # The automation infobar would take 56 px off a 631 px window.
+            keep_switches=["enable-automation"],
         ) as b,
     ):
         b.get("chrome://newtab")
@@ -152,6 +156,32 @@ def main():
             "matchMedia('(prefers-reduced-motion: reduce)').matches)"
         )
         b.screenshot(str(OUT / "newtab-default.png"))
+
+        # At the 1404x631 reference window the whole page, footer
+        # included, fits: no scrollbar.
+        b._req(
+            "POST", f"/session/{b.sid}/window/rect", {"x": -32000, "y": -32000, "width": 1404, "height": 631}
+        )
+        checks["no scrollbar at 631 px window height"] = wait_for(
+            b,
+            "window.innerHeight<600 && "
+            "document.documentElement.scrollHeight<=document.documentElement"
+            ".clientHeight",
+        )
+        print(
+            "  631 window:",
+            b.run(
+                "var d=document.documentElement;return [window.outerHeight,"
+                "window.innerHeight,d.scrollHeight,d.clientHeight]"
+            ),
+        )
+        checks["footer is visible at 631 px window height"] = b.run(
+            "var r=document.querySelector('.home-colours')"
+            ".getBoundingClientRect();return r.bottom<=window.innerHeight"
+        )
+        b._req(
+            "POST", f"/session/{b.sid}/window/rect", {"x": -32000, "y": -32000, "width": 1360, "height": 900}
+        )
 
         # The engine button opens the browser's own menu under itself.
         checks["engine button says it opens a dialog"] = b.run(

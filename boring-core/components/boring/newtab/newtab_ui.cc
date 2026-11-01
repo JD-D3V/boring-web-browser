@@ -82,7 +82,7 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   /* Always wins over any author display rule, no matter its specificity,
      so a form given the hidden attribute is always actually hidden. */
   [hidden] { display: none !important; }
-  .home { max-width: 640px; margin: 0 auto; padding: 36px 24px 32px;
+  .home { max-width: 640px; margin: 0 auto; padding: 36px 24px 16px;
           text-align: center; }
   .home-brand { display: block; width: 44px; height: 44px;
                 margin: 0 auto 20px; }

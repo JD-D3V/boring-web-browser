@@ -18,7 +18,7 @@ diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/too
  #endif
  
 +  // boring: whether scam and ad blocking are really working, and the
-+  // Senior Safe Mode switch. Sits next to Settings so it is easy to find.
++  // protection switches. Sits next to Settings so it is easy to find.
 +  AddItemWithIcon(IDC_BORING_PROTECTION, u"Protection",
 +                  ui::ImageModel::FromVectorIcon(
 +                      vector_icons::kShieldIcon, ui::kColorMenuIcon,

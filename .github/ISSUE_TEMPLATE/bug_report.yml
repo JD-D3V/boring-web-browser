@@ -66,11 +66,11 @@ body:
     validations:
       required: true
   - type: checkboxes
-    id: senior
+    id: settings
     attributes:
       label: Settings that might matter
       options:
-        - label: Senior Safe Mode is on
+        - label: No way past scam warnings is on
         - label: I turned blocking list updates off
         - label: I have extensions installed
   - type: textarea

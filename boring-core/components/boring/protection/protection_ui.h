@@ -12,7 +12,8 @@ namespace boring {
 inline constexpr char kBoringProtectionHost[] = "boring-protection";
 
 // Shows whether scam and ad blocking are really working right now, and
-// holds the switches for Senior Safe Mode and sponsored search results.
+// holds the switches for screen takeovers, scam warnings and sponsored
+// results.
 // A failure is shown as a failure. The page never claims protection that
 // is not there.
 class BoringProtectionUI : public content::WebUIController {

@@ -111,15 +111,18 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   </div>
 
   <div class="panel">
-    <div id="senior-off" class="row">
-      <div>
-        <strong>Senior Safe Mode</strong>
-        <p class="why">Bigger text, fewer distractions, extra scam checks.</p>
+    <div class="option">
+      <div id="no-bypass-off" class="row">
+        <div>
+          <strong>No way past scam warnings</strong>
+          <p class="why">Takes away the continue anyway link on a scam
+          warning.</p>
+        </div>
+        <button class="secondary" id="no-bypass-on">Turn on</button>
       </div>
-      <button class="secondary" id="senior-on">Turn on</button>
+      <p id="no-bypass-done" class="done hidden" tabindex="-1">No way past
+      scam warnings is on.</p>
     </div>
-    <p id="senior-done" class="done hidden" tabindex="-1">Senior Safe Mode
-    is on.</p>
   </div>
 
   <div class="start">
@@ -134,13 +137,13 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
 constexpr char kScript[] = R"SCRIPT(
 function el(id) { return document.getElementById(id); }
 
-function show(senior) {
-  el('senior-off').classList.toggle('hidden', senior);
-  el('senior-done').classList.toggle('hidden', !senior);
-}
+// The switches that start off, by the id their elements are named with.
+var switches = ['no-bypass'];
 
-el('senior-on').addEventListener('click', function() {
-  chrome.send('turnOnSeniorSafeMode');
+switches.forEach(function(id) {
+  el(id + '-on').addEventListener('click', function() {
+    chrome.send('turnOnSwitch', [id]);
+  });
 });
 
 el('start').addEventListener('click', function() {
@@ -152,16 +155,21 @@ el('import-chromium').addEventListener('click', function() {
 });
 
 window.loadWelcome = function(state) {
-  var wasOff = !el('senior-off').classList.contains('hidden');
-  show(state.senior);
+  switches.forEach(function(id) {
+    var wasOff = !el(id + '-off').classList.contains('hidden');
+    var on = state[id];
+    el(id + '-off').classList.toggle('hidden', on);
+    el(id + '-done').classList.toggle('hidden', !on);
+    // The button that had focus is gone, so say what happened in its
+    // place.
+    if (on && wasOff && document.activeElement === document.body) {
+      el(id + '-done').focus();
+    }
+  });
   // Chrome or Edge is on this computer: offer it by name, in place of
   // the general link, which opens the same dialog.
   el('import-chromium').classList.toggle('hidden', !state.chromium);
   el('import-other').classList.toggle('hidden', state.chromium);
-  // The button that had focus is gone, so say what happened in its place.
-  if (state.senior && wasOff && document.activeElement === document.body) {
-    el('senior-done').focus();
-  }
 };
 chrome.send('getWelcome');
 )SCRIPT";
@@ -175,10 +183,10 @@ class WelcomeMessageHandler : public content::WebUIMessageHandler {
     web_ui()->RegisterMessageCallback(
         "getWelcome", base::BindRepeating(&WelcomeMessageHandler::HandleGet,
                                           base::Unretained(this)));
-    // Only ever turns Senior Safe Mode on. Turning it off lives on the
-    // Protection page, behind its warning.
+    // Only ever turns a switch on. Turning it off lives on the Protection
+    // page, behind its warning.
     web_ui()->RegisterMessageCallback(
-        "turnOnSeniorSafeMode",
+        "turnOnSwitch",
         base::BindRepeating(&WelcomeMessageHandler::HandleTurnOn,
                             base::Unretained(this)));
   }
@@ -215,7 +223,8 @@ class WelcomeMessageHandler : public content::WebUIMessageHandler {
 
   void Send() {
     base::DictValue out;
-    out.Set("senior", IsSeniorSafeMode(GetPrefs()));
+    PrefService* prefs = GetPrefs();
+    out.Set("no-bypass", prefs && prefs->GetBoolean(prefs::kNoScamBypass));
     out.Set("chromium", chromium_.value_or(false));
     web_ui()->CallJavascriptFunctionUnsafe("loadWelcome", out);
   }
@@ -226,8 +235,12 @@ class WelcomeMessageHandler : public content::WebUIMessageHandler {
   }
 
   void HandleTurnOn(const base::ListValue& args) {
-    if (PrefService* prefs = GetPrefs()) {
-      prefs->SetBoolean(prefs::kSeniorSafeMode, true);
+    PrefService* prefs = GetPrefs();
+    if (prefs && !args.empty() && args[0].is_string()) {
+      const std::string& id = args[0].GetString();
+      if (id == "no-bypass") {
+        prefs->SetBoolean(prefs::kNoScamBypass, true);
+      }
     }
     HandleGet(args);
   }

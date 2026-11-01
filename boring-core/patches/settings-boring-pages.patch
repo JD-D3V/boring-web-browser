@@ -153,7 +153,7 @@
  import '../performance_page/performance_page_index.js';
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -210,6 +210,25 @@
+@@ -210,6 +210,28 @@
    }
    s_allowlist = new PrefsUtil::TypedPrefMap();
  
@@ -170,7 +170,10 @@
 +  // deliberately left out: settings only ever shows whether a provider is
 +  // set up, never the key itself, and chrome://boring-ai is still the only
 +  // place that reads or writes it.
-+  (*s_allowlist)["boring.senior_safe_mode"] = settings_api::PrefType::kBoolean;
++  (*s_allowlist)["boring.protection.stop_takeovers"] =
++      settings_api::PrefType::kBoolean;
++  (*s_allowlist)["boring.protection.no_scam_bypass"] =
++      settings_api::PrefType::kBoolean;
 +  (*s_allowlist)["boring.hide_sponsored_results"] =
 +      settings_api::PrefType::kBoolean;
 +  (*s_allowlist)["boring.list_updates"] = settings_api::PrefType::kBoolean;
@@ -179,35 +182,11 @@
    // Miscellaneous
    (*s_allowlist)[::embedder_support::kAlternateErrorPagesEnabled] =
        settings_api::PrefType::kBoolean;
---- a/chrome/browser/ui/webui/settings/settings_ui.cc
-+++ b/chrome/browser/ui/webui/settings/settings_ui.cc
-@@ -110,6 +110,7 @@
- #include "components/autofill/core/browser/permissions/autofill_ai/autofill_ai_permission_utils.h"
- #include "components/autofill/core/common/autofill_features.h"
- #include "components/autofill/core/common/autofill_payments_features.h"
-+#include "components/boring/core/boring_prefs.h"
- #include "components/browsing_data/core/features.h"
- #include "components/commerce/core/commerce_feature_list.h"
- #include "components/commerce/core/feature_utils.h"
-@@ -437,6 +438,13 @@
-       base::FeatureList::IsEnabled(
-           autofill::features::kYourSavedInfoSettingsPageShoppingIntegration));
- 
-+  // boring: whether Senior Safe Mode was turned on for this computer with
-+  // the --senior-safe-mode command line switch, so the Protection page can
-+  // show its toggle as on and locked rather than as an ordinary editable
-+  // control it cannot actually change.
-+  html_source->AddBoolean("boringSeniorForced",
-+                          boring::IsSeniorSafeModeForced());
-+
-   AddSettingsPageUIHandler(std::make_unique<AboutHandler>(profile));
-   AddSettingsPageUIHandler(std::make_unique<ResetSettingsHandler>(profile));
- 
 diff --git a/chrome/browser/resources/settings/boring_page/boring_protection_page.html b/chrome/browser/resources/settings/boring_page/boring_protection_page.html
 new file mode 100644
 --- /dev/null
 +++ b/chrome/browser/resources/settings/boring_page/boring_protection_page.html
-@@ -0,0 +1,68 @@
+@@ -0,0 +1,64 @@
 +    <style include="cr-shared-style settings-shared">
 +      :host {
 +        display: block;
@@ -251,24 +230,20 @@ new file mode 100644
 +          sub-label="Scam, ad and tracker blocking, and how current the lists are."
 +          on-click="onProtectionDetailsClick_" external>
 +      </cr-link-row>
-+      <settings-toggle-button id="hideSponsoredToggle" class="hr"
-+          checked="[[computeHideSponsoredChecked_(
-+              prefs.boring.hide_sponsored_results.value,
-+              isSeniorOn_(prefs.boring.senior_safe_mode.value,
-+                  seniorForced_))]]"
-+          disabled="[[isSeniorOn_(prefs.boring.senior_safe_mode.value,
-+              seniorForced_)]]"
-+          on-change="onHideSponsoredChange_"
-+          label="Hide sponsored search results"
-+          sub-label="Remove supported paid placements on Google and Bing. This does not remove every scam link.">
++      <settings-toggle-button id="stopTakeoversToggle" class="hr"
++          pref="{{prefs.boring.protection.stop_takeovers}}"
++          label="Stop screen takeovers"
++          sub-label="Stops a page from locking your screen or keyboard with fake alerts.">
 +      </settings-toggle-button>
-+      <settings-toggle-button id="seniorToggle" class="hr"
-+          checked="[[isSeniorOn_(prefs.boring.senior_safe_mode.value,
-+              seniorForced_)]]"
-+          disabled="[[seniorForced_]]"
-+          on-change="onSeniorChange_"
-+          label="Senior Safe Mode"
-+          sub-label="[[computeSeniorSubLabel_(seniorForced_)]]">
++      <settings-toggle-button id="noScamBypassToggle" class="hr"
++          pref="{{prefs.boring.protection.no_scam_bypass}}"
++          label="No way past scam warnings"
++          sub-label="Takes away the continue anyway link on a scam warning.">
++      </settings-toggle-button>
++      <settings-toggle-button id="hideSponsoredToggle" class="hr"
++          pref="{{prefs.boring.hide_sponsored_results}}"
++          label="Hide sponsored results"
++          sub-label="Removes paid results from Google and Bing searches.">
 +      </settings-toggle-button>
 +      <settings-toggle-button id="listUpdatesToggle"
 +          pref="{{prefs.boring.list_updates}}"
@@ -280,7 +255,7 @@ diff --git a/chrome/browser/resources/settings/boring_page/boring_protection_pag
 new file mode 100644
 --- /dev/null
 +++ b/chrome/browser/resources/settings/boring_page/boring_protection_page.ts
-@@ -0,0 +1,122 @@
+@@ -0,0 +1,57 @@
 +// Copyright 2026 boring. BSD style license.
 +
 +/**
@@ -302,7 +277,6 @@ new file mode 100644
 +import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
 +import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 +
-+import {loadTimeData} from '../i18n_setup.js';
 +import {getSearchManager} from '../search_settings.js';
 +import type {SettingsPlugin} from '../settings_main/settings_plugin.js';
 +
@@ -318,70 +292,6 @@ new file mode 100644
 +
 +  static get template() {
 +    return getTemplate();
-+  }
-+
-+  static get properties() {
-+    return {
-+      /**
-+       * Set from the --senior-safe-mode command line switch. When true,
-+       * Senior Safe Mode cannot be changed here, or anywhere else in the
-+       * browser; see boring::IsSeniorSafeModeForced().
-+       */
-+      seniorForced_: {
-+        type: Boolean,
-+        value: () => loadTimeData.getBoolean('boringSeniorForced'),
-+      },
-+    };
-+  }
-+
-+  declare private seniorForced_: boolean;
-+
-+  /**
-+   * True when Senior Safe Mode is in effect, whether that came from the
-+   * stored pref or from the command line switch.
-+   */
-+  private isSeniorOn_(seniorPref: boolean, seniorForced: boolean): boolean {
-+    return seniorPref || seniorForced;
-+  }
-+
-+  private computeSeniorSubLabel_(seniorForced: boolean): string {
-+    if (seniorForced) {
-+      return 'Turned on for this computer.';
-+    }
-+    return 'Hide sponsored results and remove the option to bypass known ' +
-+        'scam warnings.';
-+  }
-+
-+  private onSeniorChange_(e: CustomEvent<boolean>) {
-+    if (this.seniorForced_) {
-+      // Nothing on this computer can turn this back off, so a stray event
-+      // should not try.
-+      return;
-+    }
-+    this.setPrefValue('boring.senior_safe_mode', e.detail);
-+  }
-+
-+  /**
-+   * Senior Safe Mode also hides sponsored results, so the switch reads on
-+   * even when the underlying pref is off. The stored pref is left alone:
-+   * turning Senior Safe Mode back off later should not have quietly turned
-+   * this one on for good.
-+   */
-+  private computeHideSponsoredChecked_(
-+      hideSponsored: boolean, seniorOn: boolean): boolean {
-+    return hideSponsored || seniorOn;
-+  }
-+
-+  private onHideSponsoredChange_(e: CustomEvent<boolean>) {
-+    if (this.isSeniorOn_(
-+            this.getPref<boolean>('boring.senior_safe_mode').value,
-+            this.seniorForced_)) {
-+      // The toggle is disabled whenever Senior Safe Mode is on, so this
-+      // should not be reachable. Guarding it anyway means a stray event can
-+      // never overwrite the real pref with a forced display value.
-+      return;
-+    }
-+    this.setPrefValue('boring.hide_sponsored_results', e.detail);
 +  }
 +
 +  private onProtectionDetailsClick_() {

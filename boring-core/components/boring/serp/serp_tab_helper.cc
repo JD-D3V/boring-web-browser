@@ -120,8 +120,7 @@ void SerpTabHelper::DocumentOnLoadCompletedInPrimaryMainFrame() {
   PrefService* pref_service =
       user_prefs::UserPrefs::Get(contents->GetBrowserContext());
   bool hide =
-      IsSeniorSafeMode(pref_service) ||
-      (pref_service && pref_service->GetBoolean(prefs::kHideSponsoredResults));
+      pref_service && pref_service->GetBoolean(prefs::kHideSponsoredResults);
   std::string script(kScript);
   std::string marker = "%HIDE%";
   size_t marker_pos = script.find(marker);
