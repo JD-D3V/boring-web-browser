@@ -76,6 +76,13 @@ bool TakeoverTabHelper::LooksLikeScam(content::WebContents* web_contents) {
   return helper && helper->looked_like_scam_;
 }
 
+// static
+void TakeoverTabHelper::MarkLooksLikeScam(content::WebContents* web_contents) {
+  if (TakeoverTabHelper* helper = FromWebContents(web_contents)) {
+    helper->looked_like_scam_ = true;
+  }
+}
+
 bool TakeoverTabHelper::CountDialog() {
   base::TimeTicks now = base::TimeTicks::Now();
   Prune(dialogs_, now, kDialogWindow);

@@ -37,6 +37,7 @@ from collections import Counter
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import focus_lock
 from drive import OFFSCREEN, Browser
 
 OUT = Path(__file__).resolve().parents[2] / "artifacts/release-readiness/network"
@@ -341,4 +342,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    with focus_lock.hold():
+        sys.exit(main())

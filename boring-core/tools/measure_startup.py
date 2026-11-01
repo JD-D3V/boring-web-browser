@@ -47,6 +47,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import focus_lock
+
 HISTOGRAMS = {
     "window": "Startup.BrowserWindow.FirstPaint",
     "newtab": "Startup.FirstWebContents.NonEmptyPaint3",
@@ -273,4 +275,5 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    with focus_lock.hold():
+        sys.exit(main())

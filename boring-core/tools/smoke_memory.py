@@ -42,6 +42,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+import focus_lock
 from drive import CHROME, OFFSCREEN
 from measure_startup import DevTools
 from smoke_local import Checks, set_local_state, set_profile_pref
@@ -477,4 +478,6 @@ def run(cdp, url, checks):
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    # It starts its browsers itself, not through drive.Browser.
+    with focus_lock.hold():
+        sys.exit(main())

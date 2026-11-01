@@ -1,0 +1,82 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phone banner test page</title>
+<!-- Pages for smoke_phone_banner.py, chosen by ?mode=
+       scam      a fake tech support pop-up over a blank page
+       late      the same, built a second after the page loads
+       contact   a shop's contact page with a menu, a footer and a number
+       news      a news story about these scams, quoting the wording
+       weak      a plain page that says call Windows Support, with a number
+     The numbers are fiction (555-01xx). -->
+<style>
+  body { margin: 0; font: 16px/1.5 system-ui, sans-serif; color: #222; background: #fff; }
+  nav, footer { padding: 12px 24px; background: #eef1f4; }
+  nav a { margin-right: 16px; }
+  main, article { max-width: 640px; margin: 24px; }
+  .shade { position: fixed; inset: 0; background: rgba(0, 0, 0, .55); }
+  .alert { position: fixed; left: 50%; top: 18%; transform: translateX(-50%);
+           width: min(520px, 90vw); background: #fff; border: 3px solid #c62828; }
+  .alert h1 { margin: 0; padding: 10px 16px; font-size: 20px; color: #fff; background: #c62828; }
+  .alert p { margin: 12px 16px; }
+  .alert .number { font-size: 26px; font-weight: bold; color: #c62828; }
+</style>
+<body>
+<script>
+  const pages = {
+    scam: `
+      <div class="shade"></div>
+      <div class="alert" role="alertdialog" aria-modal="true">
+        <h1>Windows Defender Security Center</h1>
+        <p><b>WARNING: Your computer has been infected with a virus.</b></p>
+        <p>Do not close this window or restart your computer. Your personal data,
+           banking passwords and photos are at risk.</p>
+        <p>Call Microsoft Support immediately (toll free):</p>
+        <p class="number">1-844-555-0142</p>
+        <p>Error code: 0x80070005</p>
+      </div>`,
+    contact: `
+      <nav><a href="/">Home</a><a href="/shop">Shop</a><a href="/about">About</a>
+           <a href="/returns">Returns</a><a href="/contact">Contact</a></nav>
+      <main>
+        <h1>Contact us</h1>
+        <p>Questions about your order? Call our customer service team on
+           <a href="tel:18005550123">1-800-555-0123</a>, Monday to Friday, 9am to 5pm.
+           Lost your receipt? Call us and we will look it up.</p>
+        <p>If you think your account has been compromised, call us immediately.
+           We will never ask for your password. Beware of scammers pretending to
+           be Microsoft support: we will never ask you to install software.</p>
+        <p>Returns are free for 30 days. Do not forget to include your order number.</p>
+      </main>
+      <footer>Boring Hardware, 14 Main Street. <a href="/privacy">Privacy</a>
+              <a href="/terms">Terms</a></footer>`,
+    news: `
+      <nav><a href="/">News</a><a href="/local">Local</a><a href="/world">World</a>
+           <a href="/tech">Tech</a><a href="/opinion">Opinion</a></nav>
+      <article>
+        <h1>Police warn of tech support scam</h1>
+        <p>Officers say scammers pose as Microsoft support, telling victims that
+           their computer is infected with a virus and that they should call
+           1-800-555-0100 immediately. One woman lost $3,000 after allowing the
+           caller remote access. "Do not close this window" and "your personal
+           data is at risk" are the lines to watch for, police said.</p>
+        <p>If you see a pop-up like this, close the browser. Do not call the number.</p>
+        <p>More from the paper: <a href="/a">Council votes</a>
+           <a href="/b">Weather</a> <a href="/c">Sports</a></p>
+      </article>
+      <footer>The Daily Example. <a href="/about">About</a> <a href="/ads">Advertise</a></footer>`,
+    weak: `
+      <main>
+        <p>Your PC has a problem. Please call Windows Support on
+           1-800-555-0117 to fix it.</p>
+      </main>`,
+  };
+  const mode = new URLSearchParams(location.search).get('mode') || 'scam';
+  function show(html) { document.body.innerHTML = html; }
+  if (mode === 'late') {
+    setTimeout(() => show(pages.scam), 1000);
+  } else {
+    show(pages[mode]);
+  }
+</script>
+</body>

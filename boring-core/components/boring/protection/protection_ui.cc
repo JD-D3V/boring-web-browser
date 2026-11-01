@@ -319,6 +319,14 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
     <input class="switch" type="checkbox" id="strip-params">
   </label>
 
+  <label class="setting-row" for="skip-redirects">
+    <span><strong>Skip tracking redirects</strong>
+      <p>Opens the real page when a link goes through a redirect page
+      first, such as the ones Facebook and Google use for outside links,
+      or through an AMP copy.</p></span>
+    <input class="switch" type="checkbox" id="skip-redirects">
+  </label>
+
   <label class="setting-row" for="fingerprint">
     <span><strong>Fingerprint noise</strong>
       <p>Adds a tiny random change to what pages read back from canvas
@@ -637,37 +645,8 @@ function showNeverSleep(sites) {
 var pollTimer = null;
 
 function load(s) {
-  if (s.scam === 'off') {
-    // No blocklist ships in this version. What protects against known
-    // dangerous sites is the resolver: Quad9 refuses to look them up.
-    // Say exactly that, including what it looks like when it works,
-    // and say plainly when the person has moved away from it.
-    var badge = el('scam-state');
-    var desc = el('scam-desc');
-    desc.textContent = '';
-    if (s.dnsFiltersThreats) {
-      badge.className = 'state-value';
-      badge.textContent = 'On';
-      desc.append('Known malware and phishing sites are refused by ' +
-          'Quad9 secure DNS, a Swiss non-profit, so they do not open. ' +
-          'There is no warning page: a blocked site shows as not found. ');
-    } else {
-      badge.className = 'state-value warn';
-      badge.textContent = s.dnsManaged ? 'Set by your organisation' : 'Off';
-      desc.append('Secure DNS is not using Quad9, so known dangerous ' +
-          'sites are not blocked by name. ');
-    }
-    if (!s.dnsManaged) {
-      var change = document.createElement('a');
-      change.className = 'text-button';
-      change.textContent = 'Secure DNS settings';
-      change.href = 'chrome://settings/security';
-      desc.append(change);
-    }
-  } else {
-    showState('scam', s.scam,
-        'Known listed sites are blocked before they open.', s.scamProblem);
-  }
+  showState('scam', s.scam,
+      'Known listed sites are blocked before they open.', s.scamProblem);
   showState('ads', s.ads,
       'Known advertising and tracking requests are blocked.', s.adsProblem);
   showOffSites(s.offSites);
@@ -677,6 +656,7 @@ function load(s) {
   el('hide-cookies').checked = s.hideCookies;
   el('fingerprint').checked = s.fingerprint;
   el('strip-params').checked = s.stripParams;
+  el('skip-redirects').checked = s.skipRedirects;
   showUpdates(s.update, s.updateAuto, s.version);
   showLevel(s.level);
   if (!filtersLoaded) {
@@ -748,6 +728,12 @@ el('strip-params').addEventListener('change', function(e) {
   chrome.send('setStripParams', [e.target.checked]);
   say(e.target.checked ? 'Tracking will be removed from links.'
                        : 'Links will be opened as they are.');
+});
+
+el('skip-redirects').addEventListener('change', function(e) {
+  chrome.send('setSkipRedirects', [e.target.checked]);
+  say(e.target.checked ? 'Redirect pages will be skipped.'
+                       : 'Redirect pages will be opened.');
 });
 
 el('fingerprint').addEventListener('change', function(e) {
@@ -896,6 +882,10 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     web_ui()->RegisterMessageCallback(
         "setStripParams",
         base::BindRepeating(&ProtectionMessageHandler::HandleSetStripParams,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "setSkipRedirects",
+        base::BindRepeating(&ProtectionMessageHandler::HandleSetSkipRedirects,
                             base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
         "setFingerprintNoise",
@@ -1199,13 +1189,13 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     out.Set("listUpdates", ListUpdater::IsEnabled(prefs));
     out.Set("listUpdatesAvailable", ListUpdater::CanUpdate());
     const PrivacyState privacy = GetPrivacyState(context);
-    out.Set("dnsFiltersThreats", privacy.dns_filters_threats);
-    out.Set("dnsManaged", privacy.dns_managed);
     out.Set("httpsFirst", privacy.https_first);
     out.Set("httpsBalanced", privacy.https_balanced);
     out.Set("webrtc", privacy.webrtc_policy);
     out.Set("stripParams",
             prefs && prefs->GetBoolean(prefs::kStripTrackingParams));
+    out.Set("skipRedirects",
+            prefs && prefs->GetBoolean(prefs::kSkipRedirects));
     out.Set("fingerprint",
             prefs && prefs->GetBoolean(prefs::kFingerprintNoise));
     out.Set("hideCookies",
@@ -1260,6 +1250,14 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     PrefService* prefs = GetPrefs();
     if (prefs && !args.empty() && args[0].is_bool()) {
       prefs->SetBoolean(prefs::kStripTrackingParams, args[0].GetBool());
+    }
+    HandleGet(args);
+  }
+
+  void HandleSetSkipRedirects(const base::ListValue& args) {
+    PrefService* prefs = GetPrefs();
+    if (prefs && !args.empty() && args[0].is_bool()) {
+      prefs->SetBoolean(prefs::kSkipRedirects, args[0].GetBool());
     }
     HandleGet(args);
   }
