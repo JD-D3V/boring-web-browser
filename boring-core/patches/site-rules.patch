@@ -103,7 +103,7 @@
  
          this.browserProxy.getSubAppsPermissionExplanation(this.origin_)
              .then((info) => {
-@@ -312,6 +339,72 @@
+@@ -312,6 +339,92 @@
    }
  
    /**
@@ -121,14 +121,39 @@
 +          }
 +          this.boringBlockingOn_ = !rules.blockingOff;
 +          this.boringNeverSleep_ = rules.neverSleep;
-+          this.browserProxy
-+              .getOriginPermissions(origin, [ContentSettingsTypes.COOKIES])
-+              .then((permissions) => {
++          // The exception list, not getOriginPermissions(): that one
++          // cannot turn a clear on exit answer into a permission and
++          // stops the browser.
++          const cookies = ContentSettingsTypes.COOKIES;
++          Promise
++              .all([
++                this.browserProxy.getExceptionList(cookies),
++                this.browserProxy.getDefaultValueForContentType(cookies),
++              ])
++              .then(([exceptions, everySite]) => {
++                if (origin !== this.origin_) {
++                  return;
++                }
++                const pattern = this.boringCookiePattern_(rules.site);
++                const own = exceptions.find(
++                    (e) => e.origin === pattern && !e.embeddingOrigin &&
++                        !e.incognito);
 +                this.boringClearOnClose_ =
-+                    permissions[0]?.setting === ContentSetting.SESSION_ONLY;
++                    (own ? own.setting : everySite.setting) ===
++                    ContentSetting.SESSION_ONLY;
 +                this.boringSite_ = rules.site;
 +              });
 +        });
++  }
++
++  /**
++   * The whole site, the way Chromium's own list writes it. An address or
++   * a bare host is exact.
++   */
++  private boringCookiePattern_(site: string): string {
++    const isDomain =
++        site.includes('.') && !site.includes(':') && !/^[\d.]+$/.test(site);
++    return isDomain ? `[*.]${site}` : site;
 +  }
 +
 +  private onBoringBlockingChange_(e: CustomEvent<boolean>) {
@@ -147,12 +172,7 @@
 +   */
 +  private onBoringClearOnCloseChange_(e: CustomEvent<boolean>) {
 +    this.boringClearOnClose_ = e.detail;
-+    // The whole site, the way Chromium's own list writes it. An address
-+    // or a bare host is exact.
-+    const site = this.boringSite_;
-+    const isDomain =
-+        site.includes('.') && !site.includes(':') && !/^[\d.]+$/.test(site);
-+    const pattern = isDomain ? `[*.]${site}` : site;
++    const pattern = this.boringCookiePattern_(this.boringSite_);
 +    const cookies = ContentSettingsTypes.COOKIES;
 +    if (e.detail) {
 +      this.browserProxy.setCategoryPermissionForPattern(
@@ -163,9 +183,9 @@
 +        pattern, '*', cookies, false);
 +    // Where every site clears already, resetting this one gives that
 +    // back, so say keep for this site outright.
-+    this.browserProxy.getOriginPermissions(this.origin_, [cookies])
-+        .then((permissions) => {
-+          if (permissions[0]?.setting === ContentSetting.SESSION_ONLY) {
++    this.browserProxy.getDefaultValueForContentType(cookies).then(
++        (everySite) => {
++          if (everySite.setting === ContentSetting.SESSION_ONLY) {
 +            this.browserProxy.setCategoryPermissionForPattern(
 +                pattern, '*', cookies, ContentSetting.ALLOW, false);
 +          }

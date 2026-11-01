@@ -375,9 +375,12 @@ void BoringProtectionButton::ShowPanel() {
   panel_delegate_->set_highlight_button_when_shown(true);
   // boring: test hook. A test window never has the keyboard, and a panel
   // that closes when its window loses it would go the moment it opened.
-  // Does nothing unless the switch is given.
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
-          "boring-shield-panel-test")) {
+  // The panel also opens without taking the keyboard, so a test never
+  // pulls it away from the person at the desk. Does nothing unless the
+  // switch is given.
+  const bool for_test = base::CommandLine::ForCurrentProcess()->HasSwitch(
+      "boring-shield-panel-test");
+  if (for_test) {
     panel_delegate_->set_close_on_deactivate(false);
   }
 
@@ -439,7 +442,11 @@ void BoringProtectionButton::ShowPanel() {
       base::BindOnce(&BoringProtectionButton::OnPanelCloseRequested,
                      weak_factory_.GetWeakPtr()));
   panel_motion_.Open(panel_.get());
-  panel_->Show();
+  if (for_test) {
+    panel_->ShowInactive();
+  } else {
+    panel_->Show();
+  }
 }
 
 void BoringProtectionButton::ClosePanel() {

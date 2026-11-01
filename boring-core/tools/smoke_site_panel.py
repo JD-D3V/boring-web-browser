@@ -285,12 +285,18 @@ def browser_windows(driver_pid):
 
 def foreground_is_ours(driver_pid):
     """Whether the window the person is working in belongs to the test
-    browser. It must not: nothing here may take the keyboard."""
-    pids = chrome_pids(CHROME)
-    ours = {pid for pid, parent in parents_of(pids).items() if parent == driver_pid}
+    browser, and its title. It must not: nothing here may take the
+    keyboard."""
+    ours = set()
+    if driver_pid:
+        pids = chrome_pids(CHROME)
+        ours = {pid for pid, parent in parents_of(pids).items() if parent == driver_pid}
+    hwnd = user32.GetForegroundWindow()
     owner = wintypes.DWORD()
-    user32.GetWindowThreadProcessId(user32.GetForegroundWindow(), ctypes.byref(owner))
-    return owner.value in ours
+    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
+    title = ctypes.create_unicode_buffer(60)
+    user32.GetWindowTextW(hwnd, title, 60)
+    return owner.value in ours, title.value
 
 
 def press_shield(frame, close=False):
@@ -499,6 +505,7 @@ def main():
 
     def open_panel(b, frame):
         """Press the shield; the panel's window and names, or (None, [])."""
+        focus_note(b, "before the press")
         try:
             how = press_shield(frame)
         except (LookupError, OSError, RuntimeError) as e:
@@ -509,10 +516,14 @@ def main():
             dump(b, frame, f"pressed the shield by {how}, no panel appeared")
         else:
             print(f"  panel (shield pressed by {how}): {names}")
-            print(
-                f"  test browser has the foreground: {foreground_is_ours(b.proc.pid)}"
-            )
+            focus_note(b, "panel open")
         return hwnd, names
+
+    def focus_note(b, when):
+        """Say who holds the keyboard. Not a check: the person may move
+        to another window while this runs."""
+        ours, title = foreground_is_ours(b.proc.pid)
+        print(f"  focus {when}: test browser has it: {ours} ({title!r})")
 
     def close_panel(frame):
         press_shield(frame, close=True)
@@ -521,8 +532,10 @@ def main():
     try:
         with tempfile.TemporaryDirectory(prefix="sitepanel-") as profile:
             # --- run one: the panel, then the settings page ------------------
+            print(f"  focus before the browser starts: {foreground_is_ours(0)[1]!r}")
             with Browser(user_data_dir=profile, args=args) as b:
                 frame = frame_window(CHROME, under=b.proc.pid)
+                focus_note(b, "browser started")
                 page_tab = current_handle(b)
 
                 b.get(page)
@@ -577,6 +590,9 @@ def main():
                     f"Blocking is on for {SITE}" in names,
                     str([n for n in names if "Blocking is" in n]),
                 )
+                # The panel fades in; a photograph taken at once is of a
+                # half-made one.
+                time.sleep(1.0)
                 shot(hwnd, "panel")
                 if hwnd:
                     with Window(hwnd) as w:
