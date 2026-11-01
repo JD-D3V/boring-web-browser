@@ -31,9 +31,11 @@ import time
 from drive import Browser
 from smoke_local import Pages, HTML, list_folder, wait_for
 
-LISTED = "bad.parent.test"
-SUB = "login.bad.parent.test"
-PARENT = "parent.test"
+# .localhost names: HTTPS-Only mode is on by default and upgrades any other
+# plain http name, so a .test page would never load.
+LISTED = "bad.parent.localhost"
+SUB = "login.bad.parent.localhost"
+PARENT = "parent.localhost"
 SAFE_PAGE = "<title>Local test page</title><p id=ok>local test page</p>"
 
 SCAM_LIST = (
