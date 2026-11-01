@@ -1,0 +1,35 @@
+# Copyright 2026 boring. BSD style license.
+
+# The phone number banner: a page that is a scary warning with a phone
+# number gets a quiet bar. phone_scam_detect.js is a plain file so node can
+# test it as it ships (test_phone_scam_detect.js); this embeds it in a
+# header, with the script the assistance component already has for that.
+action("scripts") {
+  script = "//components/boring/assistance/embed_scripts.py"
+  sources = [ "phone_scam_detect.js" ]
+  outputs = [ "$target_gen_dir/phone_scam_scripts.h" ]
+  args = [
+    rebase_path(outputs[0], root_build_dir),
+    "kPhoneScamDetectScript=" +
+        rebase_path("phone_scam_detect.js", root_build_dir),
+  ]
+}
+
+# guard_infobar.cc, which this uses, names CreateConfirmInfoBar() from
+# chrome/browser; see components/boring/guards/BUILD.gn.
+static_library("phone") {
+  sources = [
+    "phone_scam_tab_helper.cc",
+    "phone_scam_tab_helper.h",
+  ]
+  deps = [
+    ":scripts",
+    "//base",
+    "//components/boring/guards",
+    "//components/boring/scam/takeover",
+    "//content/public/browser",
+    "//content/public/common",
+    "//ui/display/types",
+    "//url",
+  ]
+}
