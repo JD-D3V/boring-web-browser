@@ -20,6 +20,7 @@ import shutil
 import subprocess
 import sys
 
+import get_scamlist
 import pristine
 from rebrand import rebrand
 
@@ -259,6 +260,25 @@ def build_rust(src):
         sys.exit(1)
 
 
+def stage_scam_list(src):
+    """Leaves a scam list in the tree's output folder if it has none.
+
+    The lists beside chrome.exe are fetched by tools (get_filterlists.py,
+    get_scamlist.py), never by the build, and stay there from one build
+    to the next. A tree that never had a scam list shows the Protection
+    page as unavailable, so it gets the development stand-in. A list that
+    is already there, real or not, is left alone.
+    """
+    out = os.path.join(src, "out", "Default")
+    path = os.path.join(out, "boring", "scamlist.txt")
+    if not os.path.isdir(out) or os.path.exists(path):
+        return
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(get_scamlist.development_list())
+    print("stage boring/scamlist.txt (stand-in, get_scamlist.py writes the real one)")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--src", default=DEFAULT_SRC)
@@ -323,6 +343,7 @@ def main():
         if os.path.exists(built):
             shutil.copy2(built, os.path.join(lib_dir, name))
             print("stage", name)
+    stage_scam_list(args.src)
     overlay_chromium_src(args.src, pristine)
     if args.no_patches:
         print("stopped before the patches, as asked")

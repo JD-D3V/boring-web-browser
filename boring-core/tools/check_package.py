@@ -60,6 +60,8 @@ import sys
 import tempfile
 import zipfile
 
+from get_scamlist import count_real_hosts
+
 # Without these the browser does not start.
 REQUIRED = [
     "chrome.exe",
@@ -237,6 +239,16 @@ def check_feature_contents(relative, reader, report, label):
             report.note(
                 f"[{label}] Chromium Web Store {version} manifest has no update_url"
             )
+    elif relative.lower() == "boring/scamlist.txt":
+        # apply.py leaves a test-only stand-in in a tree with no list.
+        hosts = count_real_hosts(reader().decode("utf-8", "replace"))
+        if hosts == 0:
+            report.fail(
+                f"[{label}] boring/scamlist.txt has no real hosts (a development "
+                "stand-in); run tools/get_scamlist.py"
+            )
+        else:
+            report.note(f"[{label}] boring/scamlist.txt holds {hosts} real hosts")
 
 
 # Names this tool will accept as the supplemental notice for the Cargo

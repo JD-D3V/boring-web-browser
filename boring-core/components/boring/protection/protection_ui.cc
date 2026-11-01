@@ -343,6 +343,13 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
     <input class="switch" type="checkbox" id="stop-takeovers">
   </label>
 
+  <label class="setting-row" for="warn-scam-tricks">
+    <span><strong>Warn about scam tricks</strong>
+      <p>Asks first before a download of a remote control tool such as
+      AnyDesk, and stops a page from copying a command for you to run.</p></span>
+    <input class="switch" type="checkbox" id="warn-scam-tricks">
+  </label>
+
   <label class="setting-row" for="no-bypass">
     <span><strong>No way past scam warnings</strong>
       <p>Takes away the continue anyway link on a scam warning.</p></span>
@@ -688,6 +695,7 @@ function load(s) {
   showNeverSleep(s.neverSleep);
 
   el('stop-takeovers').checked = s.stopTakeovers;
+  el('warn-scam-tricks').checked = s.warnScamTricks;
   el('no-bypass').checked = s.noBypass;
   el('hide-ads').checked = s.hideSponsored;
 
@@ -712,6 +720,12 @@ el('stop-takeovers').addEventListener('change', function(e) {
   chrome.send('setStopTakeovers', [e.target.checked]);
   say(e.target.checked ? 'Screen takeovers will be stopped.'
                        : 'Screen takeovers will not be stopped.');
+});
+
+el('warn-scam-tricks').addEventListener('change', function(e) {
+  chrome.send('setWarnScamTricks', [e.target.checked]);
+  say(e.target.checked ? 'Scam tricks will be warned about.'
+                       : 'Scam tricks will not be warned about.');
 });
 
 el('no-bypass').addEventListener('change', function(e) {
@@ -880,6 +894,10 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     web_ui()->RegisterMessageCallback(
         "setStopTakeovers",
         base::BindRepeating(&ProtectionMessageHandler::HandleSetStopTakeovers,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "setWarnScamTricks",
+        base::BindRepeating(&ProtectionMessageHandler::HandleSetWarnScamTricks,
                             base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
         "setNoScamBypass",
@@ -1190,6 +1208,8 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     out.Set("adsProblem", ads->status_message());
     out.Set("stopTakeovers",
             prefs && prefs->GetBoolean(prefs::kStopTakeovers));
+    out.Set("warnScamTricks",
+            prefs && prefs->GetBoolean(prefs::kWarnScamTricks));
     out.Set("noBypass", prefs && prefs->GetBoolean(prefs::kNoScamBypass));
     out.Set("hideSponsored",
             prefs && prefs->GetBoolean(prefs::kHideSponsoredResults));
@@ -1228,6 +1248,14 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     PrefService* prefs = GetPrefs();
     if (prefs && !args.empty() && args[0].is_bool()) {
       prefs->SetBoolean(prefs::kStopTakeovers, args[0].GetBool());
+    }
+    HandleGet(args);
+  }
+
+  void HandleSetWarnScamTricks(const base::ListValue& args) {
+    PrefService* prefs = GetPrefs();
+    if (prefs && !args.empty() && args[0].is_bool()) {
+      prefs->SetBoolean(prefs::kWarnScamTricks, args[0].GetBool());
     }
     HandleGet(args);
   }

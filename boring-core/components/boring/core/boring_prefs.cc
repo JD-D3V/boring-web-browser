@@ -23,6 +23,7 @@ constexpr char kObsoleteModePref[] = "boring.senior_safe_mode";
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterBooleanPref(kObsoleteModePref, false);
   registry->RegisterBooleanPref(prefs::kStopTakeovers, true);
+  registry->RegisterBooleanPref(prefs::kWarnScamTricks, true);
   registry->RegisterBooleanPref(prefs::kNoScamBypass, false);
   // Sponsored results are removed out of the box. Turning this off in
   // Protection leaves them in place with a quiet "Sponsored" chip.
