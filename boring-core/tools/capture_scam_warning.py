@@ -17,13 +17,12 @@ import tempfile
 import time
 from pathlib import Path
 
-from capture_native import OFFSCREEN, frame_window, grab, user32
+from capture_native import frame_window, grab
 from drive import CHROME, Browser
 from smoke_local import HTML, Pages, list_folder
 from smoke_scam import LISTED, SAFE_PAGE, SCAM_LIST, VARIANTS, args_for, open_url, wait_until_list_is_loaded
 
 ROOT = Path(__file__).resolve().parents[2]
-SIZE = (1280, 800)
 
 
 def main():
@@ -43,8 +42,6 @@ def main():
                         open_url(b, f"http://{LISTED}:{pages.port}/")
                         time.sleep(2.0)
                         hwnd = frame_window(CHROME, under=b.proc.pid)
-                        px, py = (int(v) for v in OFFSCREEN.split(","))
-                        user32.MoveWindow(hwnd, px, py, SIZE[0], SIZE[1], True)
                         time.sleep(0.6)
                         out = os.path.join(args.out, f"scam-warning-{name}.png")
                         got = grab(hwnd, out)

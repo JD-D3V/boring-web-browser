@@ -69,6 +69,8 @@ def args_for(lists, pages, extra):
         "--disable-boring-list-updates",
         f"--host-resolver-rules={rules}",
         "--window-size=1360,900",
+        # Never on the desktop and never in front: see drive.py.
+        "--window-position=-32000,-32000",
         *extra,
     ]
 
