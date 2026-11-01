@@ -12,14 +12,14 @@ and one on localhost, which the browser treats as two different sites.
   fingerprint   a canvas read twice, in two page loads, differs with the
                 noise on and matches with it off
   protection    the Protection page reports HTTPS-first on, WebRTC
-                hidden, dangerous sites blocked through Quad9, and the
+                hidden, known scam sites blocked by the scam list, and the
                 updater honestly off in a build without an update key
   search        the new tab page lists the browser's search engines and
                 choosing one makes it the default; Google is offered but
                 is not the default, and choosing it in settings works
 
-Quad9 itself is not contacted: the check reads what the browser's own
-settings say, which is what decides where DNS goes.
+Nothing is contacted: the check reads what the browser's own settings
+and Protection page say.
 """
 
 import json
@@ -254,9 +254,10 @@ def check_protection(profile, failures):
         failures.append(f"HTTPS-first is not on by default: {state['https']}")
     if state["webrtc"] != "Hidden":
         failures.append(f"WebRTC addresses are not hidden: {state['webrtc']}")
-    if state["scam"] != "On" or "Quad9" not in state["scamDesc"]:
+    if state["scam"] != "On" or "blocked before they open" not in state["scamDesc"]:
         failures.append(
-            f"dangerous sites are not blocked through Quad9: {state['scam']}"
+            f"known scam sites are not blocked by the scam list: {state['scam']}"
+            f" / {state['scamDesc']}"
         )
     if not state["strip"] or not state["noise"]:
         failures.append("tracking stripping or fingerprint noise is not on by default")
