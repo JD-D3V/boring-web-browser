@@ -36,7 +36,7 @@ class NewTabTextTest(unittest.TestCase):
 class NewTabFitsShortWindowTest(unittest.TestCase):
     def test_top_spacing_is_trimmed_so_the_footer_fits(self):
         text = read(NEWTAB)
-        self.assertIn("padding: 36px 24px 32px;", text)
+        self.assertIn("padding: 36px 24px 16px;", text)
         self.assertIn("justify-content: center; margin: 32px 0 0;", text)
         self.assertNotIn("padding: 70px 24px 56px;", text)
 
