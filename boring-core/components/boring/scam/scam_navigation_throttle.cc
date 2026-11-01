@@ -8,6 +8,7 @@
 
 #include "base/command_line.h"
 #include "components/boring/core/boring_capabilities.h"
+#include "components/boring/scam/lookalike_navigation_throttle.h"
 #include "components/boring/scam/scam_blocking_page.h"
 #include "components/boring/scam/scam_service.h"
 #include "components/security_interstitials/content/security_interstitial_tab_helper.h"
@@ -20,11 +21,8 @@ namespace boring {
 
 namespace {
 constexpr char kDisableSwitch[] = "disable-boring-scam-protection";
-}
 
-// static
-void ScamNavigationThrottle::MaybeCreateAndAdd(
-    content::NavigationThrottleRegistry& registry) {
+void AddScamThrottle(content::NavigationThrottleRegistry& registry) {
   // A build without a scam list must not load, warn or pretend.
   if (!kScamBlockingAvailable) {
     return;
@@ -38,6 +36,15 @@ void ScamNavigationThrottle::MaybeCreateAndAdd(
   }
   ScamService::GetInstance()->EnsureLoading();
   registry.AddThrottle(std::make_unique<ScamNavigationThrottle>(registry));
+}
+}  // namespace
+
+// static
+void ScamNavigationThrottle::MaybeCreateAndAdd(
+    content::NavigationThrottleRegistry& registry) {
+  AddScamThrottle(registry);
+  // After the scam throttle, so a listed site gets the stronger warning.
+  LookalikeNavigationThrottle::MaybeCreateAndAdd(registry);
 }
 
 ScamNavigationThrottle::ScamNavigationThrottle(

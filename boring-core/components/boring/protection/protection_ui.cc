@@ -346,7 +346,8 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   <label class="setting-row" for="warn-scam-tricks">
     <span><strong>Warn about scam tricks</strong>
       <p>Asks first before a download of a remote control tool such as
-      AnyDesk, and stops a page from copying a command for you to run.</p></span>
+      AnyDesk, stops a page from copying a command for you to run, and
+      warns when a site's name copies another site's.</p></span>
     <input class="switch" type="checkbox" id="warn-scam-tricks">
   </label>
 
