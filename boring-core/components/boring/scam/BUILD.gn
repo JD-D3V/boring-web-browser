@@ -2,6 +2,12 @@
 
 static_library("scam") {
   sources = [
+    "lookalike_blocking_page.cc",
+    "lookalike_blocking_page.h",
+    "lookalike_brands.cc",
+    "lookalike_brands.h",
+    "lookalike_navigation_throttle.cc",
+    "lookalike_navigation_throttle.h",
     "scam_blocking_page.cc",
     "scam_blocking_page.h",
     "scam_controller_client.cc",
@@ -10,7 +16,12 @@ static_library("scam") {
     "scam_navigation_throttle.h",
     "scam_service.cc",
     "scam_service.h",
+    "warning_page.cc",
+    "warning_page.h",
   ]
+  # lookalike_brands.cc is plain C++ (tools/tests/test_lookalike.py builds it
+  # alone) and includes its list.
+  inputs = [ "lookalike_brands.inc" ]
   # chrome/browser already depends on this target. The scam guards ride
   # along with it rather than adding a line to chrome/browser/BUILD.gn,
   # which several patches edit.
@@ -20,8 +31,12 @@ static_library("scam") {
     "//components/boring/adblock:browser",
     "//components/boring/core",
     "//components/boring/lists",
+    "//components/lookalikes/core",
+    "//components/lookalikes/core:proto",
+    "//components/prefs",
     "//components/security_interstitials/content:security_interstitial_page",
     "//components/security_interstitials/core",
+    "//components/url_formatter",
     "//components/user_prefs",
     "//content/public/browser",
     "//net",
