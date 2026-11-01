@@ -139,7 +139,10 @@ def main():
                 "Your computer is fine" in text and "Close this tab" in text
             )
             checks["fullscreen is gone"] = not fullscreen(b)
-            b.run("document.getElementById('close').click(); return 1")
+            try:
+                b.run("document.getElementById('close').click(); return 1")
+            except RuntimeError:
+                pass  # the tab can be gone before the driver gets its answer
             checks["one click closes the tab"] = wait(
                 lambda: len(t.handles()) == before - 1, timeout=10
             )
