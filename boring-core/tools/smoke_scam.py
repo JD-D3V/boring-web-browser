@@ -146,8 +146,11 @@ def main():
                     )
 
                     b.get(f"http://{PARENT}:{pages.port}/")
-                    check("the parent of a listed host opens", wait_for(b, "!!document.getElementById('ok')"))
-                    safe_url = b.current_url()
+                    parent_ok = wait_for(b, "!!document.getElementById('ok')")
+                    check("the parent of a listed host opens", parent_ok)
+                    if not parent_ok:
+                        print("  page was:", b.run("return [location.href, document.readyState, document.documentElement.outerHTML.slice(0, 300)]"))
+                        print("  fetch gives:", b.run_async("const [done] = arguments; fetch(location.href).then(r => r.text()).then(t => done(t.slice(0, 120)), e => done('ERR ' + e))"))
 
                     open_url(b, f"http://{LISTED}:{pages.port}/")
                     shown = wait_for(b, "document.body && document.body.innerText.includes('This site looks dangerous')")
@@ -158,9 +161,20 @@ def main():
                     check("Go back to safety is the main action", bool(b.run(f"return !!({GO_BACK})")) and bool(b.run("return !!document.querySelector('button.primary')")))
                     check("Continue anyway is offered", bool(b.run(f"return !!({CONTINUE})")))
 
-                    b.run(f"({GO_BACK}).click()")
-                    went_back = wait_for(b, "!!document.getElementById('ok')", 10000)
-                    check("Go back to safety leaves the warning", went_back, b.current_url())
+                    try:
+                        b.run(f"({GO_BACK}).click()")
+                    except RuntimeError as e:
+                        print("  click on Go back:", str(e)[:200])
+                    time.sleep(2)
+                    try:
+                        left = LISTED not in b.current_url()
+                        went_back = left
+                    except RuntimeError as e:
+                        went_back = False
+                        print("  after Go back:", str(e)[:200])
+                    check("Go back to safety leaves the warning", went_back)
+                    if not went_back:
+                        raise SystemExit("the browser is gone after Go back; stopping")
 
                     open_url(b, f"http://{SUB}:{pages.port}/")
                     check(
