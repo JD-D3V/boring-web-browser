@@ -8,6 +8,8 @@ static_library("protection") {
     "memory_saver.h",
     "protection_ui.cc",
     "protection_ui.h",
+    "site_rules_handler.cc",
+    "site_rules_handler.h",
   ]
   deps = [
     "//base",

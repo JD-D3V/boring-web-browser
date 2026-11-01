@@ -38,7 +38,8 @@ class AdblockThrottle : public blink::URLLoaderThrottle {
   // site otherwise. Empty when it cannot tell.
   static GURL TopFrameUrl(const network::ResourceRequest& request);
 
-  explicit AdblockThrottle(EnabledLists lists);
+  // `top_frame_url` is the page the request is made for, see TopFrameUrl().
+  AdblockThrottle(EnabledLists lists, const GURL& top_frame_url);
   ~AdblockThrottle() override;
 
   // blink::URLLoaderThrottle:
@@ -57,6 +58,8 @@ class AdblockThrottle : public blink::URLLoaderThrottle {
 
   // The profile's optional lists, as they were when the request began.
   const EnabledLists lists_;
+  // The page blocked requests are counted for (BlockedCounts).
+  const GURL top_frame_url_;
   // Remembered from WillStartRequest for redirect checks.
   GURL initiator_;
   std::string request_type_;

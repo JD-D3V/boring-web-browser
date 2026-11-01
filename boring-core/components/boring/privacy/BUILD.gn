@@ -4,9 +4,16 @@
 # chrome/browser/boring/privacy_bridge.cc. See privacy_state.h.
 #
 # tracking_params.cc is adapted from brave-core and stays under the
-# MPL-2.0, see its header. Everything else here is ours.
+# MPL-2.0, see its header. So does debounce_brave.inc, which is Brave's
+# debounce.json unchanged. Everything else here is ours.
 static_library("privacy") {
   sources = [
+    "debounce.cc",
+    "debounce.h",
+    "debounce_boring.inc",
+    "debounce_brave.inc",
+    "debounce_throttle.cc",
+    "debounce_throttle.h",
     "privacy_state.h",
     "tracking_param_throttle.cc",
     "tracking_param_throttle.h",
@@ -21,7 +28,20 @@ static_library("privacy") {
     "//content/public/browser",
     "//content/public/common",
     "//net",
+    "//third_party/re2",
     "//ui/base",
+    "//url",
+  ]
+}
+
+# Debounce rule tests: sample addresses in, answers out, see
+# debounce_test.cc. A plain program, so it needs nothing but the browser's
+# own libraries. `ninja -C out\Default debounce_test`.
+executable("debounce_test") {
+  sources = [ "debounce_test.cc" ]
+  deps = [
+    ":privacy",
+    "//base",
     "//url",
   ]
 }

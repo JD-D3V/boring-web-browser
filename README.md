@@ -135,6 +135,9 @@ changed since, so it is not shown.
 - Our code: [MIT](LICENSE).
 - `boring-core/components/boring/privacy/tracking_params.cc`: MPL-2.0,
   adapted from Brave.
+- `boring-core/components/boring/privacy/debounce_brave.inc`: MPL-2.0,
+  Brave's debounce rules, unchanged. Our own rules are in
+  `debounce_boring.inc`.
 - WinSparkle: MIT.
 - chromium-web-store (NeverDecaf): MIT.
 - English (US) spelling dictionary: SCOWL licence.
