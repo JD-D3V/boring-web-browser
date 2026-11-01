@@ -40,6 +40,7 @@ CHECKS = [
     ("sponsored search results", "smoke_serp.py"),
     ("pop-up blocking", "smoke_popups.py"),
     ("per site blocking off", "smoke_siteoff.py"),
+    ("shield panel and site settings page", "smoke_site_panel.py"),
     ("stop screen takeovers", "smoke_takeover.py"),
     ("import from Chrome and Edge", "smoke_import.py"),
     ("Web Store installs and bundled Chromium Web Store", "smoke_webstore.py"),

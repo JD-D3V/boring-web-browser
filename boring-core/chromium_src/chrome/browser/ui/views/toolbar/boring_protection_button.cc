@@ -3,8 +3,11 @@
 #include "chrome/browser/ui/views/toolbar/boring_protection_button.h"
 
 #include <memory>
+#include <utility>
 
+#include "base/command_line.h"
 #include "base/functional/bind.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "chrome/app/chrome_command_ids.h"
@@ -12,8 +15,10 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "components/boring/adblock/adblock_service.h"
+#include "components/boring/adblock/blocked_counts.h"
 #include "components/boring/adblock/blocking_off_sites.h"
 #include "components/boring/adblock/element_picker.h"
 #include "components/boring/core/boring_capabilities.h"
@@ -25,6 +30,7 @@
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/reload_type.h"
 #include "content/public/browser/web_contents.h"
+#include "ui/accessibility/ax_action_data.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
@@ -44,6 +50,7 @@
 #include "ui/views/controls/highlight_path_generator.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/controls/separator.h"
+#include "ui/views/style/typography.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/view.h"
 
@@ -100,6 +107,45 @@ views::ToggleButton* AddToggleRow(views::View* parent,
   toggle->SetIsOn(is_on);
   toggle->GetViewAccessibility().SetName(text);
   return toggle;
+}
+
+// boring: what was blocked on the page, as one short count and the kinds
+// that make it up, for the top of the panel.
+std::u16string CountOf(uint32_t n, const char16_t* one, const char16_t* many) {
+  return base::NumberToString16(n) + u" " + (n == 1 ? one : many);
+}
+
+void AddBlockedSummary(views::View* parent, const boring::BlockedTotals& totals) {
+  std::u16string headline = u"Nothing blocked on this page.";
+  std::u16string kinds;
+  if (const uint32_t total = totals.total()) {
+    headline = base::NumberToString16(total) + u" blocked on this page";
+    const std::pair<boring::BlockedKind, std::pair<const char16_t*, const char16_t*>>
+        names[] = {{boring::BlockedKind::kAds, {u"ad", u"ads"}},
+                   {boring::BlockedKind::kTrackers, {u"tracker", u"trackers"}},
+                   {boring::BlockedKind::kCookieBanners,
+                    {u"cookie banner", u"cookie banners"}},
+                   {boring::BlockedKind::kScripts, {u"script", u"scripts"}}};
+    for (const auto& [kind, words] : names) {
+      if (const uint32_t n = totals.of(kind)) {
+        kinds += (kinds.empty() ? u"" : u", ") +
+                 CountOf(n, words.first, words.second);
+      }
+    }
+  }
+  auto add = [&](const std::u16string& text, int style) {
+    auto* label = parent->AddChildView(std::make_unique<views::Label>(
+        text, views::style::CONTEXT_LABEL, style));
+    label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+    label->SetMultiLine(true);
+    label->SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(2, 12)));
+  };
+  add(headline, views::style::STYLE_PRIMARY);
+  if (!kinds.empty()) {
+    add(kinds, views::style::STYLE_SECONDARY);
+  }
+  parent->AddChildView(std::make_unique<views::Separator>())
+      ->SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(4, 0)));
 }
 
 }  // namespace
@@ -159,6 +205,23 @@ void BoringProtectionButton::OnThemeChanged() {
   // The shield and the label both carry a colour, so both have to be
   // repainted once a new theme is in place.
   UpdateState();
+}
+
+bool BoringProtectionButton::HandleAccessibleAction(
+    const ui::AXActionData& action_data) {
+  // On a web page the shield says it opens a dialog, so UI Automation
+  // offers Expand and Collapse for it and no Invoke; View answers neither.
+  if (action_data.action == ax::mojom::Action::kExpand) {
+    if (!panel_) {
+      ShowPanel();
+    }
+    return true;
+  }
+  if (action_data.action == ax::mojom::Action::kCollapse) {
+    ClosePanel();
+    return true;
+  }
+  return ToolbarButton::HandleAccessibleAction(action_data);
 }
 
 void BoringProtectionButton::FollowActiveTab() {
@@ -310,10 +373,25 @@ void BoringProtectionButton::ShowPanel() {
   panel_delegate_->set_margins(gfx::Insets::TLBR(4, 0, 8, 0));
   panel_delegate_->set_fixed_width(kPanelWidth);
   panel_delegate_->set_highlight_button_when_shown(true);
+  // boring: test hook. A test window never has the keyboard, and a panel
+  // that closes when its window loses it would go the moment it opened.
+  // The panel also opens without taking the keyboard, so a test never
+  // pulls it away from the person at the desk. Does nothing unless the
+  // switch is given.
+  const bool for_test = base::CommandLine::ForCurrentProcess()->HasSwitch(
+      "boring-shield-panel-test");
+  if (for_test) {
+    panel_delegate_->set_close_on_deactivate(false);
+  }
 
   auto contents = std::make_unique<views::View>();
   contents->SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical, gfx::Insets::VH(0, 8), 2));
+
+  // boring: what was blocked here, so a broken page can be explained.
+  if (!off) {
+    AddBlockedSummary(contents.get(), boring::BlockedCounts::Get(panel_url_));
+  }
 
   // The level belongs to the profile, not the site. The engine picks it
   // up from the next page load.
@@ -337,7 +415,7 @@ void BoringProtectionButton::ShowPanel() {
       contents.get(),
       base::BindRepeating(&BoringProtectionButton::OnToggleSite,
                           base::Unretained(this)),
-      off ? u"Turn blocking back on" : u"Turn off blocking on this site");
+      off ? u"Turn blocking back on" : u"Turn off blocking for this site");
   // Nothing to pick where nothing is being blocked.
   if (!off && !boring::AdblockService::IsDisabled()) {
     AddActionRow(contents.get(),
@@ -347,6 +425,12 @@ void BoringProtectionButton::ShowPanel() {
   }
   contents->AddChildView(std::make_unique<views::Separator>())
       ->SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(4, 0)));
+  // boring: this site's rules in one place (feat/site-panel).
+  AddActionRow(
+      contents.get(),
+      base::BindRepeating(&BoringProtectionButton::OnOpenSiteSettings,
+                          base::Unretained(this)),
+      u"Settings for this site");
   AddActionRow(contents.get(),
                base::BindRepeating(&BoringProtectionButton::OnOpenProtection,
                                    base::Unretained(this)),
@@ -358,7 +442,11 @@ void BoringProtectionButton::ShowPanel() {
       base::BindOnce(&BoringProtectionButton::OnPanelCloseRequested,
                      weak_factory_.GetWeakPtr()));
   panel_motion_.Open(panel_.get());
-  panel_->Show();
+  if (for_test) {
+    panel_->ShowInactive();
+  } else {
+    panel_->Show();
+  }
 }
 
 void BoringProtectionButton::ClosePanel() {
@@ -424,6 +512,12 @@ void BoringProtectionButton::OnBlockElement() {
 void BoringProtectionButton::OnOpenProtection() {
   ClosePanel();
   chrome::ExecuteCommand(browser_, IDC_BORING_PROTECTION);
+}
+
+void BoringProtectionButton::OnOpenSiteSettings() {
+  const GURL url = panel_url_;
+  ClosePanel();
+  chrome::ShowSiteSettings(browser_, url);
 }
 
 void BoringProtectionButton::ReloadPanelSite() {

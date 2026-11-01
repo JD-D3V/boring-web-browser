@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "components/boring/adblock/adblock_service.h"
+#include "components/boring/adblock/blocked_counts.h"
 #include "components/boring/adblock/blocking_off_sites.h"
 #include "net/base/net_errors.h"
 #include "net/url_request/redirect_info.h"
@@ -21,11 +22,12 @@ std::unique_ptr<AdblockThrottle> AdblockThrottle::MaybeCreate(
   if (AdblockService::IsDisabled()) {
     return nullptr;
   }
+  const GURL top_frame_url = TopFrameUrl(request);
   // Blocking follows the page in the tab, not the frame or server a
   // request goes to, so an ad frame on a site the person turned
   // blocking off for loads, and the same frame elsewhere does not.
   if (browser_context && BlockingOffSites::ForContext(browser_context)
-                             ->IsOff(TopFrameUrl(request))) {
+                             ->IsOff(top_frame_url)) {
     return nullptr;
   }
   // Also brings the profile's list choices up to date for the checks
@@ -35,7 +37,7 @@ std::unique_ptr<AdblockThrottle> AdblockThrottle::MaybeCreate(
     lists = ProfileLists::ForContext(browser_context)->Get();
   }
   AdblockService::GetInstance()->EnsureLoading();
-  return std::make_unique<AdblockThrottle>(std::move(lists));
+  return std::make_unique<AdblockThrottle>(std::move(lists), top_frame_url);
 }
 
 // static
@@ -52,8 +54,8 @@ GURL AdblockThrottle::TopFrameUrl(const network::ResourceRequest& request) {
   return GURL();
 }
 
-AdblockThrottle::AdblockThrottle(EnabledLists lists)
-    : lists_(std::move(lists)) {}
+AdblockThrottle::AdblockThrottle(EnabledLists lists, const GURL& top_frame_url)
+    : lists_(std::move(lists)), top_frame_url_(top_frame_url) {}
 AdblockThrottle::~AdblockThrottle() = default;
 
 void AdblockThrottle::WillStartRequest(network::ResourceRequest* request,
@@ -67,6 +69,11 @@ void AdblockThrottle::WillStartRequest(network::ResourceRequest* request,
   // the scam protection's job, with a clear warning, not the ad
   // blocker's.
   if (request_type_ == "document") {
+    // A page starts loading: what it has blocked so far is the last
+    // page's, so the count starts again.
+    if (request->destination == network::mojom::RequestDestination::kDocument) {
+      BlockedCounts::Reset(request->url);
+    }
     return;
   }
   CheckUrl(request->url);
@@ -78,6 +85,7 @@ void AdblockThrottle::WillRedirectRequest(
     bool* defer,
     network::HttpRequestHeadersUpdateParams* headers_update_params) {
   if (request_type_ == "document") {
+    BlockedCounts::Reset(redirect_info->new_url);
     return;
   }
   CheckUrl(redirect_info->new_url);
@@ -95,6 +103,7 @@ void AdblockThrottle::CheckUrl(const GURL& url) {
   if (AdblockService::GetInstance()
           ->Check(url, initiator_, request_type_, lists_)
           .block) {
+    BlockedCounts::Note(top_frame_url_, url, request_type_);
     delegate_->CancelWithError(net::ERR_BLOCKED_BY_CLIENT, "boring-adblock");
   }
 }
