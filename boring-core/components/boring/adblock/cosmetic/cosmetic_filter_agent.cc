@@ -229,10 +229,17 @@ void CosmeticFilterAgent::ApplyAtDocumentStart() {
   InsertStyleSheet(BuildRules(resources->hide_selectors, kHideDeclarations) +
                    procedural.css);
 
+  // Cookie banners are answered from the main frame only: every platform
+  // draws its banner in the top document.
+  const bool reject_cookies =
+      resources->auto_reject_cookies && !frame->Parent();
+
   base::WeakPtr<CosmeticFilterAgent> alive = weak_factory_.GetWeakPtr();
-  if (!resources->generichide || !procedural.filters.empty()) {
+  if (!resources->generichide || !procedural.filters.empty() ||
+      reject_cookies) {
     base::DictValue config;
     config.Set("generic", !resources->generichide);
+    config.Set("cookies", reject_cookies);
     config.Set("filters", std::move(procedural.filters));
     std::optional<std::string> config_json = base::WriteJson(config);
     if (config_json) {

@@ -86,20 +86,20 @@ REQUIRED_PROTECTION = [
     "boring/aggressive-fanboy.txt",
     "boring/sources.json",
     "boring/regional/index.json",
+    # The scam and phishing blocklist. Without it scam blocking has
+    # nothing to match, and the Protection page says so.
+    "boring/scamlist.txt",
     # The browser updater. Without it an installed copy never hears of a
     # security fix, which is the same failure in slower motion.
     "WinSparkle.dll",
 ]
 
-# v1 ships no scam blocklist: no feed grants permission to redistribute
-# one (see boring-core/tools/get_scamlist.py), and the browser says as
-# much on its Protection page. A package holding one would either be
-# stale data nobody may pass on, or a file the browser refuses to use
-# while the page says the feature is off. Either way it must not ship,
-# so its presence is a failure rather than something to check.
-MUST_NOT_SHIP = [
-    "boring/scamlist.txt",
-]
+# Files that must not be in a package. None right now: the scam blocklist
+# is built from two feeds we may pass on (see boring-core/tools/
+# get_scamlist.py) and ships, so it moved to REQUIRED_PROTECTION. The
+# check stays for the next file that is fine in principle and not
+# permitted in a given version.
+MUST_NOT_SHIP: list[str] = []
 
 # What we owe the projects this is built from.
 REQUIRED_NOTICES = [
@@ -124,6 +124,9 @@ REQUIRED_NOTICES = [
     "NOTICES-easylist-cookie.txt",
     "NOTICES-aggressive-ubo.txt",
     "NOTICES-aggressive-fanboy.txt",
+    # The scam blocklist's feeds: DurableNapkin's MIT notice has to
+    # travel with the list. Written by tools/get_scamlist.py.
+    "NOTICES-scam-blocklist.txt",
 ]
 
 CORE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -466,10 +469,8 @@ def check_not_shipped(present, report, label):
     for name in MUST_NOT_SHIP:
         if name in have:
             report.fail(
-                f"[{label}] {name} is in the package. This version ships no "
-                "scam list: no feed grants permission to redistribute one, "
-                "and the browser says scam blocking is off. Rebuild without "
-                "it rather than shipping it"
+                f"[{label}] {name} is in the package but is not permitted "
+                "in this version. Rebuild without it rather than shipping it"
             )
         else:
             report.note(f"[{label}] {name} correctly absent")

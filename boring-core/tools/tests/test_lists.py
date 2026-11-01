@@ -151,10 +151,9 @@ def stub_check(files, errors_in=None):
 def permitted(*sources):
     """Runs a block with those scam feeds treated as cleared to use.
 
-    v1 clears none, so build_scam_list does nothing at all. The
-    assembly, the floors and the parsers still have to work for the day
-    permission arrives, and this is how they stay tested without any of
-    it running for real.
+    The tests below stand a pretend feed in for a cleared one, so what
+    is checked is the assembly, the floors and the parsers and not
+    whether a real feed is up today.
     """
     before = get_scamlist.PERMITTED_SOURCES
     get_scamlist.PERMITTED_SOURCES = sources
@@ -284,36 +283,25 @@ class HostfileChecks(unittest.TestCase):
 
 
 class ScamListBuild(unittest.TestCase):
-    """v1 builds no scam list, and the builder still works underneath."""
+    """The builder, with a pretend feed standing in for a permitted one."""
 
-    def test_no_feed_is_permitted(self):
-        # The state this version ships in. If this ever fails, someone
-        # has added a feed, and that needs a written permission behind
-        # it, not a passing test.
-        self.assertEqual(get_scamlist.PERMITTED_SOURCES, ())
-
-    def test_nothing_is_fetched_and_there_is_no_coverage(self):
-        requested = []
-
-        def fetch(url):
-            requested.append(url)
-            raise AssertionError("no scam feed may be fetched in this version")
-
-        built = get_scamlist.build_scam_list(fetch=fetch)
-        self.assertEqual(requested, [])
-        self.assertEqual(built.sources, [])
-        self.assertEqual(built.entries, 0)
-        self.assertEqual(get_scamlist.count_real_hosts(built.text), 0)
-
-    def test_the_tool_refuses_to_write_a_list(self):
-        work = tempfile.mkdtemp(prefix="boring-scam-test-")
-        self.addCleanup(shutil.rmtree, work, ignore_errors=True)
-        out = io.StringIO()
-        with contextlib.redirect_stdout(out):
-            code = get_scamlist.main(["--out", work])
-        self.assertEqual(code, 2)
-        self.assertIn("cleared for redistribution", out.getvalue())
-        self.assertFalse(os.path.exists(os.path.join(work, "boring")))
+    def test_only_the_two_cleared_feeds_are_permitted(self):
+        # If this ever fails, someone has added a feed, and that needs a
+        # written permission behind it, not a passing test.
+        self.assertEqual(
+            [(name, url) for name, url, _parse in get_scamlist.PERMITTED_SOURCES],
+            [
+                ("cert-polska", get_scamlist.CERT_URL),
+                ("durablenapkin", get_scamlist.DURABLENAPKIN_URL),
+            ],
+        )
+        self.assertEqual(
+            set(get_scamlist.SOURCE_NOTES),
+            {name for name, _url, _parse in get_scamlist.PERMITTED_SOURCES},
+        )
+        urls = [url for _name, url, _parse in get_scamlist.PERMITTED_SOURCES]
+        self.assertNotIn(URLHAUS_URL, urls)
+        self.assertNotIn(OPENPHISH_URL, urls)
 
     def test_a_permitted_source_that_is_down_means_no_coverage(self):
         with permitted(URLHAUS_SOURCE):
@@ -501,10 +489,11 @@ class PublishPath(unittest.TestCase):
         self.assertTrue(all(s["ok"] for s in manifest["sources"]))
         self.assertIn("without a signature", log)
 
-    def test_no_scam_list_is_published_even_though_the_feeds_answer(self):
-        # The fetch here would happily hand over both scam feeds. No
-        # provider has given permission to pass their data on, so none
-        # of it may end up in the bundle or in the manifest.
+    def test_no_scam_list_is_published_in_the_lists_release(self):
+        # The lists release does not carry a scam list yet: it is built
+        # into the installer by get_scamlist.py. The fetch here would
+        # answer for the old feeds, which are not cleared at all, so
+        # none of that may end up in the bundle or in the manifest.
         code, _ = self.run_publish(healthy_answers(), extra=["--version", "500"])
         self.assertEqual(code, 0)
         self.assertFalse(os.path.exists(os.path.join(self.out, "scamlist.txt")))

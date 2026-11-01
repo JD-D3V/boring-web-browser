@@ -9,19 +9,17 @@ namespace boring {
 //
 // Blocking scam and phishing sites needs a list of them, and a list we
 // are allowed to hand to other people. The two feeds this browser was
-// built against, URLhaus and OpenPhish, do not give that permission:
-// their terms cover access, not redistribution through an installer and
-// an update feed. See docs/release/URLHAUS_PERMISSION_REVIEW.md.
+// first built against, URLhaus and OpenPhish, do not give that
+// permission (docs/release/URLHAUS_PERMISSION_REVIEW.md). Two others do:
+// CERT Polska's Warning List and DurableNapkin's Scam Blocklist, whose
+// terms are written down in tools/get_scamlist.py, and the list built
+// from them ships beside the browser with their notices.
 //
-// So v1 ships no scam list. The matching code, the warning page and
-// their tests all stay, because the gap is permission, not engineering,
-// and this goes back on the day a feed we may redistribute is in place.
-//
-// While this is false the browser must not claim scam or phishing
-// protection anywhere, and must not offer a control that implies it has
-// any. Ad and tracker blocking and the popup and tab-under blocking are
-// unaffected: those lists are redistributable and stay on.
-inline constexpr bool kScamBlockingAvailable = false;
+// Coverage is thin outside Poland, so the browser must not describe
+// this as complete protection. If the list is missing the service
+// reports a failure and the shield says so; ad and tracker blocking and
+// the popup and tab-under blocking do not depend on it.
+inline constexpr bool kScamBlockingAvailable = true;
 
 // Whether a downloaded copy of this browser can play DRM video.
 //
