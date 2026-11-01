@@ -38,7 +38,6 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterIntegerPref(prefs::kBoringBlockingLevel, 0);
   registry->RegisterStringPref(prefs::kBoringCustomRules, std::string());
   registry->RegisterListPref(prefs::kBoringNeverSleepSites);
-  registry->RegisterBooleanPref(prefs::kStopTakeovers, true);
 }
 
 void MigrateObsoleteProfilePrefs(PrefService* prefs) {
