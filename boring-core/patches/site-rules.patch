@@ -1,0 +1,206 @@
+--- a/chrome/browser/resources/settings/site_settings/site_details.html
++++ b/chrome/browser/resources/settings/site_settings/site_details.html
+@@ -136,6 +136,31 @@
+       </div>
+     </div>
+ 
++    <!-- boring: this site's rules, next to the permissions. -->
++    <template is="dom-if" if="[[boringSite_]]">
++      <div class="cr-row first">
++        <h2 class="flex">Protection</h2>
++      </div>
++      <settings-toggle-button id="boringBlocking"
++          label="Block ads and trackers"
++          sub-label="Turn this off if the site does not work."
++          checked="[[boringBlockingOn_]]"
++          on-change="onBoringBlockingChange_">
++      </settings-toggle-button>
++      <settings-toggle-button id="boringClearOnClose" class="hr"
++          label="Clear data when the browser closes"
++          sub-label="Removes this site's cookies and saved data when you quit."
++          checked="[[boringClearOnClose_]]"
++          on-change="onBoringClearOnCloseChange_">
++      </settings-toggle-button>
++      <settings-toggle-button id="boringNeverSleep" class="hr"
++          label="Never sleep this site"
++          sub-label="Keeps its tab running when you are not looking at it."
++          checked="[[boringNeverSleep_]]"
++          on-change="onBoringNeverSleepChange_">
++      </settings-toggle-button>
++    </template>
++
+     <div class="cr-row first">
+       <h2 class="flex">$i18n{siteSettingsPermissions}</h2>
+       <cr-button id="resetSettingsButton" class="header-aligned-button"
+--- a/chrome/browser/resources/settings/site_settings/site_details.ts
++++ b/chrome/browser/resources/settings/site_settings/site_details.ts
+@@ -21,6 +21,7 @@
+ import '/shared/settings/controls/cr_policy_pref_indicator.js';
+ import '../icons.html.js';
+ import '../privacy_icons.html.js';
++import '../controls/settings_toggle_button.js';
+ import '../settings_page/settings_subpage.js';
+ import '../settings_shared.css.js';
+ import './all_sites_icons.html.js';
+@@ -32,6 +33,7 @@
+ import {I18nMixin} from 'chrome://resources/cr_elements/i18n_mixin.js';
+ import {WebUiListenerMixin} from 'chrome://resources/cr_elements/web_ui_listener_mixin.js';
+ import {assert} from 'chrome://resources/js/assert.js';
++import {sendWithPromise} from 'chrome://resources/js/cr.js';
+ import {focusWithoutInk} from 'chrome://resources/js/focus_without_ink.js';
+ import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
+ 
+@@ -52,6 +54,13 @@
+ interface BlockAutoplayStatus {
+   enabled: boolean;
+   pref: chrome.settingsPrivate.PrefObject<boolean>;
++}
++
++// boring: see components/boring/protection/site_rules_handler.h.
++interface BoringSiteRules {
++  site: string;
++  blockingOff: boolean;
++  neverSleep: boolean;
+ }
+ 
+ export interface SiteDetailsElement {
+@@ -217,6 +226,19 @@
+         type: String,
+         value: '',
+       },
++
++      /**
++       * boring: the site the Protection rows are about. Empty until they
++       * are loaded, and when the origin is not a web page.
++       */
++      boringSite_: {
++        type: String,
++        value: '',
++      },
++
++      boringBlockingOn_: Boolean,
++      boringClearOnClose_: Boolean,
++      boringNeverSleep_: Boolean,
+     };
+   }
+ 
+@@ -243,6 +265,10 @@
+   declare private useBlockIfUnfamiliarLabelForV8OptimizerDefault_: boolean;
+   declare private subAppsPermissionExplanation_: string;
+   private parentAppOrigin_: string|null = null;
++  declare private boringSite_: string;
++  declare private boringBlockingOn_: boolean;
++  declare private boringClearOnClose_: boolean;
++  declare private boringNeverSleep_: boolean;
+ 
+   override connectedCallback() {
+     super.connectedCallback();
+@@ -289,6 +315,7 @@
+         this.browserProxy.getCategoryList(this.origin_).then((categoryList) => {
+           this.updatePermissions_(categoryList, /*hideOthers=*/ true);
+         });
++        this.loadBoringRules_();
+ 
+         this.browserProxy.getSubAppsPermissionExplanation(this.origin_)
+             .then((info) => {
+@@ -312,6 +339,72 @@
+   }
+ 
+   /**
++   * boring: fills the Protection rows. Blocking and never sleep come from
++   * the browser, whether the site's cookies clear on close from Chromium's
++   * own site settings.
++   */
++  private loadBoringRules_() {
++    const origin = this.origin_;
++    this.boringSite_ = '';
++    sendWithPromise<BoringSiteRules>('boringGetSiteRules', origin)
++        .then((rules) => {
++          if (origin !== this.origin_) {
++            return;
++          }
++          this.boringBlockingOn_ = !rules.blockingOff;
++          this.boringNeverSleep_ = rules.neverSleep;
++          this.browserProxy
++              .getOriginPermissions(origin, [ContentSettingsTypes.COOKIES])
++              .then((permissions) => {
++                this.boringClearOnClose_ =
++                    permissions[0]?.setting === ContentSetting.SESSION_ONLY;
++                this.boringSite_ = rules.site;
++              });
++        });
++  }
++
++  private onBoringBlockingChange_(e: CustomEvent<boolean>) {
++    this.boringBlockingOn_ = e.detail;
++    chrome.send('boringSetSiteRule', [this.origin_, 'blocking', e.detail]);
++  }
++
++  private onBoringNeverSleepChange_(e: CustomEvent<boolean>) {
++    this.boringNeverSleep_ = e.detail;
++    chrome.send('boringSetSiteRule', [this.origin_, 'neverSleep', e.detail]);
++  }
++
++  /**
++   * Clear on close is Chromium's own "clear on exit" cookie setting for the
++   * site, the one its cookies page lists, not a setting of ours.
++   */
++  private onBoringClearOnCloseChange_(e: CustomEvent<boolean>) {
++    this.boringClearOnClose_ = e.detail;
++    // The whole site, the way Chromium's own list writes it. An address
++    // or a bare host is exact.
++    const site = this.boringSite_;
++    const isDomain =
++        site.includes('.') && !site.includes(':') && !/^[\d.]+$/.test(site);
++    const pattern = isDomain ? `[*.]${site}` : site;
++    const cookies = ContentSettingsTypes.COOKIES;
++    if (e.detail) {
++      this.browserProxy.setCategoryPermissionForPattern(
++          pattern, '*', cookies, ContentSetting.SESSION_ONLY, false);
++      return;
++    }
++    this.browserProxy.resetCategoryPermissionForPattern(
++        pattern, '*', cookies, false);
++    // Where every site clears already, resetting this one gives that
++    // back, so say keep for this site outright.
++    this.browserProxy.getOriginPermissions(this.origin_, [cookies])
++        .then((permissions) => {
++          if (permissions[0]?.setting === ContentSetting.SESSION_ONLY) {
++            this.browserProxy.setCategoryPermissionForPattern(
++                pattern, '*', cookies, ContentSetting.ALLOW, false);
++          }
++        });
++  }
++
++  /**
+    * Called when a site within a category has been changed.
+    * @param category The category that changed.
+    * @param origin The origin of the site that changed.
+--- a/chrome/browser/ui/webui/settings/settings_ui.cc
++++ b/chrome/browser/ui/webui/settings/settings_ui.cc
+@@ -111,6 +111,7 @@
+ #include "components/autofill/core/browser/permissions/autofill_ai/autofill_ai_permission_util.h"
+ #include "components/autofill/core/common/autofill_features.h"
+ #include "components/autofill/core/common/autofill_payments_features.h"
++#include "components/boring/protection/site_rules_handler.h"
+ #include "components/browsing_data/core/features.h"
+ #include "components/commerce/core/commerce_feature_list.h"
+ #include "components/commerce/core/feature_utils.h"
+@@ -285,6 +286,7 @@
+       std::make_unique<OmniboxEverywhereSettingsHandler>());
+   AddSettingsPageUIHandler(std::make_unique<SecureDnsHandler>());
+   AddSettingsPageUIHandler(std::make_unique<SiteSettingsHandler>(profile));
++  AddSettingsPageUIHandler(std::make_unique<boring::SiteRulesHandler>());
+   AddSettingsPageUIHandler(std::make_unique<StartupPagesHandler>(web_ui));
+   AddSettingsPageUIHandler(std::make_unique<SecurityKeysPINHandler>());
+   AddSettingsPageUIHandler(std::make_unique<SecurityKeysResetHandler>());
+--- a/chrome/browser/ui/webui/settings/BUILD.gn
++++ b/chrome/browser/ui/webui/settings/BUILD.gn
+@@ -290,6 +290,7 @@
+     "//chrome/browser/webauthn",
+     "//chrome/browser/webauthn:local_credential_management",
+     "//chrome/common",
++    "//components/boring/protection",
+     "//components/browsing_data/content",
+     "//components/browsing_data/core",
+     "//components/browsing_data/core:cookie_or_cache_deletion_choice",

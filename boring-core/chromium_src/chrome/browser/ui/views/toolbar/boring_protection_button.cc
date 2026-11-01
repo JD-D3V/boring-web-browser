@@ -5,6 +5,7 @@
 #include <memory>
 #include <utility>
 
+#include "base/command_line.h"
 #include "base/functional/bind.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
@@ -360,6 +361,13 @@ void BoringProtectionButton::ShowPanel() {
   panel_delegate_->set_margins(gfx::Insets::TLBR(4, 0, 8, 0));
   panel_delegate_->set_fixed_width(kPanelWidth);
   panel_delegate_->set_highlight_button_when_shown(true);
+  // boring: test hook. A test window never has the keyboard, and a panel
+  // that closes when its window loses it would go the moment it opened.
+  // Does nothing unless the switch is given.
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+          "boring-shield-panel-test")) {
+    panel_delegate_->set_close_on_deactivate(false);
+  }
 
   auto contents = std::make_unique<views::View>();
   contents->SetLayoutManager(std::make_unique<views::BoxLayout>(
