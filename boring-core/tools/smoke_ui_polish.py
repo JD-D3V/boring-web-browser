@@ -99,7 +99,8 @@ def resolved_colours(scheme, dark, profile):
 # in the row that is not the description.
 ROW_FRAME = r"""
   return [...document.querySelectorAll('.state-row')]
-      .filter(row => row.getBoundingClientRect().height > 0)
+      .filter(row => row.getBoundingClientRect().height > 0 &&
+                     !row.classList.contains('filters'))
       .map(row => [
           row.querySelector('strong').textContent,
           row.getBoundingClientRect().height -

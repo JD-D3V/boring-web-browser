@@ -91,7 +91,10 @@ def main():
     with (
         tempfile.TemporaryDirectory(prefix="newtab-", dir=OUT) as profile,
         Browser(
-            user_data_dir=profile, args=[TEST_SWITCH, "--window-size=1360,900"]
+            user_data_dir=profile,
+            args=[TEST_SWITCH, "--window-size=1360,900"],
+            # The automation infobar would take 56 px off a 631 px window.
+            keep_switches=["enable-automation"],
         ) as b,
     ):
         b.get("chrome://newtab")
