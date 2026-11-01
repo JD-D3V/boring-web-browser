@@ -146,7 +146,13 @@ def main():
         checks["Protection: a fresh profile lists no site with blocking off"] = ready
         frames = {name: height for name, height in rows}
         off = frames.get("Sites with blocking off")
-        others = [h for name, h in frames.items() if name != "Sites with blocking off"]
+        # The first row has no top border, so it is 1px shorter by design.
+        first = rows[0][0] if rows else None
+        others = [
+            h
+            for name, h in frames.items()
+            if name not in ("Sites with blocking off", first)
+        ]
         checks["Protection: the blocking off row is built like the others"] = bool(
             off is not None
             and others

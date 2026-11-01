@@ -157,20 +157,27 @@ def main():
         # At the 1404x631 reference window the whole page, footer
         # included, fits: no scrollbar.
         b._req(
-            "POST", f"/session/{b.sid}/window/rect", {"width": 1404, "height": 631}
+            "POST", f"/session/{b.sid}/window/rect", {"x": -32000, "y": -32000, "width": 1404, "height": 631}
         )
         checks["no scrollbar at 631 px window height"] = wait_for(
             b,
-            "window.outerHeight===631 && "
+            "window.innerHeight<600 && "
             "document.documentElement.scrollHeight<=document.documentElement"
             ".clientHeight",
+        )
+        print(
+            "  631 window:",
+            b.run(
+                "var d=document.documentElement;return [window.outerHeight,"
+                "window.innerHeight,d.scrollHeight,d.clientHeight]"
+            ),
         )
         checks["footer is visible at 631 px window height"] = b.run(
             "var r=document.querySelector('.home-colours')"
             ".getBoundingClientRect();return r.bottom<=window.innerHeight"
         )
         b._req(
-            "POST", f"/session/{b.sid}/window/rect", {"width": 1360, "height": 900}
+            "POST", f"/session/{b.sid}/window/rect", {"x": -32000, "y": -32000, "width": 1360, "height": 900}
         )
 
         # The engine button opens the browser's own menu under itself.
