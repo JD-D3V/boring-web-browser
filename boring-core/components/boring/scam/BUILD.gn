@@ -11,10 +11,13 @@ static_library("scam") {
     "scam_service.cc",
     "scam_service.h",
   ]
-  # chrome/browser already depends on this target. The scam guards ride
-  # along with it rather than adding a line to chrome/browser/BUILD.gn,
-  # which several patches edit.
-  public_deps = [ "//components/boring/guards" ]
+  # chrome/browser already depends on this target. The scam guards and the
+  # phone number banner ride along with it rather than adding a line to
+  # chrome/browser/BUILD.gn, which several patches edit.
+  public_deps = [
+    "//components/boring/guards",
+    "//components/boring/scam/phone",
+  ]
   deps = [
     "//base",
     "//components/boring/adblock:browser",

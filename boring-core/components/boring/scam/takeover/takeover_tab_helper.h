@@ -42,6 +42,11 @@ class TakeoverTabHelper
   // scam page just locked is not one to trust with a remote access tool.
   static bool LooksLikeScam(content::WebContents* web_contents);
 
+  // Sets the same signal without a takeover, for the phone number banner
+  // (components/boring/scam/phone) when a page is a scary warning with a
+  // phone number in it.
+  static void MarkLooksLikeScam(content::WebContents* web_contents);
+
   // For the beforeunload dialog: true while the tab is being replaced by
   // the Get me out page, so the page cannot hold the tab with a prompt.
   static bool ShouldSkipBeforeUnload(content::WebContents* web_contents);

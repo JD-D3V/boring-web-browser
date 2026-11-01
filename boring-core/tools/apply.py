@@ -78,12 +78,20 @@ GENERATED = {
 LICENCE_SUFFIX = {
     os.path.join("notices", "LICENSE-BoringBrowser.txt"): (
         b"\n"
-        b"One file of our code is not under the licence above:\n"
+        b"Two files of our code are not under the licence above, and both\n"
+        b"are under the Mozilla Public License 2.0, https://mozilla.org/MPL/2.0/.\n"
+        b"\n"
         b"boring-core/components/boring/privacy/tracking_params.cc is adapted\n"
-        b"from brave-core (Copyright (c) 2023 The Brave Authors) and is under\n"
-        b"the Mozilla Public License 2.0, https://mozilla.org/MPL/2.0/.\n"
+        b"from brave-core (Copyright (c) 2023 The Brave Authors).\n"
         b"Its source: https://github.com/JD-D3V/boring-web-browser/blob/main/\n"
         b"boring-core/components/boring/privacy/tracking_params.cc\n"
+        b"\n"
+        b"boring-core/components/boring/privacy/debounce_brave.inc is Brave's\n"
+        b"debounce rules (brave-lists/debounce.json from\n"
+        b"https://github.com/brave/adblock-lists, Copyright (c) The Brave\n"
+        b"Authors), unchanged. They are what the Skip tracking redirects\n"
+        b"switch follows. Its source: https://github.com/JD-D3V/boring-web-browser/blob/main/\n"
+        b"boring-core/components/boring/privacy/debounce_brave.inc\n"
     ),
 }
 
