@@ -37,6 +37,11 @@ class TakeoverTabHelper
   // shown because the page is looping them.
   static bool ShouldSuppressDialog(content::WebContents* web_contents);
 
+  // For the scam guards (components/boring/guards): true once this tab
+  // has tripped on a takeover page, for as long as the tab lives. A tab a
+  // scam page just locked is not one to trust with a remote access tool.
+  static bool LooksLikeScam(content::WebContents* web_contents);
+
   // For the beforeunload dialog: true while the tab is being replaced by
   // the Get me out page, so the page cannot hold the tab with a prompt.
   static bool ShouldSkipBeforeUnload(content::WebContents* web_contents);
@@ -82,6 +87,8 @@ class TakeoverTabHelper
 
   // Set when it has tripped, until the Get me out page is on screen.
   bool tripped_ = false;
+  // Set at the same moment and kept for the life of the tab.
+  bool looked_like_scam_ = false;
   bool skip_beforeunload_ = false;
   // Holds fullscreen off while the Get me out page is loading.
   std::optional<base::ScopedClosureRunner> fullscreen_block_;

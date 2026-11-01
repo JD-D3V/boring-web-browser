@@ -1,0 +1,45 @@
+# Copyright 2026 boring. BSD style license.
+
+# The two scam guards (the headers say what each does):
+#   remote_access_tools / download_guard  ask before AnyDesk and the like
+#   shell_command / clipboard_guard       stop a page copying a command
+# remote_access_tools.cc and shell_command.cc are plain C++ so that
+# tools/tests/test_scam_guards.py can build them without Chromium.
+#
+# guard_infobar.cc names CreateConfirmInfoBar() from chrome/browser, the
+# one thing here that lives above components. It is a static build, so the
+# call is settled when chrome is linked, as with //components/boring/protection
+# and memory_saver.h.
+static_library("guards") {
+  sources = [
+    "clipboard_guard.cc",
+    "clipboard_guard.h",
+    "download_guard.cc",
+    "download_guard.h",
+    "guard_infobar.cc",
+    "guard_infobar.h",
+    "guards_policy.cc",
+    "guards_policy.h",
+    "remote_access_tools.cc",
+    "remote_access_tools.h",
+    "shell_command.cc",
+    "shell_command.h",
+  ]
+  inputs = [ "remote_access_tools.inc" ]
+  deps = [
+    "//base",
+    "//components/boring/core",
+    "//components/boring/scam/takeover",
+    "//components/download/public/common:public",
+    "//components/infobars/content",
+    "//components/infobars/core",
+    "//components/prefs",
+    "//components/user_prefs",
+    "//components/vector_icons",
+    "//content/public/browser",
+    "//net",
+    "//ui/base",
+    "//ui/display/types",
+    "//url",
+  ]
+}

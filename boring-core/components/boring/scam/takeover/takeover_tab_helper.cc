@@ -70,6 +70,12 @@ bool TakeoverTabHelper::ShouldSkipBeforeUnload(
   return helper && helper->skip_beforeunload_;
 }
 
+// static
+bool TakeoverTabHelper::LooksLikeScam(content::WebContents* web_contents) {
+  TakeoverTabHelper* helper = FromWebContents(web_contents);
+  return helper && helper->looked_like_scam_;
+}
+
 bool TakeoverTabHelper::CountDialog() {
   base::TimeTicks now = base::TimeTicks::Now();
   Prune(dialogs_, now, kDialogWindow);
@@ -191,6 +197,7 @@ void TakeoverTabHelper::Evaluate() {
 
 void TakeoverTabHelper::Trip() {
   tripped_ = true;
+  looked_like_scam_ = true;
   skip_beforeunload_ = true;
   web_contents()->SetAudioMuted(true);
   // Leaving fullscreen also lets go of the keyboard lock. Holding it off
