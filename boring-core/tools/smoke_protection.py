@@ -226,16 +226,13 @@ def main():
     with tempfile.TemporaryDirectory(prefix="protection-", dir=OUT) as profile:
         with Browser(user_data_dir=profile, args=["--window-size=1360,900"]) as b:
             b.get("chrome://boring-protection")
-            # No scam list ships in this version. Known dangerous sites
-            # are refused by Quad9 secure DNS instead, and the row has to
-            # say exactly that, including that there is no warning page.
-            checks["dangerous sites report Quad9, no warning page"] = wait_for(
+            # A scam list ships, so the row reports it loaded. A build
+            # whose output folder has no list shows Unavailable here.
+            checks["scam list loaded"] = wait_for(
                 b,
                 "document.getElementById('scam-state').textContent==='On' && "
                 "document.getElementById('scam-desc').textContent"
-                ".indexOf('Quad9')>=0 && "
-                "document.getElementById('scam-desc').textContent"
-                ".indexOf('no warning page')>=0",
+                ".indexOf('blocked before they open')>=0",
             )
             checks["ad blocking reports on"] = wait_for(
                 b, "document.getElementById('ads-state').textContent==='On'"

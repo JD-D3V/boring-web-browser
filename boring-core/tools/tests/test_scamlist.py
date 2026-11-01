@@ -22,6 +22,8 @@ TOOLS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if TOOLS not in sys.path:
     sys.path.insert(0, TOOLS)
 
+import apply  # noqa: E402
+import check_package  # noqa: E402
 import get_scamlist  # noqa: E402
 from get_filterlists import FeedError, Fetched  # noqa: E402
 
@@ -234,6 +236,60 @@ class Notice(unittest.TestCase):
 
     def test_no_em_dash(self):
         self.assertNotIn(chr(0x2014), get_scamlist.notice_text("x"))
+
+
+class DevelopmentStandIn(unittest.TestCase):
+    """What apply.py leaves in a tree that never had a scam list."""
+
+    def setUp(self):
+        self.tree = tempfile.mkdtemp(prefix="scamlist-tree-")
+        self.addCleanup(shutil.rmtree, self.tree, ignore_errors=True)
+        self.list_path = os.path.join(
+            self.tree, "out", "Default", "boring", "scamlist.txt"
+        )
+
+    def stage(self):
+        with contextlib.redirect_stdout(io.StringIO()):
+            apply.stage_scam_list(self.tree)
+
+    def test_it_holds_the_test_host_and_no_real_host(self):
+        text = get_scamlist.development_list()
+        self.assertIn(get_scamlist.TEST_HOSTS[0], text)
+        self.assertEqual(get_scamlist.count_real_hosts(text), 0)
+
+    def test_a_tree_with_no_list_gets_it(self):
+        os.makedirs(os.path.join(self.tree, "out", "Default"))
+        self.stage()
+        with open(self.list_path, encoding="utf-8") as f:
+            self.assertEqual(f.read(), get_scamlist.development_list())
+
+    def test_a_list_already_there_is_left_alone(self):
+        os.makedirs(os.path.dirname(self.list_path))
+        with open(self.list_path, "w", encoding="utf-8") as f:
+            f.write("real.example.invalid\n")
+        self.stage()
+        with open(self.list_path, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "real.example.invalid\n")
+
+    def test_a_tree_with_no_output_folder_is_not_given_one(self):
+        self.stage()
+        self.assertFalse(os.path.exists(os.path.join(self.tree, "out")))
+
+    def check(self, text):
+        report = check_package.Report()
+        check_package.check_feature_contents(
+            "boring/scamlist.txt", lambda: text.encode("utf-8"), report, "t"
+        )
+        return report
+
+    def test_a_package_will_not_ship_the_stand_in(self):
+        self.assertEqual(len(self.check(get_scamlist.development_list()).problems), 1)
+
+    def test_a_package_ships_a_real_list(self):
+        text = "\n".join(
+            [get_scamlist.HEADER, "scam.example.invalid", get_scamlist.TEST_MARKER]
+        )
+        self.assertEqual(self.check(text + "\n").problems, [])
 
 
 if __name__ == "__main__":
