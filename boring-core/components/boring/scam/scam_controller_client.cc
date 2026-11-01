@@ -32,12 +32,19 @@ ScamControllerClient::ScamControllerClient(content::WebContents* web_contents,
           MakeMetricsHelper(request_url),
           prefs,
           "en-US",
-          GURL("about:blank"),
+          GURL("chrome://newtab/"),
           /*settings_page_helper=*/nullptr),
       request_url_(request_url),
       context_(web_contents ? web_contents->GetBrowserContext() : nullptr) {}
 
 ScamControllerClient::~ScamControllerClient() = default;
+
+// The base GoBack() is NOTREACHED(), which killed the browser. The warning is
+// a committed error page, so leave it the way the other pages of this kind do:
+// back one entry, or to the new tab page when there is none.
+void ScamControllerClient::GoBack() {
+  GoBackAfterNavigationCommitted();
+}
 
 void ScamControllerClient::Proceed() {
   ScamService::GetInstance()->AllowHostForSession(

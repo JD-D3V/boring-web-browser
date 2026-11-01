@@ -64,4 +64,8 @@ menu-icon-hover.patch
 toolbar-press-scale.patch
 tab-separator-pinned.patch
 tab-chrome-sizes.patch
+takeover-keyboard-lock.patch
+takeover-dialogs.patch
+takeover-tab-helper.patch
+takeover-webui-config.patch
 site-rules.patch

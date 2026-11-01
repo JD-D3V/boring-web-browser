@@ -1,0 +1,30 @@
+diff --git a/chrome/browser/ui/tab_helpers.cc b/chrome/browser/ui/tab_helpers.cc
+--- a/chrome/browser/ui/tab_helpers.cc
++++ b/chrome/browser/ui/tab_helpers.cc
+@@ -113,6 +113,7 @@
+ #include "components/breadcrumbs/core/breadcrumbs_status.h"
+ #include "components/captive_portal/core/buildflags.h"
+ #include "components/client_hints/browser/client_hints_web_contents_observer.h"
++#include "components/boring/scam/takeover/takeover_tab_helper.h"
+ #include "components/commerce/content/browser/commerce_tab_helper.h"
+ #include "components/commerce/core/commerce_feature_list.h"
+ #include "components/compose/buildflags.h"
+@@ -572,6 +573,7 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents,
+     predictors::LoadingPredictorTabHelper::CreateForWebContents(web_contents);
+   }
+   PrefsTabHelper::CreateForWebContents(web_contents);
++  boring::TakeoverTabHelper::CreateForWebContents(web_contents);
+   prerender::NoStatePrefetchTabHelper::CreateForWebContents(web_contents);
+   RecentlyAudibleHelper::CreateForWebContents(web_contents);
+ #if BUILDFLAG(IS_ANDROID)
+diff --git a/chrome/browser/ui/BUILD.gn b/chrome/browser/ui/BUILD.gn
+--- a/chrome/browser/ui/BUILD.gn
++++ b/chrome/browser/ui/BUILD.gn
+@@ -835,6 +835,7 @@ static_library("ui") {
+     "//components/breadcrumbs/core:status",
+     "//components/captive_portal/content",
+     "//components/client_hints/browser",
++    "//components/boring/scam/takeover",
+     "//components/commerce/content/browser",
+     "//components/commerce/core:feature_list",
+     "//components/consent_auditor/",

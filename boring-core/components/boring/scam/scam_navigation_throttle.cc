@@ -25,8 +25,7 @@ constexpr char kDisableSwitch[] = "disable-boring-scam-protection";
 // static
 void ScamNavigationThrottle::MaybeCreateAndAdd(
     content::NavigationThrottleRegistry& registry) {
-  // No list ships in this version, so there is nothing to check a
-  // navigation against. Do not load, do not warn, do not pretend.
+  // A build without a scam list must not load, warn or pretend.
   if (!kScamBlockingAvailable) {
     return;
   }

@@ -11,6 +11,7 @@ Usage: python -m unittest discover -s boring-core/tools/tests
 import base64
 import contextlib
 import datetime
+import hashlib
 import io
 import json
 import os
@@ -263,6 +264,26 @@ class ToolRun(unittest.TestCase):
             manifest = json.load(f)
         self.assertEqual(manifest["generated"], "2026-09-25T12:00:00Z")
         self.assertEqual(len(manifest["lists"]["ubo.txt"]["sources"]), 4)
+
+    def test_cookie_list_is_credited_and_hashed(self):
+        code, log = self.run_tool(all_answers())
+        self.assertEqual(code, 0, log)
+        source = gf.COOKIES.sources[0]
+        # What the licence asks for: who, which licence, and a link to it.
+        with open(self.path("NOTICES-easylist-cookie.txt"), encoding="utf-8") as f:
+            notice = f.read()
+        self.assertIn("By: The EasyList authors (https://easylist.to/)", notice)
+        self.assertIn(source.licence_line, notice)
+        self.assertIn("https://creativecommons.org/licenses/by/3.0/legalcode", notice)
+        self.assertIn(source.url, notice)
+        # The bundle's manifest names the file by its hash.
+        with open(self.path("boring", "cookies.txt"), "rb") as f:
+            written = f.read()
+        with open(self.path("boring", "sources.json"), encoding="utf-8") as f:
+            entry = json.load(f)["lists"]["cookies.txt"]
+        self.assertEqual(entry["sha256"], hashlib.sha256(written).hexdigest())
+        self.assertEqual(entry["licence"], "CC-BY-3.0")
+        self.assertEqual(entry["notice"], "NOTICES-easylist-cookie.txt")
 
     def test_easylist_is_as_served(self):
         answers = all_answers()

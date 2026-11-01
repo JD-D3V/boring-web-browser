@@ -1,0 +1,35 @@
+diff --git a/chrome/browser/ui/exclusive_access/keyboard_lock_controller.cc b/chrome/browser/ui/exclusive_access/keyboard_lock_controller.cc
+--- a/chrome/browser/ui/exclusive_access/keyboard_lock_controller.cc
++++ b/chrome/browser/ui/exclusive_access/keyboard_lock_controller.cc
+@@ -14,6 +14,7 @@
+ #include "chrome/browser/ui/exclusive_access/exclusive_access_permission_manager.h"
+ #include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
+ #include "chrome/browser/ui/ui_features.h"
++#include "components/boring/scam/takeover/takeover_policy.h"
+ #include "components/input/native_web_keyboard_event.h"
+ #include "components/permissions/features.h"
+ #include "content/public/browser/web_contents.h"
+@@ -83,6 +84,12 @@ void KeyboardLockController::HandleUserReleasedEscapeEarly() {
+ bool KeyboardLockController::RequiresPressAndHoldEscToExit() const {
+   DCHECK_EQ(keyboard_lock_state_ == KeyboardLockState::kUnlocked,
+             exclusive_access_tab() == nullptr);
++  // boring: a plain Esc always leaves fullscreen, with or without a
++  // keyboard lock. Needing a 1.5 second hold is the trap tech support
++  // scam pages count on. See components/boring/scam/takeover/DESIGN.md.
++  if (boring::ShouldEscAlwaysExit(exclusive_access_tab())) {
++    return false;
++  }
+   return keyboard_lock_state_ == KeyboardLockState::kLockedWithEsc;
+ }
+ 
+diff --git a/chrome/browser/ui/exclusive_access/BUILD.gn b/chrome/browser/ui/exclusive_access/BUILD.gn
+--- a/chrome/browser/ui/exclusive_access/BUILD.gn
++++ b/chrome/browser/ui/exclusive_access/BUILD.gn
+@@ -47,6 +47,7 @@ source_set("exclusive_access") {
+     "//chrome/browser/ui:ui_features",
+     "//chrome/browser/ui/browser_window",
+     "//chrome/common:constants",
++    "//components/boring/scam/takeover",
+     "//components/content_settings/core/browser",
+     "//components/fullscreen_control",
+     "//components/history/core/browser",

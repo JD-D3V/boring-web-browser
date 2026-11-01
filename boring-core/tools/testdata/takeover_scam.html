@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Security alert (test scam page)</title>
+<!--
+  A harmless stand-in for a tech support scam page, for smoke_takeover.py.
+  On the first click it does what the real ones do: fullscreen, keyboard
+  lock, hidden cursor, looping alarm audio, a leave-page prompt, and an alert
+  loop, and it puts the page back into fullscreen on every later click.
+  ?mode=lock only goes fullscreen and locks the keyboard
+  ?mode=lockesc does the same with lock(['Escape'])
+  ?mode=all does everything.
+-->
+<style>
+  html, body { margin: 0; height: 100%; background: #b00020; color: white;
+               font: 32px sans-serif; }
+  body { display: grid; place-items: center; text-align: center; }
+</style>
+</head>
+<body>
+<div>WARNING: your computer is infected.<br>Call 0000 000 0000 now.<br>
+(test page, click anywhere)</div>
+<script>
+var mode = new URLSearchParams(location.search).get('mode') || 'all';
+var started = false;
+
+function beepUrl() {
+  // A half second 440 Hz tone as a 8-bit mono WAV.
+  var rate = 8000, n = rate / 2, buf = new Uint8Array(44 + n);
+  var v = new DataView(buf.buffer);
+  function s(o, t) { for (var i = 0; i < t.length; i++) buf[o + i] = t.charCodeAt(i); }
+  s(0, 'RIFF'); v.setUint32(4, 36 + n, true); s(8, 'WAVEfmt ');
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate, true);
+  v.setUint16(32, 1, true); v.setUint16(34, 8, true); s(36, 'data');
+  v.setUint32(40, n, true);
+  for (var i = 0; i < n; i++) buf[44 + i] = 128 + 100 * Math.sin(2 * Math.PI * 440 * i / rate);
+  return URL.createObjectURL(new Blob([buf], {type: 'audio/wav'}));
+}
+
+function goFullscreen() {
+  if (!document.fullscreenElement) {
+    document.body.requestFullscreen().catch(function() {});
+  }
+}
+
+document.addEventListener('click', function() {
+  goFullscreen();
+  if (started) return;
+  started = true;
+  if (navigator.keyboard) {
+    navigator.keyboard.lock(mode == 'lockesc' ? ['Escape'] : undefined)
+        .catch(function() {});
+  }
+  if (mode != 'all') return;
+  var a = new Audio(beepUrl());
+  a.loop = true;
+  a.play().catch(function() {});
+  window.onbeforeunload = function(e) { e.preventDefault(); return 'Stay'; };
+  document.addEventListener('mousemove', function() {
+    try { document.body.requestPointerLock(); } catch (e) {}
+  });
+  document.addEventListener('keyup', goFullscreen);
+  // Later, so fullscreen has been entered first. Each dialog leaves it.
+  setTimeout(function loop() {
+    alert('Your computer is infected. Call 0000 000 0000');
+    setTimeout(loop, 300);
+  }, 1500);
+});
+// Re-enter after the person leaves, from the page's own timer too.
+document.addEventListener('fullscreenchange', function() {
+  document.title = document.fullscreenElement ? 'full' : 'windowed';
+});
+</script>
+</body>
+</html>

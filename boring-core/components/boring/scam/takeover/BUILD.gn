@@ -1,0 +1,23 @@
+# Copyright 2026 boring. BSD style license.
+
+static_library("takeover") {
+  sources = [
+    "takeover_policy.cc",
+    "takeover_policy.h",
+    "takeover_tab_helper.cc",
+    "takeover_tab_helper.h",
+    "takeover_ui.cc",
+    "takeover_ui.h",
+  ]
+  deps = [
+    "//base",
+    "//components/boring/core",
+    "//components/prefs",
+    "//components/user_prefs",
+    "//content/public/browser",
+    "//content/public/common",
+    "//ui/base",
+    "//ui/display/types",
+    "//url",
+  ]
+}

@@ -32,7 +32,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterBooleanPref(prefs::kStripTrackingParams, true);
   // No sync flag: stays on this profile on this computer.
   registry->RegisterListPref(prefs::kBlockingOffSites);
-  registry->RegisterBooleanPref(prefs::kBoringHideCookieNotices, false);
+  registry->RegisterBooleanPref(prefs::kBoringBlockCookieBanners, true);
   // No sync flag, like the list above.
   registry->RegisterListPref(prefs::kBoringRegionalLists);
   registry->RegisterIntegerPref(prefs::kBoringBlockingLevel, 0);

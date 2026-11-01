@@ -255,7 +255,9 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   </label>
 
   <label class="setting-row" for="hide-cookies">
-    <span><strong>Hide cookie notices</strong></span>
+    <span><strong>Block cookie banners</strong>
+      <p>Hides cookie banners, and says no on the ones that ask for an
+      answer.</p></span>
     <input class="switch" type="checkbox" id="hide-cookies">
   </label>
 
@@ -762,7 +764,7 @@ el('list-updates').addEventListener('change', function(e) {
 
 el('hide-cookies').addEventListener('change', function(e) {
   chrome.send('setHideCookieNotices', [e.target.checked]);
-  say(e.target.checked ? 'Cookie notices hidden.' : 'Cookie notices shown.');
+  say(e.target.checked ? 'Cookie banners blocked.' : 'Cookie banners allowed.');
 });
 
 document.querySelectorAll('input[name="level"]').forEach(function(radio) {
@@ -1186,7 +1188,7 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     out.Set("fingerprint",
             prefs && prefs->GetBoolean(prefs::kFingerprintNoise));
     out.Set("hideCookies",
-            prefs && prefs->GetBoolean(prefs::kBoringHideCookieNotices));
+            prefs && prefs->GetBoolean(prefs::kBoringBlockCookieBanners));
     out.Set("update", UpdateStateName(BrowserUpdater::GetState()));
     out.Set("updateAuto", BrowserUpdater::IsAutomatic());
     out.Set("version", BrowserUpdater::BuildVersion());
@@ -1265,7 +1267,7 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
   void HandleSetHideCookies(const base::ListValue& args) {
     PrefService* prefs = GetPrefs();
     if (prefs && !args.empty() && args[0].is_bool()) {
-      prefs->SetBoolean(prefs::kBoringHideCookieNotices, args[0].GetBool());
+      prefs->SetBoolean(prefs::kBoringBlockCookieBanners, args[0].GetBool());
     }
     HandleGet(args);
   }

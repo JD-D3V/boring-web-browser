@@ -27,6 +27,7 @@ class ScamControllerClient
 
   // security_interstitials::ControllerClient:
   void Proceed() override;
+  void GoBack() override;
 
  private:
   const GURL request_url_;

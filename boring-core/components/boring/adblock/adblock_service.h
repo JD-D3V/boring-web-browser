@@ -59,7 +59,7 @@ struct EnabledLists {
   EnabledLists& operator=(const EnabledLists&);
   ~EnabledLists();
 
-  bool cookie_notices = false;        // prefs::kBoringHideCookieNotices
+  bool cookie_notices = false;        // prefs::kBoringBlockCookieBanners
   std::vector<std::string> regional;  // prefs::kBoringRegionalLists
   bool aggressive = false;            // prefs::kBoringBlockingLevel is 1
   // The profile's own rules (prefs::kBoringCustomRules), built into an
@@ -118,7 +118,7 @@ class ProfileLists : public base::RefCountedThreadSafe<ProfileLists> {
 // The lists are split over several engines so that turning an optional
 // list on or off never rebuilds the big one:
 //   main        easylist.txt (standard) + ubo.txt (trusted), always used
-//   cookies     cookies.txt, only for profiles hiding cookie notices
+//   cookies     cookies.txt, only for profiles blocking cookie banners
 //   regional    one engine per regional\<id>.txt, only where chosen
 //   aggressive  aggressive-ubo.txt (trusted) + aggressive-fanboy.txt
 //               (standard), only for profiles on the Aggressive level
