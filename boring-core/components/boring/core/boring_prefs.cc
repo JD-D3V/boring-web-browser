@@ -30,6 +30,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterBooleanPref(prefs::kListUpdates, true);
   registry->RegisterBooleanPref(prefs::kFingerprintNoise, true);
   registry->RegisterBooleanPref(prefs::kStripTrackingParams, true);
+  registry->RegisterBooleanPref(prefs::kSkipRedirects, true);
   // No sync flag: stays on this profile on this computer.
   registry->RegisterListPref(prefs::kBlockingOffSites);
   registry->RegisterBooleanPref(prefs::kBoringBlockCookieBanners, true);

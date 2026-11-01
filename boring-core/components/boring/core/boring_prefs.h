@@ -47,6 +47,11 @@ inline constexpr char kFingerprintNoise[] = "boring.fingerprint_noise";
 // On by default.
 inline constexpr char kStripTrackingParams[] = "boring.strip_tracking_params";
 
+// Skip tracking redirects and AMP cache pages: a link that goes through
+// a known redirector opens the page it leads to instead (Brave's debounce
+// rules, plus ours for Facebook, Google and similar). On by default.
+inline constexpr char kSkipRedirects[] = "boring.privacy.skip_redirects";
+
 // Sites where the person turned ad, tracker and tab-under blocking off,
 // from the toolbar shield. A list of site keys, see GetBlockingSite().
 // Per profile and never synced: a site one person trusts on one
