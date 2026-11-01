@@ -11,7 +11,8 @@ A page with a normal video (testdata/takeover_video.html) must go
 fullscreen, keep playing and not trip, even though it also locks the
 keyboard and adds history entries by itself.
 
-Input goes through DevTools (Input.dispatch*), never to the desktop.
+Input goes through DevTools (Input.dispatch*), never to the desktop, and the
+browser runs headless so fullscreen cannot cover a real display.
 """
 
 import functools
@@ -112,7 +113,10 @@ def main():
     checks = {}
     srv = serve()
     base = f"http://127.0.0.1:{srv.server_address[1]}"
-    b = Browser()
+    # Headless: a page that goes fullscreen must never take over a real
+    # display. The browser logic under test (fullscreen, Esc, dialogs) runs
+    # the same; there is just no visible window.
+    b = Browser(args=["--headless=new", "--window-position=-32000,-32000"])
     try:
         t = Tab(b)
         checks["Esc leaves fullscreen, keyboard locked"] = esc_leaves(
