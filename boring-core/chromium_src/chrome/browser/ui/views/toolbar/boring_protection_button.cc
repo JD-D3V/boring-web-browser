@@ -30,6 +30,7 @@
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/reload_type.h"
 #include "content/public/browser/web_contents.h"
+#include "ui/accessibility/ax_action_data.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
@@ -204,6 +205,23 @@ void BoringProtectionButton::OnThemeChanged() {
   // The shield and the label both carry a colour, so both have to be
   // repainted once a new theme is in place.
   UpdateState();
+}
+
+bool BoringProtectionButton::HandleAccessibleAction(
+    const ui::AXActionData& action_data) {
+  // On a web page the shield says it opens a dialog, so UI Automation
+  // offers Expand and Collapse for it and no Invoke; View answers neither.
+  if (action_data.action == ax::mojom::Action::kExpand) {
+    if (!panel_) {
+      ShowPanel();
+    }
+    return true;
+  }
+  if (action_data.action == ax::mojom::Action::kCollapse) {
+    ClosePanel();
+    return true;
+  }
+  return ToolbarButton::HandleAccessibleAction(action_data);
 }
 
 void BoringProtectionButton::FollowActiveTab() {

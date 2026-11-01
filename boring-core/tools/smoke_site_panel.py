@@ -126,6 +126,7 @@ ACTIONS = [
     (10005, IID_EXPAND, 3, "expand"),
     (10015, IID_TOGGLE, 3, "toggle"),
 ]
+COLLAPSE = [(10005, IID_EXPAND, 4, "collapse")]
 
 
 def accessible_name(element):
@@ -224,19 +225,30 @@ class Window:
             return None
         return out if out else None
 
-    def press(self, wanted):
-        """Do a control's default action. Returns which pattern did it."""
+    def press(self, wanted, actions=ACTIONS):
+        """Do a control's default action. Returns which pattern did it.
+
+        A control offers the pattern that fits it (a button that opens a
+        dialog offers Expand, not Invoke), and one that refuses its
+        action says so with an error, so the next is tried.
+        """
+        refused = []
         for element in self.elements(wanted):
-            for pattern_id, iid, method, label in ACTIONS:
+            for pattern_id, iid, method, label in actions:
                 pattern = self.pattern(element, pattern_id, iid)
                 if pattern is None:
                     continue
                 try:
                     _call(pattern, method)
                     return label
+                except OSError as e:
+                    refused.append(f"{label}: {e!r}")
                 finally:
                     _release(pattern)
-        raise RuntimeError("the control has no action to call")
+        raise RuntimeError(
+            "the control has no action to call"
+            + (f" ({'; '.join(refused)})" if refused else "")
+        )
 
     def toggle_state(self, wanted):
         """1 when a switch is on, 0 when off."""
@@ -271,9 +283,24 @@ def browser_windows(driver_pid):
     return found
 
 
-def press_shield(frame):
+def foreground_is_ours(driver_pid):
+    """Whether the window the person is working in belongs to the test
+    browser. It must not: nothing here may take the keyboard."""
+    pids = chrome_pids(CHROME)
+    ours = {pid for pid, parent in parents_of(pids).items() if parent == driver_pid}
+    owner = wintypes.DWORD()
+    user32.GetWindowThreadProcessId(user32.GetForegroundWindow(), ctypes.byref(owner))
+    return owner.value in ours
+
+
+def press_shield(frame, close=False):
+    """Open the panel through the shield's Expand, or put it away with
+    Collapse. UI Automation runs the shield's own code, so nothing is
+    sent to the desktop and no window is raised."""
     with Window(frame) as w:
-        return w.press(lambda n: n.startswith("Protection,"))
+        return w.press(
+            lambda n: n.startswith("Protection,"), COLLAPSE if close else ACTIONS
+        )
 
 
 def find_panel(b, frame, timeout=10.0):
@@ -480,10 +507,15 @@ def main():
         hwnd, names = find_panel(b, frame)
         if not hwnd:
             dump(b, frame, f"pressed the shield by {how}, no panel appeared")
+        else:
+            print(f"  panel (shield pressed by {how}): {names}")
+            print(
+                f"  test browser has the foreground: {foreground_is_ours(b.proc.pid)}"
+            )
         return hwnd, names
 
     def close_panel(frame):
-        press_shield(frame)  # pressing the shield again puts the panel away
+        press_shield(frame, close=True)
         time.sleep(0.8)
 
     try:

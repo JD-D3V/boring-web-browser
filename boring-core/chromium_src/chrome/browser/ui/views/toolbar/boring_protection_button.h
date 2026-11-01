@@ -51,6 +51,7 @@ class BoringProtectionButton : public ToolbarButton,
 
   // ToolbarButton:
   void OnThemeChanged() override;
+  bool HandleAccessibleAction(const ui::AXActionData& action_data) override;
 
   // content::WebContentsObserver:
   void PrimaryPageChanged(content::Page& page) override;
