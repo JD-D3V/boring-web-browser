@@ -181,6 +181,13 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   mixer[kColorTabStrokeFrameInactive] = {p.line};
   mixer[kColorTabDividerFrameActive] = {p.line};
   mixer[kColorTabDividerFrameInactive] = {p.line};
+  // The side tab strip's buttons (new tab, tab search) are filled from
+  // Chromium's header container, which comes from the seed colour and so
+  // stayed indigo under Green. A wash of the accent instead.
+  mixer[kColorNewTabButtonCRBackgroundFrameActive] = {p.tint};
+  mixer[kColorNewTabButtonCRBackgroundFrameInactive] = {p.tint};
+  mixer[kColorTabSearchButtonCRForegroundFrameActive] = {p.ink};
+  mixer[kColorTabSearchButtonCRForegroundFrameInactive] = {p.muted};
 
   // Toolbar controls.
   mixer[kColorToolbarText] = {p.ink};
@@ -232,6 +239,13 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   // One accent, used where something is focused or selected.
   mixer[ui::kColorFocusableBorderFocused] = {p.accent};
   mixer[kColorOmniboxResultsIconSelected] = {p.accent};
+  // Selected text, in the address bar and on Chromium's own pages. Its
+  // default is a tone of the seed colour, which stayed indigo under
+  // Green. Filled with the accent, as a button is, so the text on it
+  // reads at the same contrast.
+  mixer[ui::kColorSysStateTextHighlight] = {p.accent};
+  mixer[ui::kColorSysStateOnTextHighlight] = {dark ? p.window
+                                                   : SK_ColorWHITE};
 
   // Chromium's own pages are painted from this same colour provider.
   // Without these, settings and history keep Chromium's blue and the

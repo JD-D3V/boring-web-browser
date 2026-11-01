@@ -145,6 +145,9 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   .hidden { display: none; }
   .text-button { color: var(--accent); }
   .site-list { list-style: none; margin: 10px 0 0; padding: 0; }
+  /* With no sites the empty list would still add its 10px, and this row
+     would stand taller than the others. */
+  .site-list:empty { margin: 0; }
   .site-list li { display: flex; justify-content: space-between;
                   align-items: center; gap: 14px; padding: 6px 0;
                   font-size: 13px; }
