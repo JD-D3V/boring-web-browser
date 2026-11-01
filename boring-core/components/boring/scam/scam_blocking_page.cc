@@ -9,6 +9,7 @@
 #include "base/strings/string_number_conversions.h"
 #include "components/boring/core/boring_prefs.h"
 #include "components/boring/scam/scam_controller_client.h"
+#include "components/prefs/pref_service.h"
 #include "components/security_interstitials/core/controller_client.h"
 #include "components/user_prefs/user_prefs.h"
 #include "content/public/browser/browser_context.h"
