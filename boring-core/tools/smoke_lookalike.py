@@ -26,6 +26,7 @@ Checked:
 Usage: python smoke_lookalike.py
 """
 
+import json
 import os
 import sys
 import tempfile
@@ -106,14 +107,31 @@ def browser_args(extra=()):
         # Anything else, such as the real paypal.com, does not exist here.
         f"--host-resolver-rules={rules}, MAP * ~NOTFOUND",
         # HTTPS-Only is on by default and would upgrade these plain http
-        # names. This replaces drive.py's own --disable-features, so it
-        # carries that one too.
-        "--disable-features=CalculateNativeWinOcclusion,HttpsUpgrades",
+        # names (see seed_profile). This replaces drive.py's own
+        # --disable-features, so it carries that one too.
+        "--disable-features=CalculateNativeWinOcclusion,HttpsUpgrades,"
+        "HttpsFirstBalancedMode",
         "--window-size=1360,900",
         # Never on the desktop and never in front: see drive.py.
         "--window-position=-32000,-32000",
         *extra,
     ]
+
+
+def seed_profile(profile):
+    """Turns HTTPS-Only off in a new profile, before the browser starts.
+
+    The names here are plain http on ports of this machine, and HTTPS-Only
+    (on by default) would upgrade every one. The ordinary pages have to
+    load for "no warning" to mean something."""
+    folder = os.path.join(profile, "Default")
+    os.makedirs(folder, exist_ok=True)
+    prefs = {
+        "https_only_mode_enabled": False,
+        "https_first_balanced_mode_enabled": False,
+    }
+    with open(os.path.join(folder, "Preferences"), "w", encoding="utf-8") as f:
+        json.dump(prefs, f)
 
 
 def open_url(b, url):
@@ -159,6 +177,7 @@ def main():
     tmp = os.environ.get("TMP") or None
     try:
         with tempfile.TemporaryDirectory(prefix="lookalike-", dir=tmp) as profile:
+            seed_profile(profile)
             with Browser(user_data_dir=profile, args=browser_args()) as b:
                 # --- the warnings ---------------------------------------
                 for host, real in (PLAIN, RN, CYRILLIC, EMBEDDED):
@@ -264,6 +283,7 @@ def main():
                     check(
                         f"{host}: opens with no warning",
                         loaded and not b.run(f"return !!({WARNED})"),
+                        f"{b.current_url()}: {text(b)[:150]!r}",
                     )
 
                 # --- continue anyway ------------------------------------
