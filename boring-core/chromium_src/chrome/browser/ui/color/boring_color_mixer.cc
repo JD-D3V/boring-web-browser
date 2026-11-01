@@ -239,6 +239,13 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   // One accent, used where something is focused or selected.
   mixer[ui::kColorFocusableBorderFocused] = {p.accent};
   mixer[kColorOmniboxResultsIconSelected] = {p.accent};
+  // Selected text, in the address bar and on Chromium's own pages. Its
+  // default is a tone of the seed colour, which stayed indigo under
+  // Green. Filled with the accent, as a button is, so the text on it
+  // reads at the same contrast.
+  mixer[ui::kColorSysStateTextHighlight] = {p.accent};
+  mixer[ui::kColorSysStateOnTextHighlight] = {dark ? p.window
+                                                   : SK_ColorWHITE};
 
   // Chromium's own pages are painted from this same colour provider.
   // Without these, settings and history keep Chromium's blue and the
