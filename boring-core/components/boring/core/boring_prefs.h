@@ -53,11 +53,13 @@ inline constexpr char kStripTrackingParams[] = "boring.strip_tracking_params";
 // computer is not a choice for their other devices.
 inline constexpr char kBlockingOffSites[] = "boring.blocking_off_sites";
 
-// Also block with the Easylist Cookie List (boring\cookies.txt), which
-// hides cookie notices. Off by default: hiding a notice is not the same
-// as saying no, and some sites stop working until one is answered.
-inline constexpr char kBoringHideCookieNotices[] =
-    "boring.adblock.hide_cookie_notices";
+// Block cookie banners: hide them with the Easylist Cookie List
+// (boring\cookies.txt) and answer the ones we know how to with "reject"
+// (components/boring/adblock/cosmetic/cookie_reject.js). On by default.
+// Off leaves the cookie list out of use and every banner alone. Per
+// profile, and a site with blocking turned off is left alone too.
+inline constexpr char kBoringBlockCookieBanners[] =
+    "boring.privacy.block_cookie_banners";
 
 // Regional lists to block with as well, by id from
 // boring\regional\index.json (see IsValidRegionalListId()). Empty by

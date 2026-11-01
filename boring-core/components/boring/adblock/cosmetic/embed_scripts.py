@@ -2,9 +2,10 @@
 """Embed the cosmetic filter scripts in a C++ header at build time.
 
 Usage: embed_scripts.py <output.h> <procedural_filters.js> <cosmetic_filters.js>
+                        <cookie_reject.js>
        embed_scripts.py --picker <output.h> <element_picker.js>
 
-Writes kCosmeticIsolatedScript: both files wrapped in one function
+Writes kCosmeticIsolatedScript: the three files wrapped in one function
 expression, which CosmeticFilterAgent evaluates in its isolated world and
 then calls with the native callback and the page's config. Keeping the
 scripts as plain .js files lets node test them as they ship.
@@ -40,7 +41,12 @@ WRAPPER = """\
 'use strict';
 {procedural}
 {cosmetic}
-startCosmeticFilters(sendClassIds, JSON.parse(configJson), document, window);
+{cookies}
+const config = JSON.parse(configJson);
+startCosmeticFilters(sendClassIds, config, document, window);
+if (config.cookies) {{
+  startCookieReject(document, window);
+}}
 }})
 """
 
@@ -87,13 +93,17 @@ def main() -> None:
         output, picker = sys.argv[2:]
         write(output, PICKER_HEADER, PICKER_WRAPPER.format(picker=read(picker)))
         return
-    if len(sys.argv) != 4:
+    if len(sys.argv) != 5:
         sys.exit(__doc__)
-    output, procedural, cosmetic = sys.argv[1:]
+    output, procedural, cosmetic, cookies = sys.argv[1:]
     write(
         output,
         HEADER,
-        WRAPPER.format(procedural=read(procedural), cosmetic=read(cosmetic)),
+        WRAPPER.format(
+            procedural=read(procedural),
+            cosmetic=read(cosmetic),
+            cookies=read(cookies),
+        ),
     )
 
 

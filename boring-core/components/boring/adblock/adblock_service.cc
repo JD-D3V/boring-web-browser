@@ -251,7 +251,7 @@ scoped_refptr<ProfileLists> ProfileLists::ForContext(
   EnabledLists lists;
   const PrefService* prefs = user_prefs::UserPrefs::Get(context);
   if (prefs) {
-    lists.cookie_notices = prefs->GetBoolean(prefs::kBoringHideCookieNotices);
+    lists.cookie_notices = prefs->GetBoolean(prefs::kBoringBlockCookieBanners);
     for (const base::Value& id : prefs->GetList(prefs::kBoringRegionalLists)) {
       if (id.is_string()) {
         lists.regional.push_back(id.GetString());
@@ -891,6 +891,7 @@ mojom::UrlCosmeticResourcesPtr AdblockService::GetCosmeticResources(
   result->procedural_actions.assign(procedural_actions.begin(),
                                     procedural_actions.end());
   result->exceptions.assign(exceptions.begin(), exceptions.end());
+  result->auto_reject_cookies = lists.cookie_notices;
   return result;
 }
 

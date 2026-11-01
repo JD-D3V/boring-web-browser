@@ -32,6 +32,9 @@ struct UrlCosmeticResources {
   array<string> exceptions;
   string injected_script;            // main world, document start
   bool generichide;
+  // The profile blocks cookie banners, so the main frame also answers the
+  // ones it knows with "reject" (cosmetic/cookie_reject.js).
+  bool auto_reject_cookies;
 };
 
 // Cosmetic filtering for a renderer. Bound per render process, with the
