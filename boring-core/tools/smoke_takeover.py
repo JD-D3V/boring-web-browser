@@ -109,6 +109,33 @@ def esc_leaves(t, b, base, mode):
     return went and left
 
 
+def diagnose(t, b):
+    """Say what the browser thinks it is showing, when the page is not what we expect."""
+    print("DIAG url:", b.current_url())
+    for label, fn in (
+        ("handles", lambda: t.handles()),
+        ("title", lambda: b._req("GET", f"/session/{b.sid}/title")["value"]),
+        (
+            "doc",
+            lambda: b.run(
+                "return [document.readyState, document.title,"
+                " document.body ? document.body.innerText.slice(0, 200) : null]"
+            ),
+        ),
+        (
+            "targets",
+            lambda: [
+                (x.get("type"), x.get("url"), x.get("title"))
+                for x in t.cdp("Target.getTargets", {})["value"]["targetInfos"]
+            ],
+        ),
+    ):
+        try:
+            print("DIAG", label + ":", fn())
+        except Exception as e:  # diagnostics must never hide the real failure
+            print("DIAG", label, "failed:", str(e)[:200])
+
+
 def main():
     checks = {}
     srv = serve()
@@ -138,6 +165,17 @@ def main():
 
         checks["scam page trips Get me out"] = wait(tripped, timeout=30, step=0.4)
         if checks["scam page trips Get me out"]:
+            # The address changes when the navigation commits, a moment
+            # before the new document is there to read.
+            checks["Get me out page loads"] = wait(
+                lambda: b.run(
+                    "return document.readyState === 'complete'"
+                    " && !!document.getElementById('close')"
+                ),
+                timeout=15,
+            )
+            if not checks["Get me out page loads"]:
+                diagnose(t, b)
             text = b.run("return document.body.innerText")
             checks["Get me out says the computer is fine"] = (
                 "Your computer is fine" in text and "Close this tab" in text
@@ -150,6 +188,8 @@ def main():
             checks["one click closes the tab"] = wait(
                 lambda: len(t.handles()) == before - 1, timeout=10
             )
+            if not checks["one click closes the tab"]:
+                diagnose(t, b)
             b._req("POST", f"/session/{b.sid}/window", {"handle": t.handles()[-1]})
 
         # A normal video must not trip.

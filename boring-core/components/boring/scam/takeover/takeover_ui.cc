@@ -109,13 +109,20 @@ class TakeoverMessageHandler : public content::WebUIMessageHandler {
   }
 };
 
+// The data source hands the filter the path with its query still on, and
+// the tab helper opens chrome://boring-takeover/?site=..., so cut it off.
+std::string PathOnly(const std::string& path) {
+  return path.substr(0, path.find_first_of("?#"));
+}
+
 bool ShouldHandle(const std::string& path) {
-  return path.empty() || path == "takeover.js";
+  std::string only = PathOnly(path);
+  return only.empty() || only == "takeover.js";
 }
 
 void Handle(const std::string& path,
             content::WebUIDataSource::GotDataCallback callback) {
-  std::string body = path == "takeover.js" ? kScript : kPage;
+  std::string body = PathOnly(path) == "takeover.js" ? kScript : kPage;
   std::move(callback).Run(
       base::MakeRefCounted<base::RefCountedString>(std::move(body)));
 }
