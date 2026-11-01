@@ -214,6 +214,23 @@ def set_local_state(profile, dotted, value):
         json.dump(state, f)
 
 
+def start_on_new_tab_page(b):
+    """Sets On startup to "Open the New Tab page" in the running browser,
+    so the next run of the same profile does not bring this run's tabs back.
+
+    The profile file cannot be edited instead. On Windows this pref is
+    protected (its hash is checked), so a hand edit is thrown away at the
+    next start and the default comes back, which is now "continue where
+    you left off".
+    """
+    b.get("chrome://settings/")
+    ready = wait_for(b, "!!(window.chrome && chrome.settingsPrivate)")
+    return bool(ready) and b.run_async(
+        "const done = arguments[arguments.length - 1];"
+        "chrome.settingsPrivate.setPref('session.restore_on_startup', 5, '', done);"
+    )
+
+
 def get_profile_pref(profile, dotted, default=None):
     path = os.path.join(profile, "Default", "Preferences")
     with open(path, encoding="utf-8") as f:

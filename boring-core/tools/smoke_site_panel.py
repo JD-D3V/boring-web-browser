@@ -48,6 +48,7 @@ from urllib.parse import quote, unquote
 
 from capture_native import ENUMPROC, chrome_pids, frame_window, grab, parents_of
 from drive import CHROME, Browser, free_port
+from smoke_local import start_on_new_tab_page
 from smoke_siteoff import (
     AD_HOST,
     GUID,
@@ -747,6 +748,11 @@ def main():
                             f"cookie set on {url.split(':')[1][2:]}",
                             "keep=1" in b.run("return document.cookie"),
                         )
+
+                # A new profile now continues where it left off, which would
+                # bring this run's tabs back in run two and put the shield on
+                # another tab. Say "new tab page" the way a person would.
+                start_on_new_tab_page(b)
 
             if not os.path.exists(preferences_path(profile)):
                 check("profile has a Preferences file", False)
