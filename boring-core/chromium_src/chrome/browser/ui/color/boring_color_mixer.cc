@@ -181,6 +181,13 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   mixer[kColorTabStrokeFrameInactive] = {p.line};
   mixer[kColorTabDividerFrameActive] = {p.line};
   mixer[kColorTabDividerFrameInactive] = {p.line};
+  // The side tab strip's buttons (new tab, tab search) are filled from
+  // Chromium's header container, which comes from the seed colour and so
+  // stayed indigo under Green. A wash of the accent instead.
+  mixer[kColorNewTabButtonCRBackgroundFrameActive] = {p.tint};
+  mixer[kColorNewTabButtonCRBackgroundFrameInactive] = {p.tint};
+  mixer[kColorTabSearchButtonCRForegroundFrameActive] = {p.ink};
+  mixer[kColorTabSearchButtonCRForegroundFrameInactive] = {p.muted};
 
   // Toolbar controls.
   mixer[kColorToolbarText] = {p.ink};
