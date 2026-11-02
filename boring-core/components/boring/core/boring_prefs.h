@@ -32,6 +32,12 @@ inline constexpr char kWarnScamTricks[] = "boring.protection.warn_scam_tricks";
 // anyway". Off by default.
 inline constexpr char kNoScamBypass[] = "boring.protection.no_scam_bypass";
 
+// Look-alike sites (by eTLD+1) the person chose "Continue anyway" on, so
+// the warning does not come back for them. Per profile, never synced and
+// never sent anywhere. Not used in private windows.
+inline constexpr char kLookalikeAllowedSites[] =
+    "boring.protection.lookalike_allowed_sites";
+
 // "Hide sponsored results": hide sponsored results on search pages
 // instead of only labeling them. On by default.
 inline constexpr char kHideSponsoredResults[] = "boring.hide_sponsored_results";

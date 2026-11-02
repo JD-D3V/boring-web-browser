@@ -48,16 +48,16 @@ ScamBlockingPage::~ScamBlockingPage() = default;
 
 std::string ScamBlockingPage::GetHTMLContents() {
   WarningText text;
-  text.title = "Warning: this site looks dangerous";
+  text.title = "Site blocked";
   text.eyebrow = "Site blocked";
-  text.heading = "This site looks dangerous.";
+  text.heading = "This site may be a scam.";
   text.what =
-      "The address is on a list of known scam or phishing sites. It may try "
-      "to steal your passwords, payment details, or money.";
+      "This address is on a list of known scam sites. Sites like it try to "
+      "get your passwords or money.";
   text.address = std::string(request_url().host());
   text.main_button = "Go back to safety";
   text.why =
-      "Its address matched the local blocklist. Lists can make mistakes.";
+      "Its address matched the list on this computer. Lists can be wrong.";
   text.no_bypass =
       "No way past scam warnings is on. This site cannot be opened from "
       "this warning.";

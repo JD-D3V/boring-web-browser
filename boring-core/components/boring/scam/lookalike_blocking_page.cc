@@ -12,6 +12,7 @@
 #include "components/boring/core/boring_prefs.h"
 #include "components/boring/scam/warning_page.h"
 #include "components/prefs/pref_service.h"
+#include "components/prefs/scoped_user_pref_update.h"
 #include "components/security_interstitials/content/security_interstitial_controller_client.h"
 #include "components/security_interstitials/content/settings_page_helper.h"
 #include "components/security_interstitials/core/controller_client.h"
@@ -50,6 +51,15 @@ AllowedDomains* GetAllowedDomains(content::BrowserContext* context,
     context->SetUserData(kAllowedDomainsKey, std::move(owned));
   }
   return allowed;
+}
+
+// The prefs that remember a "Continue anyway" for this profile, or null in a
+// private window, which only remembers for the window's own session.
+PrefService* RememberingPrefs(content::BrowserContext* context) {
+  if (!context || context->IsOffTheRecord()) {
+    return nullptr;
+  }
+  return user_prefs::UserPrefs::Get(context);
 }
 
 std::unique_ptr<security_interstitials::MetricsHelper> MakeMetricsHelper(
@@ -96,7 +106,7 @@ class LookalikeControllerClient
   }
 
   void Proceed() override {
-    AllowLookalikeForSession(context_, domain_);
+    AllowLookalike(context_, domain_);
     Reload();
   }
 
@@ -108,17 +118,36 @@ class LookalikeControllerClient
 
 }  // namespace
 
-void AllowLookalikeForSession(content::BrowserContext* context,
-                              const std::string& domain) {
+void AllowLookalike(content::BrowserContext* context,
+                    const std::string& domain) {
   if (AllowedDomains* allowed = GetAllowedDomains(context, /*create=*/true)) {
     allowed->domains.insert(domain);
+  }
+  // Remembered across runs in this profile's own prefs, never in a private
+  // window.
+  if (PrefService* prefs = RememberingPrefs(context)) {
+    ScopedListPrefUpdate update(prefs, prefs::kLookalikeAllowedSites);
+    if (!update->contains(domain)) {
+      update->Append(domain);
+    }
   }
 }
 
 bool IsLookalikeAllowed(content::BrowserContext* context,
                         const std::string& domain) {
+  // "No way past scam warnings" wins over anything remembered.
+  PrefService* all_prefs = context ? user_prefs::UserPrefs::Get(context)
+                                   : nullptr;
+  if (all_prefs && all_prefs->GetBoolean(prefs::kNoScamBypass)) {
+    return false;
+  }
   const AllowedDomains* allowed = GetAllowedDomains(context, /*create=*/false);
-  return allowed && allowed->domains.count(domain);
+  if (allowed && allowed->domains.count(domain)) {
+    return true;
+  }
+  PrefService* prefs = RememberingPrefs(context);
+  return prefs &&
+         prefs->GetList(prefs::kLookalikeAllowedSites).contains(domain);
 }
 
 // static
@@ -159,7 +188,7 @@ LookalikeBlockingPage::~LookalikeBlockingPage() = default;
 
 std::string LookalikeBlockingPage::GetHTMLContents() {
   WarningText text;
-  text.title = "Warning: this site copies another";
+  text.title = "Address looks like another site";
   text.eyebrow = "Look-alike address";
   text.address = std::string(request_url().host());
   text.no_bypass =
@@ -169,13 +198,13 @@ std::string LookalikeBlockingPage::GetHTMLContents() {
     const std::string real(safe_url_.host());
     text.heading = "This is not " + real + ".";
     text.what = "This site's name looks like " + real +
-                ", but it is a different site. Scammers copy the name of a "
-                "site you trust to steal logins and payments.";
+                ", but it is a different site. Scammers copy names like this "
+                "to get logins and payments.";
     text.main_button = "Go to " + real;
     text.why = "Its name is built to look like " + real +
                ". If you know this site, you can continue.";
   } else {
-    text.heading = "This address is built to fool you.";
+    text.heading = "This address may be copying another site.";
     text.what =
         "This site's name mixes letters from other alphabets so that it can "
         "pass for another site.";

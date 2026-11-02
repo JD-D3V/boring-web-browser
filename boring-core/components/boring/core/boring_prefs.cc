@@ -25,6 +25,8 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterBooleanPref(prefs::kStopTakeovers, true);
   registry->RegisterBooleanPref(prefs::kWarnScamTricks, true);
   registry->RegisterBooleanPref(prefs::kNoScamBypass, false);
+  // No sync flag: stays on this profile on this computer.
+  registry->RegisterListPref(prefs::kLookalikeAllowedSites);
   // Sponsored results are removed out of the box. Turning this off in
   // Protection leaves them in place with a quiet "Sponsored" chip.
   registry->RegisterBooleanPref(prefs::kHideSponsoredResults, true);

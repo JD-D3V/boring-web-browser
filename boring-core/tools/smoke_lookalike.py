@@ -59,7 +59,7 @@ ORDINARY = [
 ALL_HOSTS = [PLAIN[0], RN[0], CYRILLIC[0], EMBEDDED[0], NO_TARGET, *ORDINARY]
 
 WARNED = (
-    "document.body && /different site|built to fool you/.test(document.body.innerText)"
+    "document.body && /different site|copying another site/.test(document.body.innerText)"
 )
 BUTTON = (
     "[...document.querySelectorAll('button')].find(b => b.textContent.trim() === %s)"
@@ -253,8 +253,8 @@ def main():
                 check(f"{NO_TARGET}: the warning shows", shown)
                 body = text(b) if shown else ""
                 check(
-                    "it says the address is built to fool you",
-                    "built to fool you" in body,
+                    "it says the address is copying another site",
+                    "copying another site" in body,
                     body[:200],
                 )
                 check(

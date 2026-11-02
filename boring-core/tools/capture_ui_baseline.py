@@ -76,7 +76,7 @@ def main():
                 b.screenshot(str(OUT / f"ai-{state}-fixture.png"))
             b.get("http://boring-scam-test.invalid/")
             text = b.run("return document.body.innerText")
-            checks["listed_site_blocked"] = "This site looks dangerous" in text
+            checks["listed_site_blocked"] = "This site may be a scam" in text
             checks["normal_mode_continue_visible"] = "continue anyway" in text.lower()
             checks["warning_button_uses_page_font"] = b.run(
                 "return getComputedStyle(document.querySelector('.safe')).fontFamily"
@@ -139,7 +139,7 @@ def main():
             b.get("http://boring-scam-test.invalid/")
             text = b.run("return document.body.innerText")
             checks["no_bypass_blocks_without_continue"] = (
-                "This site looks dangerous" in text
+                "This site may be a scam" in text
                 and "continue anyway" not in text.lower()
             )
             b.screenshot(str(OUT / "scam-warning-no-bypass.png"))

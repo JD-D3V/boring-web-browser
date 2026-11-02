@@ -157,7 +157,7 @@ def main():
                         print("  fetch gives:", b.run_async("const [done] = arguments; fetch(location.href).then(r => r.text()).then(t => done(t.slice(0, 120)), e => done('ERR ' + e))"))
 
                     open_url(b, f"http://{LISTED}:{pages.port}/")
-                    shown = wait_for(b, "document.body && document.body.innerText.includes('This site looks dangerous')")
+                    shown = wait_for(b, "document.body && document.body.innerText.includes('This site may be a scam')")
                     check("a listed host shows the warning", shown)
                     text = b.run("return document.body.innerText")
                     check("the warning names the host", LISTED in text)
@@ -183,11 +183,11 @@ def main():
                     open_url(b, f"http://{SUB}:{pages.port}/")
                     check(
                         "a subdomain of a listed host is blocked",
-                        wait_for(b, "document.body && document.body.innerText.includes('This site looks dangerous')"),
+                        wait_for(b, "document.body && document.body.innerText.includes('This site may be a scam')"),
                     )
 
                     open_url(b, f"http://{LISTED}:{pages.port}/")
-                    wait_for(b, "document.body && document.body.innerText.includes('This site looks dangerous')")
+                    wait_for(b, "document.body && document.body.innerText.includes('This site may be a scam')")
                     b.run(f"({CONTINUE}).click()")
                     check("Continue anyway opens the site", wait_for(b, "!!document.getElementById('ok')", 10000), b.current_url())
                     check_switch(b, check)
@@ -199,7 +199,7 @@ def main():
                     open_url(b, f"http://{LISTED}:{pages.port}/")
                     check(
                         "the warning still shows with no way past",
-                        wait_for(b, "document.body && document.body.innerText.includes('This site looks dangerous')"),
+                        wait_for(b, "document.body && document.body.innerText.includes('This site may be a scam')"),
                     )
                     check("Continue anyway is hidden", not b.run(f"return !!({CONTINUE})"))
                     check("Go back to safety is still there", bool(b.run(f"return !!({GO_BACK})")))
@@ -210,7 +210,7 @@ def main():
                     with Browser(user_data_dir=profile, args=args_for(lists, pages, extra)) as b:
                         wait_until_list_is_loaded(b)
                         open_url(b, f"http://{LISTED}:{pages.port}/")
-                        wait_for(b, "document.body && document.body.innerText.includes('This site looks dangerous')")
+                        wait_for(b, "document.body && document.body.innerText.includes('This site may be a scam')")
                         got = b.run(
                             "return [getComputedStyle(document.body).backgroundColor,"
                             " getComputedStyle(document.querySelector('button.primary')).backgroundColor]"

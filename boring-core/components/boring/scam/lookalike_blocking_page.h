@@ -59,12 +59,14 @@ class LookalikeBlockingPage
   const bool no_bypass_;
 };
 
-// Remembers that the person chose to continue to this site (its eTLD+1) for
-// the rest of this run, in this profile only, and asks whether they did.
-// Kept per profile on purpose: waving a warning through in an ordinary
-// window must not also wave it through in an incognito one.
-void AllowLookalikeForSession(content::BrowserContext* context,
-                              const std::string& domain);
+// Remembers that the person chose to continue to this site (its eTLD+1),
+// and asks whether they did. In an ordinary window this is kept in the
+// profile's prefs (prefs::kLookalikeAllowedSites, local only), so the
+// warning does not come back. A private window only remembers for its own
+// session: waving a warning through in an ordinary window must not also wave
+// it through in an incognito one.
+void AllowLookalike(content::BrowserContext* context,
+                    const std::string& domain);
 bool IsLookalikeAllowed(content::BrowserContext* context,
                         const std::string& domain);
 
