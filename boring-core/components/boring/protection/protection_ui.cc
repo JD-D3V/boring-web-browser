@@ -544,6 +544,8 @@ function showWebStore(state) {
   if (row) {
     row.checked = state === 'on';
     row.disabled = state === 'removed';
+    el('conn-detail-web_store').textContent =
+        state === 'removed' ? 'The store is not installed.' : '';
   }
 }
 

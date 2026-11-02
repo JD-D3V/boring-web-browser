@@ -39,7 +39,15 @@ def main():
             if b.run("return document.querySelectorAll('#connections-own .setting-row').length > 0"):
                 break
             time.sleep(0.5)
-        time.sleep(1.5)
+        for _ in range(40):
+            # Both rows fill in a moment after the page opens.
+            if b.run(
+                "return document.getElementById('conn-detail-browser_updates').textContent !== ''"
+                " && document.getElementById('conn-detail-web_store').textContent === ''"
+            ):
+                break
+            time.sleep(0.5)
+        time.sleep(1.0)
         b.run("document.getElementById('connections-title').scrollIntoView(); return 1")
         time.sleep(1.0)
         hwnd = frame_window(binary, under=b.proc.pid)

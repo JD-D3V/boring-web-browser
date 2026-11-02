@@ -43,7 +43,9 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import focus_lock
-from drive import CHROME, OFFSCREEN, Browser
+from drive import CHROME as DRIVE_CHROME, OFFSCREEN, Browser
+
+CHROME = Path(DRIVE_CHROME)
 
 OUT = Path(__file__).resolve().parents[2] / "artifacts/release-readiness/network"
 TMP = Path(os.environ.get("TMP", r"E:\tmp"))

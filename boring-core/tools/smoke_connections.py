@@ -82,6 +82,11 @@ def main():
                 raise SystemExit
             # The store extension arrives a moment after first start.
             wait_for(b, "return !document.getElementById('conn-web_store').disabled", 30)
+            wait_for(
+                b,
+                "return document.getElementById('conn-detail-browser_updates').textContent !== ''",
+                15,
+            )
             rows = b.run(READ_ROWS)
             print("rows:", {k: (v["on"], v["disabled"]) for k, v in rows.items()})
 
@@ -112,9 +117,12 @@ def main():
                 if not row:
                     continue
                 if row["disabled"]:
-                    if "update" not in row["text"].lower() and "installed" not in row["text"].lower():
+                    detail = b.run(
+                        "return document.getElementById('conn-detail-%s').textContent" % entry["id"]
+                    )
+                    if not detail:
                         failures.append(f"{entry['id']}: disabled with no reason shown")
-                    print(f"{entry['id']}: switch disabled in this build, row says why")
+                    print(f"{entry['id']}: switch disabled in this build: {detail}")
                     continue
                 if not row["on"]:
                     failures.append(f"{entry['id']}: not on to start with")
