@@ -45,4 +45,14 @@ PrivacyState GetPrivacyState(content::BrowserContext* context) {
   return state;
 }
 
+void SetSecureDnsEnabled(bool enabled) {
+  PrefService* local_state = g_browser_process->local_state();
+  if (!local_state ||
+      local_state->IsManagedPreference(prefs::kDnsOverHttpsMode)) {
+    return;
+  }
+  local_state->SetString(prefs::kDnsOverHttpsMode,
+                         enabled ? "secure" : "off");
+}
+
 }  // namespace boring

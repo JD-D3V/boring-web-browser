@@ -15,7 +15,7 @@ import os
 import time
 
 from capture_native import frame_window, grab, user32
-from drive import OFFSCREEN, Browser
+from drive import CHROME, OFFSCREEN, Browser
 
 
 def main():
@@ -28,7 +28,7 @@ def main():
 
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
     w, h = (int(v) for v in args.size.lower().split("x"))
-    binary = os.environ.get("BORING_CHROME", r"E:\ung\build\src\out\Default\chrome.exe")
+    binary = os.environ.get("BORING_CHROME", CHROME)
     chrome_args = [
         "--disable-backgrounding-occluded-windows",
         "--disable-features=CalculateNativeWinOcclusion",

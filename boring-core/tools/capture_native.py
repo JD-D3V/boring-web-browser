@@ -18,7 +18,7 @@ import os
 import time
 from ctypes import wintypes
 
-from drive import OFFSCREEN, Browser
+from drive import CHROME, OFFSCREEN, Browser
 
 # Test hook that focuses the address bar once the toolbar is built, so the
 # focused field and its glow can be photographed without sending any input.
@@ -286,7 +286,7 @@ def main():
     place = os.environ.get("BORING_WINDOW_POSITION", OFFSCREEN)
     chrome_args.append("--window-position=" + place)
 
-    binary = os.environ.get("BORING_CHROME", r"E:\ung\build\src\out\Default\chrome.exe")
+    binary = os.environ.get("BORING_CHROME", CHROME)
 
     # chromedriver adds an infobar reading "Chrome is being controlled by
     # automated test software". It is the test harness talking, not the

@@ -40,6 +40,11 @@ struct PrivacyState {
 // depend on.
 PrivacyState GetPrivacyState(content::BrowserContext* context);
 
+// The "Secure DNS" switch on Protection: on is secure mode (the default
+// server, or the one the person chose), off is Chromium's own off. Does
+// nothing when an administrator has set it.
+void SetSecureDnsEnabled(bool enabled);
+
 }  // namespace boring
 
 #endif  // COMPONENTS_BORING_PRIVACY_PRIVACY_STATE_H_

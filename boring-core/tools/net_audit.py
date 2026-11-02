@@ -13,12 +13,17 @@ from a page and no credential can reach the artifacts folder. The
 capture mode is the default one, which already leaves out cookies,
 authentication headers and response bodies.
 
+The hosts and what each is for come from connections.json, the same list
+the Protection page shows. A host outside that list fails the run.
+
 Scenarios:
   first-run   start with a brand new profile and sit on the welcome page
   idle        start on the new tab page and wait, touching nothing
   lists       force a blocking list check. Silent while the build has no
               list publishing key, the one request we make once it does
   opt-out     list updates and AI off, then wait
+  all-off     every "On its own" switch off, as the Protection page writes
+              them. Must reach no host at all
 
 Usage:
   python net_audit.py --scenario idle --seconds 120
@@ -38,33 +43,55 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import focus_lock
-from drive import OFFSCREEN, Browser
+from drive import CHROME as DRIVE_CHROME, OFFSCREEN, Browser
+
+CHROME = Path(DRIVE_CHROME)
 
 OUT = Path(__file__).resolve().parents[2] / "artifacts/release-readiness/network"
 TMP = Path(os.environ.get("TMP", r"E:\tmp"))
-# The same environment variable drive.py reads, so a capture and a smoke
-# run can never end up pointed at different builds.
-CHROME = (
-    Path(os.environ.get("BORING_OUT", r"E:\ung\build\src\out\Default")) / "chrome.exe"
-)
-
 # Hosts that are the machine talking to itself, not the browser talking
 # to anyone. Windows looks for a proxy configuration on every network.
 LOCAL_NAMES = {"wpad", "localhost", "127.0.0.1", "::1"}
 
-# Hosts the browser reaches by design, with what for. Listed so the
-# report names the purpose, never so they are hidden: they are still
-# printed among the hosts reached. Anything not here is unexplained.
+# Everything the browser reaches by design, with what for, from the one
+# list the Protection page also draws its rows from. Listed so the report
+# names the purpose, never so they are hidden: they are still printed among
+# the hosts reached. Anything not here is unexplained, and fails the run.
+CONNECTIONS = json.loads(
+    (
+        Path(__file__).resolve().parents[1]
+        / "components/boring/protection/connections.json"
+    ).read_text(encoding="utf-8")
+)["connections"]
 KNOWN_PURPOSES = {
-    "dns.quad9.net": (
-        "secure DNS (the default resolver, replacing the system one; it "
-        "answers name lookups the browser was going to make anyway)"
-    ),
-    "jd-d3v.github.io": (
-        "browser update feed, once a day, installed copies with an update key only"
-    ),
-    "github.com": "blocking list feed, only with a list signing key",
+    host: entry["label"] + ": " + entry["why"]
+    for entry in CONNECTIONS
+    for host in entry["hosts"]
 }
+
+
+def all_off_seed():
+    """The settings the Protection switches write when every connection
+    is turned off, as the profile's Preferences and the machine's Local
+    State. tools/smoke_connections.py checks that each switch really writes
+    these values, so this scenario tests what a person who turned them all
+    off gets. Switches with no file behind them (the updater lives in the
+    registry, the store extension is a profile entry) have nothing to seed:
+    a fresh profile has no store add-ons to check, and an unsigned build
+    never looks for an update."""
+    prefs, local_state = {}, {}
+    for entry in CONNECTIONS:
+        switch = entry["switch"]
+        if switch["kind"] not in ("profile", "local_state"):
+            continue
+        target = prefs if switch["kind"] == "profile" else local_state
+        node = target
+        *path, leaf = switch["pref"].split(".")
+        for part in path:
+            node = node.setdefault(part, {})
+        node[leaf] = switch["off"]
+    return prefs, local_state
+
 
 SCENARIOS = {
     # The positive control, and it runs first for a reason. A capture
@@ -108,6 +135,15 @@ SCENARIOS = {
         # check must stay silent. Once the real key is in, put back
         # "expect_traffic": True and "expect_host": "github.com".
         "use_driver": True,
+    },
+    # Every "On its own" switch on the Protection page turned off. It must
+    # reach no host at all, not even a name lookup.
+    "all-off": {
+        "args": ["--no-first-run"],
+        "urls": ["chrome://boring-newtab"],
+        "first_run": False,
+        "seed_all_off": True,
+        "must_reach_nothing": True,
     },
     "opt-out": {
         "args": [
@@ -167,6 +203,11 @@ def hosts_in(netlog_path: Path) -> tuple[Counter, Counter]:
 def run_scenario(name: str, seconds: int, keep: bool) -> dict:
     spec = SCENARIOS[name]
     profile = Path(tempfile.mkdtemp(prefix=f"netaudit-{name}-", dir=TMP))
+    if spec.get("seed_all_off"):
+        prefs, local_state = all_off_seed()
+        (profile / "Default").mkdir()
+        (profile / "Default" / "Preferences").write_text(json.dumps(prefs), "utf-8")
+        (profile / "Local State").write_text(json.dumps(local_state), "utf-8")
     netlog = profile / "net-log.json"
     args = [
         str(CHROME),
@@ -231,6 +272,7 @@ def _read_result(name, spec, seconds, profile, netlog, keep) -> dict:
         "scenario": name,
         "seconds": seconds,
         "is_control": bool(spec.get("is_control")),
+        "must_reach_nothing": bool(spec.get("must_reach_nothing")),
         "expect_traffic": expect_traffic,
         "requests_by_host": dict(requested.most_common()),
         "names_looked_up": dict(resolved.most_common()),
@@ -286,8 +328,12 @@ def main() -> int:
         # minutes are spent collecting evidence that would not mean
         # anything.
         names = ["control"] + [n for n in sorted(SCENARIOS) if n != "control"]
+    elif args.scenario == "control":
+        names = ["control"]
     else:
-        names = [args.scenario]
+        # A single scenario still gets the control first: silence only
+        # means something once the capture has been seen to work.
+        names = ["control", args.scenario]
     results = [run_scenario(name, args.seconds, args.keep) for name in names]
 
     controls = [r for r in results if r.get("is_control")]
@@ -330,6 +376,8 @@ def main() -> int:
     for host in everywhere or ["none"]:
         purpose = KNOWN_PURPOSES.get(host, "UNEXPLAINED" if everywhere else "")
         print("  " + host + ("  -- " + purpose if purpose else ""))
+    unexplained = [h for h in everywhere if h not in KNOWN_PURPOSES]
+    leaked = [r for r in audited if r["must_reach_nothing"] and r["offmachine_hosts"]]
     print(
         "\nThis reads as: in these scenarios, over "
         + str(args.seconds)
@@ -338,7 +386,20 @@ def main() -> int:
         + ". It is not a guarantee about every code path, every setting, "
         "or a longer run."
     )
-    return 0
+    failed = False
+    if unexplained:
+        print("\nFAIL: hosts that are not in connections.json:", ", ".join(unexplained))
+        failed = True
+    for r in leaked:
+        print(
+            "\nFAIL: "
+            + r["scenario"]
+            + " reached "
+            + ", ".join(r["offmachine_hosts"])
+            + " with every switch off"
+        )
+        failed = True
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

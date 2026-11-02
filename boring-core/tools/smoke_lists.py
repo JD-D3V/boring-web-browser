@@ -214,7 +214,7 @@ def run_check(feed_url, downloads, profile, key, screenshot=None):
             "return !!document.getElementById('lists-age') && "
             "document.getElementById('lists-age').textContent.length > 0"
         )
-        has_switch = b.run("return !!document.getElementById('list-updates')")
+        has_switch = b.run("return !!document.getElementById('conn-blocking_lists')")
     return landed, shows_age, has_switch
 
 
