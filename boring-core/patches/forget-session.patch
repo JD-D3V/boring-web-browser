@@ -73,15 +73,16 @@
      "//chrome/browser/dom_distiller",
      "//chrome/browser/extensions",
      "//chrome/browser/external_protocol",
-@@ -209,6 +213,7 @@
+@@ -209,6 +213,8 @@
      "//chrome/browser/profiles:profile",
      "//chrome/browser/profiles:profile_manager",
      "//chrome/browser/profiles:profile_util",
 +    "//chrome/browser/profiles/keep_alive",
      "//chrome/browser/search",
++    "//chrome/browser/sessions",
      "//chrome/browser/sharing_hub",
      "//chrome/browser/signin",
-@@ -281,7 +286,10 @@
+@@ -281,7 +287,10 @@
      "//components/boring/protection",
      "//components/boring/reader",
      "//components/boring/scam",

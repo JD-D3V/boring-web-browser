@@ -22,6 +22,9 @@
 #include "chrome/browser/profiles/keep_alive/profile_keep_alive_types.h"
 #include "chrome/browser/profiles/keep_alive/scoped_profile_keep_alive.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/sessions/session_service.h"
+#include "chrome/browser/sessions/session_service_factory.h"
+#include "chrome/browser/sessions/tab_restore_service_factory.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
@@ -33,6 +36,7 @@
 #include "components/content_settings/core/common/content_settings_pattern.h"
 #include "components/keep_alive_registry/keep_alive_types.h"
 #include "components/keep_alive_registry/scoped_keep_alive.h"
+#include "components/sessions/core/tab_restore_service.h"
 #include "content/public/browser/browsing_data_filter_builder.h"
 #include "content/public/browser/browsing_data_remover.h"
 #include "content/public/browser/navigation_controller.h"
@@ -148,6 +152,28 @@ size_t OpenWindows(Profile* profile) {
   return count;
 }
 
+// Throws away what the session service and the tab restore service kept of
+// the windows that just closed. A window opened while none is open counts as
+// a fresh start, and by default a start continues where the last session
+// ended, so without this the old tabs come straight back, and Ctrl+Shift+T
+// would still reopen them. Moving the saved session to the "last" slot first
+// also starts a clean one, then the last one is deleted.
+void DiscardSavedSession(Profile* profile) {
+  if (SessionService* session_service =
+          SessionServiceFactory::GetForProfile(profile)) {
+    session_service->MoveCurrentSessionToLastSession();
+    session_service->DeleteLastSession();
+  }
+  if (sessions::TabRestoreService* tab_restore =
+          TabRestoreServiceFactory::GetForProfile(profile)) {
+    const size_t before = tab_restore->entries().size();
+    tab_restore->ClearEntries();
+    tab_restore->DeleteLastSession();
+    VLOG(1) << "boring_forget: recently closed entries were " << before
+            << ", now " << tab_restore->entries().size();
+  }
+}
+
 // The steps of "Forget this session", in the order they have to happen:
 // the windows go first so nothing writes history or storage again while it
 // is being deleted, then the data, then one new tab. Holds the browser
@@ -214,6 +240,7 @@ class SessionJob {
   void OnRemoved() {
     VLOG(1) << "boring_forget: opening the new window, open now "
             << OpenWindows(profile_);
+    DiscardSavedSession(profile_);
     chrome::NewEmptyWindow(profile_, /*should_trigger_session_restore=*/false);
     delete this;
   }

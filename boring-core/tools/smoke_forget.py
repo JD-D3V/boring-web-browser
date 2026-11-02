@@ -550,6 +550,15 @@ def main():
                 if not after:
                     dump_tabs(b)
                 if after:
+                    # The old tabs came back a moment after the new window
+                    # opened; give a restore time to show before judging.
+                    time.sleep(4.0)
+                    left = safe(lambda: window_handles(b), [])
+                    check(
+                        "nothing comes back afterwards",
+                        len(left) == 1 and left[0] == after[0],
+                        str(left),
+                    )
                     switch_to(b, after[0])
                     nt = b.current_url()
                     check(
@@ -607,10 +616,19 @@ def main():
             # What the browser said about the steps of Forget this session.
             log = os.path.join(profile, "chrome_debug.log")
             if os.path.exists(log):
+                recently_closed = None
                 with open(log, encoding="utf-8", errors="replace") as f:
                     for line in f:
                         if "boring_forget" in line:
                             print("  log: " + line.strip()[-160:])
+                        if "recently closed entries were" in line:
+                            recently_closed = line.strip().rsplit(" ", 1)[-1]
+                # The list behind Ctrl+Shift+T and the History menu.
+                check(
+                    "recently closed is empty",
+                    recently_closed == "0",
+                    str(recently_closed),
+                )
     finally:
         server.shutdown()
 
