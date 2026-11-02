@@ -17,6 +17,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/chrome_pages.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
+#include "chrome/browser/ui/views/boring/boring_forget.h"
 #include "components/boring/adblock/adblock_service.h"
 #include "components/boring/adblock/blocked_counts.h"
 #include "components/boring/adblock/blocking_off_sites.h"
@@ -46,6 +47,7 @@
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/controls/button/label_button.h"
+#include "ui/views/controls/button/md_text_button.h"
 #include "ui/views/controls/button/toggle_button.h"
 #include "ui/views/controls/highlight_path_generator.h"
 #include "ui/views/controls/label.h"
@@ -146,6 +148,31 @@ void AddBlockedSummary(views::View* parent, const boring::BlockedTotals& totals)
   }
   parent->AddChildView(std::make_unique<views::Separator>())
       ->SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(4, 0)));
+}
+
+// boring: the question that takes the place of the "Forget this site" row
+// once it is pressed. It is in the panel, not a dialog.
+std::unique_ptr<views::View> MakeForgetConfirm(
+    views::Button::PressedCallback forget,
+    views::Button::PressedCallback cancel) {
+  auto view = std::make_unique<views::View>();
+  view->SetLayoutManager(std::make_unique<views::BoxLayout>(
+      views::BoxLayout::Orientation::kVertical, gfx::Insets::VH(6, 12), 8));
+  auto* question = view->AddChildView(std::make_unique<views::Label>(
+      u"Forget this site? You will be signed out of it."));
+  question->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+  question->SetMultiLine(true);
+  auto* buttons = view->AddChildView(std::make_unique<views::View>());
+  auto* layout = buttons->SetLayoutManager(std::make_unique<views::BoxLayout>(
+      views::BoxLayout::Orientation::kHorizontal, gfx::Insets(), 8));
+  layout->set_main_axis_alignment(views::BoxLayout::MainAxisAlignment::kEnd);
+  buttons->AddChildView(
+      std::make_unique<views::MdTextButton>(std::move(cancel), u"Cancel"));
+  buttons
+      ->AddChildView(
+          std::make_unique<views::MdTextButton>(std::move(forget), u"Forget"))
+      ->SetStyle(ui::ButtonStyle::kProminent);
+  return view;
 }
 
 }  // namespace
@@ -431,6 +458,18 @@ void BoringProtectionButton::ShowPanel() {
       base::BindRepeating(&BoringProtectionButton::OnOpenSiteSettings,
                           base::Unretained(this)),
       u"Settings for this site");
+  // boring: clears the site's data after one question (feat/forget-site).
+  forget_row_ = AddActionRow(
+      contents.get(),
+      base::BindRepeating(&BoringProtectionButton::OnForgetAsk,
+                          base::Unretained(this)),
+      u"Forget this site");
+  forget_confirm_ = contents->AddChildView(MakeForgetConfirm(
+      base::BindRepeating(&BoringProtectionButton::OnForgetConfirmed,
+                          base::Unretained(this)),
+      base::BindRepeating(&BoringProtectionButton::OnForgetCancel,
+                          base::Unretained(this))));
+  forget_confirm_->SetVisible(false);
   AddActionRow(contents.get(),
                base::BindRepeating(&BoringProtectionButton::OnOpenProtection,
                                    base::Unretained(this)),
@@ -465,6 +504,8 @@ void BoringProtectionButton::OnPanelCloseRequested(
 void BoringProtectionButton::OnPanelClosed() {
   aggressive_ = nullptr;
   never_sleep_ = nullptr;
+  forget_row_ = nullptr;
+  forget_confirm_ = nullptr;
   panel_motion_.Detach();
   panel_.reset();
   panel_delegate_.reset();
@@ -518,6 +559,32 @@ void BoringProtectionButton::OnOpenSiteSettings() {
   const GURL url = panel_url_;
   ClosePanel();
   chrome::ShowSiteSettings(browser_, url);
+}
+
+void BoringProtectionButton::OnForgetAsk() {
+  if (forget_row_ && forget_confirm_) {
+    forget_row_->SetVisible(false);
+    forget_confirm_->SetVisible(true);
+    panel_delegate_->SizeToContents();
+  }
+}
+
+void BoringProtectionButton::OnForgetCancel() {
+  if (forget_row_ && forget_confirm_) {
+    forget_confirm_->SetVisible(false);
+    forget_row_->SetVisible(true);
+    panel_delegate_->SizeToContents();
+  }
+}
+
+void BoringProtectionButton::OnForgetConfirmed() {
+  const std::string site = panel_site_;
+  const GURL url = panel_url_;
+  ClosePanel();
+  if (web_contents() && CurrentSite() == site) {
+    boring::ForgetSite(browser_->GetProfile(), site, url,
+                       web_contents()->GetWeakPtr());
+  }
 }
 
 void BoringProtectionButton::ReloadPanelSite() {
