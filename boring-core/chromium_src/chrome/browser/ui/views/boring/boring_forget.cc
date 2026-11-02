@@ -156,13 +156,17 @@ size_t OpenWindows(Profile* profile) {
 // the windows that just closed. A window opened while none is open counts as
 // a fresh start, and by default a start continues where the last session
 // ended, so without this the old tabs come straight back, and Ctrl+Shift+T
-// would still reopen them. Moving the saved session to the "last" slot first
-// also starts a clean one, then the last one is deleted.
+// would still reopen them. Closing every window of a profile shuts its
+// session service down, which saves the windows as the last session. That
+// is what a new service reads next, so one is made now, for the session
+// restore variant of the lookup, and the last session it finds is deleted.
 void DiscardSavedSession(Profile* profile) {
   if (SessionService* session_service =
-          SessionServiceFactory::GetForProfile(profile)) {
-    session_service->MoveCurrentSessionToLastSession();
+          SessionServiceFactory::GetForProfileForSessionRestore(profile)) {
     session_service->DeleteLastSession();
+    VLOG(1) << "boring_forget: last session deleted";
+  } else {
+    VLOG(1) << "boring_forget: no session service";
   }
   if (sessions::TabRestoreService* tab_restore =
           TabRestoreServiceFactory::GetForProfile(profile)) {
