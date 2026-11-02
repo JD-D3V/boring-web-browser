@@ -34,9 +34,28 @@ guarded. It does not evaluate the preprocessor, so a use behind
 way round, because a false report costs a minute and a miss costs a
 build.
 
+A second job lives here too, run with --leftovers: the opposite
+question. rebrand.py renames the product, so the question is whether
+"Chromium" still shows anywhere a person looks at the installer or the
+download. It reads:
+
+  - the installer string resources the build generated
+    (gen\chrome\installer\**\*.rc, UTF-16 for the string table), and
+    checks that the English product name and publisher are the ones in
+    product_name.py and that setup.exe was built after them
+  - the files in a release folder, which rename_release.py fills: their
+    names, and the name of every entry inside each zip
+
+Credit and licence text may keep naming the project: "The Chromium
+Authors", "Chromium project", chromium.org, NOTICES-* and LICENSE*
+files, and the folder of the vendored Chromium Web Store extension,
+which is the extension's own name. Anything else is a failure.
+
 Usage:
   python branded_string_check.py --src E:\ung-153-47\build\src
   python branded_string_check.py --src ... --json out.json
+  python branded_string_check.py --leftovers --out E:\ung-154\build\src\out\Default
+  python branded_string_check.py --leftovers --release-dir E:\tmp\dist
 """
 
 import argparse
@@ -45,6 +64,7 @@ import os
 import re
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 
 MESSAGE_NAME = re.compile(r'<message\s+name\s*=\s*"([A-Z0-9_]+)"')
@@ -188,11 +208,167 @@ def uses(src: Path, names: set[str]) -> list[dict]:
     return found
 
 
-def main() -> int:
+LEFTOVER = re.compile(r"chromium", re.IGNORECASE)
+
+# Text that has to keep naming the project: the copyright holder, the
+# credit to the project, and links to it.
+CREDIT = re.compile(
+    r"The Chromium Authors|Chromium Authors|Chromium project|chromium\.org",
+    re.IGNORECASE,
+)
+
+# A file or folder name that may keep the word: a notice travels with the
+# thing it is the notice for, and the Chromium Web Store is a third party
+# extension that goes by that name.
+ALLOWED_NAME = re.compile(r"^(NOTICES[-.]|LICENSE)|^chromium-web-store$", re.IGNORECASE)
+
+INSTALLER_RESOURCES = Path("gen") / "chrome" / "installer"
+STRINGS_RC = "installer_util_strings.rc"
+
+
+def read_resource(path: Path) -> str:
+    """A generated .rc as text. The string table is UTF-16, the rest ASCII."""
+    raw = path.read_bytes()
+    if raw[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        return raw.decode("utf-16", errors="replace")
+    return raw.decode("utf-8", errors="replace")
+
+
+def text_leftovers(text: str) -> list[tuple[int, str]]:
+    """Lines that say Chromium once the credit phrases are taken out."""
+    found = []
+    for number, line in enumerate(text.splitlines(), 1):
+        if LEFTOVER.search(CREDIT.sub("", line)):
+            found.append((number, line.strip()[:140]))
+    return found
+
+
+def name_leftovers(path: str) -> bool:
+    """Whether a file path still says Chromium outside the allowed names."""
+    parts = [p for p in re.split(r"[\\/]", path) if p]
+    return any(LEFTOVER.search(p) and not ALLOWED_NAME.match(p) for p in parts)
+
+
+def string_value(text: str, name: str) -> str | None:
+    match = re.search(rf'^\s*{re.escape(name)}\s+"(.*)"\s*$', text, re.MULTILINE)
+    return match.group(1) if match else None
+
+
+def resource_problems(out: Path) -> list[str]:
+    """Leftovers in the generated installer resources, and a stale setup.exe."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from product_name import NAME, PUBLISHER
+
+    root = out / INSTALLER_RESOURCES
+    strings = root / "util" / STRINGS_RC
+    if not strings.is_file():
+        return [f"no {STRINGS_RC} under {root}; the build has not generated it"]
+
+    problems = []
+    files = sorted(root.rglob("*.rc"))
+    for path in files:
+        rel = path.relative_to(out).as_posix()
+        for number, line in text_leftovers(read_resource(path)):
+            problems.append(f"{rel}:{number}: {line}")
+
+    text = read_resource(strings)
+    for name, want in (
+        ("IDS_PRODUCT_NAME_EN_US", NAME),
+        ("IDS_ABOUT_VERSION_COMPANY_NAME_EN_US", PUBLISHER),
+    ):
+        got = string_value(text, name)
+        if got != want:
+            problems.append(
+                f"{STRINGS_RC}: {name} is {got!r}, product_name.py says {want!r}"
+            )
+
+    # The .rc is only the input. setup.exe is what ships, and it is not
+    # rebuilt by anything but the mini_installer target.
+    setup = out / "setup.exe"
+    if setup.is_file() and NAME.encode("utf-16-le") not in setup.read_bytes():
+        problems.append(
+            f"setup.exe does not contain {NAME!r}; it was built before the "
+            "strings changed, build mini_installer"
+        )
+    elif not setup.is_file():
+        problems.append(f"no setup.exe in {out}")
+    print(f"read {len(files)} installer resource files under {root}")
+    return problems
+
+
+def release_problems(folder: Path) -> list[str]:
+    """Leftovers in the names of a release folder's files and zip entries."""
+    if not folder.is_dir():
+        return [f"no folder at {folder}"]
+    problems = []
+    count = 0
+    for path in sorted(folder.iterdir()):
+        if not path.is_file():
+            continue
+        count += 1
+        if name_leftovers(path.name):
+            problems.append(f"{folder.name}/{path.name}: the file name says Chromium")
+        if path.suffix.lower() == ".zip":
+            try:
+                with zipfile.ZipFile(path) as archive:
+                    entries = archive.namelist()
+            except zipfile.BadZipFile as error:
+                problems.append(f"{path.name}: not a zip: {error}")
+                continue
+            bad = [e for e in entries if name_leftovers(e)]
+            for entry in bad[:5]:
+                problems.append(f"{path.name}: entry {entry}")
+            if len(bad) > 5:
+                problems.append(f"{path.name}: and {len(bad) - 5} more entries")
+    if not count:
+        problems.append(f"{folder} holds no files to check")
+    print(f"read {count} release files in {folder}")
+    return problems
+
+
+def leftovers_main(args) -> int:
+    if not args.out and not args.release_dir:
+        sys.exit("--leftovers needs --out (or BORING_OUT) and/or --release-dir")
+    problems = []
+    if args.out:
+        problems += resource_problems(Path(args.out))
+    for folder in args.release_dir:
+        problems += release_problems(Path(folder))
+    if problems:
+        print(f"\n{len(problems)} leftover(s):\n")
+        for line in problems:
+            print("  ", line)
+        return 1
+    print("no leftover Chromium outside credit and licence text")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--src", required=True, help="a Chromium source tree")
+    ap.add_argument("--src", help="a Chromium source tree")
     ap.add_argument("--json", help="write the whole report here")
-    args = ap.parse_args()
+    ap.add_argument(
+        "--leftovers",
+        action="store_true",
+        help="look for Chromium left in the built installer and the release files",
+    )
+    ap.add_argument(
+        "--out",
+        default=os.environ.get("BORING_OUT"),
+        help="build output folder for --leftovers (default: BORING_OUT)",
+    )
+    ap.add_argument(
+        "--release-dir",
+        action="append",
+        default=[],
+        help="folder rename_release.py wrote, for --leftovers; may repeat",
+    )
+    args = ap.parse_args(argv)
+
+    if args.leftovers:
+        return leftovers_main(args)
+    if not args.src:
+        ap.error("--src is required unless --leftovers is given")
 
     src = Path(args.src)
     chrome_text, chrome_from = grd_text(src, CHROME_GRD)

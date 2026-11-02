@@ -21,19 +21,9 @@ DEFAULT_SRC = r"E:\ung\build\src"
 # single shared folder any more.
 import pristine  # noqa: E402
 
-NAME = "Boring Browser"
-# Who Windows says publishes the browser: the Publisher column of
-# Installed apps, the uninstall entry, and "Company" in the properties
-# of chrome.exe, chrome.dll, setup.exe and the installer. Windows shows
-# it on the line under the app's name, so the product name here would
-# only repeat itself; the person who publishes it says something. It
-# was "The Chromium Authors", which read as though Google's Chromium
-# team shipped this build. They are still credited as the copyright
-# holder, which is what that text is for.
-PUBLISHER = "JD"
-# Used where Windows wants no spaces: the install folder, registry ids,
-# ProgIDs and the URL scheme.
-ID = "BoringBrowser"
+# The name, the publisher and the no-spaces id live in product_name.py,
+# which the packaging reads too.
+from product_name import ID, NAME, PUBLISHER  # noqa: E402
 
 STRING_FILES = [
     "chrome/app/chromium_strings.grd",

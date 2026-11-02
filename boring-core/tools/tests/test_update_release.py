@@ -19,6 +19,7 @@ import tempfile
 import unittest
 import urllib.request
 import xml.etree.ElementTree as ElementTree
+import zipfile
 from pathlib import Path
 from unittest import mock
 
@@ -64,7 +65,9 @@ class RenameReleaseTest(unittest.TestCase):
         self.installer = self.build / f"{UNG}_installer_x64.exe"
         self.installer.write_bytes(b"installer bytes")
         self.zip = self.build / f"{UNG}_windows_x64.zip"
-        self.zip.write_bytes(b"zip bytes")
+        with zipfile.ZipFile(self.zip, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr(f"{UNG}_windows_x64/chrome.exe", b"chrome bytes")
+            archive.writestr(f"{UNG}_windows_x64/boring/easylist.txt", b"rules")
 
     def _argv(self, **over):
         values = {
@@ -133,7 +136,15 @@ class RenameReleaseTest(unittest.TestCase):
         installer = self.out / "BoringBrowser_153.0.8010.52.3_installer_x64.exe"
         zip_path = self.out / "BoringBrowser_153.0.8010.52.3_windows_x64.zip"
         self.assertEqual(installer.read_bytes(), b"installer bytes")
-        self.assertEqual(zip_path.read_bytes(), b"zip bytes")
+        # The folder inside the zip is named like the zip, not like package.py.
+        with zipfile.ZipFile(zip_path) as archive:
+            root = zip_path.stem
+            self.assertEqual(
+                sorted(archive.namelist()),
+                [f"{root}/boring/easylist.txt", f"{root}/chrome.exe"],
+            )
+            self.assertEqual(archive.read(f"{root}/chrome.exe"), b"chrome bytes")
+            self.assertIsNone(archive.testzip())
         # Copied, not moved.
         self.assertTrue(self.installer.exists())
         self.assertTrue(self.zip.exists())
@@ -195,6 +206,13 @@ class RenameReleaseTest(unittest.TestCase):
         )
         self.assertEqual(code, 2)
         self.assertIn("not a name package.py writes", printed)
+
+    def test_a_zip_with_no_single_top_folder_is_refused(self):
+        with zipfile.ZipFile(self.zip, "w") as archive:
+            archive.writestr("chrome.exe", b"loose")
+        code, printed = quietly(rename_release.main, self._argv())
+        self.assertEqual(code, 2)
+        self.assertIn("one top folder", printed)
 
     def test_a_missing_file_is_refused(self):
         self.zip.unlink()

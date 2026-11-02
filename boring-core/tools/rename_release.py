@@ -8,21 +8,26 @@ ungoogled-chromium's package.py names its output after itself:
 
 What people download is called
 
-  BoringBrowser_<chromium>.<release>_installer_x64.exe
-  BoringBrowser_<chromium>.<release>_windows_x64.zip
+  <ID>_<chromium>.<release>_installer_x64.exe
+  <ID>_<chromium>.<release>_windows_x64.zip
 
-where <release> is kBoringRelease from
+where <ID> is the product id from product_name.py (BoringBrowser for the
+placeholder name) and <release> is kBoringRelease from
 components/boring/core/boring_release.h, the same number the updater
 appends to the Chromium version. So the name on the download, the
 version in the update feed and the version the browser compares are one
 number.
 
 The package files are copied, never moved, so the build folder keeps
-what package.py made. The copy is refused when the Chromium version in
-the file names is not the one in chrome/VERSION, when the two files do
-not come from the same package run, or when a file of the release name
-is already there. SHA256SUMS.txt is written last, from the bytes of the
-copies, so it describes exactly what gets uploaded.
+what package.py made. The installer is copied byte for byte. The zip is
+copied with the folder inside it renamed to match: package.py names that
+folder after itself, so unzipping the download would otherwise leave a
+folder called ungoogled-chromium_.... The copy is refused when the
+Chromium version in the file names is not the one in chrome/VERSION,
+when the two files do not come from the same package run, or when a file
+of the release name is already there. SHA256SUMS.txt is written last,
+from the bytes of the copies, so it describes exactly what gets
+uploaded.
 
 Authenticode signing of the installer, when there is a certificate,
 happens before this step, on package.py's output. Signing changes the
@@ -42,14 +47,16 @@ import os
 import re
 import shutil
 import sys
+import zipfile
 from pathlib import Path
 from typing import NamedTuple
+
+from product_name import ID as PRODUCT
 
 TOOLS = Path(__file__).resolve().parent
 CORE = TOOLS.parent
 DEFAULT_RELEASE_HEADER = CORE / "components" / "boring" / "core" / "boring_release.h"
 
-PRODUCT = "BoringBrowser"
 SUMS_NAME = "SHA256SUMS.txt"
 
 CONFIG_ERROR = 2
@@ -125,6 +132,19 @@ def sha256_of(path: Path) -> str:
     return digest.hexdigest()
 
 
+def zip_root(path: Path) -> str:
+    """The one folder package.py puts everything in the zip under."""
+    try:
+        with zipfile.ZipFile(path) as archive:
+            names = archive.namelist()
+    except zipfile.BadZipFile as error:
+        raise ReleaseError(f"{path.name} is not a zip: {error}") from error
+    roots = {name.split("/", 1)[0] for name in names}
+    if len(roots) != 1 or not all("/" in name for name in names):
+        raise ReleaseError(f"{path.name} does not keep everything in one top folder")
+    return roots.pop()
+
+
 def check_inputs(installer: Path, zip_path: Path, chromium: str) -> None:
     """Refuse package files that are not this build's pair."""
     for path in (installer, zip_path):
@@ -147,6 +167,7 @@ def check_inputs(installer: Path, zip_path: Path, chromium: str) -> None:
             f"the installer is revision {got_installer.revision} and the zip "
             f"{got_zip.revision}, so they are not from the same package run"
         )
+    zip_root(zip_path)
 
 
 def copy_exactly(source: Path, destination: Path) -> str:
@@ -161,6 +182,45 @@ def copy_exactly(source: Path, destination: Path) -> str:
         raise ReleaseError(f"the copy of {source.name} does not match the original")
     os.replace(partial, destination)
     return copied
+
+
+def copy_zip_under_new_root(source: Path, destination: Path) -> str:
+    """Copy a zip with its top folder named like the new zip, return its sha256.
+
+    The folder is the name people see after they unzip. Entries keep their
+    timestamps, attributes and compression; only the leading folder
+    changes. Written through a .part file and checked against the CRCs
+    of the original before it is put in place.
+    """
+    if destination.exists():
+        raise ReleaseError(f"{destination} is already there, refusing to replace it")
+    old_root = zip_root(source)
+    new_root = destination.stem
+    partial = destination.with_name(destination.name + ".part")
+    with zipfile.ZipFile(source) as original, zipfile.ZipFile(partial, "w") as renamed:
+        for info in original.infolist():
+            moved = zipfile.ZipInfo(
+                new_root + info.filename[len(old_root) :], info.date_time
+            )
+            moved.compress_type = info.compress_type
+            moved.external_attr = info.external_attr
+            moved.create_system = info.create_system
+            moved.comment = info.comment
+            moved.file_size = info.file_size
+            with original.open(info) as reader, renamed.open(moved, "w") as writer:
+                shutil.copyfileobj(reader, writer, 1 << 20)
+    with zipfile.ZipFile(source) as original, zipfile.ZipFile(partial) as renamed:
+        want = [
+            (new_root + i.filename[len(old_root) :], i.CRC, i.file_size)
+            for i in original.infolist()
+        ]
+        got = [(i.filename, i.CRC, i.file_size) for i in renamed.infolist()]
+    if want != got:
+        partial.unlink()
+        raise ReleaseError(f"the copy of {source.name} does not match the original")
+    digest = sha256_of(partial)
+    os.replace(partial, destination)
+    return digest
 
 
 def write_sums(folder: Path, names: list[str]) -> Path:
@@ -201,7 +261,7 @@ def rename_release(
     if (out / SUMS_NAME).exists():
         raise ReleaseError(f"{out / SUMS_NAME} is already there, use a clean folder")
     copy_exactly(installer, out / installer_name)
-    copy_exactly(zip_path, out / zip_name)
+    copy_zip_under_new_root(zip_path, out / zip_name)
     sums = write_sums(out, [installer_name, zip_name])
     return {
         "CHROMIUM_VERSION": chromium,
