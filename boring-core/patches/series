@@ -72,4 +72,5 @@ scam-guards-clipboard.patch
 scam-guards-download.patch
 site-rules.patch
 phone-banner-tab-helper.patch
+session-restore-default.patch
 forget-session.patch

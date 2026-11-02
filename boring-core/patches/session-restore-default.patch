@@ -1,0 +1,15 @@
+--- a/chrome/browser/prefs/session_startup_pref.cc
++++ b/chrome/browser/prefs/session_startup_pref.cc
+@@ -71,7 +71,11 @@
+     return SessionStartupPref::LAST;
+   }
+ #endif
+-  return SessionStartupPref::DEFAULT;
++  // boring: a new profile opens where the last session ended, so a
++  // restart, an update or a crash never costs anyone their tabs.
++  // Only the default: the On startup choice in Settings still
++  // wins, and after a crash the "Restore pages?" offer still shows.
++  return SessionStartupPref::LAST;
+ #endif
+ }
+ 
