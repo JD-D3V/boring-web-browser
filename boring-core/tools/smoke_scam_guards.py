@@ -17,13 +17,13 @@ input goes through DevTools, never to the desktop.
 A bar is native browser UI, which WebDriver cannot see, so the browser is
 started with logging on and each bar says its wording in the log. The
 answers to a question bar come from --boring-guards-test-answer, a switch
-that does nothing unless given. The Windows clipboard is real, so the
-text on it is put back at the end.
+that does nothing unless given. Copies from pages are logged and dropped
+by --boring-guards-test-clipboard, so the real Windows clipboard is never
+touched, and the text a copy would have put there is read from the log.
 
 Needs BORING_OUT, as the other smoke tests do.
 """
 
-import ctypes
 import functools
 import http.server
 import json
@@ -32,7 +32,6 @@ import shutil
 import sys
 import threading
 import time
-from ctypes import wintypes
 from pathlib import Path
 
 from drive import Browser, free_port
@@ -41,6 +40,7 @@ DATA = Path(__file__).resolve().parent / "testdata"
 WORK = Path(os.environ.get("TMP", r"E:\tmp")) / "feat-scam-guards" / "smoke"
 GET_ME_OUT = "chrome://boring-takeover/"
 BAR = "boring-guards: bar: "
+CLIP = "boring-guards: clipboard: "
 
 # The wording, as decided. A change here is a change to what people read.
 ASK = (
@@ -52,12 +52,12 @@ ASK_STRONG = (
     "they can control the computer. Do not continue."
 )
 NOTICE = (
-    "This page tried to copy a command for you to run. Real sites never "
-    "ask you to paste commands into Windows."
+    "This page tried to copy a command. Real sites do not ask you to "
+    "paste commands into Windows."
 )
 NOTICE_STRONG = (
-    "This page tried to copy a command for you to run, and it looks like "
-    "a scam. Do not paste it anywhere. Close the tab."
+    "This page tried to copy a command, and it looks like a scam. Do not "
+    "paste it. Close the tab."
 )
 REPLACEMENT = "Blocked: this page tried to copy a command."
 ORDINARY = "See you at 5pm, bring the report"
@@ -102,58 +102,6 @@ def serve():
     srv = http.server.ThreadingHTTPServer(("127.0.0.1", free_port()), handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
-
-
-# --- the Windows clipboard, for reading back and putting back ----------
-
-user32 = ctypes.WinDLL("user32", use_last_error=True)
-kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
-CF_UNICODETEXT = 13
-user32.OpenClipboard.argtypes = [wintypes.HWND]
-user32.GetClipboardData.argtypes = [wintypes.UINT]
-user32.GetClipboardData.restype = wintypes.HANDLE
-user32.SetClipboardData.argtypes = [wintypes.UINT, wintypes.HANDLE]
-user32.SetClipboardData.restype = wintypes.HANDLE
-kernel32.GlobalAlloc.argtypes = [wintypes.UINT, ctypes.c_size_t]
-kernel32.GlobalAlloc.restype = wintypes.HGLOBAL
-kernel32.GlobalLock.argtypes = [wintypes.HGLOBAL]
-kernel32.GlobalLock.restype = wintypes.LPVOID
-kernel32.GlobalUnlock.argtypes = [wintypes.HGLOBAL]
-
-
-def windows_clipboard_text():
-    for _ in range(20):
-        if user32.OpenClipboard(None):
-            try:
-                handle = user32.GetClipboardData(CF_UNICODETEXT)
-                if not handle:
-                    return None
-                pointer = kernel32.GlobalLock(handle)
-                try:
-                    return ctypes.wstring_at(pointer)
-                finally:
-                    kernel32.GlobalUnlock(handle)
-            finally:
-                user32.CloseClipboard()
-        time.sleep(0.1)
-    return None
-
-
-def set_windows_clipboard_text(text):
-    data = (text + "\0").encode("utf-16-le")
-    for _ in range(20):
-        if user32.OpenClipboard(None):
-            try:
-                user32.EmptyClipboard()
-                handle = kernel32.GlobalAlloc(0x0002, len(data))
-                pointer = kernel32.GlobalLock(handle)
-                ctypes.memmove(pointer, data, len(data))
-                kernel32.GlobalUnlock(handle)
-                user32.SetClipboardData(CF_UNICODETEXT, handle)
-                return
-            finally:
-                user32.CloseClipboard()
-        time.sleep(0.1)
 
 
 # --- clicks, through DevTools: a real user gesture, nothing on the desktop
@@ -205,9 +153,11 @@ class Session:
             "--enable-logging",
             "--log-level=0",
             f"--log-file={self.log}",
+            "--boring-guards-test-clipboard",
         ]
         if answer:
             args.append(f"--boring-guards-test-answer={answer}")
+        self.seen = 0
         self.b = Browser(user_data_dir=str(profile), args=args)
 
     def __enter__(self):
@@ -244,30 +194,32 @@ class Session:
     def saved(self):
         return sorted(p.name for p in self.dl.iterdir())
 
+    def copies(self):
+        """What copies from pages would have put on the clipboard, in order.
+        The browser logs them and drops them (--boring-guards-test-clipboard),
+        so the real clipboard is never touched."""
+        try:
+            text = self.log.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return []
+        return [
+            json.loads(line.split(CLIP, 1)[1])
+            for line in text.splitlines()
+            if CLIP in line
+        ]
+
     def read_clipboard(self):
-        """The text on the clipboard, asked of the page and then of Windows."""
-        try:
-            self.b._req(
-                "POST",
-                f"/session/{self.b.sid}/permissions",
-                {"descriptor": {"name": "clipboard-read"}, "state": "granted"},
-            )
-        except RuntimeError:
-            pass
-        try:
-            text = self.b.run_async(
-                "var done = arguments[arguments.length - 1];"
-                "navigator.clipboard.readText().then("
-                "function(t) { done(t); }, function(e) { done('ERR:' + e.name); });"
-            )
-            if isinstance(text, str) and not text.startswith("ERR:"):
-                return text
-        except RuntimeError:
-            pass
-        return windows_clipboard_text()
+        """The text of the copy just made, from the log."""
+        wait(lambda: len(self.copies()) > self.seen, timeout=5)
+        copies = self.copies()
+        if len(copies) <= self.seen:
+            return None
+        self.seen = len(copies)
+        return copies[-1]
 
     def copy_on(self, mode):
         """Opens the clipboard page in `mode` and presses its button."""
+        self.seen = len(self.copies())
         self.b.get(f"{self.base}/scam_guards_clickfix.html?mode={mode}")
         wait(lambda: self.b.run("return !!document.getElementById('copy')"))
         self.click_id("copy")
@@ -457,7 +409,6 @@ def tripped_tab(port, checks):
 
 def main():
     checks = {}
-    saved_clipboard = windows_clipboard_text()
     srv = serve()
     port = srv.server_address[1]
     try:
@@ -468,8 +419,6 @@ def main():
         tripped_tab(port, checks)
     finally:
         srv.shutdown()
-        if saved_clipboard is not None:
-            set_windows_clipboard_text(saved_clipboard)
 
     ok = all(checks.values())
     for name, passed in checks.items():

@@ -33,6 +33,14 @@ std::optional<std::u16string> CheckClipboardCopy(
     const ui::ClipboardMetadata& metadata,
     const content::ClipboardPasteData& data);
 
+// Test only. With --boring-guards-test-clipboard, runs the guard, logs the
+// text that would have been written ("boring-guards: clipboard: " and a
+// JSON string) and returns true, and the caller drops the copy. Without
+// the switch it returns false and does nothing.
+bool SwallowClipboardCopyForTest(const content::ClipboardEndpoint& source,
+                                 const ui::ClipboardMetadata& metadata,
+                                 const content::ClipboardPasteData& data);
+
 }  // namespace guards
 }  // namespace boring
 

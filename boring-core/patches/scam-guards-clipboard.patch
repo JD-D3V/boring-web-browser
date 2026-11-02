@@ -8,10 +8,16 @@
  #include "components/dom_distiller/core/dom_distiller_switches.h"
  #include "components/dom_distiller/core/url_constants.h"
  #include "components/embedder_support/content_settings_utils.h"
-@@ -7919,6 +7920,16 @@
+@@ -7919,6 +7920,22 @@
      IsClipboardCopyAllowedCallback callback) {
    glic::OnBeforeClipboardCopy(source);
  
++  // boring: test only. With --boring-guards-test-clipboard, copies are
++  // logged and dropped instead of written to the real clipboard.
++  if (boring::guards::SwallowClipboardCopyForTest(source, metadata, data)) {
++    return;
++  }
++
 +  // boring: the ClickFix guard. A page that copies a command for the
 +  // person to paste into Windows gets a harmless line on the clipboard
 +  // instead, and a warning bar. See components/boring/guards.
