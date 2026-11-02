@@ -88,6 +88,11 @@ def main():
             wait_for(b, "document.readyState === 'complete'", 10000)
             time.sleep(2.5)
             found = b.run(VISIBLE_LOGO_AND_STORE)
+            if label == "Extensions":
+                # The header carries our own mark, and the bundled store
+                # extension is a row there: only a link to the real Chrome
+                # Web Store counts.
+                found = [f for f in found if f.startswith("store link:")]
             check(f"{label}: no Chrome logo or Web Store link", not found, str(found))
         b.get("chrome://settings")
         time.sleep(2)
