@@ -188,11 +188,12 @@ def main():
             restored += 1
             if not args.dry_run:
                 shutil.copy2(keep, tree_file)
-        # Files another branch patched that have no pristine copy: if git
-        # says they differ from HEAD and ungoogled's domain substitution
-        # never touches them, HEAD is the original. Save it to the store
-        # (so next time it is a normal pristine file) and put it back,
-        # unless this branch patches or overlays it.
+        # Files some branch patches that have no pristine copy: if
+        # ungoogled's patches and domain substitution never touch them,
+        # HEAD is the original. Save it to the store (so next time it is a
+        # normal pristine file), and put it back if another branch left it
+        # changed, unless this branch patches or overlays it. The ones
+        # ungoogled does change cannot be seeded; they are listed.
         dsub = set()
         root = os.path.dirname(os.path.dirname(os.path.abspath(args.src)))
         for lst in (os.path.join(root, "domain_substitution.list"),
@@ -239,15 +240,18 @@ def main():
                         theirs |= touched(os.path.join(proot, pf))
         r = subprocess.run(["git", "status", "--porcelain", "-uno"],
                            cwd=args.src, capture_output=True, text=True)
-        for line in r.stdout.splitlines():
-            if not line.startswith(" M"):
+        modified = {line[3:].strip().replace("/", os.sep)
+                    for line in r.stdout.splitlines() if line.startswith(" M")}
+        unresolved = []
+        for rel in sorted(ours):
+            keep = os.path.join(store, rel)
+            tree_file = os.path.join(args.src, rel)
+            if (rel in skip or os.path.exists(keep)
+                    or not os.path.exists(tree_file)):
                 continue
-            rel = line[3:].strip().replace("/", os.sep)
-            if rel not in ours or rel in theirs:
-                continue
-            if (rel in dsub or rel in skip or rel in by_file
-                    or os.path.exists(os.path.join(store, rel))
-                    or os.path.exists(os.path.join(overlay, rel))):
+            # A change ungoogled itself makes: HEAD is not the original.
+            if rel in theirs or rel in dsub:
+                unresolved.append(rel)
                 continue
             head = subprocess.run(
                 ["git", "-c", "core.autocrlf=false", "show",
@@ -255,15 +259,23 @@ def main():
                 cwd=args.src, capture_output=True)
             if head.returncode != 0:
                 continue
-            print("restore from HEAD", rel)
-            restored += 1
+            # Every patched file ends up with a store copy, so next time it
+            # is a normal pristine file; put it back too if another branch
+            # left it changed (and this one neither patches nor overlays it).
+            print("seed store from HEAD", rel)
             if not args.dry_run:
-                keep = os.path.join(store, rel)
                 os.makedirs(os.path.dirname(keep), exist_ok=True)
                 with open(keep, "wb") as f:
                     f.write(head.stdout)
-                with open(os.path.join(args.src, rel), "wb") as f:
-                    f.write(head.stdout)
+            if (rel in modified and rel not in by_file
+                    and not os.path.exists(os.path.join(overlay, rel))):
+                print("restore from HEAD", rel)
+                restored += 1
+                if not args.dry_run:
+                    with open(tree_file, "wb") as f:
+                        f.write(head.stdout)
+        for rel in unresolved:
+            print("no pristine copy, ungoogled changes it (unresolved)", rel)
         # A file on ungoogled's domain_substitution.list has no store copy
         # (plain patches never snapshot it) and HEAD is not its original,
         # so a file another branch patched in place is neither restored
