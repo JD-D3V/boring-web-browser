@@ -24,7 +24,7 @@ import urllib.request
 
 import focus_lock
 
-OUT = os.environ.get("BORING_OUT", r"E:\ung\build\src\out\Default")
+OUT = os.environ.get("BORING_OUT", r"E:\ung-154\build\src\out\Default")
 CHROME = os.path.join(OUT, "chrome.exe")
 DRIVER = os.path.join(OUT, "chromedriver.exe")
 

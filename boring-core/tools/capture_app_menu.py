@@ -25,7 +25,7 @@ from ctypes import wintypes
 from capture_native import (ENUMPROC, chrome_pids, frame_window, parents_of,
                             user32, write_png)
 from capture_search_menu import grab_raw, window_rect
-from drive import OFFSCREEN, Browser
+from drive import CHROME, OFFSCREEN, Browser
 
 HOOK = "--boring-open-app-menu"
 
@@ -97,7 +97,7 @@ def main():
 
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
     w, h = (int(v) for v in args.size.lower().split("x"))
-    binary = os.environ.get("BORING_CHROME", r"E:\ung\build\src\out\Default\chrome.exe")
+    binary = os.environ.get("BORING_CHROME", CHROME)
 
     chrome_args = [
         HOOK,

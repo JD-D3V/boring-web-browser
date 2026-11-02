@@ -9,8 +9,10 @@
 #include <vector>
 
 #include "base/functional/bind.h"
+#include "base/json/json_reader.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/memory/weak_ptr.h"
+#include "base/no_destructor.h"
 #include "base/scoped_observation.h"
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
@@ -25,6 +27,7 @@
 #include "components/boring/lists/list_updater.h"
 #include "components/boring/performance/never_sleep_sites.h"
 #include "components/boring/privacy/privacy_state.h"
+#include "components/boring/protection/connections_data.h"
 #include "components/boring/protection/memory_saver.h"
 #include "components/boring/scam/scam_service.h"
 #include "components/boring/update/browser_updater.h"
@@ -39,6 +42,8 @@
 #include "content/public/browser/web_ui_data_source.h"
 #include "content/public/browser/web_ui_message_handler.h"
 #include "content/public/common/url_constants.h"
+#include "extensions/browser/disable_reason.h"
+#include "extensions/browser/extension_registrar.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_registry_observer.h"
 #include "extensions/browser/unloaded_extension_reason.h"
@@ -89,6 +94,10 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
                  white-space: nowrap; }
   .state-value.warn { color: var(--warning); }
   .state-value.loading { color: var(--muted); }
+  .conn-part > h3 { font-size: 14px; font-weight: 600; margin: 4px 0 0; }
+  .conn-host { font-weight: 400; color: var(--muted); font-size: 12px;
+               margin-inline-start: 8px; overflow-wrap: anywhere; }
+  .conn-note { font-weight: 550; }
   .state-row p { font-size: 12px; margin: 6px 0 0; color: var(--muted); }
   .setting-row { display: flex; gap: 20px; justify-content: space-between;
                  align-items: center; border-top: 1px solid var(--line);
@@ -247,13 +256,6 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
     <p id="lists-age"></p>
   </div>
 
-  <label class="setting-row" for="list-updates" id="list-updates-row">
-    <span><strong>Keep them up to date</strong>
-      <p>Checks for newer lists about once a week. No account, no cookie,
-      nothing about you or the pages you visit.</p></span>
-    <input class="switch" type="checkbox" id="list-updates">
-  </label>
-
   <label class="setting-row" for="hide-cookies">
     <span><strong>Block cookie banners</strong>
       <p>Hides cookie banners, and says no on the ones that ask for an
@@ -296,14 +298,6 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
     <p id="update-desc"></p>
   </div>
 
-  <label class="setting-row" for="auto-update" id="auto-update-row" hidden>
-    <span><strong>Check for new versions every day</strong>
-      <p>Asks our site whether a newer version exists. No account, no
-      cookie, nothing about you or the pages you visit. A new version
-      installs only after you say yes, and only if it carries our
-      signature.</p></span>
-    <input class="switch" type="checkbox" id="auto-update">
-  </label>
   <div class="setting-row" id="check-update-row" hidden>
     <span><strong>Check now</strong>
       <p>Look for a new version straight away.</p></span>
@@ -371,6 +365,12 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
       <p>Removes paid results from Google and Bing searches.</p></span>
     <input class="switch" type="checkbox" id="hide-ads">
   </label>
+
+  <h2 class="section" id="connections-title">What the browser connects to</h2>
+  <p class="muted">Everything this browser reaches on its own. Turn off
+  what you do not want.</p>
+  <div class="conn-part" id="connections-own" role="group"
+      aria-label="On its own"></div>
 
   <h2 class="section">Memory</h2>
   <label class="setting-row" for="memory-saver" id="memory-saver-row">
@@ -453,8 +453,6 @@ function showLists(days, updating, available) {
   } else if (old && !updating) {
     age.textContent += ' Updates are turned off.';
   }
-  el('list-updates-row').hidden = !available;
-  el('list-updates').checked = updating;
 }
 
 // A copy that cannot update itself says why, and what to do instead,
@@ -479,9 +477,7 @@ function showUpdates(state, automatic, version) {
   };
   desc.textContent = 'Version ' + version + '. ' + (why[state] || '') +
       (ready ? '' : ' Download new versions from the Boring Browser site.');
-  el('auto-update-row').hidden = !ready;
   el('check-update-row').hidden = !ready;
-  el('auto-update').checked = ready && automatic;
 }
 
 function showConnections(s) {
@@ -544,6 +540,68 @@ function showWebStore(state) {
   badge.className = 'state-value' + (state === 'on' ? '' : ' warn');
   badge.textContent = state === 'on' ? 'On' :
       state === 'off' ? 'Off' : 'Removed';
+  var row = el('conn-web_store');
+  if (row) {
+    row.checked = state === 'on';
+    row.disabled = state === 'removed';
+  }
+}
+
+// "What the browser connects to", part "On its own": one row for each
+// connection in connections.json, with its host, why, and a real switch.
+// Rebuilt only when the set of rows changes, so a click keeps focus.
+function showOwnConnections(rows) {
+  var box = el('connections-own');
+  var ids = rows.map(function(r) { return r.id; }).join();
+  if (box.dataset.ids !== ids) {
+    box.textContent = '';
+    box.dataset.ids = ids;
+    var title = document.createElement('h3');
+    title.textContent = 'On its own';
+    box.append(title);
+    rows.forEach(function(row) {
+      var label = document.createElement('label');
+      label.className = 'setting-row';
+      label.id = 'conn-row-' + row.id;
+      label.htmlFor = 'conn-' + row.id;
+      var text = document.createElement('span');
+      var name = document.createElement('strong');
+      name.append(row.label);
+      var host = document.createElement('span');
+      host.className = 'conn-host';
+      host.textContent = row.hosts.join(', ');
+      name.append(host);
+      var why = document.createElement('p');
+      why.textContent = row.why;
+      text.append(name, why);
+      if (row.off_note) {
+        var note = document.createElement('p');
+        note.className = 'conn-note';
+        note.id = 'conn-note-' + row.id;
+        note.textContent = row.off_note;
+        text.append(note);
+      }
+      var detail = document.createElement('p');
+      detail.id = 'conn-detail-' + row.id;
+      text.append(detail);
+      var check = document.createElement('input');
+      check.type = 'checkbox';
+      check.className = 'switch';
+      check.id = 'conn-' + row.id;
+      check.addEventListener('change', function(e) {
+        chrome.send('setConnection', [row.id, e.target.checked]);
+        say(row.label + (e.target.checked ? ' on.' : ' off.'));
+      });
+      label.append(text, check);
+      box.append(label);
+    });
+  }
+  rows.forEach(function(row) {
+    var check = el('conn-' + row.id);
+    check.checked = row.on;
+    check.disabled = !row.canSwitch;
+    el('conn-detail-' + row.id).textContent = row.unavailable || '';
+  });
 }
 
 // One real checkbox per regional list this build ships. Rebuilt only
@@ -653,6 +711,7 @@ function load(s) {
   showWebStore(s.webStore);
   showLists(s.listDays, s.listUpdates, s.listUpdatesAvailable);
   showConnections(s);
+  showOwnConnections(s.connections);
   el('hide-cookies').checked = s.hideCookies;
   el('fingerprint').checked = s.fingerprint;
   el('strip-params').checked = s.stripParams;
@@ -747,21 +806,10 @@ el('hide-ads').addEventListener('change', function(e) {
   chrome.send('setHideSponsored', [e.target.checked]);
 });
 
-el('auto-update').addEventListener('change', function(e) {
-  chrome.send('setAutoUpdate', [e.target.checked]);
-  say(e.target.checked ? 'The browser will look for new versions daily.'
-                       : 'The browser will not look for new versions.');
-});
-
 el('check-update').addEventListener('click', function() {
   chrome.send('checkUpdateNow');
 });
 
-el('list-updates').addEventListener('change', function(e) {
-  chrome.send('setListUpdates', [e.target.checked]);
-  say(e.target.checked ? 'Lists will be kept up to date.'
-                       : 'Lists will not be updated.');
-});
 
 el('hide-cookies').addEventListener('change', function(e) {
   chrome.send('setHideCookieNotices', [e.target.checked]);
@@ -847,6 +895,15 @@ const char* StatusName(Status status) {
   return "loading";
 }
 
+// The rows of "On its own": connections.json, compiled in as
+// kConnectionsJson. Null only if the file is broken, which
+// tools/check_connections.py stops at push time.
+const base::ListValue* ConnectionList() {
+  static const base::NoDestructor<std::optional<base::DictValue>> root(
+      base::JSONReader::ReadDict(kConnectionsJson, base::JSON_PARSE_RFC));
+  return root->has_value() ? (*root)->FindList("connections") : nullptr;
+}
+
 // The Chromium Web Store extension we bundle (NeverDecaf, pinned by
 // tools/get_chromium_web_store.py). It asks Google about installed store
 // extensions, so the page says whether it is there.
@@ -902,6 +959,10 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     web_ui()->RegisterMessageCallback(
         "setListUpdates",
         base::BindRepeating(&ProtectionMessageHandler::HandleSetListUpdates,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "setConnection",
+        base::BindRepeating(&ProtectionMessageHandler::HandleSetConnection,
                             base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
         "setHideCookieNotices",
@@ -1143,6 +1204,126 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     web_ui()->CallJavascriptFunctionUnsafe("showRegional", lists, chosen);
   }
 
+  // The switch behind one "On its own" row. The row's kind and pref come
+  // from the compiled-in file, never from the page.
+  void ApplyConnection(const std::string& id, bool on) {
+    const base::ListValue* list = ConnectionList();
+    if (!list) {
+      return;
+    }
+    for (const base::Value& item : *list) {
+      const base::DictValue* entry = item.GetIfDict();
+      const std::string* entry_id = entry ? entry->FindString("id") : nullptr;
+      const base::DictValue* sw = entry ? entry->FindDict("switch") : nullptr;
+      const std::string* kind = sw ? sw->FindString("kind") : nullptr;
+      if (!entry_id || *entry_id != id || !kind) {
+        continue;
+      }
+      content::BrowserContext* context =
+          web_ui()->GetWebContents()->GetBrowserContext();
+      if (*kind == "local_state") {
+        SetSecureDnsEnabled(on);
+      } else if (*kind == "profile") {
+        const std::string* pref = sw->FindString("pref");
+        PrefService* prefs = GetPrefs();
+        if (pref && prefs) {
+          prefs->SetBoolean(*pref, on);
+        }
+      } else if (*kind == "updater") {
+        BrowserUpdater::SetAutomatic(on);
+      } else if (*kind == "extension") {
+        const std::string* ext = sw->FindString("extension_id");
+        extensions::ExtensionRegistrar* registrar =
+            extensions::ExtensionRegistrar::Get(context);
+        if (ext && registrar && std::string(WebStoreState()) != "removed") {
+          if (on) {
+            registrar->EnableExtension(*ext);
+          } else {
+            registrar->DisableExtension(
+                *ext, {extensions::disable_reason::DISABLE_USER_ACTION});
+          }
+        }
+      }
+      return;
+    }
+  }
+
+  void HandleSetConnection(const base::ListValue& args) {
+    if (args.size() >= 2 && args[0].is_string() && args[1].is_bool()) {
+      ApplyConnection(args[0].GetString(), args[1].GetBool());
+    }
+    HandleGet(args);
+  }
+
+  // What each "On its own" row shows: its text from the file and the
+  // real state of its switch, read fresh each time.
+  base::ListValue OwnConnections() {
+    base::ListValue rows;
+    const base::ListValue* list = ConnectionList();
+    if (!list) {
+      return rows;
+    }
+    content::BrowserContext* context =
+        web_ui()->GetWebContents()->GetBrowserContext();
+    PrefService* prefs = GetPrefs();
+    for (const base::Value& item : *list) {
+      const base::DictValue* entry = item.GetIfDict();
+      const base::DictValue* sw = entry ? entry->FindDict("switch") : nullptr;
+      const std::string* kind = sw ? sw->FindString("kind") : nullptr;
+      if (!kind) {
+        continue;
+      }
+      bool on = false;
+      bool can_switch = true;
+      std::string detail;
+      if (*kind == "local_state") {
+        const PrivacyState privacy = GetPrivacyState(context);
+        on = !privacy.dns_mode.empty() && privacy.dns_mode != "off";
+        can_switch = !privacy.dns_managed;
+        if (privacy.dns_managed) {
+          detail = "Set by your administrator.";
+        }
+      } else if (*kind == "profile") {
+        const std::string* pref = sw->FindString("pref");
+        on = pref && prefs && prefs->GetBoolean(*pref);
+        if (!ListUpdater::CanUpdate()) {
+          detail = "This copy gets new lists when you install a newer version.";
+        }
+      } else if (*kind == "updater") {
+        const BrowserUpdater::State state = BrowserUpdater::GetState();
+        const bool ready = state == BrowserUpdater::State::kReady;
+        on = ready && BrowserUpdater::IsAutomatic();
+        can_switch = ready;
+        if (state == BrowserUpdater::State::kNoKey) {
+          detail = "This preview does not update itself.";
+        } else if (state == BrowserUpdater::State::kNotInstalled) {
+          detail = "This copy was unpacked from a zip, so it does not "
+                   "update itself.";
+        } else if (state == BrowserUpdater::State::kNoLibrary) {
+          detail = "The updater is missing from this copy.";
+        } else if (state == BrowserUpdater::State::kDisabled) {
+          detail = "Updates are turned off for this session.";
+        }
+      } else if (*kind == "extension") {
+        const std::string state = WebStoreState();
+        on = state == "on";
+        can_switch = state != "removed";
+        if (state == "removed") {
+          detail = "The store is not installed.";
+        }
+      }
+      base::DictValue row = entry->Clone();
+      row.Remove("switch");
+      row.Remove("code");
+      row.Remove("scenario");
+      row.Set("on", on);
+      row.Set("canSwitch", can_switch);
+      row.Set("unavailable", detail);
+      rows.Append(std::move(row));
+    }
+    return rows;
+  }
+
   void HandleGet(const base::ListValue& args) {
     // Opening this page is a good moment to make sure the lists are
     // loading, so the answer is about the lists and not about timing.
@@ -1177,6 +1358,7 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
             AdblockService::IsDisabled() ? "off" : StatusName(ads->status()));
     out.Set("offSites", OffSites());
     out.Set("webStore", WebStoreState());
+    out.Set("connections", OwnConnections());
     out.Set("adsProblem", ads->status_message());
     out.Set("stopTakeovers",
             prefs && prefs->GetBoolean(prefs::kStopTakeovers));
