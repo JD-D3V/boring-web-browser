@@ -37,6 +37,8 @@ import sys
 from pathlib import Path
 from xml.sax.saxutils import escape, quoteattr
 
+from product_name import NAME
+
 TOOLS = Path(__file__).resolve().parent
 DEFAULT_TOOL = TOOLS.parent / "third_party" / "winsparkle" / "winsparkle-tool.exe"
 
@@ -52,9 +54,9 @@ CONFIG_ERROR = 2
 TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
   <channel>
-    <title>Boring Browser updates</title>
+    <title>{name} updates</title>
     <link>{feed_url}</link>
-    <description>Updates for Boring Browser</description>
+    <description>Updates for {name}</description>
     <language>en</language>
     <item>
       <title>Version {build_version}</title>
@@ -265,6 +267,7 @@ def render_feed(
         )
     now = now or datetime.datetime.now(datetime.UTC)
     return TEMPLATE.format(
+        name=escape(NAME),
         base_url=escape(base_url.rstrip("/")),
         feed_url=escape(feed_url),
         version=escape(version),

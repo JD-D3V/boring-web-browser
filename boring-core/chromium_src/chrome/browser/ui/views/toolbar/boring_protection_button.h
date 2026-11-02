@@ -27,6 +27,7 @@ class Event;
 namespace views {
 class BubbleDialogDelegate;
 class ToggleButton;
+class View;
 }  // namespace views
 
 // The shield in the toolbar. It says whether scam and ad blocking are
@@ -35,7 +36,8 @@ class ToggleButton;
 // person turned it off. Pressing it on a web page opens a short panel:
 // what was blocked on the page, Aggressive blocking, Never sleep this
 // site, turn blocking off or back on for the site, Block this element,
-// Settings for this site, and Open Protection. Anywhere
+// Settings for this site, Forget this site (asks first, in the panel),
+// and Open Protection. Anywhere
 // else it opens the Protection page.
 class BoringProtectionButton : public ToolbarButton,
                                public content::WebContentsObserver {
@@ -92,6 +94,10 @@ class BoringProtectionButton : public ToolbarButton,
   void OnBlockElement();
   void OnOpenProtection();
   void OnOpenSiteSettings();
+  // Forget this site: the row asks, the question that replaces it answers.
+  void OnForgetAsk();
+  void OnForgetCancel();
+  void OnForgetConfirmed();
   // Reloads the page the panel is about, when it still shows that site.
   void ReloadPanelSite();
 
@@ -108,6 +114,8 @@ class BoringProtectionButton : public ToolbarButton,
   GURL panel_url_;
   raw_ptr<views::ToggleButton> aggressive_ = nullptr;
   raw_ptr<views::ToggleButton> never_sleep_ = nullptr;
+  raw_ptr<views::View> forget_row_ = nullptr;
+  raw_ptr<views::View> forget_confirm_ = nullptr;
 
   // The delegate must outlive the widget: declared first, destroyed last.
   std::unique_ptr<views::BubbleDialogDelegate> panel_delegate_;
