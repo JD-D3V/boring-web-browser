@@ -325,8 +325,9 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
     <span><strong>Fingerprint noise</strong>
       <p>Adds a tiny random change to what pages read back from canvas
       drawing, text sizes and element sizes, so those readings stop
-      identifying this browser. A few sites that draw charts or games
-      may look very slightly different.</p></span>
+      identifying this browser. Every page also reads the same graphics
+      card name, core count, touch points and a common screen size. A few
+      sites that draw charts or games may look very slightly different.</p></span>
     <input class="switch" type="checkbox" id="fingerprint">
   </label>
 

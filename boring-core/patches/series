@@ -74,3 +74,4 @@ site-rules.patch
 phone-banner-tab-helper.patch
 session-restore-default.patch
 forget-session.patch
+fingerprint-uniform.patch

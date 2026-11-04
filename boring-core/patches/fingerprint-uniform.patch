@@ -1,0 +1,144 @@
+--- a/third_party/blink/renderer/core/frame/navigator_concurrent_hardware.cc
++++ b/third_party/blink/renderer/core/frame/navigator_concurrent_hardware.cc
+@@ -5,10 +5,17 @@
+ #include "third_party/blink/renderer/core/frame/navigator_concurrent_hardware.h"
+ 
+ #include "base/system/sys_info.h"
++#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+ 
+ namespace blink {
+ 
+ unsigned NavigatorConcurrentHardware::hardwareConcurrency() const {
++  // boring: the same count for every visitor while the fingerprint
++  // switch is on, so the real core count stops identifying this
++  // browser.
++  if (RuntimeEnabledFeatures::FingerprintingClientRectsNoiseEnabled()) {
++    return 8;
++  }
+   return static_cast<unsigned>(base::SysInfo::NumberOfProcessors());
+ }
+ 
+--- a/third_party/blink/renderer/core/events/navigator_events.cc
++++ b/third_party/blink/renderer/core/events/navigator_events.cc
+@@ -34,10 +34,16 @@
+ #include "third_party/blink/renderer/core/frame/local_frame.h"
+ #include "third_party/blink/renderer/core/frame/navigator.h"
+ #include "third_party/blink/renderer/core/frame/settings.h"
++#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+ 
+ namespace blink {
+ 
+ int32_t NavigatorEvents::maxTouchPoints(Navigator& navigator) {
++  // boring: report no touch screen while the fingerprint switch is on.
++  // Touch and pointer events still arrive as usual.
++  if (RuntimeEnabledFeatures::FingerprintingClientRectsNoiseEnabled()) {
++    return 0;
++  }
+   LocalDOMWindow* window = navigator.DomWindow();
+   return window ? window->GetFrame()->GetSettings()->GetMaxTouchPoints() : 0;
+ }
+--- a/third_party/blink/renderer/core/frame/screen.cc
++++ b/third_party/blink/renderer/core/frame/screen.cc
+@@ -36,10 +36,40 @@
+ #include "third_party/blink/renderer/core/frame/local_frame.h"
+ #include "third_party/blink/renderer/core/frame/settings.h"
+ #include "third_party/blink/renderer/core/page/chrome_client.h"
++#include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+ #include "ui/display/screen_info.h"
+ #include "ui/display/screen_infos.h"
+ 
+ namespace blink {
++
++namespace {
++
++// boring: with the fingerprint switch on, a page reads one of a few common
++// screen sizes instead of the real one. The bucket is the smallest one that
++// still holds the real screen, so a window is never bigger than the screen a
++// page is told about. Only these four JavaScript readings change: layout,
++// fullscreen, window placement and media queries use the real display.
++// The available size is the same as the full size, so the taskbar is not
++// visible either.
++constexpr gfx::Size kUniformScreenSizes[] = {
++    {1366, 768}, {1536, 864}, {1600, 900}, {1920, 1080}, {2560, 1440},
++    {3840, 2160},
++};
++
++gfx::Size ReportedScreenSize(const gfx::Rect& real_screen,
++                             const gfx::Rect& wanted) {
++  if (RuntimeEnabledFeatures::FingerprintingClientRectsNoiseEnabled()) {
++    for (const gfx::Size& size : kUniformScreenSizes) {
++      if (size.width() >= real_screen.width() &&
++          size.height() >= real_screen.height()) {
++        return size;
++      }
++    }
++  }
++  return wanted.size();
++}
++
++}  // namespace
+ 
+ Screen::Screen(LocalDOMWindow* window, int64_t display_id)
+     : ExecutionContextClient(window), display_id_(display_id) {}
+@@ -90,13 +120,17 @@
+ int Screen::height() const {
+   if (!DomWindow())
+     return 0;
+-  return GetRect(/*available=*/false).height();
++  return ReportedScreenSize(GetRect(/*available=*/false),
++                            GetRect(/*available=*/false))
++      .height();
+ }
+ 
+ int Screen::width() const {
+   if (!DomWindow())
+     return 0;
+-  return GetRect(/*available=*/false).width();
++  return ReportedScreenSize(GetRect(/*available=*/false),
++                            GetRect(/*available=*/false))
++      .width();
+ }
+ 
+ unsigned Screen::colorDepth() const {
+@@ -133,13 +167,17 @@
+ int Screen::availHeight() const {
+   if (!DomWindow())
+     return 0;
+-  return GetRect(/*available=*/true).height();
++  return ReportedScreenSize(GetRect(/*available=*/false),
++                            GetRect(/*available=*/true))
++      .height();
+ }
+ 
+ int Screen::availWidth() const {
+   if (!DomWindow())
+     return 0;
+-  return GetRect(/*available=*/true).width();
++  return ReportedScreenSize(GetRect(/*available=*/false),
++                            GetRect(/*available=*/true))
++      .width();
+ }
+ 
+ void Screen::Trace(Visitor* visitor) const {
+--- a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
++++ b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
+@@ -4202,6 +4202,10 @@
+       if (ExtensionEnabled(kWebGLDebugRendererInfoName)) {
+         if (base::FeatureList::IsEnabled(blink::features::kSpoofWebGLInfo))
+           return WebGLAny(script_state, String(blink::features::kSpoofWebGLRendererParam.Get()));
++        // boring: a generic graphics card name while the fingerprint
++        // switch is on.
++        if (RuntimeEnabledFeatures::FingerprintingClientRectsNoiseEnabled())
++          return WebGLAny(script_state, String("ANGLE (generic)"));
+         return WebGLAny(script_state,
+                         String(ContextGL()->GetString(GL_RENDERER)));
+       }
+@@ -4213,6 +4217,8 @@
+       if (ExtensionEnabled(kWebGLDebugRendererInfoName)) {
+         if (base::FeatureList::IsEnabled(blink::features::kSpoofWebGLInfo))
+           return WebGLAny(script_state, String(blink::features::kSpoofWebGLVendorParam.Get()));
++        if (RuntimeEnabledFeatures::FingerprintingClientRectsNoiseEnabled())
++          return WebGLAny(script_state, String("Google Inc."));
+         return WebGLAny(script_state,
+                         String(ContextGL()->GetString(GL_VENDOR)));
+       }
