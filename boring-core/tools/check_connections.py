@@ -14,6 +14,12 @@ a second) and fails when:
     entry, or a claimed file names a host the entry does not list,
   - net_audit.py itself names a host that is not in the file.
 
+A connection to an address the person typed in (their own filter lists)
+has no host that can be written down. It goes under "user_connections":
+the check wants its code claimed, so a fetch cannot hide there, and
+expects no host literal in that code. Its hosts are shown at run time,
+one row each, on the Protection page.
+
 Usage:
   python check_connections.py            check, exit 1 on any problem
   python check_connections.py --write    rewrite connections_data.h
@@ -65,6 +71,12 @@ def _is_comment(line):
 
 def load(core):
     return json.loads((core / JSON_REL).read_text(encoding="utf-8"))["connections"]
+
+
+def load_user(core):
+    return json.loads((core / JSON_REL).read_text(encoding="utf-8")).get(
+        "user_connections", []
+    )
 
 
 def header_text(core):
@@ -179,6 +191,17 @@ def check(core=CORE):
             errors.append(f"{name}: no pref")
         elif kind == "extension" and not switch.get("extension_id"):
             errors.append(f"{name}: no extension_id")
+        for rel in entry.get("code", []):
+            claimed[rel] = entry
+
+    for entry in load_user(core):
+        name = entry.get("id", "?")
+        for field in ("id", "label", "why", "code"):
+            if field not in entry:
+                errors.append(f"{name}: missing '{field}'")
+        if name in ids:
+            errors.append(f"{name}: duplicate id")
+        ids.add(name)
         for rel in entry.get("code", []):
             claimed[rel] = entry
 

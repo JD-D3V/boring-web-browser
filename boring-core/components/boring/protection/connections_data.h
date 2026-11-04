@@ -73,6 +73,14 @@ inline constexpr char kConnectionsJson[] = R"json({
       "scenario": "idle",
       "code": []
     }
+  ],
+  "user_connections": [
+    {
+      "id": "own_lists",
+      "label": "Filter lists you added",
+      "why": "Downloads each list you added, when you add it and then about once a week. No account, no cookie. The address of each one is shown on its row.",
+      "code": ["components/boring/adblock/custom_rules.cc"]
+    }
   ]
 })json";
 

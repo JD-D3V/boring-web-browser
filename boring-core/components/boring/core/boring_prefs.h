@@ -91,6 +91,11 @@ inline constexpr char kBoringBlockingLevel[] = "boring.adblock.level";
 // per line. Standard permissions only: never trusted scriptlets.
 inline constexpr char kBoringCustomRules[] = "boring.adblock.custom_rules";
 
+// Filter lists added by address: a list of {url, updated, tried, error}.
+// The downloaded copies live in the profile folder. Per profile and
+// never synced.
+inline constexpr char kBoringUserLists[] = "boring.adblock.user_lists";
+
 // Sites (scheme://host) whose tabs are never frozen or put to sleep.
 inline constexpr char kBoringNeverSleepSites[] =
     "boring.performance.never_sleep_sites";
