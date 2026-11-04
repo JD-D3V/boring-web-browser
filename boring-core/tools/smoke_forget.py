@@ -351,7 +351,7 @@ def main():
     try:
         with tempfile.TemporaryDirectory(prefix="forget-") as profile:
             # --- run one: an earlier session -----------------------------
-            with Browser(user_data_dir=profile, args=args) as b:
+            with Browser(user_data_dir=profile, args=args, headful=True) as b:
                 for host in (ALPHA, BETA):
                     b.get(url(host, "before"))
                     b.run("document.cookie = 'old=1; Max-Age=3600; path=/'; return 1")
@@ -362,7 +362,7 @@ def main():
             time.sleep(1.0)
 
             # --- run two: the session under test -------------------------
-            with Browser(user_data_dir=profile, args=args) as b:
+            with Browser(user_data_dir=profile, args=args, headful=True) as b:
                 frame = frame_window(CHROME, under=b.proc.pid)
 
                 # What both sites hold before anything is forgotten.

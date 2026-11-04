@@ -48,6 +48,7 @@ def main():
             user_data_dir=os.path.join(work, "profile"),
             args=chrome_args,
             keep_switches=["enable-automation"],
+            headful=True,
         ) as b:
             b.get("chrome://boring-protection")
             want = 1 if args.empty else len(extensions) + 1

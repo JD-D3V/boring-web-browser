@@ -51,7 +51,9 @@ def main():
                 tempfile.TemporaryDirectory(
                     prefix="lookalike-", dir=os.environ.get("TMP") or None
                 ) as profile,
-                Browser(user_data_dir=profile, args=browser_args(extra)) as b,
+                Browser(
+                    user_data_dir=profile, args=browser_args(extra), headful=True
+                ) as b,
             ):
                 for word, host in PAGES:
                     open_url(b, f"http://{host}:{server.port}/")

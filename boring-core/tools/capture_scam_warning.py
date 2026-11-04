@@ -37,7 +37,11 @@ def main():
         with list_folder({"scamlist.txt": SCAM_LIST}) as lists:
             for name, extra, _paper, _accent in VARIANTS:
                 with tempfile.TemporaryDirectory(prefix="scam-", dir=os.environ.get("TMP") or None) as profile:
-                    with Browser(user_data_dir=profile, args=args_for(lists, pages, extra)) as b:
+                    with Browser(
+                        user_data_dir=profile,
+                        args=args_for(lists, pages, extra),
+                        headful=True,
+                    ) as b:
                         wait_until_list_is_loaded(b)
                         open_url(b, f"http://{LISTED}:{pages.port}/")
                         time.sleep(2.0)

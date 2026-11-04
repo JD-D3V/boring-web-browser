@@ -47,7 +47,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlsplit
 
-import focus_lock
+from drive import require_headful
 
 HISTOGRAMS = {
     "window": "Startup.BrowserWindow.FirstPaint",
@@ -134,6 +134,7 @@ def histogram_ms(devtools, name):
 
 
 def launch_once(exe, profile):
+    require_headful()
     port_file = profile / "DevToolsActivePort"
     if port_file.exists():
         port_file.unlink()
@@ -275,5 +276,4 @@ def main():
 
 
 if __name__ == "__main__":
-    with focus_lock.hold():
-        sys.exit(main())
+    sys.exit(main())

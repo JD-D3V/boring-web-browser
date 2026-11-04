@@ -152,9 +152,7 @@ def frame_window(binary, timeout=20, under=None):
         pids = chrome_pids(binary)
         if under is not None:
             parents = parents_of(pids)
-            ours = {pid for pid, parent in parents.items() if parent == under}
-            if ours:
-                pids = ours
+            pids = {pid for pid, parent in parents.items() if parent == under}
         best, best_area = None, 0
         for hwnd in windows_of(pids):
             r = RECT()
@@ -294,7 +292,9 @@ def main():
     # should not contain it unless somebody asks for it.
     keep = None if args.automation_banner else ["enable-automation"]
 
-    with Browser(user_data_dir=args.profile, args=chrome_args, keep_switches=keep) as b:
+    with Browser(
+        user_data_dir=args.profile, args=chrome_args, keep_switches=keep, headful=True
+    ) as b:
         for _ in range(max(0, args.tabs - 1)):
             b.run("window.open('about:blank')")
         b.get(args.url)

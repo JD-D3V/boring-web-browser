@@ -46,6 +46,7 @@ def photograph(port, dark, out_dir):
             user_data_dir=str(root / "profile"),
             args=args,
             keep_switches=["enable-automation"],
+            headful=True,
         ) as b:
             b.get(f"http://guards.localhost:{port}/phone_banner.html?mode=scam")
 

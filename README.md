@@ -114,7 +114,16 @@ about 100 GB free on an SSD.
    ninja -C out\Default chrome chromedriver mini_installer
    ```
 
-4. Check it: `python boring-core/tools/smoke_all.py`.
+4. Run a headless smoke check, for example
+   `python boring-core/tools/smoke_scam.py`.
+
+The full suite (`python boring-core/tools/smoke_all.py`) includes native
+Windows checks. In a dedicated Windows test session, set
+`BORING_ALLOW_HEADFUL=1` before running the suite or native capture tools.
+Native browser windows can take focus even when positioned off screen.
+Without that opt-in, the suite runs headless checks, reports native checks
+as blocked, and returns a failing status. Build and release CI also require
+that opt-in in their test session to complete the full suite.
 
 More detail is in [docs/portfolio/BUILD.md](docs/portfolio/BUILD.md).
 

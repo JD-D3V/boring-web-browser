@@ -33,7 +33,9 @@ def main():
     ]
     if args.dark:
         chrome_args.append("--force-dark-mode")
-    with Browser(args=chrome_args, keep_switches=["enable-automation"]) as b:
+    with Browser(
+        args=chrome_args, keep_switches=["enable-automation"], headful=True
+    ) as b:
         b.get("chrome://boring-protection")
         for _ in range(40):
             if b.run("return document.querySelectorAll('#connections-own .setting-row').length > 0"):

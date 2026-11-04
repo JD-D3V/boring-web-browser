@@ -113,7 +113,9 @@ def main():
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    with Browser(args=chrome_args, keep_switches=["enable-automation"]) as b:
+    with Browser(
+        args=chrome_args, keep_switches=["enable-automation"], headful=True
+    ) as b:
         b.get(args.url)
         frame = frame_window(binary, under=b.proc.pid)
         x, y, _, _ = window_rect(frame)

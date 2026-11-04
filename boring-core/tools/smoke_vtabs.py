@@ -68,7 +68,12 @@ def run_scene(name, extra, out, size, binary, only_switch_back):
     ] + extra
     results = {}
     with tempfile.TemporaryDirectory(prefix="vtabs-", dir=os.environ.get("TMP")) as prof:
-        with Browser(user_data_dir=prof, args=args, keep_switches=["enable-automation"]) as b:
+        with Browser(
+            user_data_dir=prof,
+            args=args,
+            keep_switches=["enable-automation"],
+            headful=True,
+        ) as b:
             hwnd = frame_window(binary, under=b.proc.pid)
             px, py = (int(v) for v in OFFSCREEN.split(","))
 

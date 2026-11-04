@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Small test driver for the built browser, using chromedriver.
 
-Talks plain WebDriver HTTP, so it needs nothing installed. Used by the
-smoke test scripts to open pages and run checks inside the real build.
+Talks plain WebDriver HTTP, so it needs nothing installed. Tests use
+headless Chromium unless they explicitly need and opt into native windows.
 
 Usage as a library:
     from drive import Browser
@@ -21,8 +21,6 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
-
-import focus_lock
 
 OUT = os.environ.get("BORING_OUT", r"E:\ung-154\build\src\out\Default")
 CHROME = os.path.join(OUT, "chrome.exe")
@@ -67,19 +65,38 @@ def free_port():
         return s.getsockname()[1]
 
 
-class Browser:
-    def __init__(self, user_data_dir=None, args=None, keep_switches=None):
-        # Off screen is not enough: the browser still takes the focus,
-        # and the person's typing lands in a window they cannot see.
-        # The foreground stays locked until quit() (see focus_lock.py).
-        self._focus = focus_lock.hold()
-        try:
-            self._start(user_data_dir, args, keep_switches)
-        except BaseException:
-            self._focus.release()
-            raise
+def headful_allowed():
+    return os.environ.get("BORING_ALLOW_HEADFUL") == "1"
 
-    def _start(self, user_data_dir, args, keep_switches):
+
+def require_headful():
+    if not headful_allowed():
+        raise RuntimeError(
+            "This check needs native browser windows. Run it in a dedicated "
+            "Windows test session with BORING_ALLOW_HEADFUL=1."
+        )
+
+
+class Browser:
+    def __init__(
+        self, user_data_dir=None, args=None, keep_switches=None, *, headful=False
+    ):
+        # Moving a window off screen still lets it take the foreground.
+        if headful:
+            require_headful()
+        args = list(args or ())
+        # ChromeDriver sorts switches by name. An empty name would emit
+        # a bare "--" before --headless, ending Chromium switch parsing.
+        switch_names = [arg.removeprefix("--").split("=", 1)[0] for arg in args]
+        if "" in switch_names:
+            raise ValueError("ChromeDriver arguments must have a switch name")
+        if not headful:
+            args = [
+                arg
+                for arg, name in zip(args, switch_names, strict=True)
+                if name != "headless"
+            ]
+            args.append("--headless=new")
         # A fixed port meant that a chromedriver left behind by another
         # session, with a different environment, kept the port and every
         # test silently talked to it instead. A whole run reported
@@ -90,6 +107,7 @@ class Browser:
             [DRIVER, f"--port={self.port}"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         self.base = f"http://127.0.0.1:{self.port}"
         for _ in range(50):
@@ -108,13 +126,11 @@ class Browser:
             raise RuntimeError(
                 f"chromedriver did not answer on port {self.port} in 10s"
             )
-        # Every test here starts a real browser window. On a machine
-        # somebody is using, those windows steal focus and cover what
-        # they are doing. So the window opens far off the desktop by
-        # default and stays there: WebDriver and CDP do not care where
-        # it is, and PrintWindow photographs an offscreen window fine.
-        # Set BORING_WINDOW_POSITION to put it back on screen (that also
-        # lets it take the focus, see focus_lock.py).
+        position = (
+            os.environ.get("BORING_WINDOW_POSITION", OFFSCREEN)
+            if headful
+            else OFFSCREEN
+        )
         chrome_args = [
             "--no-first-run",
             "--disable-fre",
@@ -123,7 +139,7 @@ class Browser:
             # painting, which photographs blank. These keep it drawing.
             "--disable-backgrounding-occluded-windows",
             "--disable-features=CalculateNativeWinOcclusion",
-            "--window-position=" + os.environ.get("BORING_WINDOW_POSITION", OFFSCREEN),
+            "--window-position=" + position,
         ]
         if user_data_dir:
             chrome_args.append("--user-data-dir=" + user_data_dir)
@@ -137,7 +153,11 @@ class Browser:
             # ask for it back, or it tests a browser nobody runs.
             options["excludeSwitches"] = list(keep_switches)
         caps = {"capabilities": {"alwaysMatch": {"goog:chromeOptions": options}}}
-        self.sid = self._new_session(caps)
+        try:
+            self.sid = self._new_session(caps)
+        except BaseException:
+            self.proc.terminate()
+            raise
 
     # chromedriver intermittently reports "chrome not reachable" when
     # sessions are started back to back, which is what a smoke suite
@@ -211,7 +231,6 @@ class Browser:
             self._req("DELETE", f"/session/{self.sid}")
         finally:
             self.proc.terminate()
-            self._focus.release()
 
     def __enter__(self):
         return self

@@ -44,9 +44,8 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-import focus_lock
 from capture_native import frame_window, grab
-from drive import CHROME, OFFSCREEN
+from drive import CHROME, OFFSCREEN, require_headful
 from smoke_local import Checks
 from smoke_memory import Cdp, close
 
@@ -140,6 +139,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def launch(profile, extra):
+    require_headful()
     port_file = profile / "DevToolsActivePort"
     if port_file.exists():
         port_file.unlink()
@@ -433,7 +433,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # It starts its browsers itself, not through drive.Browser, so it holds
-    # the foreground lock for the whole run (see focus_lock.py).
-    with focus_lock.hold():
-        sys.exit(main())
+    sys.exit(main())
