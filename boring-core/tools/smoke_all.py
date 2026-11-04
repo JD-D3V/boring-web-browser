@@ -51,6 +51,19 @@ CHECKS = [
     ("AI consent and result UI", "smoke_ai_ui.py"),
     ("Widevine streaming", "smoke_widevine.py"),
     ("password manager", "smoke_passwords.py"),
+    ("Protection page connections", "smoke_connections.py"),
+    ("Protection page apps you added", "smoke_apps_rows.py"),
+    ("look-alike address warning", "smoke_lookalike.py"),
+    ("small fixes (settings links, continue anyway)", "smoke_small_batch.py"),
+    ("scam tricks guards", "smoke_scam_guards.py"),
+    ("phone number banner", "smoke_phone_banner.py"),
+    ("redirect and AMP skipping", "smoke_debounce.py"),
+    ("forget this site", "smoke_forget.py"),
+    ("tabs survive restart", "smoke_tabs.py"),
+    ("side tabs", "smoke_vtabs.py"),
+    ("colour scheme and layout fixes", "smoke_ui_polish.py"),
+    ("assistance scripts", "smoke_assistance.py"),
+    ("assistance gemini adapter", "smoke_assistance_gemini.py"),
 ]
 
 

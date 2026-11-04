@@ -14,12 +14,16 @@
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
 #include "base/scoped_observation.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
 #include "base/values.h"
+#include "chrome/browser/extensions/extension_uninstall_dialog.h"
+#include "chrome/browser/profiles/profile.h"
 #include "components/boring/adblock/adblock_service.h"
 #include "components/boring/adblock/blocking_off_sites.h"
 #include "components/boring/adblock/custom_rules.h"
+#include "components/boring/ai/ai_prefs.h"
 #include "components/boring/branding/brand_mark.h"
 #include "components/boring/core/boring_capabilities.h"
 #include "components/boring/core/boring_prefs.h"
@@ -27,10 +31,12 @@
 #include "components/boring/lists/list_updater.h"
 #include "components/boring/performance/never_sleep_sites.h"
 #include "components/boring/privacy/privacy_state.h"
+#include "components/boring/protection/apps_data.h"
 #include "components/boring/protection/connections_data.h"
 #include "components/boring/protection/memory_saver.h"
 #include "components/boring/scam/scam_service.h"
 #include "components/boring/update/browser_updater.h"
+#include "components/password_manager/core/common/password_manager_pref_names.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
@@ -43,11 +49,21 @@
 #include "content/public/browser/web_ui_message_handler.h"
 #include "content/public/common/url_constants.h"
 #include "extensions/browser/disable_reason.h"
+#include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/extension_registrar.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_registry_observer.h"
+#include "extensions/browser/extension_system.h"
+#include "extensions/browser/management_policy.h"
+#include "extensions/browser/permissions_manager.h"
+#include "extensions/browser/uninstall_reason.h"
 #include "extensions/browser/unloaded_extension_reason.h"
 #include "extensions/common/extension.h"
+#include "extensions/common/manifest.h"
+#include "extensions/common/permissions/permission_message.h"
+#include "extensions/common/permissions/permission_message_provider.h"
+#include "extensions/common/permissions/permission_set.h"
+#include "extensions/common/permissions/permissions_data.h"
 #include "url/gurl.h"
 
 namespace boring {
@@ -95,6 +111,16 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   .state-value.warn { color: var(--warning); }
   .state-value.loading { color: var(--muted); }
   .conn-part > h3 { font-size: 14px; font-weight: 600; margin: 4px 0 0; }
+  .conn-part > h4 { font-size: 12px; font-weight: 600; margin: 14px 0 0;
+                    color: var(--muted); }
+  .conn-part > p.muted { margin: 4px 0 0; }
+  #connections-apps { margin-top: 24px; }
+  #connections-apps .setting-row { cursor: auto; }
+  #connections-apps .setting-row[hidden] { display: none; }
+  #connections-apps .setting-row strong { overflow-wrap: anywhere; }
+  .app-controls { display: flex; align-items: center; gap: 12px; }
+  .app-remove { font: inherit; min-height: 32px; padding: 4px 0;
+                background: none; border: none; cursor: pointer; }
   .conn-host { font-weight: 400; color: var(--muted); font-size: 12px;
                margin-inline-start: 8px; overflow-wrap: anywhere; }
   .conn-note { font-weight: 550; }
@@ -372,6 +398,8 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   what you do not want.</p>
   <div class="conn-part" id="connections-own" role="group"
       aria-label="On its own"></div>
+  <div class="conn-part" id="connections-apps" role="group"
+      aria-label="Apps you added"></div>
 
   <h2 class="section">Memory</h2>
   <label class="setting-row" for="memory-saver" id="memory-saver-row">
@@ -607,6 +635,155 @@ function showOwnConnections(rows) {
   });
 }
 
+// "What the browser connects to", part "Apps you added": one row per
+// add-on with Chromium's own wording for what it can do.
+// Rebuilt only when the rows change, so a click keeps focus.
+function appRow(id, name, host, lines, withSwitch) {
+  var row = document.createElement('div');
+  row.className = 'setting-row';
+  row.id = id + '-row';
+  var text = document.createElement('span');
+  var strong = document.createElement('strong');
+  var label = document.createElement(withSwitch ? 'label' : 'span');
+  if (withSwitch) { label.htmlFor = id; }
+  label.textContent = name;
+  strong.append(label);
+  if (host) {
+    var h = document.createElement('span');
+    h.className = 'conn-host';
+    h.textContent = host;
+    strong.append(h);
+  }
+  text.append(strong);
+  lines.forEach(function(line) {
+    var p = document.createElement('p');
+    p.textContent = line;
+    text.append(p);
+  });
+  var controls = document.createElement('span');
+  controls.className = 'app-controls';
+  var check;
+  if (withSwitch) {
+    check = document.createElement('input');
+    check.type = 'checkbox';
+    check.className = 'switch';
+    check.id = id;
+    controls.append(check);
+  }
+  row.append(text, controls);
+  return {row: row, check: check, controls: controls};
+}
+
+function appLink(href, name) {
+  var link = document.createElement('a');
+  link.className = 'text-button';
+  link.href = href;
+  link.textContent = name;
+  return link;
+}
+
+function showApps(apps, ai, passwords) {
+  var box = el('connections-apps');
+  var key = JSON.stringify([apps.map(function(a) {
+    return [a.id, a.name, a.group, a.line, a.perms, a.canRemove];
+  }), ai.label, ai.host]);
+  // A rebuild drops the focused control; the same one gets focus back.
+  var focused = document.activeElement;
+  var focusId = focused && box.contains(focused) ? focused.id : '';
+  if (box.dataset.key !== key) {
+    box.textContent = '';
+    box.dataset.key = key;
+    var title = document.createElement('h3');
+    title.textContent = 'Apps you added';
+    var intro = document.createElement('p');
+    intro.className = 'muted';
+    intro.textContent =
+        'Any add-on can reach the internet. Turn off the ones you do not use.';
+    box.append(title, intro);
+    var addGroup = function(heading, group) {
+      var rows = apps.filter(function(a) { return a.group === group; });
+      if (!rows.length && group !== 'password' && group !== 'ai') { return; }
+      var h = document.createElement('h4');
+      h.textContent = heading;
+      box.append(h);
+      rows.forEach(function(app) {
+        var lines = [];
+        if (app.line) { lines.push(app.line); }
+        app.perms.forEach(function(p) { lines.push(p); });
+        var built = appRow('app-' + app.id, app.name, '', lines, true);
+        built.check.addEventListener('change', function(e) {
+          chrome.send('setApp', [app.id, e.target.checked]);
+        });
+        if (app.canRemove) {
+          var remove = document.createElement('button');
+          remove.type = 'button';
+          remove.className = 'text-button app-remove';
+          remove.textContent = 'Remove';
+          remove.setAttribute('aria-label', 'Remove ' + app.name);
+          remove.addEventListener('click', function() {
+            chrome.send('removeApp', [app.id]);
+          });
+          built.controls.append(remove);
+        }
+        box.append(built.row);
+      });
+    };
+    addGroup('Password managers', 'password');
+    var saved = appRow('saved-passwords', 'Saved passwords in this browser',
+        '', ['Stays on this computer.'], false);
+    saved.controls.append(appLink('chrome://password-manager/settings',
+                                 'Export'));
+    box.append(saved.row);
+    var saving = appRow('stop-saving-passwords',
+        'Stop this browser offering to save passwords', '', [], true);
+    saving.check.addEventListener('change', function(e) {
+      chrome.send('setStopSavingPasswords', [e.target.checked]);
+    });
+    box.append(saving.row);
+    addGroup('Folders and cloud', 'cloud');
+    addGroup('AI', 'ai');
+    var aiBuilt = appRow('ai-assistant', 'AI assistant', ai.host,
+        [ai.label], true);
+    aiBuilt.controls.append(appLink('chrome://boring-ai',
+                                   ai.on ? 'Change' : 'Set up'));
+    aiBuilt.check.addEventListener('change', function(e) {
+      if (!e.target.checked) {
+        chrome.send('setAiOff', []);
+        say('AI assistant off.');
+      }
+    });
+    box.append(aiBuilt.row);
+    addGroup('Other add-ons', 'other');
+    if (!apps.length) {
+      var empty = document.createElement('p');
+      empty.id = 'apps-empty';
+      empty.className = 'muted';
+      empty.append('No apps added. ');
+      empty.append('To add one, install an add-on from the web store.');
+      box.append(empty);
+    }
+  }
+  apps.forEach(function(app) {
+    var check = el('app-' + app.id);
+    check.checked = app.on;
+    check.disabled = !app.canSwitch;
+  });
+  el('stop-saving-passwords-row').hidden = !passwords.show;
+  el('stop-saving-passwords').checked = passwords.stopped;
+  el('stop-saving-passwords').disabled = !passwords.canChange;
+  var aiCheck = el('ai-assistant');
+  aiCheck.checked = ai.on;
+  aiCheck.disabled = !ai.canTurnOff;
+  if (focusId && !box.contains(document.activeElement)) {
+    // The AI switch is unusable once it is off: go to Set up instead.
+    var back = el(focusId);
+    if (back && back.disabled && focusId === 'ai-assistant') {
+      back = box.querySelector('#ai-assistant-row a');
+    }
+    if (back && !back.disabled) { back.focus(); }
+  }
+}
+
 // One real checkbox per regional list this build ships. Rebuilt only
 // when the set of lists changes, so a click does not lose focus.
 function showRegional(lists, chosen) {
@@ -715,6 +892,7 @@ function load(s) {
   showLists(s.listDays, s.listUpdates, s.listUpdatesAvailable);
   showConnections(s);
   showOwnConnections(s.connections);
+  showApps(s.apps, s.ai, s.passwords);
   el('hide-cookies').checked = s.hideCookies;
   el('fingerprint').checked = s.fingerprint;
   el('strip-params').checked = s.stripParams;
@@ -913,7 +1091,9 @@ const base::ListValue* ConnectionList() {
 constexpr char kWebStoreExtensionId[] = "ocaahdebbfolfmndjeplogmgcagdmblk";
 
 class ProtectionMessageHandler : public content::WebUIMessageHandler,
-                                 public extensions::ExtensionRegistryObserver {
+                                 public extensions::ExtensionRegistryObserver,
+                                 public extensions::PermissionsManager::Observer,
+                                 public extensions::ExtensionUninstallDialog::Delegate {
  public:
   ProtectionMessageHandler() = default;
   ~ProtectionMessageHandler() override = default;
@@ -966,6 +1146,23 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     web_ui()->RegisterMessageCallback(
         "setConnection",
         base::BindRepeating(&ProtectionMessageHandler::HandleSetConnection,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "setApp",
+        base::BindRepeating(&ProtectionMessageHandler::HandleSetApp,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "removeApp",
+        base::BindRepeating(&ProtectionMessageHandler::HandleRemoveApp,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "setStopSavingPasswords",
+        base::BindRepeating(
+            &ProtectionMessageHandler::HandleSetStopSavingPasswords,
+            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "setAiOff",
+        base::BindRepeating(&ProtectionMessageHandler::HandleSetAiOff,
                             base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
         "setHideCookieNotices",
@@ -1025,14 +1222,28 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
         prefs::kBoringNeverSleepSites,
         base::BindRepeating(&ProtectionMessageHandler::SendNeverSleep,
                             base::Unretained(this)));
+    for (const char* pref : {password_manager::prefs::kCredentialsEnableService,
+                             ai::prefs::kProvider, ai::prefs::kOllamaUrl}) {
+      if (prefs->FindPreference(pref)) {
+        registrar_.Add(
+            pref, base::BindRepeating(&ProtectionMessageHandler::SendApps,
+                                      base::Unretained(this)));
+      }
+    }
     if (extensions::ExtensionRegistry* registry = GetExtensionRegistry()) {
       extensions_observation_.Observe(registry);
+    }
+    if (extensions::PermissionsManager* permissions =
+            extensions::PermissionsManager::Get(
+                web_ui()->GetWebContents()->GetBrowserContext())) {
+      permissions_observation_.Observe(permissions);
     }
   }
 
   void OnJavascriptDisallowed() override {
     registrar_.RemoveAll();
     extensions_observation_.Reset();
+    permissions_observation_.Reset();
   }
 
   // extensions::ExtensionRegistryObserver:
@@ -1041,20 +1252,38 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
   void OnExtensionLoaded(content::BrowserContext* context,
                          const extensions::Extension* extension) override {
     SendWebStoreIfOurs(extension);
+    SendApps();
   }
   void OnExtensionUnloaded(
       content::BrowserContext* context,
       const extensions::Extension* extension,
       extensions::UnloadedExtensionReason reason) override {
     SendWebStoreIfOurs(extension);
+    SendApps();
+  }
+  void OnExtensionInstalled(content::BrowserContext* context,
+                            const extensions::Extension* extension,
+                            bool is_update) override {
+    SendApps();
   }
   void OnExtensionUninstalled(content::BrowserContext* context,
                               const extensions::Extension* extension,
                               extensions::UninstallReason reason) override {
     SendWebStoreIfOurs(extension);
+    SendApps();
   }
   void OnShutdown(extensions::ExtensionRegistry* registry) override {
     extensions_observation_.Reset();
+  }
+
+  // extensions::PermissionsManager::Observer:
+  // Site access changed on chrome://extensions or by policy: the rows
+  // quote Chromium's permission text, so repaint them.
+  void OnExtensionPermissionsUpdated(
+      const extensions::Extension& extension,
+      const extensions::PermissionSet& permissions,
+      extensions::PermissionsManager::UpdateReason reason) override {
+    SendApps();
   }
 
  private:
@@ -1122,6 +1351,224 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
       web_ui()->CallJavascriptFunctionUnsafe("showWebStore",
                                              base::Value(WebStoreState()));
     }
+  }
+
+  static bool IsListedAddon(const extensions::Extension& extension) {
+    return extension.is_extension() && extension.id() != kWebStoreExtensionId &&
+           !extensions::Manifest::IsComponentLocation(extension.location());
+  }
+
+  extensions::ManagementPolicy* AddonPolicy() {
+    auto* context = web_ui()->GetWebContents()->GetBrowserContext();
+    auto* system = extensions::ExtensionSystem::Get(context);
+    return !context->IsOffTheRecord() && system ? system->management_policy()
+                                               : nullptr;
+  }
+
+  bool CanSwitchAddon(const extensions::Extension& extension, bool on) {
+    auto* policy = AddonPolicy();
+    if (!policy || !policy->UserMayModifySettings(&extension, nullptr)) {
+      return false;
+    }
+    if (on) {
+      return !policy->MustRemainEnabled(&extension, nullptr);
+    }
+    // Anything Chromium disabled for a reason other than a user choosing
+    // Off must go through Chromium's own review and recovery flow.
+    auto* registry = GetExtensionRegistry();
+    auto* prefs = extensions::ExtensionPrefs::Get(
+        web_ui()->GetWebContents()->GetBrowserContext());
+    return !policy->MustRemainDisabled(&extension, nullptr) && prefs &&
+           registry->disabled_extensions().Contains(extension.id()) &&
+           prefs->HasOnlyDisableReason(
+               extension.id(), extensions::disable_reason::DISABLE_USER_ACTION);
+  }
+
+  bool CanRemoveAddon(const extensions::Extension& extension) {
+    auto* policy = AddonPolicy();
+    return policy && policy->UserMayModifySettings(&extension, nullptr) &&
+           !policy->MustRemainInstalled(&extension, nullptr);
+  }
+
+  base::ListValue AppRows() {
+    base::ListValue rows;
+    extensions::ExtensionRegistry* registry = GetExtensionRegistry();
+    if (!registry) {
+      return rows;
+    }
+    std::vector<std::pair<std::string, base::DictValue>> found;
+    const extensions::PermissionMessageProvider* provider =
+        extensions::PermissionMessageProvider::Get();
+    for (const auto& extension : registry->GenerateInstalledExtensionsSet()) {
+      if (!IsListedAddon(*extension)) {
+        continue;
+      }
+      base::ListValue perms;
+      for (const extensions::PermissionMessage& message :
+           provider->GetPermissionMessages(provider->GetAllPermissionIDs(
+               extension->permissions_data()->active_permissions(),
+               extension->GetType()))) {
+        perms.Append(base::UTF16ToUTF8(message.message()));
+        for (const auto& detail : message.submessages()) {
+          perms.Append(base::UTF16ToUTF8(detail));
+        }
+      }
+      const KnownAddon* known = FindKnownAddon(extension->id());
+      base::DictValue row;
+      row.Set("id", extension->id());
+      row.Set("name", extension->name());
+      row.Set("group", AddonGroupKey(GroupForAddon(extension->id())));
+      row.Set("line", known ? known->line : "");
+      row.Set("perms", std::move(perms));
+      const bool on = registry->enabled_extensions().Contains(extension->id());
+      row.Set("on", on);
+      row.Set("canSwitch", CanSwitchAddon(*extension, on));
+      row.Set("canRemove", CanRemoveAddon(*extension));
+      found.emplace_back(extension->name(), std::move(row));
+    }
+    std::sort(found.begin(), found.end(),
+              [](const auto& a, const auto& b) { return a.first < b.first; });
+    for (auto& entry : found) {
+      rows.Append(std::move(entry.second));
+    }
+    return rows;
+  }
+
+  // The AI assistant row, read from what chrome://boring-ai saved.
+  base::DictValue AiRowValue() {
+    std::string provider;
+    std::string host;
+    bool on_this_computer = false;
+    bool can_change = false;
+    if (PrefService* prefs = GetPrefs()) {
+      if (const auto* pref = prefs->FindPreference(ai::prefs::kProvider)) {
+        provider = prefs->GetString(ai::prefs::kProvider);
+        can_change = pref->IsUserModifiable();
+      }
+      if (prefs->FindPreference(ai::prefs::kOllamaUrl)) {
+        const GURL url(prefs->GetString(ai::prefs::kOllamaUrl));
+        if (url.SchemeIsHTTPOrHTTPS()) {
+          host = url.host();
+        }
+        on_this_computer = ai::OllamaStaysOnThisMachine(prefs);
+      }
+    }
+    const AiRow row = DescribeAiRow(provider, host, on_this_computer);
+    base::DictValue out;
+    out.Set("on", row.on);
+    out.Set("label", row.label);
+    out.Set("host", row.host);
+    out.Set("canTurnOff", row.on && can_change);
+    return out;
+  }
+
+  bool HasEnabledPasswordAddon() {
+    if (auto* registry = GetExtensionRegistry()) {
+      for (const auto& extension : registry->enabled_extensions()) {
+        if (GroupForAddon(extension->id()) == AddonGroup::kPasswordManager) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  base::DictValue PasswordRowValue() {
+    PrefService* prefs = GetPrefs();
+    const auto* pref = prefs ? prefs->FindPreference(
+                                   password_manager::prefs::kCredentialsEnableService)
+                             : nullptr;
+    base::DictValue out;
+    out.Set("show", pref && HasEnabledPasswordAddon());
+    out.Set("stopped", pref && !pref->GetValue()->GetBool());
+    out.Set("canChange", pref && pref->IsUserModifiable() &&
+                             !web_ui()->GetWebContents()->GetBrowserContext()
+                                  ->IsOffTheRecord());
+    return out;
+  }
+
+  void SendApps() {
+    if (IsJavascriptAllowed()) {
+      web_ui()->CallJavascriptFunctionUnsafe("showApps", AppRows(),
+                                             AiRowValue(), PasswordRowValue());
+    }
+  }
+
+  // The switch behind one add-on row. Only an add-on that has a row can be
+  // switched from here, never one the page names by guess.
+  void HandleSetApp(const base::ListValue& args) {
+    extensions::ExtensionRegistry* registry = GetExtensionRegistry();
+    if (registry && args.size() == 2 && args[0].is_string() &&
+        args[1].is_bool()) {
+      const std::string& id = args[0].GetString();
+      const extensions::Extension* extension =
+          registry->GetInstalledExtension(id);
+      extensions::ExtensionRegistrar* registrar =
+          extensions::ExtensionRegistrar::Get(
+              web_ui()->GetWebContents()->GetBrowserContext());
+      const bool on = registry->enabled_extensions().Contains(id);
+      if (extension && registrar && IsListedAddon(*extension) &&
+          on != args[1].GetBool() && CanSwitchAddon(*extension, on)) {
+        if (args[1].GetBool()) {
+          registrar->EnableExtension(id);
+        } else {
+          registrar->DisableExtension(
+              id, {extensions::disable_reason::DISABLE_USER_ACTION});
+        }
+      }
+    }
+    SendApps();
+  }
+
+  void HandleRemoveApp(const base::ListValue& args) {
+    auto* registry = GetExtensionRegistry();
+    if (uninstall_dialog_open_ || !registry || args.size() != 1 ||
+        !args[0].is_string()) {
+      return;
+    }
+    const auto* extension = registry->GetInstalledExtension(args[0].GetString());
+    if (!extension || !IsListedAddon(*extension) || !CanRemoveAddon(*extension)) {
+      return;
+    }
+    auto* contents = web_ui()->GetWebContents();
+    auto parent = contents->GetTopLevelNativeWindow();
+    if (!parent) {
+      return;
+    }
+    uninstall_dialog_ = extensions::ExtensionUninstallDialog::Create(
+        Profile::FromBrowserContext(contents->GetBrowserContext()), parent, this);
+    uninstall_dialog_open_ = true;
+    uninstall_dialog_->ConfirmUninstall(
+        base::WrapRefCounted(extension), extensions::UNINSTALL_REASON_USER_INITIATED,
+        extensions::UNINSTALL_SOURCE_CHROME_EXTENSIONS_PAGE);
+  }
+
+  void OnExtensionUninstallDialogClosed(bool did_start_uninstall,
+                                       const std::u16string& error) override {
+    uninstall_dialog_open_ = false;
+  }
+
+  void HandleSetStopSavingPasswords(const base::ListValue& args) {
+    PrefService* prefs = GetPrefs();
+    const auto settings = PasswordRowValue();
+    if (args.size() == 1 && args[0].is_bool() &&
+        settings.FindBool("show").value_or(false) &&
+        settings.FindBool("canChange").value_or(false)) {
+      prefs->SetBoolean(password_manager::prefs::kCredentialsEnableService,
+                        !args[0].GetBool());
+    }
+    SendApps();
+  }
+
+  // The AI switch only turns the assistant off. Choosing a provider and
+  // typing a key stay on chrome://boring-ai.
+  void HandleSetAiOff(const base::ListValue& args) {
+    PrefService* prefs = GetPrefs();
+    if (args.empty() && prefs &&
+        AiRowValue().FindBool("canTurnOff").value_or(false)) {
+      prefs->SetString(ai::prefs::kProvider, "off");
+    }
+    SendApps();
   }
 
   base::ListValue NeverSleepSites() {
@@ -1362,6 +1809,9 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     out.Set("offSites", OffSites());
     out.Set("webStore", WebStoreState());
     out.Set("connections", OwnConnections());
+    out.Set("apps", AppRows());
+    out.Set("ai", AiRowValue());
+    out.Set("passwords", PasswordRowValue());
     out.Set("adsProblem", ads->status_message());
     out.Set("stopTakeovers",
             prefs && prefs->GetBoolean(prefs::kStopTakeovers));
@@ -1602,9 +2052,14 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
   base::ScopedObservation<extensions::ExtensionRegistry,
                           extensions::ExtensionRegistryObserver>
       extensions_observation_{this};
+  base::ScopedObservation<extensions::PermissionsManager,
+                          extensions::PermissionsManager::Observer>
+      permissions_observation_{this};
   // The regional lists this build ships, once read.
   std::vector<RegionalListInfo> regional_;
   bool regional_requested_ = false;
+  bool uninstall_dialog_open_ = false;
+  std::unique_ptr<extensions::ExtensionUninstallDialog> uninstall_dialog_;
   base::WeakPtrFactory<ProtectionMessageHandler> weak_factory_{this};
 };
 
