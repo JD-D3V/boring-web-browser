@@ -126,10 +126,14 @@ void AllowLookalike(content::BrowserContext* context,
   // Remembered across runs in this profile's own prefs, never in a private
   // window.
   if (PrefService* prefs = RememberingPrefs(context)) {
-    ScopedListPrefUpdate update(prefs, prefs::kLookalikeAllowedSites);
-    if (!update->contains(domain)) {
-      update->Append(domain);
+    {
+      ScopedListPrefUpdate update(prefs, prefs::kLookalikeAllowedSites);
+      if (!update->contains(domain)) {
+        update->Append(domain);
+      }
     }
+    // Written now, so closing the browser right after does not lose it.
+    prefs->CommitPendingWrite();
   }
 }
 
