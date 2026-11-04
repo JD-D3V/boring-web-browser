@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fingerprint probe (test)</title>
+<!--
+  For smoke_fingerprint.py. A page that reads what a tracker would read, and
+  a small video player with a fullscreen button, to show that going fullscreen
+  and sizing a page still use the real screen while the readings are generic.
+-->
+<style>
+  html, body { margin: 0; background: #000; }
+  #player { position: relative; width: 320px; height: 180px; background: #000; }
+  #player:fullscreen { width: 100vw; height: 100vh; }
+  video { width: 100%; height: 100%; object-fit: contain; display: block; }
+  button { position: absolute; right: 8px; bottom: 8px; z-index: 2; }
+</style>
+</head>
+<body>
+<div id="player"><video id="v" muted loop playsinline></video>
+<button id="fs" type="button">Fullscreen</button></div>
+<script>
+var v = document.getElementById('v');
+window.ready = false;
+// Make a short real video in the page, so no file has to ship.
+var c = document.createElement('canvas');
+c.width = 320; c.height = 180;
+var g = c.getContext('2d'), n = 0;
+var rec = new MediaRecorder(c.captureStream(15), {mimeType: 'video/webm'});
+var chunks = [];
+rec.ondataavailable = function(e) { chunks.push(e.data); };
+rec.onstop = function() {
+  v.src = URL.createObjectURL(new Blob(chunks, {type: 'video/webm'}));
+  v.play().then(function() { window.ready = true; });
+};
+var t = setInterval(function() {
+  g.fillStyle = 'hsl(' + (n * 20 % 360) + ',70%,50%)';
+  g.fillRect(0, 0, 320, 180);
+  if (++n > 20) { clearInterval(t); rec.stop(); }
+}, 66);
+rec.start();
+
+document.getElementById('fs').addEventListener('click', function() {
+  document.getElementById('player').requestFullscreen();
+});
+</script>
+</body>
+</html>
