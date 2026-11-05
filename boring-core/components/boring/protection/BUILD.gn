@@ -8,6 +8,8 @@ static_library("protection") {
     "apps_data.h",
     "connections_data.h",
     "memory_saver.h",
+    "native_hosts.cc",
+    "native_hosts.h",
     "protection_ui.cc",
     "protection_ui.h",
     "site_rules_handler.cc",

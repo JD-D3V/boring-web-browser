@@ -1,0 +1,21 @@
+--- a/chrome/browser/extensions/api/messaging/chrome_messaging_delegate.cc
++++ b/chrome/browser/extensions/api/messaging/chrome_messaging_delegate.cc
+@@ -52,6 +52,18 @@
+     if (!pref_service->GetBoolean(pref_names::kNativeMessagingUserLevelHosts)) {
+       allow_result = PolicyPermission::ALLOW_SYSTEM_ONLY;
+     }
++  }
++
++  // boring: with no enterprise policy, a host runs only once the person
++  // switched it on (the Protection page keeps this list, see
++  // boring::prefs::kNativeHostsAllowed). Policy below still decides alone.
++  if (!pref_service->IsManagedPreference(
++          pref_names::kNativeMessagingBlocklist) &&
++      !pref_service->IsManagedPreference(
++          pref_names::kNativeMessagingAllowlist) &&
++      !pref_service->GetList("boring.native_hosts_allowed")
++           .contains(native_host_name)) {
++    return PolicyPermission::DISALLOW;
+   }
+ 
+   // All native messaging hosts are allowed if there is no blocklist.

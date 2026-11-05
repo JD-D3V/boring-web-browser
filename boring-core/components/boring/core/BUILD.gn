@@ -5,6 +5,8 @@ static_library("core") {
     "boring_capabilities.h",
     "boring_prefs.cc",
     "boring_prefs.h",
+    "native_hosts.cc",
+    "native_hosts.h",
   ]
   deps = [
     "//base",

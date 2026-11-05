@@ -4,8 +4,10 @@
 
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "base/values.h"
+#include "components/boring/core/native_hosts.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
@@ -42,6 +44,10 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterIntegerPref(prefs::kBoringBlockingLevel, 0);
   registry->RegisterStringPref(prefs::kBoringCustomRules, std::string());
   registry->RegisterListPref(prefs::kBoringNeverSleepSites);
+  // No sync flag: a program on this computer is not a choice for the
+  // person's other devices.
+  registry->RegisterListPref(prefs::kNativeHostsAllowed);
+  registry->RegisterBooleanPref(prefs::kNativeHostsDecided, false);
 }
 
 void MigrateObsoleteProfilePrefs(PrefService* prefs) {
@@ -54,6 +60,23 @@ void MigrateObsoleteProfilePrefs(PrefService* prefs) {
     prefs->SetBoolean(prefs::kHideSponsoredResults, true);
   }
   prefs->ClearPref(kObsoleteModePref);
+  // Hosts are blocked until switched on. A profile that already existed
+  // keeps the ones registered now, so an add-on that talks to its
+  // desktop app (a password manager unlocking, say) does not stop
+  // working with the update. The names come from the registry alone:
+  // matching them to add-ons means reading files, not done while a
+  // profile loads.
+  if (!prefs->GetBoolean(prefs::kNativeHostsDecided)) {
+    prefs->SetBoolean(prefs::kNativeHostsDecided, true);
+    if (prefs->GetInitializationStatus() !=
+        PrefService::INITIALIZATION_STATUS_CREATED_NEW_PREF_STORE) {
+      base::ListValue names;
+      for (const NativeHostRegistration& host : RegisteredNativeHosts()) {
+        names.Append(host.name);
+      }
+      prefs->SetList(prefs::kNativeHostsAllowed, std::move(names));
+    }
+  }
 }
 
 std::string GetBlockingSite(const GURL& url) {

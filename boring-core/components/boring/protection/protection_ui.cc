@@ -34,6 +34,7 @@
 #include "components/boring/protection/apps_data.h"
 #include "components/boring/protection/connections_data.h"
 #include "components/boring/protection/memory_saver.h"
+#include "components/boring/protection/native_hosts.h"
 #include "components/boring/scam/scam_service.h"
 #include "components/boring/update/browser_updater.h"
 #include "components/password_manager/core/common/password_manager_pref_names.h"
@@ -55,6 +56,7 @@
 #include "extensions/browser/extension_registry_observer.h"
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/management_policy.h"
+#include "extensions/browser/pref_names.h"
 #include "extensions/browser/permissions_manager.h"
 #include "extensions/browser/uninstall_reason.h"
 #include "extensions/browser/unloaded_extension_reason.h"
@@ -115,9 +117,12 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
                     color: var(--muted); }
   .conn-part > p.muted { margin: 4px 0 0; }
   #connections-apps { margin-top: 24px; }
-  #connections-apps .setting-row { cursor: auto; }
+  #connections-apps .setting-row, #connections-hosts .setting-row {
+    cursor: auto; }
   #connections-apps .setting-row[hidden] { display: none; }
-  #connections-apps .setting-row strong { overflow-wrap: anywhere; }
+  #connections-apps .setting-row strong,
+  #connections-hosts .setting-row strong { overflow-wrap: anywhere; }
+  #connections-hosts .setting-row p { overflow-wrap: anywhere; }
   .app-controls { display: flex; align-items: center; gap: 12px; }
   .app-remove { font: inherit; min-height: 32px; padding: 4px 0;
                 background: none; border: none; cursor: pointer; }
@@ -400,6 +405,8 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
       aria-label="On its own"></div>
   <div class="conn-part" id="connections-apps" role="group"
       aria-label="Apps you added"></div>
+  <div class="conn-part" id="connections-hosts" role="group"
+      aria-label="Apps on this computer"></div>
 
   <h2 class="section">Memory</h2>
   <label class="setting-row" for="memory-saver" id="memory-saver-row">
@@ -784,6 +791,59 @@ function showApps(apps, ai, passwords) {
   }
 }
 
+// "Apps on this computer": programs registered to talk to this browser's
+// add-ons. Each is blocked until its switch is on. Rebuilt only when the
+// rows change, so a click keeps focus.
+function showHosts(hosts) {
+  var box = el('connections-hosts');
+  var key = JSON.stringify(hosts.map(function(h) {
+    return [h.name, h.title, h.app, h.addons, h.managed];
+  }));
+  var focused = document.activeElement;
+  var focusId = focused && box.contains(focused) ? focused.id : '';
+  if (box.dataset.key !== key) {
+    box.textContent = '';
+    box.dataset.key = key;
+    var title = document.createElement('h4');
+    title.textContent = 'Apps on this computer';
+    var intro = document.createElement('p');
+    intro.className = 'muted';
+    intro.textContent = hosts.length ?
+        'Add-ons cannot talk to these until you switch them on.' :
+        'No app on this computer is linked to the browser.';
+    intro.id = 'hosts-intro';
+    box.append(title, intro);
+    hosts.forEach(function(host) {
+      var lines = [
+        host.addons.length ?
+            'Add-ons that can use it: ' + host.addons.join(', ') + '.' :
+            'No add-on you installed can use it.',
+        'Runs ' + host.app, ''];
+      var built = appRow('host-' + host.name, host.title,
+          host.title === host.name ? '' : host.name, lines, true);
+      built.row.querySelectorAll('p')[2].id = 'host-' + host.name + '-state';
+      built.check.addEventListener('change', function(e) {
+        chrome.send('setNativeHost', [host.name, e.target.checked]);
+        say(host.title + (e.target.checked ? ' on.' : ' blocked.'));
+      });
+      box.append(built.row);
+    });
+  }
+  hosts.forEach(function(host) {
+    var check = el('host-' + host.name);
+    check.checked = host.on;
+    check.disabled = !host.canSwitch;
+    el('host-' + host.name + '-state').textContent = host.managed ?
+        (host.on ? 'Allowed by your organisation.' :
+                   'Blocked by your organisation.') :
+        (host.on ? 'On.' : 'Blocked until you switch it on.');
+  });
+  if (focusId && !box.contains(document.activeElement)) {
+    var back = el(focusId);
+    if (back) { back.focus(); }
+  }
+}
+
 // One real checkbox per regional list this build ships. Rebuilt only
 // when the set of lists changes, so a click does not lose focus.
 function showRegional(lists, chosen) {
@@ -1152,6 +1212,10 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
         base::BindRepeating(&ProtectionMessageHandler::HandleSetApp,
                             base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
+        "setNativeHost",
+        base::BindRepeating(&ProtectionMessageHandler::HandleSetNativeHost,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
         "removeApp",
         base::BindRepeating(&ProtectionMessageHandler::HandleRemoveApp,
                             base::Unretained(this)));
@@ -1230,6 +1294,9 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
                                       base::Unretained(this)));
       }
     }
+    registrar_.Add(prefs::kNativeHostsAllowed,
+                   base::BindRepeating(&ProtectionMessageHandler::SendHosts,
+                                       base::Unretained(this)));
     if (extensions::ExtensionRegistry* registry = GetExtensionRegistry()) {
       extensions_observation_.Observe(registry);
     }
@@ -1492,6 +1559,124 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
       web_ui()->CallJavascriptFunctionUnsafe("showApps", AppRows(),
                                              AiRowValue(), PasswordRowValue());
     }
+    SendHosts();
+  }
+
+  // Native messaging hosts. The registry and the manifests are read off
+  // the UI thread each time the page opens; the rows are rebuilt from that
+  // result whenever the list, the add-ons or a policy change.
+  void ScanHosts() {
+    hosts_scanning_ = true;
+    base::ThreadPool::PostTaskAndReplyWithResult(
+        FROM_HERE,
+        {base::MayBlock(), base::TaskPriority::USER_VISIBLE,
+         base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN},
+        base::BindOnce(&ScanNativeHosts),
+        base::BindOnce(&ProtectionMessageHandler::OnHostsScanned,
+                       weak_factory_.GetWeakPtr()));
+  }
+
+  void OnHostsScanned(std::vector<NativeHost> hosts) {
+    hosts_ = std::move(hosts);
+    hosts_scanned_ = true;
+    SendHosts();
+  }
+
+  // Enterprise policy decides for itself, see ChromeMessagingDelegate.
+  bool HostsManaged() {
+    PrefService* prefs = GetPrefs();
+    return prefs && (prefs->IsManagedPreference(
+                         extensions::pref_names::kNativeMessagingBlocklist) ||
+                     prefs->IsManagedPreference(
+                         extensions::pref_names::kNativeMessagingAllowlist));
+  }
+
+  bool HostBlockedByPolicy(const std::string& name) {
+    PrefService* prefs = GetPrefs();
+    if (!prefs || !prefs->IsManagedPreference(
+                      extensions::pref_names::kNativeMessagingBlocklist)) {
+      return false;
+    }
+    const base::ListValue& blocklist =
+        prefs->GetList(extensions::pref_names::kNativeMessagingBlocklist);
+    if (!blocklist.contains(name) && !blocklist.contains("*")) {
+      return false;
+    }
+    return !(prefs->IsManagedPreference(
+                 extensions::pref_names::kNativeMessagingAllowlist) &&
+             prefs->GetList(extensions::pref_names::kNativeMessagingAllowlist)
+                 .contains(name));
+  }
+
+  bool CanSwitchHosts() {
+    PrefService* prefs = GetPrefs();
+    const auto* pref =
+        prefs ? prefs->FindPreference(prefs::kNativeHostsAllowed) : nullptr;
+    return pref && pref->IsUserModifiable() && !HostsManaged();
+  }
+
+  base::ListValue HostRows() {
+    base::ListValue rows;
+    PrefService* prefs = GetPrefs();
+    extensions::ExtensionRegistry* registry = GetExtensionRegistry();
+    if (!prefs) {
+      return rows;
+    }
+    const bool managed = HostsManaged();
+    const bool can_switch = CanSwitchHosts();
+    const base::ListValue& allowed = prefs->GetList(prefs::kNativeHostsAllowed);
+    for (const NativeHost& host : hosts_) {
+      base::ListValue addons;
+      for (const std::string& id : host.add_on_ids) {
+        const extensions::Extension* extension =
+            registry ? registry->GetInstalledExtension(id) : nullptr;
+        if (extension) {
+          addons.Append(extension->name());
+        }
+      }
+      base::DictValue row;
+      row.Set("name", host.name);
+      row.Set("title", host.description);
+      row.Set("app", host.app.AsUTF8Unsafe());
+      row.Set("addons", std::move(addons));
+      row.Set("on", managed ? !HostBlockedByPolicy(host.name)
+                            : allowed.contains(host.name));
+      row.Set("managed", managed);
+      row.Set("canSwitch", can_switch);
+      rows.Append(std::move(row));
+    }
+    return rows;
+  }
+
+  void SendHosts() {
+    if (IsJavascriptAllowed() && hosts_scanned_) {
+      web_ui()->CallJavascriptFunctionUnsafe("showHosts", HostRows());
+    }
+  }
+
+  // The switch behind one host row. Only a host this page listed can be
+  // switched on, never one the page names by guess.
+  void HandleSetNativeHost(const base::ListValue& args) {
+    PrefService* prefs = GetPrefs();
+    if (prefs && CanSwitchHosts() && args.size() == 2 && args[0].is_string() &&
+        args[1].is_bool()) {
+      const std::string& name = args[0].GetString();
+      const bool on = args[1].GetBool();
+      const bool listed =
+          std::any_of(hosts_.begin(), hosts_.end(),
+                      [&](const NativeHost& h) { return h.name == name; });
+      const bool allowed =
+          prefs->GetList(prefs::kNativeHostsAllowed).contains(name);
+      if (on != allowed && (listed || !on)) {
+        ScopedListPrefUpdate update(prefs, prefs::kNativeHostsAllowed);
+        if (on) {
+          update->Append(name);
+        } else {
+          update->EraseValue(base::Value(name));
+        }
+      }
+    }
+    SendHosts();
   }
 
   // The switch behind one add-on row. Only an add-on that has a row can be
@@ -1786,6 +1971,9 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
       scam->EnsureLoading();
     }
     ads->EnsureLoading();
+    if (!hosts_scanned_ && !hosts_scanning_) {
+      ScanHosts();
+    }
 
     PrefService* prefs = GetPrefs();
 
@@ -2060,6 +2248,9 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
   bool regional_requested_ = false;
   bool uninstall_dialog_open_ = false;
   std::unique_ptr<extensions::ExtensionUninstallDialog> uninstall_dialog_;
+  std::vector<NativeHost> hosts_;
+  bool hosts_scanning_ = false;
+  bool hosts_scanned_ = false;
   base::WeakPtrFactory<ProtectionMessageHandler> weak_factory_{this};
 };
 

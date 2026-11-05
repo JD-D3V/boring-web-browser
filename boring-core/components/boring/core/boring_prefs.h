@@ -95,6 +95,16 @@ inline constexpr char kBoringCustomRules[] = "boring.adblock.custom_rules";
 inline constexpr char kBoringNeverSleepSites[] =
     "boring.performance.never_sleep_sites";
 
+// Native messaging hosts (apps on this computer) the person switched on,
+// by host name. With no enterprise policy, a host that is not in this
+// list is blocked: chrome_messaging_delegate.cc (patch
+// native-hosts-check) reads it by this name. Per profile, never synced.
+inline constexpr char kNativeHostsAllowed[] = "boring.native_hosts_allowed";
+
+// Set once the list above has been started for the profile, see
+// MigrateObsoleteProfilePrefs().
+inline constexpr char kNativeHostsDecided[] = "boring.native_hosts_decided";
+
 }  // namespace prefs
 
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
@@ -102,7 +112,9 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
 // Run once for each profile as it loads, from Chromium's
 // MigrateObsoleteProfilePrefs(). A profile that had the old all-in-one
 // mode on starts with all three switches it covered on, and the old
-// pref is cleared either way.
+// pref is cleared either way. A profile that existed before native
+// messaging hosts could be switched keeps the hosts registered now, a
+// new one starts with none (see kNativeHostsAllowed).
 void MigrateObsoleteProfilePrefs(PrefService* prefs);
 
 // The key the per site switch is stored under: the registrable domain
