@@ -5,6 +5,7 @@
 #include <string>
 #include <string_view>
 
+#include "base/files/file_path.h"
 #include "base/values.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
@@ -43,6 +44,8 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterStringPref(prefs::kBoringCustomRules, std::string());
   registry->RegisterListPref(prefs::kBoringUserLists);
   registry->RegisterListPref(prefs::kBoringNeverSleepSites);
+  registry->RegisterFilePathPref(prefs::kBoringFolderCopyDir, base::FilePath());
+  registry->RegisterBooleanPref(prefs::kBoringFolderCopyArmed, false);
 }
 
 void MigrateObsoleteProfilePrefs(PrefService* prefs) {

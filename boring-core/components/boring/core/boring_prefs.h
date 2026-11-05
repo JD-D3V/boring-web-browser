@@ -100,6 +100,17 @@ inline constexpr char kBoringUserLists[] = "boring.adblock.user_lists";
 inline constexpr char kBoringNeverSleepSites[] =
     "boring.performance.never_sleep_sites";
 
+// "Keep a copy in a folder": the folder the person picked, or empty when
+// the row is off. Per profile and never synced. See
+// components/boring/folder_copy.
+inline constexpr char kBoringFolderCopyDir[] = "boring.folder_copy.dir";
+
+// True once the browser may write into that folder: it had no copy yet,
+// or the person loaded it, or chose to save over it. A folder that
+// already holds a copy waits, so a new computer does not replace another
+// computer's files with its own empty ones.
+inline constexpr char kBoringFolderCopyArmed[] = "boring.folder_copy.armed";
+
 }  // namespace prefs
 
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);

@@ -27,6 +27,8 @@
 #include "components/boring/branding/brand_mark.h"
 #include "components/boring/core/boring_capabilities.h"
 #include "components/boring/core/boring_prefs.h"
+#include "components/boring/folder_copy/folder_copy.h"
+#include "components/boring/folder_copy/folder_picker.h"
 #include "components/boring/lists/list_paths.h"
 #include "components/boring/lists/list_updater.h"
 #include "components/boring/performance/never_sleep_sites.h"
@@ -132,6 +134,12 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   .app-controls { display: flex; align-items: center; gap: 12px; }
   .app-remove { font: inherit; min-height: 32px; padding: 4px 0;
                 background: none; border: none; cursor: pointer; }
+  .folder-preview { padding: 12px 0 16px; border-top: 1px solid var(--line); }
+  .folder-preview p { margin: 0; font-size: 13px; }
+  .folder-preview ul { margin: 8px 0 12px; padding-inline-start: 20px;
+                       font-size: 13px; }
+  .folder-preview .weakens { font-weight: 600; }
+  .folder-preview .actions { display: flex; align-items: center; gap: 14px; }
   .conn-host { font-weight: 400; color: var(--muted); font-size: 12px;
                margin-inline-start: 8px; overflow-wrap: anywhere; }
   .conn-note { font-weight: 550; }
@@ -758,6 +766,122 @@ function appLink(href, name) {
   return link;
 }
 
+// "Keep a copy in a folder", under Folders and cloud. Built once and
+// updated in place, so a click keeps its focus.
+var folderState = null;
+
+function folderButton(id, text, message) {
+  var button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'text-button app-remove';
+  button.id = id;
+  button.textContent = text;
+  button.addEventListener('click', function() { chrome.send(message, []); });
+  return button;
+}
+
+function buildFolder(box) {
+  var built = appRow('folder-copy', 'Keep a copy in a folder', '', ['', ''],
+                     true);
+  var lines = built.row.querySelectorAll('p');
+  lines[0].id = 'folder-copy-line';
+  lines[1].id = 'folder-copy-status';
+  lines[1].setAttribute('role', 'status');
+  built.check.addEventListener('change', function(e) {
+    chrome.send(e.target.checked ? 'chooseFolder' : 'clearFolder', []);
+  });
+  built.controls.prepend(
+      folderButton('folder-load', 'Load from folder', 'loadFromFolder'),
+      folderButton('folder-save-over', 'Save over it', 'saveOverFolder'),
+      folderButton('folder-change', 'Change folder', 'chooseFolder'));
+  var preview = document.createElement('div');
+  preview.id = 'folder-preview';
+  preview.className = 'folder-preview';
+  preview.hidden = true;
+  box.append(built.row, preview);
+}
+
+function showFolderPreview(changes) {
+  var preview = el('folder-preview');
+  var key = JSON.stringify(changes);
+  if (preview.dataset.key !== key) {
+    preview.dataset.key = key;
+    preview.textContent = '';
+    if (changes.length) {
+      var head = document.createElement('p');
+      var strong = document.createElement('strong');
+      strong.textContent = 'Change ' + changes.length +
+          (changes.length === 1 ? ' setting' : ' settings') +
+          ' to match the folder?';
+      head.append(strong);
+      var list = document.createElement('ul');
+      changes.forEach(function(c) {
+        var item = document.createElement('li');
+        item.textContent = c.label + ': ' + c.from + ' to ' + c.to +
+            (c.weakens ? ' (less protection)' : '');
+        if (c.weakens) { item.className = 'weakens'; }
+        list.append(item);
+      });
+      var actions = document.createElement('div');
+      actions.className = 'actions';
+      var apply = document.createElement('button');
+      apply.type = 'button';
+      apply.className = 'secondary';
+      apply.id = 'folder-apply';
+      apply.textContent = 'Change them';
+      apply.addEventListener('click', function() {
+        chrome.send('applyFolderSettings', []);
+      });
+      actions.append(apply, folderButton('folder-skip', 'Leave them',
+                                         'skipFolderSettings'));
+      preview.append(head, list, actions);
+      apply.focus();
+    }
+  }
+  preview.hidden = !changes.length;
+}
+
+function showFolder(s) {
+  folderState = s;
+  var box = el('folder-copy-box');
+  if (!box) { return; }
+  if (!box.firstChild) { buildFolder(box); }
+  var changes = s.changes || [];
+  var check = el('folder-copy');
+  check.checked = !!s.on;
+  check.disabled = !s.available;
+  var line = el('folder-copy-line');
+  if (!s.available) {
+    line.textContent = 'Not available in a private window.';
+  } else if (!s.on) {
+    line.textContent = 'Off. Saves your bookmarks and settings in a folder ' +
+        'you choose. Your cloud app moves them. This browser sends nothing.';
+  } else {
+    line.textContent = s.dir;
+  }
+  var parts = [];
+  if (s.error) {
+    parts.push(s.error);
+  } else {
+    if (s.loading) { parts.push('Loading from the folder.'); }
+    if (s.message) { parts.push(s.message); }
+    if (s.waiting && !changes.length) {
+      parts.push('This folder already has a copy. Load it, or save this ' +
+                 'browser over it.');
+    }
+    if (s.on && s.savedAt) {
+      parts.push('Last saved at ' + new Date(s.savedAt).toLocaleTimeString(
+          [], {hour: '2-digit', minute: '2-digit'}) + '.');
+    }
+  }
+  el('folder-copy-status').textContent = parts.join(' ');
+  el('folder-load').hidden = !s.on;
+  el('folder-load').disabled = !!s.loading;
+  el('folder-change').hidden = !s.on;
+  el('folder-save-over').hidden = !(s.waiting && !changes.length);
+  showFolderPreview(changes);
+}
+
 function showApps(apps, ai, passwords) {
   var box = el('connections-apps');
   var key = JSON.stringify([apps.map(function(a) {
@@ -778,7 +902,10 @@ function showApps(apps, ai, passwords) {
     box.append(title, intro);
     var addGroup = function(heading, group) {
       var rows = apps.filter(function(a) { return a.group === group; });
-      if (!rows.length && group !== 'password' && group !== 'ai') { return; }
+      if (!rows.length && group !== 'password' && group !== 'ai' &&
+          group !== 'cloud') {
+        return;
+      }
       var h = document.createElement('h4');
       h.textContent = heading;
       box.append(h);
@@ -817,6 +944,9 @@ function showApps(apps, ai, passwords) {
     });
     box.append(saving.row);
     addGroup('Folders and cloud', 'cloud');
+    var folderBox = document.createElement('div');
+    folderBox.id = 'folder-copy-box';
+    box.append(folderBox);
     addGroup('AI', 'ai');
     var aiBuilt = appRow('ai-assistant', 'AI assistant', ai.host,
         [ai.label], true);
@@ -839,6 +969,7 @@ function showApps(apps, ai, passwords) {
       box.append(empty);
     }
   }
+  if (folderState) { showFolder(folderState); }
   apps.forEach(function(app) {
     var check = el('app-' + app.id);
     check.checked = app.on;
@@ -970,6 +1101,7 @@ function load(s) {
   showOwnConnections(s.connections);
   showUserLists(s.userLists);
   showApps(s.apps, s.ai, s.passwords);
+  showFolder(s.folder);
   el('hide-cookies').checked = s.hideCookies;
   el('fingerprint').checked = s.fingerprint;
   el('strip-params').checked = s.stripParams;
@@ -1290,6 +1422,32 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
         "setNeverSleep",
         base::BindRepeating(&ProtectionMessageHandler::HandleSetNeverSleep,
                             base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "chooseFolder",
+        base::BindRepeating(&ProtectionMessageHandler::HandleChooseFolder,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "clearFolder",
+        base::BindRepeating(&ProtectionMessageHandler::HandleClearFolder,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "loadFromFolder",
+        base::BindRepeating(&ProtectionMessageHandler::HandleLoadFromFolder,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "saveOverFolder",
+        base::BindRepeating(&ProtectionMessageHandler::HandleSaveOverFolder,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "applyFolderSettings",
+        base::BindRepeating(
+            &ProtectionMessageHandler::HandleApplyFolderSettings,
+            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "skipFolderSettings",
+        base::BindRepeating(
+            &ProtectionMessageHandler::HandleSkipFolderSettings,
+            base::Unretained(this)));
   }
 
   // The list of sites can change from the shield while this page is
@@ -1331,9 +1489,14 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
                 web_ui()->GetWebContents()->GetBrowserContext())) {
       permissions_observation_.Observe(permissions);
     }
+    if (folder_copy::FolderCopy* folder = Folder()) {
+      folder_subscription_ = folder->Subscribe(base::BindRepeating(
+          &ProtectionMessageHandler::SendFolder, base::Unretained(this)));
+    }
   }
 
   void OnJavascriptDisallowed() override {
+    folder_subscription_ = {};
     registrar_.RemoveAll();
     extensions_observation_.Reset();
     permissions_observation_.Reset();
@@ -1664,6 +1827,79 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     SendApps();
   }
 
+  // "Keep a copy in a folder", see components/boring/folder_copy.
+  folder_copy::FolderCopy* Folder() {
+    return folder_copy::FolderCopy::Get(Profile::FromBrowserContext(
+        web_ui()->GetWebContents()->GetBrowserContext()));
+  }
+
+  base::DictValue FolderValue() {
+    if (folder_copy::FolderCopy* folder = Folder()) {
+      return folder->UiState();
+    }
+    base::DictValue state;
+    state.Set("available", false);
+    return state;
+  }
+
+  void SendFolder() {
+    if (IsJavascriptAllowed()) {
+      web_ui()->CallJavascriptFunctionUnsafe("showFolder", FolderValue());
+    }
+  }
+
+  // Chromium's folder picker. Turning the row on and "Change folder" both
+  // come here; closing the picker leaves things as they were.
+  void HandleChooseFolder(const base::ListValue& args) {
+    folder_copy::FolderCopy* folder = Folder();
+    if (folder && !folder_picker_) {
+      folder_picker_ = std::make_unique<folder_copy::FolderPicker>(
+          web_ui()->GetWebContents(), folder->Dir(),
+          base::BindOnce(&ProtectionMessageHandler::OnFolderChosen,
+                         weak_factory_.GetWeakPtr()));
+    }
+  }
+
+  void OnFolderChosen(const base::FilePath& dir) {
+    folder_picker_.reset();
+    folder_copy::FolderCopy* folder = Folder();
+    if (folder && !dir.empty()) {
+      folder->SetDir(dir);
+    }
+    SendFolder();
+  }
+
+  void HandleClearFolder(const base::ListValue& args) {
+    if (folder_copy::FolderCopy* folder = Folder()) {
+      folder->SetDir(base::FilePath());
+    }
+    SendFolder();
+  }
+
+  void HandleLoadFromFolder(const base::ListValue& args) {
+    if (folder_copy::FolderCopy* folder = Folder()) {
+      folder->Load();
+    }
+  }
+
+  void HandleSaveOverFolder(const base::ListValue& args) {
+    if (folder_copy::FolderCopy* folder = Folder()) {
+      folder->SaveOver();
+    }
+  }
+
+  void HandleApplyFolderSettings(const base::ListValue& args) {
+    if (folder_copy::FolderCopy* folder = Folder()) {
+      folder->ApplyPending();
+    }
+  }
+
+  void HandleSkipFolderSettings(const base::ListValue& args) {
+    if (folder_copy::FolderCopy* folder = Folder()) {
+      folder->DropPending();
+    }
+  }
+
   base::ListValue NeverSleepSites() {
     base::ListValue sites;
     if (PrefService* prefs = GetPrefs()) {
@@ -1947,6 +2183,7 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     out.Set("apps", AppRows());
     out.Set("ai", AiRowValue());
     out.Set("passwords", PasswordRowValue());
+    out.Set("folder", FolderValue());
     out.Set("adsProblem", ads->status_message());
     out.Set("stopTakeovers",
             prefs && prefs->GetBoolean(prefs::kStopTakeovers));
@@ -2194,6 +2431,8 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
   std::vector<RegionalListInfo> regional_;
   bool regional_requested_ = false;
   bool uninstall_dialog_open_ = false;
+  std::unique_ptr<folder_copy::FolderPicker> folder_picker_;
+  base::CallbackListSubscription folder_subscription_;
   std::unique_ptr<extensions::ExtensionUninstallDialog> uninstall_dialog_;
   base::WeakPtrFactory<ProtectionMessageHandler> weak_factory_{this};
 };
