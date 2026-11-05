@@ -26,6 +26,7 @@ COPIED = [
     "components/boring/core/boring_prefs.h",
     "components/boring/lists/list_updater.cc",
     "components/boring/lists/list_updater.h",
+    "components/boring/adblock/custom_rules.cc",
     "components/boring/update/browser_updater.cc",
     "components/boring/ai/ai_summary_service.cc",
     "components/boring/ai/ai_summary_service.h",
@@ -64,6 +65,29 @@ class ConnectionsCheck(unittest.TestCase):
         self.assertTrue(
             any("tracker.example.net" in e for e in errors), errors
         )
+
+    def test_user_list_code_may_fetch_but_not_name_a_host(self):
+        # The user lists fetch from addresses people type, so the file is
+        # claimed with no hosts of its own. It passes as it is...
+        self.assertEqual(check_connections.check(self.tmp), [])
+        # ...but a host written into that code is still caught.
+        self.append(
+            "components/boring/adblock/custom_rules.cc",
+            '\nconstexpr char kExtra[] = "https://lists.example.net/x.txt";\n',
+        )
+        errors = check_connections.check(self.tmp)
+        self.assertTrue(any("lists.example.net" in e for e in errors), errors)
+
+    def test_unclaimed_user_list_fetch_fails(self):
+        path = self.tmp / JSON_REL
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["user_connections"][0]["code"] = []
+        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        (self.tmp / check_connections.HEADER_REL).write_text(
+            check_connections.header_text(self.tmp), encoding="utf-8"
+        )
+        errors = check_connections.check(self.tmp)
+        self.assertTrue(any("custom_rules.cc" in e for e in errors), errors)
 
     def test_unlisted_host_in_net_audit_fails(self):
         self.append("tools/net_audit.py", '\nSNEAKY = "telemetry.example.io"\n')

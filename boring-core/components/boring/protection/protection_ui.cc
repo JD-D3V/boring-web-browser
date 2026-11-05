@@ -116,6 +116,17 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   .conn-part > h4 { font-size: 12px; font-weight: 600; margin: 14px 0 0;
                     color: var(--muted); }
   .conn-part > p.muted { margin: 4px 0 0; }
+  #connections-lists { margin-top: 12px; }
+  #connections-lists .setting-row { cursor: auto; }
+  #connections-lists .setting-row strong { overflow-wrap: anywhere; }
+  .add-list { padding: 16px 0; border-top: 1px solid var(--line); }
+  .add-list label strong { font-size: 14px; font-weight: 600; }
+  .add-list p { font-size: 12px; margin: 5px 0 0; color: var(--muted); }
+  .add-list .actions { margin-top: 10px; display: flex; gap: 10px; }
+  .add-list input[type="text"] { flex: 1; min-width: 0; padding: 8px 12px;
+                      border: 1px solid var(--field); border-radius: 8px;
+                      background: var(--paper); color: var(--ink);
+                      font: inherit; }
   #connections-apps { margin-top: 24px; }
   #connections-apps .setting-row, #connections-hosts .setting-row {
     cursor: auto; }
@@ -403,6 +414,21 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   what you do not want.</p>
   <div class="conn-part" id="connections-own" role="group"
       aria-label="On its own"></div>
+  <div class="conn-part" id="connections-lists" role="group"
+      aria-label="Filter lists you added">
+    <div id="user-list-rows"></div>
+    <div class="add-list">
+      <label for="user-list-address"><strong>Add a filter list</strong></label>
+      <p id="user-list-desc">Paste its address. It must start with https://
+      and be under 5 MB. It is downloaded now and then about once a week.</p>
+      <div class="actions">
+        <input type="text" id="user-list-address" spellcheck="false"
+            autocomplete="off" aria-describedby="user-list-desc">
+        <button class="secondary" id="add-user-list">Add</button>
+      </div>
+      <p id="user-list-status" role="status"></p>
+    </div>
+  </div>
   <div class="conn-part" id="connections-apps" role="group"
       aria-label="Apps you added"></div>
   <div class="conn-part" id="connections-hosts" role="group"
@@ -640,6 +666,56 @@ function showOwnConnections(rows) {
     check.disabled = !row.canSwitch;
     el('conn-detail-' + row.id).textContent = row.unavailable || '';
   });
+}
+
+// The filter lists a person added by address, each with its host, when it
+// was last downloaded, and Remove. Rebuilt only when a row changes.
+function showUserLists(lists) {
+  var box = el('user-list-rows');
+  var key = JSON.stringify(lists);
+  if (box.dataset.key === key) { return; }
+  var focused = document.activeElement;
+  var focusUrl = focused && box.contains(focused) ? focused.dataset.url : '';
+  box.dataset.key = key;
+  box.textContent = '';
+  lists.forEach(function(list) {
+    var lines = [];
+    var when = list.updated ?
+        new Date(list.updated).toLocaleString() : '';
+    if (list.busy) {
+      lines.push('Downloading.');
+    } else if (list.error) {
+      lines.push(list.error + (when ? ' Using the copy from ' + when + '.' :
+                                      ' Not used.'));
+    } else if (when) {
+      lines.push('Updated ' + when + '.');
+    }
+    var built = appRow('user-list-' + list.id, 'Filter list', list.host,
+        lines, false);
+    built.row.dataset.url = list.url;
+    var remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'text-button app-remove';
+    remove.textContent = 'Remove';
+    remove.dataset.url = list.url;
+    remove.setAttribute('aria-label', 'Remove the list from ' + list.host);
+    remove.addEventListener('click', function() {
+      chrome.send('removeUserList', [list.url]);
+      say('List removed.');
+    });
+    built.controls.append(remove);
+    box.append(built.row);
+  });
+  if (focusUrl) {
+    var back = Array.prototype.find.call(box.querySelectorAll('button'),
+        function(b) { return b.dataset.url === focusUrl; });
+    if (back) { back.focus(); } else { el('user-list-address').focus(); }
+  }
+}
+
+function showUserListStatus(text) {
+  el('user-list-status').textContent = text;
+  if (!text) { el('user-list-address').value = ''; }
 }
 
 // "What the browser connects to", part "Apps you added": one row per
@@ -952,6 +1028,7 @@ function load(s) {
   showLists(s.listDays, s.listUpdates, s.listUpdatesAvailable);
   showConnections(s);
   showOwnConnections(s.connections);
+  showUserLists(s.userLists);
   showApps(s.apps, s.ai, s.passwords);
   el('hide-cookies').checked = s.hideCookies;
   el('fingerprint').checked = s.fingerprint;
@@ -973,7 +1050,9 @@ function load(s) {
 
   // Keep asking only while something is still starting up.
   var starting = s.scam === 'loading' || s.ads === 'loading' ||
-      s.update === 'starting';
+      s.update === 'starting' || s.userLists.some(function(l) {
+        return l.busy;
+      });
   if (starting && !pollTimer) {
     pollTimer = setInterval(function() {
       chrome.send('getProtection');
@@ -1070,6 +1149,11 @@ el('save-filters').addEventListener('click', function() {
   chrome.send('setCustomRules', [el('my-filters').value]);
 });
 
+el('add-user-list').addEventListener('click', function() {
+  el('user-list-status').textContent = 'Adding.';
+  chrome.send('addUserList', [el('user-list-address').value]);
+});
+
 el('memory-saver').addEventListener('change', function(e) {
   chrome.send('setMemorySaver', [e.target.checked]);
   say(e.target.checked ? 'Memory Saver on.' : 'Memory Saver off.');
@@ -1085,6 +1169,7 @@ document.querySelectorAll('input[name="memory-level"]').forEach(
 window.loadProtection = load;
 window.showLevel = showLevel;
 window.showFilterProblems = showFilterProblems;
+window.showUserListStatus = showUserListStatus;
 window.showNeverSleep = showNeverSleep;
 window.showRegional = showRegional;
 window.showOffSites = showOffSites;
@@ -1206,6 +1291,14 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     web_ui()->RegisterMessageCallback(
         "setConnection",
         base::BindRepeating(&ProtectionMessageHandler::HandleSetConnection,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "addUserList",
+        base::BindRepeating(&ProtectionMessageHandler::HandleAddUserList,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "removeUserList",
+        base::BindRepeating(&ProtectionMessageHandler::HandleRemoveUserList,
                             base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
         "setApp",
@@ -1883,6 +1976,47 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     }
   }
 
+  void HandleAddUserList(const base::ListValue& args) {
+    std::string problem = "Could not add the list.";
+    if (args.size() == 1 && args[0].is_string()) {
+      problem = AddUserList(web_ui()->GetWebContents()->GetBrowserContext(),
+                            args[0].GetString());
+    }
+    AllowJavascript();
+    web_ui()->CallJavascriptFunctionUnsafe("showUserListStatus",
+                                           base::Value(problem));
+    HandleGet(args);
+  }
+
+  void HandleRemoveUserList(const base::ListValue& args) {
+    if (args.size() == 1 && args[0].is_string()) {
+      RemoveUserList(web_ui()->GetWebContents()->GetBrowserContext(),
+                     args[0].GetString());
+    }
+    HandleGet(args);
+  }
+
+  // The lists added by address, as the page draws them.
+  base::ListValue UserListRows() {
+    base::ListValue rows;
+    int id = 0;
+    for (const UserListInfo& list : GetUserLists(
+             web_ui()->GetWebContents()->GetBrowserContext())) {
+      base::DictValue row;
+      row.Set("id", id++);
+      row.Set("url", list.url);
+      row.Set("host", list.host);
+      row.Set("updated",
+              list.updated.is_null()
+                  ? 0.0
+                  : list.updated.InMillisecondsFSinceUnixEpochIgnoringNull());
+      row.Set("error", list.error);
+      row.Set("busy", list.busy);
+      rows.Append(std::move(row));
+    }
+    return rows;
+  }
+
   void HandleSetConnection(const base::ListValue& args) {
     if (args.size() >= 2 && args[0].is_string() && args[1].is_bool()) {
       ApplyConnection(args[0].GetString(), args[1].GetBool());
@@ -1997,6 +2131,7 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     out.Set("offSites", OffSites());
     out.Set("webStore", WebStoreState());
     out.Set("connections", OwnConnections());
+    out.Set("userLists", UserListRows());
     out.Set("apps", AppRows());
     out.Set("ai", AiRowValue());
     out.Set("passwords", PasswordRowValue());

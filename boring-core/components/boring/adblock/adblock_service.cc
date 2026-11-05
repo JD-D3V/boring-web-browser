@@ -28,6 +28,7 @@
 #include "base/time/time.h"
 #include "base/values.h"
 #include "components/boring/adblock/adblock_ffi.h"
+#include "components/boring/adblock/custom_rules.h"
 #include "components/boring/core/boring_prefs.h"
 #include "components/boring/lists/list_paths.h"
 #include "components/prefs/pref_service.h"
@@ -267,9 +268,18 @@ scoped_refptr<ProfileLists> ProfileLists::ForContext(
   // page or a rule added by the element picker applies from the next
   // page load without anyone having to say so.
   if (prefs) {
+    if (!context->IsOffTheRecord()) {
+      MaybeRefreshUserLists(context);
+    }
     const std::string& custom = prefs->GetString(prefs::kBoringCustomRules);
-    if (holder->lists->NoteCustomRules(custom)) {
-      service->BuildCustomRules(holder->lists, custom);
+    // Lists the person added by address ride in the same engine, so the
+    // key says which copies it was built from as well as the rules.
+    UserListFiles user = GetUserListFiles(prefs, context->GetPath());
+    const std::string key =
+        user.key.empty() ? custom : base::StrCat({custom, "\n!user-lists\n", user.key});
+    if (holder->lists->NoteCustomRules(key)) {
+      service->BuildCustomRules(holder->lists, key, custom,
+                                std::move(user.paths));
     }
   }
   return holder->lists;
@@ -640,39 +650,61 @@ void AdblockService::LoadAggressive() {
 }
 
 void AdblockService::BuildCustomRules(scoped_refptr<ProfileLists> lists,
-                                      std::string text) {
+                                      std::string key,
+                                      std::string text,
+                                      std::vector<base::FilePath> files) {
   if (IsDisabled()) {
     return;
   }
   load_runner_->PostTask(
       FROM_HERE, base::BindOnce(&AdblockService::BuildCustomOnBackgroundThread,
                                 base::Unretained(this), std::move(lists),
-                                std::move(text)));
+                                std::move(key), std::move(text),
+                                std::move(files)));
 }
 
 void AdblockService::BuildCustomOnBackgroundThread(
     scoped_refptr<ProfileLists> lists,
-    std::string text) {
+    std::string key,
+    std::string text,
+    std::vector<base::FilePath> files) {
   const BoringLibrary* lib = GetBoringLibrary();
   scoped_refptr<AdblockEngine> engine;
-  if (lib && !base::TrimWhitespaceASCII(text, base::TRIM_ALL).empty()) {
+  // The downloaded lists first and the person's own rules last, so
+  // their exceptions answer everything above them.
+  std::vector<std::string> bodies;
+  for (const base::FilePath& file : files) {
+    std::string body;
+    if (base::ReadFileToStringWithMaxSize(file, &body, 8 * 1024 * 1024)) {
+      bodies.push_back(std::move(body));
+    }
+  }
+  if (!base::TrimWhitespaceASCII(text, base::TRIM_ALL).empty()) {
+    bodies.push_back(text);
+  }
+  if (lib && !bodies.empty()) {
     // For ##+js rules. Loaded here too in case this runs before the
     // first load has.
     LoadResources();
     // Standard permissions, never trusted: a rule copied from a web page
-    // must not be able to run a trusted scriptlet.
-    BoringAdblockList entry;
-    entry.text = reinterpret_cast<const unsigned char*>(text.data());
-    entry.len = text.size();
-    entry.trusted = 0;
-    if (void* handle = lib->adblock_new_lists(&entry, 1)) {
+    // or a list from the internet must not be able to run a trusted
+    // scriptlet.
+    std::vector<BoringAdblockList> entries;
+    for (const std::string& body : bodies) {
+      BoringAdblockList entry;
+      entry.text = reinterpret_cast<const unsigned char*>(body.data());
+      entry.len = body.size();
+      entry.trusted = 0;
+      entries.push_back(entry);
+    }
+    if (void* handle = lib->adblock_new_lists(entries.data(), entries.size())) {
       if (resources_) {
         lib->adblock_use_resources(handle, resources_);
       }
       engine = base::MakeRefCounted<AdblockEngine>(handle);
     }
   }
-  lists->SetCustomEngine(text, std::move(engine));
+  lists->SetCustomEngine(key, std::move(engine));
 }
 
 void AdblockService::WantLists(const EnabledLists& lists) {

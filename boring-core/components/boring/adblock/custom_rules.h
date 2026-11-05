@@ -8,6 +8,11 @@
 #include <string_view>
 #include <vector>
 
+#include "base/files/file_path.h"
+#include "base/time/time.h"
+
+class PrefService;
+
 namespace content {
 class BrowserContext;
 }
@@ -46,6 +51,48 @@ bool AddCustomRule(content::BrowserContext* context, std::string_view rule);
 // its own (the next page load picks it up); calling this after a change
 // just gets the new engine built sooner. UI thread.
 void ApplyCustomRules(content::BrowserContext* context);
+
+// Filter lists a person added by address (prefs::kBoringUserLists).
+// https only, fetched when added and then weekly, at most 5 MB each, no
+// cookies, no identifier. A list is read by the same parser as the rules
+// above and applied in the same engine, with standard permissions only.
+
+// One added list as the Protection page shows it.
+struct UserListInfo {
+  std::string url;
+  std::string host;
+  // When the copy in use was downloaded; null while there is none.
+  base::Time updated;
+  // A plain sentence about the last try that failed, empty when fine.
+  std::string error;
+  // A download is queued or running.
+  bool busy = false;
+};
+
+std::vector<UserListInfo> GetUserLists(content::BrowserContext* context);
+
+// Adds the list at `address` and starts downloading it. Returns an empty
+// string when it was added, else a plain sentence on why not (nothing is
+// changed then). UI thread.
+std::string AddUserList(content::BrowserContext* context,
+                        std::string_view address);
+
+// Removes the list and its downloaded copy, and stops using its rules.
+void RemoveUserList(content::BrowserContext* context, std::string_view url);
+
+// Downloads lists that are due: never finished, a week old, or a day
+// since a failed try. Does nothing when list updates are off. Cheap, so
+// it is called on every navigation. Not for incognito. UI thread.
+void MaybeRefreshUserLists(content::BrowserContext* context);
+
+// What the engine is built from: the downloaded copies in use, and a key
+// that changes whenever any of them does ("" when there are none).
+struct UserListFiles {
+  std::string key;
+  std::vector<base::FilePath> paths;
+};
+UserListFiles GetUserListFiles(const PrefService* prefs,
+                               const base::FilePath& profile_dir);
 
 }  // namespace boring
 

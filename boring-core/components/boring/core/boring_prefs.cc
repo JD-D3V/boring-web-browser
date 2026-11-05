@@ -43,6 +43,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterListPref(prefs::kBoringRegionalLists);
   registry->RegisterIntegerPref(prefs::kBoringBlockingLevel, 0);
   registry->RegisterStringPref(prefs::kBoringCustomRules, std::string());
+  registry->RegisterListPref(prefs::kBoringUserLists);
   registry->RegisterListPref(prefs::kBoringNeverSleepSites);
   // No sync flag: a program on this computer is not a choice for the
   // person's other devices.

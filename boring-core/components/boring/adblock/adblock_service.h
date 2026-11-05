@@ -89,8 +89,9 @@ class ProfileLists : public base::RefCountedThreadSafe<ProfileLists> {
   EnabledLists Get() const;
   void Set(EnabledLists lists);
 
-  // Notes the custom rules text the prefs hold now. True when it differs
-  // from the last text noted, meaning the engine must be built again.
+  // Notes the custom rules key (their text plus the user lists in use)
+  // the prefs hold now. True when it differs from the last one noted,
+  // meaning the engine must be built again.
   bool NoteCustomRules(const std::string& text);
   // Puts in the engine built from `text`, unless the rules changed again
   // while it was being built. Null for no rules.
@@ -211,9 +212,14 @@ class AdblockService {
       const std::vector<std::string>& exceptions,
       const EnabledLists& lists);
 
-  // Builds `lists`' custom rules engine from `text` in the background
-  // and hands it to them when done. Empty text clears it.
-  void BuildCustomRules(scoped_refptr<ProfileLists> lists, std::string text);
+  // Builds `lists`' custom rules engine in the background from the
+  // downloaded user lists in `files` and then `text`, and hands it to
+  // them when done. `key` says which build this is. Nothing to read
+  // clears the engine.
+  void BuildCustomRules(scoped_refptr<ProfileLists> lists,
+                        std::string key,
+                        std::string text,
+                        std::vector<base::FilePath> files);
 
   // Maps a fetch destination to the filter list request type name.
   static const char* RequestTypeFromDestination(
@@ -241,7 +247,9 @@ class AdblockService {
   void LoadRegional(const std::string& id);
   void LoadAggressive();
   void BuildCustomOnBackgroundThread(scoped_refptr<ProfileLists> lists,
-                                     std::string text);
+                                     std::string key,
+                                     std::string text,
+                                     std::vector<base::FilePath> files);
 
   // Builds one engine from the lists given, or returns null. Reads the
   // files and records what it read in `sources`. Loads the engine from
