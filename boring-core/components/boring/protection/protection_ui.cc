@@ -830,6 +830,9 @@ function showFolderPreview(changes) {
       apply.id = 'folder-apply';
       apply.textContent = 'Change them';
       apply.addEventListener('click', function() {
+        // The rest of the page follows what was just applied, filter
+        // rules box included.
+        filtersLoaded = false;
         chrome.send('applyFolderSettings', []);
       });
       actions.append(apply, folderButton('folder-skip', 'Leave them',
@@ -1892,6 +1895,10 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     if (folder_copy::FolderCopy* folder = Folder()) {
       folder->ApplyPending();
     }
+    // New filter rules get their engine now rather than at the next page.
+    ApplyCustomRules(web_ui()->GetWebContents()->GetBrowserContext());
+    // The switches above changed too.
+    HandleGet(args);
   }
 
   void HandleSkipFolderSettings(const base::ListValue& args) {
