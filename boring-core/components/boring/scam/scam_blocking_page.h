@@ -17,6 +17,9 @@ namespace boring {
 // The full page warning wall shown before a known scam or phishing site
 // loads. Plain language, one safe way out, and a small continue link
 // that "No way past scam warnings" removes.
+//
+// The same wall is shown for a site Quad9 refused to look up (see
+// Quad9BlockThrottle), with its own words and never a continue link.
 class ScamBlockingPage
     : public security_interstitials::SecurityInterstitialPage {
  public:
@@ -26,6 +29,9 @@ class ScamBlockingPage
   static std::unique_ptr<ScamBlockingPage> Create(
       content::WebContents* web_contents,
       const GURL& request_url);
+  static std::unique_ptr<ScamBlockingPage> CreateForQuad9Block(
+      content::WebContents* web_contents,
+      const GURL& request_url);
 
   ScamBlockingPage(
       content::WebContents* web_contents,
@@ -33,7 +39,8 @@ class ScamBlockingPage
       bool no_bypass,
       std::unique_ptr<
           security_interstitials::SecurityInterstitialControllerClient>
-          controller);
+          controller,
+      bool quad9_block = false);
   ~ScamBlockingPage() override;
 
   // security_interstitials::SecurityInterstitialPage:
@@ -47,6 +54,7 @@ class ScamBlockingPage
 
  private:
   const bool no_bypass_;
+  const bool quad9_block_;
 };
 
 }  // namespace boring

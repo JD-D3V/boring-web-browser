@@ -207,6 +207,13 @@ def main():
                     b.run(f"({CONTINUE}).click()")
                     check("Continue anyway opens the site", wait_for(b, "!!document.getElementById('ok')", 10000), b.current_url())
                     check_switch(b, check)
+                    # The click-through above was made before the switch was
+                    # on, in this same session. The switch clears it.
+                    open_url(b, f"http://{LISTED}:{pages.port}/")
+                    check(
+                        "turning the switch on clears an earlier Continue anyway",
+                        wait_for(b, "document.body && document.body.innerText.includes('This site may be a scam')"),
+                    )
                 check("the switch is stored for the warning page", stored_pref(profile) is True, repr(stored_pref(profile)))
 
                 # Same profile, switch on: "No way past scam warnings".

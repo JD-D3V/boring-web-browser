@@ -136,6 +136,128 @@ NEVER_BLOCK = frozenset(
 )
 
 
+# The public suffix list that ships inside Chromium. An entry that is itself
+# a public suffix (co.uk, com.pl, github.io) is not a site, and the browser
+# blocks a listed host and every name under it, so one such line would block
+# every site below it. It is read from the source tree, so a missing file
+# stops the build rather than skipping the check.
+PUBLIC_SUFFIX_FILE = os.path.join(
+    os.environ.get("BORING_SRC", r"E:\ung-154\build\src"),
+    "net",
+    "base",
+    "registry_controlled_domains",
+    "effective_tld_names.dat",
+)
+
+# A feed has no reason to hold more than a stray suffix. More than this and
+# the source is refused as a whole, like any other bad download.
+MAX_SUFFIX_DROPS = 5
+
+
+def load_public_suffixes() -> tuple[set[str], set[str], set[str]]:
+    """The plain, wildcard (*.x) and exception (!x) rules, as ASCII names."""
+    plain: set[str] = set()
+    wild: set[str] = set()
+    exceptions: set[str] = set()
+    with open(PUBLIC_SUFFIX_FILE, encoding="utf-8") as f:
+        for line in f:
+            rule = line.split()[0].lower() if line.strip() else ""
+            if not rule or rule.startswith("//"):
+                continue
+            try:
+                rule = rule.encode("idna").decode("ascii")
+            except UnicodeError:
+                pass
+            if rule.startswith("!"):
+                exceptions.add(rule[1:])
+            elif rule.startswith("*."):
+                wild.add(rule[2:])
+            else:
+                plain.add(rule)
+    if "com" not in plain or "co.uk" not in plain:
+        raise FeedError(f"{PUBLIC_SUFFIX_FILE} does not look like the suffix list")
+    return plain, wild, exceptions
+
+
+def drop_public_suffixes(hosts: set[str]) -> tuple[set[str], set[str]]:
+    """Splits hosts into (kept, dropped), dropping the public suffixes."""
+    plain, wild, exceptions = load_public_suffixes()
+    dropped = set()
+    for host in hosts:
+        h = host.rstrip(".")
+        if h in exceptions:
+            continue
+        parent = h.split(".", 1)[1] if "." in h else ""
+        if h in plain or parent in wild:
+            dropped.add(host)
+    return hosts - dropped, dropped
+
+
+# The sites people use most, and the brands scammers copy. No feed line may
+# put one of these behind a scam warning: the browser blocks a listed host and
+# every name under it, with no way past when "No way past scam warnings" is
+# on. The top list ships inside Chromium (read from the source tree, so a
+# missing file stops the build); the brand names are our own.
+TOP_DOMAINS_FILE = os.path.join(
+    os.environ.get("BORING_SRC", r"E:\ung-154\build\src"),
+    "components",
+    "url_formatter",
+    "spoof_checks",
+    "top_domains",
+    "domains.list",
+)
+BRANDS_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "components",
+    "boring",
+    "scam",
+    "lookalike_brands.inc",
+)
+
+# Like MAX_SUFFIX_DROPS: a feed with more popular sites than this is refused.
+MAX_POPULAR_DROPS = 5
+
+
+def load_popular_sites() -> set[str]:
+    sites: set[str] = set()
+    with open(TOP_DOMAINS_FILE, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip().lower()
+            if line and not line.startswith("#"):
+                sites.add(line)
+    if "google.com" not in sites:
+        raise FeedError(f"{TOP_DOMAINS_FILE} does not look like the top sites list")
+    with open(BRANDS_FILE, encoding="utf-8") as f:
+        sites.update(re.findall(r'^\{"[a-z0-9]+", "([a-z0-9.-]+)"\}', f.read(), re.M))
+    return sites
+
+
+def registrable_domain(host: str, plain, wild, exceptions) -> str:
+    """The name a person can register under the suffix rules, or ''."""
+    labels = host.rstrip(".").split(".")
+    for i in range(len(labels)):
+        candidate = ".".join(labels[i:])
+        parent = ".".join(labels[i + 1:])
+        if candidate in exceptions:
+            return candidate
+        if candidate in plain or parent in wild:
+            return ".".join(labels[i - 1:]) if i > 0 else ""
+    return ".".join(labels[-2:]) if len(labels) > 1 else ""
+
+
+def drop_popular_sites(hosts: set[str]) -> tuple[set[str], set[str]]:
+    """Splits hosts into (kept, dropped), dropping a popular site and any
+    name under it. A name under a public suffix such as github.io is its own
+    site and stays."""
+    plain, wild, exceptions = load_public_suffixes()
+    popular = load_popular_sites()
+    dropped = {
+        h for h in hosts
+        if registrable_domain(h, plain, wild, exceptions) in popular
+    }
+    return hosts - dropped, dropped
+
+
 def parse_hostfile(text: str) -> set[str]:
     """The hosts a hostfile blocks. FeedError if it is not a hostfile."""
     lines = text.splitlines()
@@ -296,6 +418,17 @@ def _collect(name: str, url: str, parse, fetch_fn) -> tuple[SourceStatus, set[st
     # figure is real coverage too.
     hosts -= set(TEST_HOSTS)
     hosts -= NEVER_BLOCK
+    hosts, suffixes = drop_public_suffixes(hosts)
+    if len(suffixes) > MAX_SUFFIX_DROPS:
+        status.reason = f"{len(suffixes)} entries are public suffixes"
+        return status, set()
+
+    hosts, popular = drop_popular_sites(hosts)
+    if popular:
+        print(f"{name}: dropped popular sites: {sorted(popular)[:20]}", file=sys.stderr)
+    if len(popular) > MAX_POPULAR_DROPS:
+        status.reason = f"{len(popular)} entries are popular sites"
+        return status, set()
 
     if len(hosts) < MIN_SOURCE_HOSTS:
         status.entries = len(hosts)

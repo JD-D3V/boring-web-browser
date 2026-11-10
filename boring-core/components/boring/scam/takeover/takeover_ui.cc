@@ -80,7 +80,13 @@ installed and nothing is broken.</p>
 
 constexpr char kScript[] = R"SCRIPT(
 var site = new URLSearchParams(location.search).get('site');
-if (site) {
+// Shown only when it is a host name or an address, so a typed-in address
+// cannot put its own words under the heading.
+var isHost = /^[a-z0-9.-]+$|^\[[0-9a-f:.]+\]$/i;
+var isAddress = /^\d{1,3}(\.\d{1,3}){3}$|^\[[0-9a-f:.]+\]$/i;
+// A name with a phone number's worth of digits reads as one under the heading.
+var phoneLike = site && site.replace(/\D/g, '').length >= 7 && !isAddress.test(site);
+if (site && site.length <= 253 && isHost.test(site) && !phoneLike) {
   var el = document.getElementById('site');
   el.textContent = 'The page was on ' + site;
   el.hidden = false;

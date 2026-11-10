@@ -69,6 +69,9 @@ void AllowLookalike(content::BrowserContext* context,
                     const std::string& domain);
 bool IsLookalikeAllowed(content::BrowserContext* context,
                         const std::string& domain);
+// Takes a remembered "Continue anyway" back, for "Forget this site".
+void ForgetLookalike(content::BrowserContext* context,
+                     const std::string& domain);
 
 }  // namespace boring
 

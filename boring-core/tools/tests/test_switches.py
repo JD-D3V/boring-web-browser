@@ -114,6 +114,25 @@ class MigrationTest(unittest.TestCase):
             )
 
 
+class EveryPrefHasASwitchTest(unittest.TestCase):
+    # Not set by a handler here: bookkeeping the browser keeps itself, or
+    # a pref the folder copy service sets on the page's behalf.
+    INTERNAL = {"kNativeHostsDecided", "kBoringFolderCopyArmed"}
+
+    def test_every_yes_or_no_pref_is_set_from_the_protection_page(self):
+        registered = re.findall(
+            r"RegisterBooleanPref\(prefs::(k\w+),", read(PREFS_CC)
+        )
+        self.assertGreaterEqual(len(registered), 9)
+        page = read(PROTECTION)
+        for pref in registered:
+            if pref in self.INTERNAL:
+                continue
+            self.assertRegex(
+                page, rf"SetBoolean\(prefs::{pref},", f"no switch handler for {pref}"
+            )
+
+
 class PagesTest(unittest.TestCase):
     def test_protection_page_has_the_three_switches_with_their_lines(self):
         text = flat(read(PROTECTION))

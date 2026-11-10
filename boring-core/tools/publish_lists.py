@@ -22,10 +22,11 @@ ignores a resources file in a bundle. Names are flat because a release
 keeps its files in one folder; the browser maps regional-* into its
 regional folder.
 
-No scam blocklist is published. No feed we use grants permission to
-redistribute its data this way, so v1 ships and publishes none; see
-get_scamlist.py. The browser refuses a scam list offered by an update
-feed for the same reason. The browser reads the manifest, checks the
+The scam blocklist (scamlist.txt) is built by get_scamlist.py from the
+two feeds whose terms allow passing them on, and published with its
+notice (NOTICES-scam-blocklist.txt). It is host names, not filter rules,
+so the engine check skips it; the coverage floors below still apply. The
+browser reads the manifest, checks the
 signature, compares it with what it already has, and downloads only the
 files that changed.
 
@@ -101,7 +102,9 @@ from get_filterlists import (
     regional_index,
     utc_stamp,
 )
-from get_scamlist import count_real_hosts
+from get_scamlist import NOTICE_NAME as SCAM_NOTICE_NAME
+from get_scamlist import build_scam_list, count_real_hosts
+from get_scamlist import notice_text as scam_notice_text
 
 # The version is days since this date, which keeps it going up on its
 # own without anything having to remember the last one.
@@ -155,8 +158,10 @@ class Policy:
     degraded_shrink_floor: float
 
 
-# Not published, and kept only so a previous bundle that still holds a
-# scamlist.txt can be read and counted correctly.
+# The scam list, published whole or not at all like the others. The
+# floors below were set from the first two feeds (URLhaus, OpenPhish);
+# CERT Polska is far larger and DurableNapkin small, so recheck them
+# against the real feeds before the first run that publishes it.
 SCAM_POLICY = Policy(
     name="scamlist.txt",
     # The smaller of the two scam feeds held 234 hosts, so one healthy
@@ -628,9 +633,8 @@ def bundle_notice(build: ListBuild, fetched_at: str, texts: dict[str, str]) -> s
 def build_bundle(args, fetch_filters, fetch_scam=None) -> int:
     """Builds, validates and publishes. Raises RefusedError to stop.
 
-    fetch_scam is accepted and ignored: no scam list is published, and
-    keeping the parameter means a caller that still passes one gets the
-    same refusal rather than a TypeError.
+    fetch_scam fetches the scam feeds; without one the filter fetch is
+    used.
     """
     previous_dir = args.previous or args.out
     previous = read_previous(previous_dir)
@@ -641,6 +645,14 @@ def build_bundle(args, fetch_filters, fetch_scam=None) -> int:
         FILTER_POLICY,
         filters,
         previous_entries(previous, previous_dir, FILTER_POLICY.name),
+    )
+
+    scam = build_scam_list(fetch=fetch_scam or fetch_filters)
+    print_statuses(SCAM_POLICY.name, scam)
+    check_coverage(
+        SCAM_POLICY,
+        scam,
+        previous_entries(previous, previous_dir, SCAM_POLICY.name),
     )
 
     builds = build_outputs(fetch_filters, previous, previous_dir)
@@ -659,7 +671,7 @@ def build_bundle(args, fetch_filters, fetch_scam=None) -> int:
             "the browser would ignore it. Check the clock, or pass --version."
         )
 
-    degraded = filters.degraded
+    degraded = filters.degraded or scam.degraded
     fetched_at = utc_stamp(datetime.datetime.now(datetime.UTC))
 
     work = tempfile.mkdtemp(prefix="boring-lists-")
@@ -695,6 +707,8 @@ def build_bundle(args, fetch_filters, fetch_scam=None) -> int:
                 f"{entry['entries']} rules"
             )
 
+        # Host names, not rules: the engine has nothing to say about them.
+        files.append(write_file(staging, SCAM_POLICY.name, scam.text, scam.entries))
         files.append(
             write_file(
                 staging,
@@ -717,6 +731,11 @@ def build_bundle(args, fetch_filters, fetch_scam=None) -> int:
             ) as f:
                 f.write(bundle_notice(build, fetched_at, texts))
             notices.append(build.output.notice)
+        with open(
+            os.path.join(staging, SCAM_NOTICE_NAME), "w", encoding="utf-8", newline="\n"
+        ) as f:
+            f.write(scam_notice_text(fetched_at))
+        notices.append(SCAM_NOTICE_NAME)
 
         manifest = {
             "version": version,
@@ -726,6 +745,7 @@ def build_bundle(args, fetch_filters, fetch_scam=None) -> int:
             "notices": notices,
             "sources": [
                 *source_rows(FILTER_POLICY, filters),
+                *source_rows(SCAM_POLICY, scam),
                 *(
                     row
                     for build in builds

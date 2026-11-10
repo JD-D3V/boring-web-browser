@@ -31,7 +31,8 @@ class BookmarkModel;
 namespace boring::folder_copy {
 
 // Test only: the folder to copy into, in place of the picker, which a
-// test cannot drive.
+// test cannot drive. Used for one run, and only for a folder under the
+// system temp directory. Not saved.
 inline constexpr char kFolderCopyDirSwitch[] = "boring-folder-copy-dir";
 
 inline constexpr char kBookmarksFileName[] = "bookmarks.html";
@@ -89,6 +90,9 @@ class FolderCopy : public base::SupportsUserData::Data,
   void Notify();
   bool Armed() const;
   void Arm();
+  void SetArmed(bool armed);
+  // Starts the copy for dir, whether it came from the page or the switch.
+  void Restart(const base::FilePath& dir);
   void ScheduleWrite(base::TimeDelta delay);
   void OnSettingChanged();
   void WriteNow();
@@ -125,6 +129,9 @@ class FolderCopy : public base::SupportsUserData::Data,
   base::DictValue pending_;
   std::string settings_note_;
   base::FilePath loading_dir_;
+  // From the test switch, for this run only. Never written to prefs.
+  base::FilePath test_dir_;
+  bool test_armed_ = false;
 
   base::WeakPtrFactory<FolderCopy> weak_factory_{this};
 };

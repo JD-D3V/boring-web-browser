@@ -18,7 +18,7 @@ inline constexpr char kConnectionsJson[] = R"json({
       "id": "secure_dns",
       "label": "Secure DNS",
       "hosts": ["dns.quad9.net"],
-      "why": "Looks up site addresses privately. Also blocks known scam sites.",
+      "why": "Looks up site addresses privately. Also blocks known scam sites. A site that cannot be found is asked about once more, to tell a blocked one from a typo.",
       "off_note": "With this off, scam blocking gets weaker.",
       "switch": {
         "kind": "local_state",
@@ -29,6 +29,8 @@ inline constexpr char kConnectionsJson[] = R"json({
       "scenario": "idle",
       "code": [
         "chromium_src/chrome/browser/boring/privacy_bridge.cc",
+        "components/boring/scam/quad9_block_checker.cc",
+        "components/boring/scam/quad9_block_checker.h",
         "patches/154/privacy-defaults.patch",
         "patches/privacy-defaults.patch"
       ]

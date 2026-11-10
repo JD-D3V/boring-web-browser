@@ -81,6 +81,10 @@ def hostfile_bytes(count: int = 300, start: int = 0) -> bytes:
     return "\n".join(lines).encode("utf-8")
 
 
+def cert_bytes(count: int = 20_500) -> bytes:
+    return "".join(f"cert{i:06d}.example.invalid\n" for i in range(count)).encode()
+
+
 def url_feed_bytes(count: int = 150, start: int = 90000) -> bytes:
     return "".join(
         f"https://phish{i:05d}.example.invalid/login\n"
@@ -169,6 +173,8 @@ def healthy_answers() -> dict:
         EASYPRIVACY_URL: filter_bytes(tag="b"),
         URLHAUS_URL: hostfile_bytes(),
         OPENPHISH_URL: url_feed_bytes(),
+        get_scamlist.CERT_URL: cert_bytes(),
+        get_scamlist.DURABLENAPKIN_URL: hostfile_bytes(count=300, start=70000),
         **output_answers(*publish_lists.BUNDLED_OUTPUTS),
         get_filterlists.GPL3_UASSETS.text_url: GPL_TEXT,
         get_filterlists.GPL3_ADGUARD.text_url: GPL_TEXT,
@@ -474,6 +480,7 @@ class PublishPath(unittest.TestCase):
                 "regional-zh.txt",
                 "regional-ru.txt",
                 "regional-index.json",
+                "scamlist.txt",
             },
         )
 
@@ -484,23 +491,80 @@ class PublishPath(unittest.TestCase):
             self.assertEqual(hashlib.sha256(data).hexdigest(), entry["sha256"])
 
         # EasyList, EasyPrivacy, the four uAssets lists, the cookie list,
-        # uBO Annoyances, three Fanboy lists and seven regional lists.
-        self.assertEqual(len(manifest["sources"]), 18)
+        # uBO Annoyances, three Fanboy lists, seven regional lists and
+        # the two scam feeds.
+        self.assertEqual(len(manifest["sources"]), 20)
         self.assertTrue(all(s["ok"] for s in manifest["sources"]))
         self.assertIn("without a signature", log)
 
-    def test_no_scam_list_is_published_in_the_lists_release(self):
-        # The lists release does not carry a scam list yet: it is built
-        # into the installer by get_scamlist.py. The fetch here would
-        # answer for the old feeds, which are not cleared at all, so
-        # none of that may end up in the bundle or in the manifest.
+    def test_the_scam_list_travels_in_the_bundle_with_its_notice(self):
         code, _ = self.run_publish(healthy_answers(), extra=["--version", "500"])
         self.assertEqual(code, 0)
-        self.assertFalse(os.path.exists(os.path.join(self.out, "scamlist.txt")))
         manifest = self.read_manifest()
-        self.assertNotIn("scamlist.txt", [f["name"] for f in manifest["files"]])
-        self.assertNotIn("scamlist.txt", [s["list"] for s in manifest["sources"]])
+        entry = next(f for f in manifest["files"] if f["name"] == "scamlist.txt")
+        with open(os.path.join(self.out, "scamlist.txt"), encoding="utf-8") as f:
+            text = f.read()
+        # 20,500 CERT hosts and 300 DurableNapkin hosts; the test entry
+        # below the marker is not counted.
+        self.assertEqual(entry["entries"], 20_800)
+        self.assertEqual(get_scamlist.count_real_hosts(text), 20_800)
+        self.assertEqual(entry["size"], len(text.encode("utf-8")))
+        self.assertIn(get_scamlist.TEST_MARKER, text)
+        self.assertEqual(
+            {s["name"] for s in manifest["sources"] if s["list"] == "scamlist.txt"},
+            {"cert-polska", "durablenapkin"},
+        )
+        self.assertIn(get_scamlist.NOTICE_NAME, manifest["notices"])
+        self.assertTrue(os.path.exists(os.path.join(self.out, get_scamlist.NOTICE_NAME)))
+
+    def test_feeds_that_may_not_be_passed_on_never_reach_the_bundle(self):
+        code, _ = self.run_publish(healthy_answers(), extra=["--version", "500"])
+        self.assertEqual(code, 0)
+        manifest = self.read_manifest()
         self.assertNotIn("urlhaus", [s["name"] for s in manifest["sources"]])
+        self.assertNotIn("openphish", [s["name"] for s in manifest["sources"]])
+        with open(os.path.join(self.out, "scamlist.txt"), encoding="utf-8") as f:
+            self.assertNotIn("host00000.example.invalid", f.read().split("# ---")[0])
+
+    def test_the_engine_is_not_asked_to_read_the_scam_list(self):
+        seen = []
+
+        def check(files, errors_in=None):
+            seen.extend(os.path.basename(path) for path, _trusted in files)
+            return stub_check(files, errors_in)
+
+        code, _ = self.run_publish(
+            healthy_answers(), extra=["--version", "500"], check=check
+        )
+        self.assertEqual(code, 0)
+        self.assertNotIn("scamlist.txt", seen)
+
+    def test_one_scam_feed_down_publishes_a_degraded_bundle(self):
+        answers = healthy_answers()
+        answers[get_scamlist.CERT_URL] = FeedError("HTTP 503")
+        code, _ = self.run_publish(answers, extra=["--version", "500"])
+        self.assertEqual(code, 0)
+        self.assertTrue(self.read_manifest()["degraded"])
+
+    def test_every_scam_feed_down_refuses_and_keeps_the_old_bundle(self):
+        before = self.seed_previous()
+        answers = healthy_answers()
+        answers[get_scamlist.CERT_URL] = FeedError("HTTP 503")
+        answers[get_scamlist.DURABLENAPKIN_URL] = FeedError("HTTP 503")
+        code, log = self.run_publish(answers, extra=["--version", "101"])
+        self.assertEqual(code, 1)
+        self.assertIn("scamlist.txt", log)
+        self.assertEqual(snapshot(self.out), before)
+
+    def test_a_scam_list_that_shrinks_too_far_refuses_the_run(self):
+        before = self.seed_previous()
+        answers = healthy_answers()
+        answers[get_scamlist.CERT_URL] = FeedError("HTTP 503")
+        answers[get_scamlist.DURABLENAPKIN_URL] = hostfile_bytes(count=60, start=70000)
+        code, log = self.run_publish(answers, extra=["--version", "101"])
+        self.assertEqual(code, 1)
+        self.assertIn("scamlist.txt", log)
+        self.assertEqual(snapshot(self.out), before)
 
     def test_every_filter_source_down_refuses_and_keeps_the_old_bundle(self):
         before = self.seed_previous()

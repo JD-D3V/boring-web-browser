@@ -142,3 +142,21 @@
          return WebGLAny(script_state,
                          String(ContextGL()->GetString(GL_VENDOR)));
        }
+--- a/third_party/blink/renderer/modules/webgpu/gpu_adapter.cc
++++ b/third_party/blink/renderer/modules/webgpu/gpu_adapter.cc
+@@ -144,9 +144,14 @@
+       info->AppendMemoryHeapInfo(MakeGarbageCollected<GPUMemoryHeapInfo>(m));
+     }
+   } else {
++    // boring: no GPU maker or family while the fingerprint switch is on.
++    const bool generic =
++        RuntimeEnabledFeatures::FingerprintingClientRectsNoiseEnabled();
+     info = MakeGarbageCollected<GPUAdapterInfo>(
+-        vendor_, architecture_, subgroup_min_size_, subgroup_max_size_,
++        generic ? g_empty_string : vendor_,
++        generic ? g_empty_string : architecture_,
++        subgroup_min_size_, subgroup_max_size_,
+         is_fallback_adapter);
+   }
+
+   // SAFETY: Required from caller

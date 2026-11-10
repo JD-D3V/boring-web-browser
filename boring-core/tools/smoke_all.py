@@ -56,6 +56,7 @@ CHECKS = [
     ("Protection page connections", "smoke_connections.py"),
     ("Protection page apps you added", "smoke_apps_rows.py"),
     ("look-alike address warning", "smoke_lookalike.py"),
+    ("warning for sites Quad9 blocks", "smoke_dns_warning.py"),
     ("small fixes (settings links, continue anyway)", "smoke_small_batch.py"),
     ("scam tricks guards", "smoke_scam_guards.py"),
     ("phone number banner", "smoke_phone_banner.py"),

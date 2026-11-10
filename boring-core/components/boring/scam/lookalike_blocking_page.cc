@@ -137,6 +137,18 @@ void AllowLookalike(content::BrowserContext* context,
   }
 }
 
+void ForgetLookalike(content::BrowserContext* context,
+                     const std::string& domain) {
+  if (AllowedDomains* allowed = GetAllowedDomains(context, /*create=*/false)) {
+    allowed->domains.erase(domain);
+  }
+  if (PrefService* prefs = RememberingPrefs(context)) {
+    ScopedListPrefUpdate update(prefs, prefs::kLookalikeAllowedSites);
+    update->EraseValue(base::Value(domain));
+    prefs->CommitPendingWrite();
+  }
+}
+
 bool IsLookalikeAllowed(content::BrowserContext* context,
                         const std::string& domain) {
   // "No way past scam warnings" wins over anything remembered.

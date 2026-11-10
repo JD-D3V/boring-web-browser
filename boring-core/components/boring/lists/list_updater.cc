@@ -526,8 +526,10 @@ void ListUpdater::ApplyManifest() {
     return;
   }
   // The publisher only ever counts up, so a manifest older than the one
-  // already applied is a stale copy and must not walk us backwards.
-  if (*version < local_.version) {
+  // already applied is a stale copy and must not walk us backwards. An equal
+  // one is refused too: the version is a day number, so two bundles of one
+  // day share it, and whoever hosts the files could swap one for the other.
+  if (*version <= local_.version) {
     FinishWith(kOutcomeStale);
     return;
   }

@@ -16,6 +16,7 @@
 #include "components/infobars/core/infobar.h"
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/web_contents.h"
+#include "net/base/url_util.h"
 
 namespace boring {
 namespace guards {
@@ -25,7 +26,8 @@ namespace {
 // Test hook, like --boring-open-app-menu: answers a question bar by
 // itself two seconds after it appears, so a smoke test can follow both
 // answers without sending input to the desktop. "safe" or "risk". Does
-// nothing unless the switch is given.
+// nothing unless the switch is given, and then only for a tab that is on
+// localhost, so a switch on a shortcut cannot answer for a real site.
 constexpr char kTestAnswerSwitch[] = "boring-guards-test-answer";
 constexpr base::TimeDelta kTestAnswerDelay = base::Seconds(2);
 
@@ -66,7 +68,11 @@ base::WeakPtr<GuardInfoBarDelegate> GuardInfoBarDelegate::Show(
   manager->AddInfoBar(CreateConfirmInfoBar(std::move(delegate)));
 
   const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
-  if (weak && question && command_line->HasSwitch(kTestAnswerSwitch)) {
+  if (weak && question && command_line->HasSwitch(kTestAnswerSwitch) &&
+      net::IsLocalhost(web_contents->GetLastCommittedURL()) &&
+      // An error page commits with the URL that failed, so a real site could
+      // send the tab to http://127.0.0.1:1/ and borrow this answer.
+      !web_contents->GetPrimaryMainFrame()->IsErrorDocument()) {
     const bool safe =
         command_line->GetSwitchValueASCII(kTestAnswerSwitch) != "risk";
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(

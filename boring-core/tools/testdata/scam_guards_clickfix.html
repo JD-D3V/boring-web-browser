@@ -6,6 +6,7 @@
        command    a PowerShell one-liner, with writeText
        exec       the same, through execCommand("copy")
        fullscreen the first click goes fullscreen, the second copies the command
+       padded     the same command behind 70 KB of blank lines
        ordinary   a plain sentence
        docs       an npm command, as a developer docs site would offer
      The title says how it went: wrote, or error:<name>. -->
@@ -23,6 +24,7 @@
     command: COMMAND,
     exec: COMMAND,
     fullscreen: COMMAND,
+    padded: new Array(70 * 1024).join('\n') + COMMAND,
     ordinary: 'See you at 5pm, bring the report',
     docs: 'npm install --save-dev typescript'
   };

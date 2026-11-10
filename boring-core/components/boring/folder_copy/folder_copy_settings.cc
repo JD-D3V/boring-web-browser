@@ -3,12 +3,14 @@
 #include "components/boring/folder_copy/folder_copy_settings.h"
 
 #include <algorithm>
+#include <set>
 #include <string>
 #include <utility>
 
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/string_util.h"
 #include "components/boring/ai/ai_prefs.h"
 #include "components/boring/core/boring_prefs.h"
 #include "components/boring/lists/list_paths.h"
@@ -161,6 +163,43 @@ std::string Describe(const Setting& setting, const base::Value& value) {
   return std::string();
 }
 
+// New filter rules that change what a site gets. kException switches
+// blocking off: a network exception (@@) or a cosmetic or scriptlet
+// exception (#@#). kCosmetic hides parts of a page or injects a script (##,
+// ##+js). Only lines that are new count.
+enum class Added { kNothing, kException, kCosmetic };
+
+Added AddsException(const std::string& from, const std::string& to) {
+  auto lines = [](const std::string& text) {
+    std::set<std::string> out;
+    size_t start = 0;
+    while (start <= text.size()) {
+      size_t end = text.find('\n', start);
+      if (end == std::string::npos) {
+        end = text.size();
+      }
+      out.insert(std::string(base::TrimWhitespaceASCII(
+          text.substr(start, end - start), base::TRIM_ALL)));
+      start = end + 1;
+    }
+    return out;
+  };
+  const std::set<std::string> old_lines = lines(from);
+  Added result = Added::kNothing;
+  for (const std::string& line : lines(to)) {
+    if (old_lines.count(line)) {
+      continue;
+    }
+    if (line.rfind("@@", 0) == 0 || line.find("#@") != std::string::npos) {
+      return Added::kException;
+    }
+    if (line.find("##") != std::string::npos) {
+      result = Added::kCosmetic;
+    }
+  }
+  return result;
+}
+
 bool Weakens(const Setting& setting,
              const base::Value& from,
              const base::Value& to) {
@@ -169,6 +208,10 @@ bool Weakens(const Setting& setting,
   }
   if (setting.kind == Kind::kLevel) {
     return from.GetInt() == 1 && to.GetInt() == 0;
+  }
+  if (setting.kind == Kind::kText) {
+    return AddsException(from.GetString(), to.GetString()) !=
+           Added::kNothing;
   }
   return false;
 }
@@ -242,6 +285,13 @@ std::vector<SettingChange> DiffSettings(const PrefService* prefs,
     change.from = Describe(*setting, *pref->GetValue());
     change.to = Describe(*setting, value);
     change.weakens = Weakens(*setting, *pref->GetValue(), value);
+    if (setting->kind == Kind::kText && change.weakens) {
+      change.to +=
+          AddsException(pref->GetValue()->GetString(), value.GetString()) ==
+                  Added::kException
+              ? ", and some turn blocking off for certain sites"
+              : ", and some change how certain sites look or act";
+    }
     changes.push_back(std::move(change));
   }
   std::stable_sort(changes.begin(), changes.end(),
