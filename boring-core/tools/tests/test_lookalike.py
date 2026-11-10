@@ -292,5 +292,17 @@ class LookalikeMatcher(unittest.TestCase):
         self.assertEqual(flagged, [])
 
 
+class AllowListIsWrittenAtOnce(unittest.TestCase):
+    def test_continue_anyway_commits_the_pref_write(self):
+        path = os.path.join(SCAM, "lookalike_blocking_page.cc")
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+        body = text[text.index("void AllowLookalike(") :]
+        body = body[: body.index("\n}\n")]
+        self.assertIn("prefs::kLookalikeAllowedSites", body)
+        # Closing the browser right after the click must not lose it.
+        self.assertIn("prefs->CommitPendingWrite();", body)
+
+
 if __name__ == "__main__":
     unittest.main()
