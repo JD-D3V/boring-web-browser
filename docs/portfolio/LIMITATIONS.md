@@ -44,9 +44,12 @@ Scam Blocklist. CERT Polska's list is aimed at Polish users, so coverage is
 thin elsewhere. The list changes only with a browser update.
 
 A site on the list opens a warning page. Secure DNS through Quad9 also
-refuses to look up known malware and phishing domains, but a site it
-blocks just does not open. New or unreported sites get through, and
-changing secure DNS away from Quad9 removes that part.
+refuses to look up known malware and phishing domains, and a site it
+blocks shows the same warning page, with "Go back to safety" and no way
+through. That works only while Quad9 is the secure DNS provider. It is in
+addition to the built-in list, which is still thin outside Poland. New or
+unreported sites get through, and changing secure DNS away from Quad9
+removes that part.
 
 ## No Widevine
 

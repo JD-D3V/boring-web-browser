@@ -36,7 +36,8 @@ a new upstream version.
 - **New WebUI surfaces**, under `chrome://boring-*` and wired into
   settings: a Protection page, a first-run welcome screen, a new tab page
   with a search engine picker, an on-click summary panel, and reader mode.
-  A scam warning page shows for sites on the built-in scam list.
+  A scam warning page shows for sites on the built-in scam list, and for
+  sites Quad9 blocks while it is the secure DNS provider.
 - **Engine-level ad and tracker blocking**, via a small Rust static
   library (`boring-core/rust/`, crate name `boring_adblock`) that wraps
   the third-party `adblock` crate and is called from C++ through an FFI
@@ -44,7 +45,7 @@ a new upstream version.
 - **Privacy defaults**, in `privacy-defaults.patch`: HTTPS-first
   (balanced), Quad9 secure DNS (which refuses known malware and phishing
   domains), and ungoogled-chromium's fingerprint noise on canvas, text and
-  element sizes, plus generic graphics card, core count, touch points and
+  element sizes, plus a generic graphics card name (WebGPU too), core count, touch points and
   screen size values. WebRTC is kept to proxied routes, which ungoogled already
   does.
 - **Tracking parameter removal**, a navigation throttle in

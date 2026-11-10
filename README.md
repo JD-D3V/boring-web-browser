@@ -18,12 +18,14 @@ defaults and a calmer UI. It is not a new engine.
 - Ad, tracker and pop-up blocking.
 - HTTPS first (Chromium's balanced mode).
 - A scam warning page for sites on a built-in list, and Quad9 secure DNS.
-  Quad9 refuses known malware and phishing domains, so they do not open.
-  New sites get through.
+  Quad9 refuses known malware and phishing domains, and the browser shows
+  the same warning page for them, with "Go back to safety" and no way
+  through. That works only while Quad9 is the secure DNS provider. It comes
+  on top of the built-in list. New sites get through.
 - WebRTC kept to proxied routes.
 - Fingerprint noise on canvas, text measurement and element sizes. Every
-  page also reads the same graphics card name, a core count of 8, no touch
-  points and a common screen size.
+  page also reads the same graphics card name (WebGPU too), a core count
+  of 8, no touch points and a common screen size.
 - Tracking parameters removed from links to other sites. The list comes
   from Brave; `utm_` tags are kept.
 - DuckDuckGo search, with a picker on the new tab page.
@@ -33,8 +35,9 @@ defaults and a calmer UI. It is not a new engine.
   with fake alerts. Video fullscreen still works. If a page does lock up,
   one button closes the tab.
 - Warn about scam tricks: downloads of remote control tools such as
-  AnyDesk, a page that copies a command for you to run, and sites named
-  like another site.
+  AnyDesk (in more file types, such as .scr and .iso), a page that copies
+  a command for you to run, and sites named like another site, including
+  names on free hosting sites such as github.io.
 - A quiet note when a warning-looking page shows a phone number.
 - Hide sponsored results on Google and Bing searches.
 
@@ -50,6 +53,9 @@ Also there:
   shield also shows what was blocked on the page, and has Forget this
   site, clear on close and never sleep for that site.
 - Fire button: wipe the whole session in one click.
+- Keep a copy in a folder: your bookmarks and a settings file, copied one
+  way into a folder you pick. Loading from it happens only when you click,
+  only adds, and no passwords are copied.
 - Split view. New profiles open where you left off.
 - What the browser connects to, on the Protection page: every connection
   it makes on its own, why, and a switch for each. You can add your own
