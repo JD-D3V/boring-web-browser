@@ -29,19 +29,28 @@ def mock_tab():
 
 
 def added():
-    return [ln[1:] for ln in PATCH.read_text(encoding="utf-8").splitlines()
-            if ln.startswith("+") and not ln.startswith("+++")]
+    return [
+        ln[1:]
+        for ln in PATCH.read_text(encoding="utf-8").splitlines()
+        if ln.startswith("+") and not ln.startswith("+++")
+    ]
 
 
 def after():
     """The patched text as the build sees it: added and untouched lines."""
-    return [ln[1:] for ln in PATCH.read_text(encoding="utf-8").splitlines()
-            if ln[:1] in ("+", " ") and not ln.startswith("+++")]
+    return [
+        ln[1:]
+        for ln in PATCH.read_text(encoding="utf-8").splitlines()
+        if ln[:1] in ("+", " ") and not ln.startswith("+++")
+    ]
 
 
 def removed():
-    return [ln[1:] for ln in PATCH.read_text(encoding="utf-8").splitlines()
-            if ln.startswith("-") and not ln.startswith("---")]
+    return [
+        ln[1:]
+        for ln in PATCH.read_text(encoding="utf-8").splitlines()
+        if ln.startswith("-") and not ln.startswith("---")
+    ]
 
 
 class TabStyleTest(unittest.TestCase):
@@ -59,8 +68,10 @@ class TabStyleTest(unittest.TestCase):
 
     def test_tab_height_is_the_mocks_36(self):
         height = int(re.search(r"height:(\d+)px", mock_tab()).group(1))
-        m = re.search(r"return (\d+) \+\s*GetLayoutConstant\(LayoutConstant::kTabstripToolbarOverlap\)",
-                      "\n".join(added()))
+        m = re.search(
+            r"return (\d+) \+\s*GetLayoutConstant\(LayoutConstant::kTabstripToolbarOverlap\)",
+            "\n".join(added()),
+        )
         self.assertIsNotNone(m)
         self.assertEqual(int(m.group(1)) - STRIP_PADDING, height)
 
@@ -73,7 +84,7 @@ class TabStyleTest(unittest.TestCase):
     def test_content_insets_are_the_mocks(self):
         left = int(re.search(r"padding:0 \d+px 0 (\d+)px", mock_tab()).group(1))
         text = "\n".join(added())
-        self.assertIn("set_left(%d)" % left, text)
+        self.assertIn(f"set_left({left})", text)
         # 6 px padding plus the 24 px close button.
         self.assertIn("set_right(30)", text)
 
@@ -85,7 +96,7 @@ class TabStyleTest(unittest.TestCase):
 
     def test_tab_width_is_the_mocks(self):
         width = int(re.search(r"flex:0 1 (\d+)px", mock_tab()).group(1))
-        self.assertIn("kTabWidth = %d;" % width, "\n".join(added()))
+        self.assertIn(f"kTabWidth = {width};", "\n".join(added()))
 
 
 if __name__ == "__main__":

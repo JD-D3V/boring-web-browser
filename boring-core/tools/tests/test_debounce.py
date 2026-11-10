@@ -133,7 +133,9 @@ class WiringTest(unittest.TestCase):
         self.assertIn("has_username()", text)
         # Each of the four actions builds its address through it, and
         # nothing else makes a GURL from rule data.
-        self.assertEqual(len(re.findall(r"= MakeTarget\(|return MakeTarget\(", text)), 4)
+        self.assertEqual(
+            len(re.findall(r"= MakeTarget\(|return MakeTarget\(", text)), 4
+        )
         self.assertEqual(len(re.findall(r"\bGURL\s+\w+\(|\bGURL\(", text)), 2)
 
     def test_the_build_file_lists_every_source(self):
@@ -153,7 +155,9 @@ class WiringTest(unittest.TestCase):
 
 class ProtectionRowTest(unittest.TestCase):
     def setUp(self):
-        self.text = read(CORE / "components" / "boring" / "protection" / "protection_ui.cc")
+        self.text = read(
+            CORE / "components" / "boring" / "protection" / "protection_ui.cc"
+        )
 
     def test_one_switch_in_each_of_the_places_it_has_to_be(self):
         for needle in (
@@ -188,7 +192,11 @@ class CreditTest(unittest.TestCase):
 class NoEmDashTest(unittest.TestCase):
     def test_none_of_our_files_have_one(self):
         files = [p for p in PRIVACY.glob("debounce*") if p != BRAVE_INC]
-        files += [TOOLS / "get_debounce.py", TOOLS / "smoke_debounce.py", Path(__file__)]
+        files += [
+            TOOLS / "get_debounce.py",
+            TOOLS / "smoke_debounce.py",
+            Path(__file__),
+        ]
         for path in files:
             if path.exists():
                 self.assertNotIn(chr(0x2014), read(path), str(path))

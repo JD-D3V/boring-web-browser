@@ -86,6 +86,13 @@ MIN_PARSE_RATIO = 0.90
 # publish_lists.py against the previous bundle.
 MIN_SOURCE_HOSTS = 25
 
+# What each permitted source must still hold after the filters, where the
+# generic value above is too loose. CERT's own floor is CERT_MIN_HOSTS
+# (below). DurableNapkin held 2,165 hosts on 2026-11-10; 500 is under a
+# quarter of that, room for the feed to be pruned, and still refuses a
+# download cut to a few hundred names that would otherwise pass 25.
+DURABLENAPKIN_MIN_HOSTS = 500
+
 
 def is_blockable_host(host: str) -> bool:
     """Whether a feed's entry is a name we are willing to block.
@@ -136,17 +143,27 @@ NEVER_BLOCK = frozenset(
 )
 
 
+# Two data files from the Chromium source are copied into data/ (see
+# data/SOURCES.txt), so this runs on a machine with no Chromium tree. Setting
+# BORING_SRC to a source tree reads that tree's copies instead.
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+PUBLIC_SUFFIX_NAME = "effective_tld_names.dat"
+TOP_DOMAINS_NAME = "domains.list"
+
+
+def _data_file(name: str, *tree_path: str) -> str:
+    """The vendored copy of a Chromium data file, or BORING_SRC's own."""
+    src = os.environ.get("BORING_SRC")
+    return os.path.join(src, *tree_path) if src else os.path.join(DATA_DIR, name)
+
+
 # The public suffix list that ships inside Chromium. An entry that is itself
 # a public suffix (co.uk, com.pl, github.io) is not a site, and the browser
 # blocks a listed host and every name under it, so one such line would block
-# every site below it. It is read from the source tree, so a missing file
-# stops the build rather than skipping the check.
-PUBLIC_SUFFIX_FILE = os.path.join(
-    os.environ.get("BORING_SRC", r"E:\ung-154\build\src"),
-    "net",
-    "base",
-    "registry_controlled_domains",
-    "effective_tld_names.dat",
+# every site below it. A missing file stops the build rather than skipping
+# the check.
+PUBLIC_SUFFIX_FILE = _data_file(
+    PUBLIC_SUFFIX_NAME, "net", "base", "registry_controlled_domains", PUBLIC_SUFFIX_NAME
 )
 
 # A feed has no reason to hold more than a stray suffix. More than this and
@@ -196,15 +213,11 @@ def drop_public_suffixes(hosts: set[str]) -> tuple[set[str], set[str]]:
 # The sites people use most, and the brands scammers copy. No feed line may
 # put one of these behind a scam warning: the browser blocks a listed host and
 # every name under it, with no way past when "No way past scam warnings" is
-# on. The top list ships inside Chromium (read from the source tree, so a
-# missing file stops the build); the brand names are our own.
-TOP_DOMAINS_FILE = os.path.join(
-    os.environ.get("BORING_SRC", r"E:\ung-154\build\src"),
-    "components",
-    "url_formatter",
-    "spoof_checks",
-    "top_domains",
-    "domains.list",
+# on. The top list ships inside Chromium (a missing file stops the build);
+# the brand names are our own.
+TOP_DOMAINS_FILE = _data_file(
+    TOP_DOMAINS_NAME,
+    "components", "url_formatter", "spoof_checks", "top_domains", TOP_DOMAINS_NAME,
 )
 BRANDS_FILE = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -214,7 +227,9 @@ BRANDS_FILE = os.path.join(
     "lookalike_brands.inc",
 )
 
-# Like MAX_SUFFIX_DROPS: a feed with more popular sites than this is refused.
+# Like MAX_SUFFIX_DROPS: a feed naming more popular sites than this is refused.
+# Counted in distinct sites, not entries: www.x.com and x.com are one site.
+# Every such entry is dropped either way.
 MAX_POPULAR_DROPS = 5
 # lookalike_brands.inc holds about 100 brands. Fewer than this means the
 # file or the pattern that reads it changed.
@@ -255,17 +270,39 @@ def registrable_domain(host: str, plain, wild, exceptions) -> str:
     return ".".join(labels[-2:]) if len(labels) > 1 else ""
 
 
+# Top sites that rent out names to anyone: a blog at name.wordpress.com is its
+# own site, not wordpress.com. The public suffix list's private section covers
+# github.io, pages.dev, blogspot.com and the like, but not these two.
+PLATFORM_SUFFIXES = frozenset({"wordpress.com", "tumblr.com"})
+
+
 def drop_popular_sites(hosts: set[str]) -> tuple[set[str], set[str]]:
     """Splits hosts into (kept, dropped), dropping a popular site and any
-    name under it. A name under a public suffix such as github.io is its own
-    site and stays."""
+    name under it. The registrable domain counts the private suffixes (github.io,
+    wordpress.com) as suffixes, so a name under one is its own site and stays;
+    the platform's own name is still a popular site and goes."""
     plain, wild, exceptions = load_public_suffixes()
+    plain = plain | PLATFORM_SUFFIXES
     popular = load_popular_sites()
     dropped = {
         h for h in hosts
-        if registrable_domain(h, plain, wild, exceptions) in popular
+        if h in popular or registrable_domain(h, plain, wild, exceptions) in popular
     }
     return hosts - dropped, dropped
+
+
+def count_popular_sites(dropped: set[str]) -> int:
+    """How many different sites the dropped entries belong to.
+
+    A feed that lists www, the bare name and a store host of one popular site
+    has named one site, not three. The refusal limit counts sites."""
+    plain, wild, exceptions = load_public_suffixes()
+    plain = plain | PLATFORM_SUFFIXES
+    popular = load_popular_sites()
+    return len({
+        h if h in popular else registrable_domain(h, plain, wild, exceptions)
+        for h in dropped
+    })
 
 
 def parse_hostfile(text: str) -> set[str]:
@@ -363,6 +400,13 @@ def parse_url_feed(text: str) -> set[str]:
 CERT_MIN_HOSTS = 20_000
 CERT_MAX_HOSTS = 1_000_000
 
+# The floor for each permitted source, checked after the filters in _collect.
+# A source not named here is held to MIN_SOURCE_HOSTS.
+SOURCE_MIN_HOSTS = {
+    "cert-polska": CERT_MIN_HOSTS,
+    "durablenapkin": DURABLENAPKIN_MIN_HOSTS,
+}
+
 
 def parse_domain_list(
     text: str, min_hosts: int = 1, max_hosts: int | None = None
@@ -436,13 +480,15 @@ def _collect(name: str, url: str, parse, fetch_fn) -> tuple[SourceStatus, set[st
     hosts, popular = drop_popular_sites(hosts)
     if popular:
         print(f"{name}: dropped popular sites: {sorted(popular)[:20]}", file=sys.stderr)
-    if len(popular) > MAX_POPULAR_DROPS:
-        status.reason = f"{len(popular)} entries are popular sites"
+    sites = count_popular_sites(popular)
+    if sites > MAX_POPULAR_DROPS:
+        status.reason = f"{len(popular)} entries are popular sites ({sites} sites)"
         return status, set()
 
-    if len(hosts) < MIN_SOURCE_HOSTS:
+    floor = SOURCE_MIN_HOSTS.get(name, MIN_SOURCE_HOSTS)
+    if len(hosts) < floor:
         status.entries = len(hosts)
-        status.reason = f"only {len(hosts)} hosts"
+        status.reason = f"only {len(hosts)} hosts, expected at least {floor}"
         return status, set()
 
     status.entries = len(hosts)

@@ -99,9 +99,7 @@ class Quad9Parser(unittest.TestCase):
     # --- the captured answers ----------------------------------------
 
     def test_the_captured_blocked_answer_is_blocked(self):
-        self.assertEqual(
-            self.verdict("isitblocked.org", self.caps["blocked"]), BLOCKED
-        )
+        self.assertEqual(self.verdict("isitblocked.org", self.caps["blocked"]), BLOCKED)
 
     def test_host_case_and_a_trailing_dot_do_not_matter(self):
         for host in ("IsItBlocked.ORG", "isitblocked.org."):
@@ -112,9 +110,7 @@ class Quad9Parser(unittest.TestCase):
             self.assertEqual(self.verdict(name, wire.blocked_answer(name)), BLOCKED)
 
     def test_an_answer_about_another_name_is_invalid(self):
-        self.assertEqual(
-            self.verdict("example.com", self.caps["blocked"]), INVALID
-        )
+        self.assertEqual(self.verdict("example.com", self.caps["blocked"]), INVALID)
 
     def test_every_other_captured_answer_is_not_blocked(self):
         hosts = {
@@ -219,7 +215,9 @@ class Quad9Parser(unittest.TestCase):
         cases = []
         for _ in range(3000):
             n = rng.randrange(0, 200)
-            cases.append(("isitblocked.org", bytes(rng.randrange(256) for _ in range(n))))
+            cases.append(
+                ("isitblocked.org", bytes(rng.randrange(256) for _ in range(n)))
+            )
         blocked = self.caps["blocked"]
         flips = []
         for i in range(len(blocked)):
@@ -251,7 +249,9 @@ class Quad9Parser(unittest.TestCase):
         self.assertEqual(self.run_lines([f"Q {n}" for n in bad]), ["none"] * len(bad))
         # 63 bytes in a label and 253 in a name are the limits, and fit.
         edge = [("x" * 63 + ".com"), ".".join(["a" * 61] * 3 + ["b" * 61])]
-        self.assertTrue(all(q != "none" for q in self.run_lines([f"Q {n}" for n in edge])))
+        self.assertTrue(
+            all(q != "none" for q in self.run_lines([f"Q {n}" for n in edge]))
+        )
 
 
 if __name__ == "__main__":

@@ -68,11 +68,7 @@ def not_found_answer(name):
         + encode_name("hostmaster." + name)
         + struct.pack(">IIIII", 1, 3600, 600, 86400, 900)
     )
-    soa = (
-        encode_name(name)
-        + struct.pack(">HHIH", 6, 1, 900, len(soa_data))
-        + soa_data
-    )
+    soa = encode_name(name) + struct.pack(">HHIH", 6, 1, 900, len(soa_data)) + soa_data
     header = struct.pack(">HHHHHH", 0, 0x8183, 1, 0, 1, 0)
     return header + question + soa
 

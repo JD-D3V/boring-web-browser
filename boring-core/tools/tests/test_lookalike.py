@@ -302,7 +302,10 @@ class ThrottleUsesPrivateRegistries(unittest.TestCase):
     """Pass 2, T1. The check sees the name on a hosting platform."""
 
     def test_domain_counts_private_registries(self):
-        cc = open(os.path.join(SCAM, "lookalike_navigation_throttle.cc"), encoding="utf-8").read()
+        with open(
+            os.path.join(SCAM, "lookalike_navigation_throttle.cc"), encoding="utf-8"
+        ) as f:
+            cc = f.read()
         self.assertIn("INCLUDE_PRIVATE_REGISTRIES", cc)
         self.assertIn("IsDomainAndRegistryATopDomain(domain)", cc)
         self.assertIn("FindLookalikeBrand(domain)", cc)

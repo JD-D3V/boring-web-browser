@@ -20,8 +20,11 @@ SERIES = CORE / "patches" / "series"
 
 
 def lines(prefix):
-    return [ln[1:] for ln in PATCH.read_text(encoding="utf-8").splitlines()
-            if ln.startswith(prefix) and not ln.startswith(prefix * 3)]
+    return [
+        ln[1:]
+        for ln in PATCH.read_text(encoding="utf-8").splitlines()
+        if ln.startswith(prefix) and not ln.startswith(prefix * 3)
+    ]
 
 
 class TabConnectedTest(unittest.TestCase):
@@ -45,9 +48,14 @@ class TabConnectedTest(unittest.TestCase):
         self.assertIn("TabStyle::PathType::kHighlight", added)
 
     def test_only_the_horizontal_tab_style_file_changes(self):
-        files = [ln for ln in PATCH.read_text(encoding="utf-8").splitlines()
-                 if ln.startswith("+++ ")]
-        self.assertEqual(files, ["+++ b/chrome/browser/ui/views/tabs/horizontal_tab_style_views.cc"])
+        files = [
+            ln
+            for ln in PATCH.read_text(encoding="utf-8").splitlines()
+            if ln.startswith("+++ ")
+        ]
+        self.assertEqual(
+            files, ["+++ b/chrome/browser/ui/views/tabs/horizontal_tab_style_views.cc"]
+        )
 
 
 if __name__ == "__main__":

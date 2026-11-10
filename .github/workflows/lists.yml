@@ -16,11 +16,23 @@
 # own engine code cannot parse (check_lists, built below). A refusal
 # fails the run and leaves the published bundle alone.
 #
+# Publishing is unattended when every check passes. If any source failed
+# and the bundle was built without it (the manifest says "degraded"), the
+# run stops after the build with an error that names the failed sources,
+# and nothing is published. JD reads it and, if the thinner bundle is
+# fine, starts the workflow by hand from the Actions tab on main with
+# allow_degraded ticked. That is the only way a degraded bundle goes out.
+#
+# Only main publishes. A run on any other branch builds and checks the
+# bundle and ends there, so a branch can prove the build without being
+# able to reach the key.
+#
 # Two jobs, so the signing key is only ever in a job that has already
-# passed every check, and only after JD approves it: the "lists"
-# environment is protected with required reviewers, and the
-# BORING_LIST_SIGNING_KEY secret belongs to that environment. Until he
-# approves a run, nothing is signed and nothing is uploaded.
+# passed every check: the BORING_LIST_SIGNING_KEY secret belongs to the
+# "lists" environment, and only the publish job uses that environment.
+# The environment also has a required reviewer rule, which makes a
+# scheduled run wait for a click; while it is there nothing publishes
+# unattended. See the environment settings in the repository.
 
 name: lists
 
@@ -30,20 +42,27 @@ on:
   schedule:
     - cron: "17 4 * * 1,4"
   workflow_dispatch:
+    inputs:
+      allow_degraded:
+        description: "Publish a bundle built without some source that failed (read the build summary first)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
-# One publisher at a time. Two runs uploading to the same reused tag
-# could leave a manifest describing files from the other run.
-concurrency:
-  group: lists-publish
-  cancel-in-progress: false
+# No concurrency group, on purpose. GitHub keeps one running and one
+# waiting run per group and cancels the older waiting one, which is how
+# scheduled runs used to be cancelled while they waited. The publish job
+# checks for itself that it never replaces a bundle with an older or
+# equal one, which is what two runs on the same tag could get wrong.
 
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    outputs:
+      degraded: ${{ steps.state.outputs.degraded }}
     env:
       GH_TOKEN: ${{ github.token }}
       DIST: ${{ github.workspace }}/dist
@@ -77,6 +96,9 @@ jobs:
             echo "no lists release yet, this is the first run"
           fi
 
+      # The scam list is checked against the public suffix list and the top
+      # sites list. Both are copied into boring-core/tools/data (see SOURCES.txt
+      # there), so the runner needs no Chromium tree.
       # Unsigned here on purpose: this job never sees the key. The
       # signing job below signs exactly these bytes.
       - name: Build and check the bundle
@@ -88,10 +110,36 @@ jobs:
       - name: Check the bundle is there
         run: |
           test -s "$DIST/lists.json" || { echo "no manifest in $DIST"; exit 1; }
+          # The upload below sends every file in the folder, so these two
+          # only need to exist: the scam list and the notice that has to
+          # travel with it.
+          for f in scamlist.txt NOTICES-scam-blocklist.txt; do
+            test -s "$DIST/$f" || { echo "no $f in $DIST"; exit 1; }
+          done
           if [ -e "$DIST/resources.json" ]; then
             echo "resources.json must never be in a list bundle"; exit 1
           fi
           ls -l "$DIST"
+
+      # publish_lists.py writes "degraded": true into the manifest when a
+      # source failed and the bundle was built without it. A manifest
+      # without the field counts as degraded.
+      - name: Say whether the bundle is complete
+        id: state
+        run: |
+          degraded=$(jq -r 'if has("degraded") then .degraded else true end | tostring' "$DIST/lists.json")
+          echo "degraded=$degraded" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Bundle $(jq -r .version "$DIST/lists.json")"
+            echo
+            if [ "$degraded" = "true" ]; then
+              echo "**Degraded.** Built without these sources:"
+              jq -r '.sources[] | select(.ok != true) | "- \(.name): \(.reason)"' "$DIST/lists.json"
+            else
+              echo "Complete. Every source answered and passed its checks."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "degraded: $degraded"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -100,12 +148,34 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+  # A degraded bundle stops here, loudly, instead of publishing. The run
+  # shows red so JD gets the failure notice; the build summary names the
+  # sources. Runs on main only, like publish.
+  hold:
+    needs: build
+    if: >-
+      github.ref == 'refs/heads/main'
+      && needs.build.outputs.degraded == 'true'
+      && !inputs.allow_degraded
+    runs-on: ubuntu-latest
+    steps:
+      - name: Stop before publishing
+        run: |
+          echo "::error title=Lists not published::The bundle was built without some source (see the build job summary for which). Nothing was published. If the thinner bundle is fine, run this workflow by hand on main with allow_degraded ticked."
+          exit 1
+
   publish:
     needs: build
+    # Main only, and only when every check passed, or when a manual run
+    # on main said allow_degraded.
+    if: >-
+      github.ref == 'refs/heads/main'
+      && (needs.build.outputs.degraded != 'true' || inputs.allow_degraded)
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # Protected: JD is a required reviewer. The job waits here, and the
-    # key below does not exist for it, until he approves the run.
+    # The signing key lives in this environment and nowhere else. If the
+    # environment has required reviewers, the job waits here, and the key
+    # does not exist for it, until a reviewer approves the run.
     environment: lists
     permissions:
       contents: write
@@ -125,6 +195,25 @@ jobs:
         with:
           name: bundle
           path: dist/
+
+      # No concurrency group serialises publishers, so two runs could
+      # both be about to publish. The bundle version only goes up, so a
+      # run whose version is not above the published one has been
+      # overtaken and must not replace it.
+      - name: Check this bundle is newer than the one published
+        run: |
+          if gh release view lists -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+             && gh release download lists -R "$GITHUB_REPOSITORY" -p lists.json -O published.json --clobber; then
+            ours=$(jq -r .version "$DIST/lists.json")
+            theirs=$(jq -r .version published.json)
+            echo "this bundle is $ours, published is $theirs"
+            if [ "$ours" -le "$theirs" ]; then
+              echo "::error title=Lists not published::A bundle at version $theirs is already out; this one ($ours) is not newer."
+              exit 1
+            fi
+          else
+            echo "nothing published yet"
+          fi
 
       # Signs the manifest exactly as the build job checked it, with
       # openssl from the runner image. publish_lists.py writes the key to

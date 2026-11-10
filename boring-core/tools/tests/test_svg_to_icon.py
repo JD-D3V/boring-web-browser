@@ -19,25 +19,36 @@ import svg_to_icon  # noqa: E402
 REPO = TOOLS.parents[1]
 ICONS_SVG = REPO / "design" / "v7" / "icons-dotted" / "icons.svg"
 
-BACK = ('<symbol id="b-back" viewBox="0 0 20 20" fill="none" stroke="currentColor" '
-        'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
-        '<path d="M16 10H4M9.5 4.5L4 10l5.5 5.5"/></symbol>')
-DOT = ('<symbol id="b-x" viewBox="0 0 20 20" fill="none" stroke="currentColor" '
-       'stroke-width="2"><path d="M3 10l7-6 7 6"/>'
-       '<circle cx="10" cy="13" r="1.25" fill="currentColor" stroke="none"/></symbol>')
-RELOAD = ('<symbol id="b-reload" viewBox="0 0 20 20" fill="none" stroke="currentColor" '
-          'stroke-width="2"><path d="M17 10a7 7 0 1 1-2.05-4.95L17 7"/></symbol>')
-STOP = ('<symbol id="b-stop" viewBox="0 0 20 20" fill="none" stroke="currentColor" '
-        'stroke-width="2"><circle cx="10" cy="10" r="7"/>'
-        '<rect x="7.25" y="7.25" width="5.5" height="5.5" rx="1.25" '
-        'fill="currentColor" stroke-width="1"/></symbol>')
-SMOOTH = ('<symbol id="b-s" viewBox="0 0 20 20" fill="none" stroke="currentColor" '
-          'stroke-width="2"><path d="M2 10c2-4 4-4 6 0s4 4 6 0"/></symbol>')
+BACK = (
+    '<symbol id="b-back" viewBox="0 0 20 20" fill="none" stroke="currentColor" '
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    '<path d="M16 10H4M9.5 4.5L4 10l5.5 5.5"/></symbol>'
+)
+DOT = (
+    '<symbol id="b-x" viewBox="0 0 20 20" fill="none" stroke="currentColor" '
+    'stroke-width="2"><path d="M3 10l7-6 7 6"/>'
+    '<circle cx="10" cy="13" r="1.25" fill="currentColor" stroke="none"/></symbol>'
+)
+RELOAD = (
+    '<symbol id="b-reload" viewBox="0 0 20 20" fill="none" stroke="currentColor" '
+    'stroke-width="2"><path d="M17 10a7 7 0 1 1-2.05-4.95L17 7"/></symbol>'
+)
+STOP = (
+    '<symbol id="b-stop" viewBox="0 0 20 20" fill="none" stroke="currentColor" '
+    'stroke-width="2"><circle cx="10" cy="10" r="7"/>'
+    '<rect x="7.25" y="7.25" width="5.5" height="5.5" rx="1.25" '
+    'fill="currentColor" stroke-width="1"/></symbol>'
+)
+SMOOTH = (
+    '<symbol id="b-s" viewBox="0 0 20 20" fill="none" stroke="currentColor" '
+    'stroke-width="2"><path d="M2 10c2-4 4-4 6 0s4 4 6 0"/></symbol>'
+)
 
 
 def lines(text):
-    return [ln.strip() for ln in text.splitlines()
-            if ln.strip() and not ln.startswith("//")]
+    return [
+        ln.strip() for ln in text.splitlines() if ln.strip() and not ln.startswith("//")
+    ]
 
 
 class ConvertSymbolTest(unittest.TestCase):
@@ -82,29 +93,38 @@ class ConvertSymbolTest(unittest.TestCase):
         # Chromium's buttons already mirror the whole canvas in RTL, so an
         # icon that flips itself points the wrong way. Only *_flippable
         # icons carry the command, and we map none of those.
-        self.assertNotIn("FLIPS_IN_RTL,", lines(svg_to_icon.convert_symbol(BACK, "back")))
-        self.assertNotIn("FLIPS_IN_RTL,",
-                         lines(svg_to_icon.convert_symbol(BACK, "arrow_back_old")))
+        self.assertNotIn(
+            "FLIPS_IN_RTL,", lines(svg_to_icon.convert_symbol(BACK, "back"))
+        )
+        self.assertNotIn(
+            "FLIPS_IN_RTL,", lines(svg_to_icon.convert_symbol(BACK, "arrow_back_old"))
+        )
 
     def test_flips_in_rtl_only_when_asked_for(self):
         # An icon that replaces one Chromium flips itself keeps that
         # behaviour: menu chevrons flip, button arrows do not.
         flipped = lines(svg_to_icon.convert_symbol(BACK, "x", flips_in_rtl=True))
         self.assertIn("FLIPS_IN_RTL,", flipped)
-        self.assertLess(flipped.index("CANVAS_DIMENSIONS, 20,"), flipped.index("FLIPS_IN_RTL,"))
+        self.assertLess(
+            flipped.index("CANVAS_DIMENSIONS, 20,"), flipped.index("FLIPS_IN_RTL,")
+        )
 
     def test_scale_transform_scales_coordinates_and_stroke(self):
-        sym = ('<symbol id="b-s" viewBox="0 0 20 20" fill="none" stroke="currentColor" '
-               'stroke-width="2"><path transform="scale(.5)" stroke-width="4" '
-               'd="M10 10L20 20"/></symbol>')
+        sym = (
+            '<symbol id="b-s" viewBox="0 0 20 20" fill="none" stroke="currentColor" '
+            'stroke-width="2"><path transform="scale(.5)" stroke-width="4" '
+            'd="M10 10L20 20"/></symbol>'
+        )
         body = lines(svg_to_icon.convert_symbol(sym, "s"))
         self.assertIn("STROKE, 2,", body)
         self.assertIn("MOVE_TO, 5, 5,", body)
         self.assertIn("LINE_TO, 10, 10,", body)
 
     def test_attribute_it_cannot_honour_raises(self):
-        sym = ('<symbol id="b-s" viewBox="0 0 20 20" fill="none" stroke="currentColor" '
-               'stroke-width="2"><path opacity="0.5" d="M1 1L2 2"/></symbol>')
+        sym = (
+            '<symbol id="b-s" viewBox="0 0 20 20" fill="none" stroke="currentColor" '
+            'stroke-width="2"><path opacity="0.5" d="M1 1L2 2"/></symbol>'
+        )
         with self.assertRaises(ValueError):
             svg_to_icon.convert_symbol(sym, "s")
 
@@ -133,7 +153,13 @@ class ConvertFileTest(unittest.TestCase):
                 for ln in lines(Path(p).read_text(encoding="utf-8")):
                     name, *nums = [t.strip() for t in ln.split(",") if t.strip()]
                     n = [float(x) for x in nums]
-                    if name in ("MOVE_TO", "LINE_TO", "H_LINE_TO", "V_LINE_TO", "CUBIC_TO"):
+                    if name in (
+                        "MOVE_TO",
+                        "LINE_TO",
+                        "H_LINE_TO",
+                        "V_LINE_TO",
+                        "CUBIC_TO",
+                    ):
                         vals = n
                     elif name == "ARC_TO":
                         vals = n[5:7]
@@ -144,7 +170,7 @@ class ConvertFileTest(unittest.TestCase):
                     else:
                         continue
                     for v in vals:
-                        self.assertTrue(-0.01 <= v <= 20.01, "%s: %s" % (Path(p).name, ln))
+                        self.assertTrue(-0.01 <= v <= 20.01, f"{Path(p).name}: {ln}")
 
     def test_only_filters_by_id(self):
         with tempfile.TemporaryDirectory() as out:

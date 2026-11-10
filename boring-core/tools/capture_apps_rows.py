@@ -61,7 +61,9 @@ def main():
                     break
                 time.sleep(0.5)
             time.sleep(1.0)
-            b.run("document.getElementById('connections-apps').scrollIntoView(); return 1")
+            b.run(
+                "document.getElementById('connections-apps').scrollIntoView(); return 1"
+            )
             time.sleep(1.0)
             hwnd = frame_window(binary, under=b.proc.pid)
             x, y = (int(v) for v in OFFSCREEN.split(","))

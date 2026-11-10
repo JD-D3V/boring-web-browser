@@ -11,7 +11,6 @@ Usage:
 """
 
 import os
-import re
 import sys
 import unittest
 from pathlib import Path
@@ -26,11 +25,15 @@ class VerticalTabs(unittest.TestCase):
         for patch in (CORE / "patches").rglob("*.patch"):
             added = [
                 line
-                for line in patch.read_text(encoding="utf-8", errors="replace").splitlines()
+                for line in patch.read_text(
+                    encoding="utf-8", errors="replace"
+                ).splitlines()
                 if line.startswith("+") and not line.startswith("+++")
             ]
             for line in added:
-                self.assertNotRegex(line, r"kVerticalTabsEnabled|vertical_tabs\.enabled", patch.name)
+                self.assertNotRegex(
+                    line, r"kVerticalTabsEnabled|vertical_tabs\.enabled", patch.name
+                )
 
     def test_smoke_covers_both_schemes_light_and_dark(self):
         import smoke_vtabs
@@ -41,11 +44,20 @@ class VerticalTabs(unittest.TestCase):
 
     @unittest.skipUnless((SRC / "chrome").is_dir(), "no 154 tree")
     def test_chromium_default_is_top_tabs_with_a_switch(self):
-        prefs = (SRC / "chrome/browser/ui/tabs/tab_strip_prefs.cc").read_text(encoding="utf-8")
-        self.assertRegex(prefs, r"RegisterBooleanPref\(prefs::kVerticalTabsEnabled,\s*false")
-        menu = (SRC / "chrome/browser/ui/tabs/tab_menu_model.cc").read_text(encoding="utf-8")
+        prefs = (SRC / "chrome/browser/ui/tabs/tab_strip_prefs.cc").read_text(
+            encoding="utf-8"
+        )
+        self.assertRegex(
+            prefs, r"RegisterBooleanPref\(prefs::kVerticalTabsEnabled,\s*false"
+        )
+        menu = (SRC / "chrome/browser/ui/tabs/tab_menu_model.cc").read_text(
+            encoding="utf-8"
+        )
         self.assertIn("CommandToggleVertical", menu)
-        page = (SRC / "chrome/browser/resources/settings/appearance_page/appearance_page.html.ts").read_text(encoding="utf-8")
+        page = (
+            SRC
+            / "chrome/browser/resources/settings/appearance_page/appearance_page.html.ts"
+        ).read_text(encoding="utf-8")
         self.assertIn('pref-key="vertical_tabs.enabled"', page)
 
 

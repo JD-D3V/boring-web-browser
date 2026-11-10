@@ -1,47 +1,67 @@
-import os, re, sys
+import os
+import re
+import sys
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import importlib, icondefs
+import importlib  # noqa: E402
+
+import icondefs  # noqa: E402
+
 importlib.reload(icondefs)
-from icondefs import CATS, symbols, all_icons
+from icondefs import CATS, all_icons, symbols  # noqa: E402
 
 OUT = os.path.dirname(HERE) + os.sep
 SCR = HERE + os.sep
 
+
 def use(name, size):
-    return '<svg class="i s%d" aria-hidden="true" focusable="false"><use href="#b-%s"/></svg>' % (size, name)
+    return f'<svg class="i s{size}" aria-hidden="true" focusable="false"><use href="#b-{name}"/></svg>'
+
 
 # icons.svg
-sprite_file = '<svg xmlns="http://www.w3.org/2000/svg" style="display:none">\n' + symbols("  ") + '\n</svg>\n'
-open(OUT + "icons.svg", "w", encoding="utf-8", newline="\n").write(sprite_file)
+sprite_file = (
+    '<svg xmlns="http://www.w3.org/2000/svg" style="display:none">\n'
+    + symbols("  ")
+    + "\n</svg>\n"
+)
+with open(OUT + "icons.svg", "w", encoding="utf-8", newline="\n") as f:
+    f.write(sprite_file)
 
 # grid
 grid = []
 for cat, items in CATS:
-    grid.append('    <h3 class="cat">%s</h3>' % cat)
+    grid.append(f'    <h3 class="cat">{cat}</h3>')
     grid.append('    <div class="grid">')
     for nm, _ in items:
-        grid.append('      <div class="tile" title="b-%s"><div class="row">%s%s%s</div><code>b-%s</code></div>' % (nm, use(nm, 16), use(nm, 20), use(nm, 24), nm))
-    grid.append('    </div>')
+        grid.append(
+            f'      <div class="tile" title="b-{nm}"><div class="row">{use(nm, 16)}{use(nm, 20)}{use(nm, 24)}</div><code>b-{nm}</code></div>'
+        )
+    grid.append("    </div>")
 grid_html = "\n".join(grid)
 
 # states rows
 state_rows = []
 for nm in ["star", "pin", "audio-on", "protection", "reader", "split-view", "download"]:
     state_rows.append(
-      '      <div class="nm">b-%s</div>'
-      '<div class="c"><span class="chip">%s</span></div>'
-      '<div class="c"><span class="chip hov">%s</span></div>'
-      '<div class="c"><span class="chip sel">%s</span></div>'
-      '<div class="c"><span class="chip dis">%s</span></div>' % (nm, use(nm, 20), use(nm, 20), use(nm, 20), use(nm, 20)))
+        f'      <div class="nm">b-{nm}</div>'
+        f'<div class="c"><span class="chip">{use(nm, 20)}</span></div>'
+        f'<div class="c"><span class="chip hov">{use(nm, 20)}</span></div>'
+        f'<div class="c"><span class="chip sel">{use(nm, 20)}</span></div>'
+        f'<div class="c"><span class="chip dis">{use(nm, 20)}</span></div>'
+    )
 states_html = "\n".join(state_rows)
 
-tpl = open(SCR + "template.html", encoding="utf-8").read()
+with open(SCR + "template.html", encoding="utf-8") as f:
+    tpl = f.read()
 tpl = tpl.replace("@@SPRITE@@", symbols("  "))
 tpl = tpl.replace("@@GRID@@", grid_html)
 tpl = tpl.replace("@@STATES@@", states_html)
 tpl = tpl.replace("@@COUNT@@", str(len(all_icons())))
-tpl = re.sub(r"\[\[([a-z\-]+) (\d+)\]\]", lambda m: use(m.group(1), int(m.group(2))), tpl)
+tpl = re.sub(
+    r"\[\[([a-z\-]+) (\d+)\]\]", lambda m: use(m.group(1), int(m.group(2))), tpl
+)
 assert "\u2014" not in tpl and "\u2013" not in tpl
-open(OUT + "index.html", "w", encoding="utf-8", newline="\n").write(tpl)
+with open(OUT + "index.html", "w", encoding="utf-8", newline="\n") as f:
+    f.write(tpl)
 print("icons", len(all_icons()), "html bytes", len(tpl))

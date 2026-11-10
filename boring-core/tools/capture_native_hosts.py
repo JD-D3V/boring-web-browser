@@ -67,9 +67,14 @@ def main():
                 raise SystemExit("the host rows never appeared")
             # One on, the other blocked, whatever the profile started with.
             for name, on in ((HOST, True), (HOST_GOOGLE, False)):
-                if b.run("return document.getElementById('host-%s').checked" % name) != on:
+                if (
+                    b.run(f"return document.getElementById('host-{name}').checked")
+                    != on
+                ):
                     set_switch(b, name, on)
-            b.run("document.getElementById('connections-hosts').scrollIntoView(); return 1")
+            b.run(
+                "document.getElementById('connections-hosts').scrollIntoView(); return 1"
+            )
             time.sleep(1.0)
             hwnd = frame_window(binary, under=b.proc.pid)
             x, y = (int(v) for v in OFFSCREEN.split(","))

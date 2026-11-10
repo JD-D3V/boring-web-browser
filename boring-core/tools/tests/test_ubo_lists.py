@@ -29,6 +29,16 @@ import get_ubo_resources as gr  # noqa: E402
 import publish_lists  # noqa: E402
 from get_filterlists import FeedError, Fetched  # noqa: E402
 
+import scam_data  # noqa: E402
+
+
+def setUpModule():
+    scam_data.use_vendored_data()
+
+
+def tearDownModule():
+    scam_data.stop_vendored_data()
+
 NOW = datetime.datetime(2026, 9, 25, 12, 0, tzinfo=datetime.UTC)
 
 GPL_TEXT = (

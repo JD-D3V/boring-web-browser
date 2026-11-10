@@ -54,30 +54,48 @@ def main():
         with open(os.path.join(folder, BOOKMARKS), "w", encoding="utf-8") as f:
             f.write(HTML)
         with open(os.path.join(folder, SETTINGS), "w", encoding="utf-8") as f:
-            json.dump({"version": 1, "settings": {
-                "boring.fingerprint_noise": False,
-                "boring.adblock.level": 1,
-                "boring.ai.provider": "ollama"}}, f)
+            json.dump(
+                {
+                    "version": 1,
+                    "settings": {
+                        "boring.fingerprint_noise": False,
+                        "boring.adblock.level": 1,
+                        "boring.ai.provider": "ollama",
+                    },
+                },
+                f,
+            )
     if args.state != "off":
         chrome_args.append("--boring-folder-copy-dir=" + folder)
     if args.dark:
         chrome_args.append("--force-dark-mode")
     try:
-        with Browser(user_data_dir=os.path.join(work, "profile"), args=chrome_args,
-                     keep_switches=["enable-automation"]) as b:
+        with Browser(
+            user_data_dir=os.path.join(work, "profile"),
+            args=chrome_args,
+            keep_switches=["enable-automation"],
+        ) as b:
             b.get("chrome://boring-protection")
             wait_js(b, "return !!document.getElementById('folder-copy')")
             if args.state == "saved":
-                wait_js(b, "return /Last saved/.test("
-                           "document.getElementById('folder-copy-status').innerText)", 40)
+                wait_js(
+                    b,
+                    "return /Last saved/.test("
+                    "document.getElementById('folder-copy-status').innerText)",
+                    40,
+                )
             elif args.state == "preview":
                 wait_js(b, "return !document.getElementById('folder-load').hidden")
                 time.sleep(1)
                 b.run("document.getElementById('folder-load').click(); return 1")
-                wait_js(b, "return !document.getElementById('folder-preview').hidden", 30)
+                wait_js(
+                    b, "return !document.getElementById('folder-preview').hidden", 30
+                )
             time.sleep(1.0)
-            b.run("document.getElementById('folder-copy-row').scrollIntoView("
-                  "{block: 'center'}); return 1")
+            b.run(
+                "document.getElementById('folder-copy-row').scrollIntoView("
+                "{block: 'center'}); return 1"
+            )
             time.sleep(1.0)
             hwnd = frame_window(binary, under=b.proc.pid)
             x, y = (int(v) for v in OFFSCREEN.split(","))
