@@ -167,6 +167,9 @@ class Session:
             args.append("--host-resolver-rules=MAP guards.example 127.0.0.1")
         self.seen = 0
         self.b = Browser(user_data_dir=str(profile), args=args)
+        # On 157 a browser started with its own profile folder refuses
+        # fullscreen ("not granted") until the tab is brought to the front.
+        cdp(self.b, "Page.bringToFront", {})
 
     def __enter__(self):
         return self
@@ -182,6 +185,9 @@ class Session:
             "POST", f"/session/{self.b.sid}/window/new", {"type": "tab"}
         )["value"]["handle"]
         self.b._req("POST", f"/session/{self.b.sid}/window", {"handle": h})
+        # Same as in __init__: a new tab is refused fullscreen until it is
+        # brought to the front.
+        cdp(self.b, "Page.bringToFront", {})
 
     def accept_alert(self):
         try:

@@ -81,6 +81,9 @@ class Tab:
             "POST", f"/session/{self.b.sid}/window/new", {"type": "tab"}
         )["value"]["handle"]
         self.b._req("POST", f"/session/{self.b.sid}/window", {"handle": h})
+        # On 157 a tab is refused fullscreen ("not granted") until it is
+        # brought to the front.
+        self.cdp("Page.bringToFront", {})
 
 
 def wait(fn, timeout=15, step=0.25):
