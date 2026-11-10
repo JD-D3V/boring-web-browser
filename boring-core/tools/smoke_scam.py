@@ -18,7 +18,9 @@ Checked:
   a listed host's subdomains are blocked and its parent is not (CERT
     Polska's rule);
   the page follows the window's colours: Cool and Green, light and dark;
-  the Protection page names the scam row as on.
+  the Protection page names the scam row as on;
+  a list of fewer than 10 hosts is refused: the row reads Unavailable and a
+    host on the list opens (ledger 93), while a list of exactly 10 works.
 
 Usage: python smoke_scam.py
 """
@@ -47,6 +49,58 @@ SCAM_LIST = (
     # The browser refuses a list with fewer than 10 hosts (kMinHosts).
     + "".join(f"boring-scam-pad-{i:02d}.invalid\n" for i in range(1, 12))
 )
+
+
+
+def scam_list(hosts):
+    """A scam list with this many hosts, LISTED among them."""
+    return (
+        "# boring scam blocklist, test copy"
+        + chr(10)
+        + LISTED
+        + chr(10)
+        + "".join(f"boring-scam-pad-{i:02d}.invalid" + chr(10) for i in range(hosts - 1))
+    )
+
+
+def scam_row_settled(b):
+    """Opens the Protection page and waits for the scam row to say On or
+    Unavailable instead of Starting. Returns (state, description)."""
+    b.get("chrome://boring-protection")
+    wait_for(
+        b,
+        "['On', 'Unavailable'].includes(document.getElementById('scam-state').textContent)",
+        20000,
+    )
+    return b.run(
+        "return [document.getElementById('scam-state').textContent,"
+        " document.getElementById('scam-desc').textContent]"
+    )
+
+
+def check_list_size(pages, check):
+    """The floor is 10 hosts (kMinHosts). Under it the list is thrown out as
+    a damaged one: no protection, and the page says so rather than "On"."""
+    for hosts, works in ((9, False), (10, True)):
+        with list_folder({"scamlist.txt": scam_list(hosts)}) as lists:
+            with tempfile.TemporaryDirectory(prefix="scam-", dir=os.environ.get("TMP") or None) as profile:
+                with Browser(user_data_dir=profile, args=args_for(lists, pages, [])) as b:
+                    state, desc = scam_row_settled(b)
+                    label = f"a list of {hosts} hosts"
+                    if works:
+                        check(f"{label}: the Protection page reads On", state == "On", f"{state}: {desc}")
+                    else:
+                        check(f"{label}: the Protection page reads Unavailable", state == "Unavailable", f"{state}: {desc}")
+                        check(f"{label}: and says why", "too few hosts" in desc, desc)
+                    open_url(b, f"http://{LISTED}:{pages.port}/")
+                    time.sleep(1)
+                    warned = bool(b.run("return !!document.body && document.body.innerText.includes('This site may be a scam')"))
+                    opened = wait_for(b, "!!document.getElementById('ok')", 5000)
+                    if works:
+                        check(f"{label}: a host on it is blocked", warned and not opened)
+                    else:
+                        check(f"{label}: a host on it is not blocked", opened and not warned)
+
 
 # What each colour choice must paint, from boring_color_mixer.cc: the
 # page background and the main button.
@@ -256,6 +310,7 @@ def main():
                         )
                         check(f"{name}: page colour", got[0] == paper, f"{got[0]} != {paper}")
                         check(f"{name}: main button colour", got[1] == accent, f"{got[1]} != {accent}")
+        check_list_size(pages, check)
     finally:
         pages.close()
 

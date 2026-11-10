@@ -21,6 +21,7 @@ Needs BORING_OUT, as the other smoke tests do.
 
 import os
 import sys
+import time
 from pathlib import Path
 
 import smoke_scam_guards
@@ -63,6 +64,31 @@ def ordinary_pages(s, checks):
         checks[f"{label} loads"] = page(s, mode)
         # Two looks are taken, at load and three seconds later.
         checks[f"{label} gets no banner"] = steady(lambda: banners(s) == 0, 6)
+
+
+def huge_page(s, checks):
+    """One 3 MB block of text, inside 150 nested dialogs (ledger 94): the
+    scan must read the block once and leave it, not lay it out again for
+    every dialog. WebDriver waits for the page's main thread, so a scan
+    that hangs it shows as a slow answer."""
+    began = time.monotonic()
+    checks["a huge page loads"] = page(s, "huge")
+    slowest = [0.0]
+
+    def answers_and_is_ordinary():
+        asked = time.monotonic()
+        s.b.run("return document.readyState")
+        slowest[0] = max(slowest[0], time.monotonic() - asked)
+        return banners(s) == 0
+
+    # Both looks (at load, and three seconds later) fall inside this.
+    checks["a huge page gets no banner"] = steady(answers_and_is_ordinary, 8)
+    checks["a huge page keeps answering while it is scanned"] = slowest[0] < 5
+    checks["the huge page is done within a normal time"] = (
+        time.monotonic() - began < 60
+    )
+    print(f"INFO huge page: slowest answer {slowest[0]:.2f}s, "
+          f"{time.monotonic() - began:.1f}s in all")
 
 
 def scam_pages(s, checks):
@@ -139,6 +165,7 @@ def main():
     try:
         with Session("main", port, answer=None) as s:
             ordinary_pages(s, checks)
+            huge_page(s, checks)
             scam_pages(s, checks)
         after_a_takeover(port, checks)
         switch_off(port, checks)

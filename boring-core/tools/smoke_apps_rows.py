@@ -71,6 +71,41 @@ def test_extensions(work):
     return hosts, native, plain, password
 
 
+KEEP_NAME = "Boring Test Keep"
+GONE_NAME = "Boring Test Goes Away"
+
+
+def write_removal_addons(work):
+    """Two add-ons for the Remove check. The second has a page that
+    removes the add-on, with no question asked (showConfirmDialog false)."""
+    keep = write_extension(os.path.join(work, "keep"), KEEP_NAME, {})
+    gone = write_extension(os.path.join(work, "gone"), GONE_NAME, {})
+    with open(os.path.join(gone, "bye.html"), "w", encoding="utf-8") as f:
+        f.write('<!doctype html><title>bye</title><script src="bye.js"></script>')
+    with open(os.path.join(gone, "bye.js"), "w", encoding="utf-8") as f:
+        f.write("chrome.management.uninstallSelf({showConfirmDialog: false});")
+    return keep, gone
+
+
+def remove_by_itself(b, row):
+    """Opens the add-on's removal page in another tab and comes back, with
+    the Protection page still open in the first."""
+    window = f"/session/{b.sid}/window"
+    protection = b._req("GET", window)["value"]
+    other = b._req("POST", window + "/new", {"type": "tab"})["value"]["handle"]
+    extension_id = row["id"].removeprefix("app-").removesuffix("-row")
+    try:
+        b._req("POST", window, {"handle": other})
+        b.get(f"chrome-extension://{extension_id}/bye.html")
+        time.sleep(2)
+    finally:
+        try:
+            b._req("DELETE", window)
+        except RuntimeError:
+            pass  # the tab went with the add-on
+        b._req("POST", window, {"handle": protection})
+
+
 def wait_for(b, script, seconds=25):
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
@@ -339,6 +374,58 @@ def main():
             wait_for(b, "return !!document.getElementById('p-off')")
             if not b.run("return document.getElementById('p-off').checked"):
                 failures.append("chrome://boring-ai does not show Off after the switch")
+
+        # 5. The Remove button (A3). It asks through Chromium's own
+        # uninstall dialog, a native window that WebDriver cannot see and
+        # that cannot be answered without input to a real window, so the
+        # Cancel and Remove answers are not driven here. What is checked:
+        # pressing Remove alone takes nothing away (as when the dialog is
+        # cancelled), and a row goes at once when its add-on is removed
+        # (the add-on removes itself, which asks nothing).
+        keep, gone = write_removal_addons(work)
+        with Browser(
+            user_data_dir=os.path.join(work, "removal"),
+            args=["--load-extension=" + keep + "," + gone],
+        ) as b:
+            b.get(URL)
+            if not wait_for(
+                b, "return document.querySelectorAll('#connections-apps .setting-row[id^=app-]').length === 2"
+            ):
+                failures.append("remove: the two add-on rows did not appear")
+            else:
+                apps = read_apps(b)
+                keep_row = row_for(apps, KEEP_NAME)
+                gone_row = row_for(apps, GONE_NAME)
+                if not keep_row or not gone_row or not keep_row["canRemove"]:
+                    failures.append(f"remove: rows or Remove buttons missing: {apps['rows']!r}")
+                else:
+                    b.run(
+                        "document.querySelector('#%s .app-remove').click(); return 1"
+                        % keep_row["id"]
+                    )
+                    time.sleep(3)
+                    if not row_for(read_apps(b), KEEP_NAME):
+                        failures.append("remove: the row went away on Remove, before any answer")
+                    remove_by_itself(b, gone_row)
+                    if not wait_for(
+                        b,
+                        "return !document.getElementById(%s)" % json.dumps(gone_row["id"]),
+                        8,
+                    ):
+                        failures.append("remove: the row of a removed add-on did not go from the open page")
+                    if not row_for(read_apps(b), KEEP_NAME):
+                        failures.append("remove: another add-on's row went with it")
+                    states = extension_states(b)
+                    print("after remove:", states)
+                    if states.get(KEEP_NAME) != "ENABLED":
+                        failures.append(f"remove: pressing Remove alone changed the add-on: {states}")
+                    if GONE_NAME in states:
+                        failures.append(f"remove: the removed add-on is still installed: {states}")
+                    b.get(URL)
+                    wait_for(b, "return !!document.getElementById('ai-assistant-row')")
+                    apps = read_apps(b)
+                    if row_for(apps, GONE_NAME) or not row_for(apps, KEEP_NAME):
+                        failures.append(f"remove: after reloading the page the rows are wrong: {apps['rows']!r}")
     finally:
         shutil.rmtree(work, ignore_errors=True)
 

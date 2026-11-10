@@ -130,6 +130,103 @@ def click_id(b, element):
     click(b, x, y)
 
 
+# --- the real clipboard, saved and put back around the one check that
+# --- has to reach it. Its contents are never printed or logged.
+
+# Formats Windows makes from another one when they are asked for, so they
+# need no saving: text from Unicode text, a bitmap from a DIB.
+MADE_FROM_OTHERS = {1, 2, 7, 16, 17}
+CF_DIB = 8
+CF_UNICODETEXT = 13
+
+
+def _clipboard_api():
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    user32.OpenClipboard.argtypes = [wintypes.HWND]
+    user32.OpenClipboard.restype = wintypes.BOOL
+    user32.CloseClipboard.restype = wintypes.BOOL
+    user32.EmptyClipboard.restype = wintypes.BOOL
+    user32.EnumClipboardFormats.argtypes = [wintypes.UINT]
+    user32.EnumClipboardFormats.restype = wintypes.UINT
+    user32.GetClipboardData.argtypes = [wintypes.UINT]
+    user32.GetClipboardData.restype = wintypes.HANDLE
+    user32.SetClipboardData.argtypes = [wintypes.UINT, wintypes.HANDLE]
+    user32.SetClipboardData.restype = wintypes.HANDLE
+    kernel32.GlobalAlloc.argtypes = [wintypes.UINT, ctypes.c_size_t]
+    kernel32.GlobalAlloc.restype = wintypes.HGLOBAL
+    kernel32.GlobalLock.argtypes = [wintypes.HGLOBAL]
+    kernel32.GlobalLock.restype = ctypes.c_void_p
+    kernel32.GlobalUnlock.argtypes = [wintypes.HGLOBAL]
+    kernel32.GlobalSize.argtypes = [wintypes.HGLOBAL]
+    kernel32.GlobalSize.restype = ctypes.c_size_t
+    return ctypes, user32, kernel32
+
+
+def _open_clipboard(user32):
+    for _ in range(20):
+        if user32.OpenClipboard(None):
+            return True
+        time.sleep(0.1)
+    return False
+
+
+def clipboard_snapshot():
+    """Every piece of memory the clipboard holds, as [(format, bytes)], or
+    None if it cannot be saved and put back as it was (it could not be
+    opened, or it holds a picture or file object that is not plain memory)."""
+    ctypes, user32, kernel32 = _clipboard_api()
+    if not _open_clipboard(user32):
+        return None
+    try:
+        formats = []
+        fmt = user32.EnumClipboardFormats(0)
+        while fmt:
+            formats.append(fmt)
+            fmt = user32.EnumClipboardFormats(fmt)
+        saved = []
+        for fmt in formats:
+            if fmt in MADE_FROM_OTHERS:
+                continue
+            if fmt in (3, 9, 14) or 0x200 <= fmt < 0x300:
+                return None  # a GDI object, not memory
+            handle = user32.GetClipboardData(fmt)
+            pointer = kernel32.GlobalLock(handle) if handle else None
+            if not pointer:
+                return None
+            try:
+                saved.append(
+                    (fmt, ctypes.string_at(pointer, kernel32.GlobalSize(handle)))
+                )
+            finally:
+                kernel32.GlobalUnlock(handle)
+        if 2 in formats and CF_DIB not in formats:
+            return None
+        return saved
+    finally:
+        user32.CloseClipboard()
+
+
+def clipboard_restore(snapshot):
+    """Puts back what clipboard_snapshot() saw."""
+    ctypes, user32, kernel32 = _clipboard_api()
+    if snapshot is None or not _open_clipboard(user32):
+        return
+    try:
+        user32.EmptyClipboard()
+        for fmt, data in snapshot:
+            memory = kernel32.GlobalAlloc(0x0002, max(len(data), 1))  # MOVEABLE
+            pointer = kernel32.GlobalLock(memory)
+            ctypes.memmove(pointer, data, len(data))
+            kernel32.GlobalUnlock(memory)
+            user32.SetClipboardData(fmt, memory)
+    finally:
+        user32.CloseClipboard()
+
+
 # --- one browser, with its own profile, download folder and log --------
 
 
@@ -315,6 +412,9 @@ def downloads_and_copies(s, checks):
     checks["a command behind 70 KB of blank lines is replaced too"] = (
         s.copy_on("padded") and s.read_clipboard() == REPLACEMENT
     )
+    checks["a command between two 70 KB blocks of words is replaced too"] = (
+        s.copy_on("sandwich") and s.read_clipboard() == REPLACEMENT
+    )
     checks["execCommand copy is replaced too"] = (
         s.copy_on("exec") and s.read_clipboard() == REPLACEMENT
     )
@@ -394,9 +494,9 @@ def answers(port, checks):
 
 
 def remote_page(port, checks):
-    """The answer switch does nothing for a page that is not on localhost.
-    (The clipboard switch is not driven here: without it a copy would reach
-    the real clipboard. clipboard_guard.cc has the same localhost limit.)"""
+    """Both test switches do nothing for a page that is not on localhost
+    (ledger 61): the question bar stays unanswered, and a copy is not
+    logged and dropped but goes through the real guard."""
     with Session("remote", port, answer="risk", remote=True) as s:
         s.download("anydesk")
         checks["not localhost: the question bar shows"] = wait(lambda: ASK in s.bars())
@@ -406,6 +506,57 @@ def remote_page(port, checks):
         )
         if not checks["not localhost: nothing answers the bar"]:
             s.diagnose("remote")
+
+        # The clipboard switch is on in this browser too. If it did anything
+        # here, the copy would be logged and dropped, with no bar. With the
+        # real guard, the page's copy is replaced and the bar shows. That
+        # reaches the real Windows clipboard, so it is put back afterwards.
+        before = clipboard_snapshot()
+        if before is None:
+            print("SKIP not localhost: copy (the clipboard cannot be put back as it is)")
+            return
+        try:
+            logged = len(s.copies())
+            s.copy_on("exec")
+            checks["not localhost: the real ClickFix bar shows"] = wait(
+                lambda: NOTICE in s.bars()
+            )
+            checks["not localhost: the clipboard switch logs nothing"] = steady(
+                lambda: len(s.copies()) == logged, seconds=3
+            )
+        finally:
+            clipboard_restore(before)
+
+
+def localhost_error_page(port, checks):
+    """The answer switch does nothing on an error page for a localhost
+    address either (ledger 74): an error page commits with the address that
+    failed, so a real site could send the tab to one and borrow the answer.
+    The download is started from the error page, as a browser navigation."""
+    with Session("errorpage", port, answer="risk") as s:
+        dead = f"http://guards.localhost:{free_port()}/"
+        try:
+            s.b.get(dead)
+        except RuntimeError:
+            pass  # the connection is refused: that is the error page
+        shows_error = wait(
+            lambda: "ERR_CONNECTION_REFUSED" in s.b.run("return document.body.innerText")
+        )
+        checks["error page: the tab is on a localhost error page"] = shows_error
+        if not shows_error:
+            return
+        cdp(
+            s.b,
+            "Page.navigate",
+            {"url": f"{s.base}/AnyDesk.exe"},
+        )
+        checks["error page: the question bar shows"] = wait(lambda: ASK in s.bars())
+        time.sleep(6)
+        checks["error page: nothing answers the bar"] = not any(
+            n.startswith("AnyDesk") for n in s.saved()
+        )
+        if not checks["error page: nothing answers the bar"]:
+            s.diagnose("error page")
 
 
 def tripped_tab(port, checks):
@@ -443,6 +594,7 @@ def main():
             switch_off(s, checks)
         answers(port, checks)
         remote_page(port, checks)
+        localhost_error_page(port, checks)
         tripped_tab(port, checks)
     finally:
         srv.shutdown()

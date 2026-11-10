@@ -12,6 +12,9 @@ Checked:
     apple.com written with a Cyrillic a (Chromium's skeleton check) and
     paypal.com-test.com (Chromium's target embedding) each show the
     warning, name the real site, and the server never hears of them;
+  look-alikes under free hosting names (paypa1-login.github.io, a copy of
+    amazon under github.io, a copy of paypal under pages.dev) show the
+    warning too, and ordinary names under the same names do not (ledger 77);
   example·com.com (fails Chromium's spoof checks, no real site to name)
     shows the warning with "Go back to safety";
   "Go to paypal.com" is the main action and goes to https://paypal.com/;
@@ -56,7 +59,28 @@ ORDINARY = [
     "münchen.de".encode("idna").decode(),
 ]
 
-ALL_HOSTS = [PLAIN[0], RN[0], CYRILLIC[0], EMBEDDED[0], NO_TARGET, *ORDINARY]
+# A look-alike under a name anyone can register a page under. The shared
+# suffix is not the site's own name, so the label in front is what is read.
+HOSTED = [
+    ("paypa1-login.github.io", "paypal.com"),
+    ("amaz0n.github.io", "amazon.com"),
+    ("paypa1.pages.dev", "paypal.com"),
+]
+# Ordinary names under github.io. paypal.github.io is a real Pages site name,
+# not a copy. (No ordinary pages.dev name: .dev is HSTS preloaded, so a plain
+# http page there cannot load, and "no warning" would prove nothing.)
+HOSTED_ORDINARY = ["my-notes.github.io", "paypal.github.io", "ordinary-shop.github.io"]
+
+ALL_HOSTS = [
+    PLAIN[0],
+    RN[0],
+    CYRILLIC[0],
+    EMBEDDED[0],
+    NO_TARGET,
+    *ORDINARY,
+    *(h for h, _ in HOSTED),
+    *HOSTED_ORDINARY,
+]
 
 WARNED = (
     "document.body && /different site|copying another site/.test(document.body.innerText)"
@@ -180,7 +204,7 @@ def main():
             seed_profile(profile)
             with Browser(user_data_dir=profile, args=browser_args()) as b:
                 # --- the warnings ---------------------------------------
-                for host, real in (PLAIN, RN, CYRILLIC, EMBEDDED):
+                for host, real in (PLAIN, RN, CYRILLIC, EMBEDDED, *HOSTED):
                     open_url(b, url(host))
                     shown = wait_for(b, WARNED)
                     check(f"{host}: the warning shows", shown)
@@ -220,6 +244,7 @@ def main():
                     h
                     for h in server.seen
                     if h in (PLAIN[0], RN[0], CYRILLIC[0], EMBEDDED[0])
+                    or h in dict(HOSTED)
                 ]
                 check("no request went to a warned site", not heard, repr(heard))
 
@@ -277,7 +302,7 @@ def main():
                 )
 
                 # --- ordinary sites -------------------------------------
-                for host in ORDINARY:
+                for host in [*ORDINARY, *HOSTED_ORDINARY]:
                     open_url(b, url(host))
                     loaded = wait_for(b, "!!document.getElementById('ok')", 10000)
                     check(

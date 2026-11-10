@@ -33,6 +33,7 @@ from drive import Browser
 
 OUT = Path(__file__).resolve().parents[2] / "artifacts/ui-implemented"
 
+NL = chr(10)
 FILTERS = "! pretend filter list\n||lists-smoke-test.invalid^\n"
 # Served on purpose although this version ships no scam list: a feed
 # can offer whatever it likes, and the browser has to refuse it.
@@ -153,11 +154,13 @@ def run_openssl(args, capture=False):
     return result.stdout if capture else None
 
 
-def write_bundle(directory, version, break_hash=False, key=None, sign=True):
+def write_bundle(
+    directory, version, break_hash=False, key=None, sign=True, filters=FILTERS
+):
     """Writes a bundle the browser can download, or a broken one."""
     files = []
     for name, text in (
-        ("easylist.txt", FILTERS),
+        ("easylist.txt", filters),
         ("scamlist.txt", SCAM),
         ("regional-de.txt", REGIONAL),
         ("regional-index.json", REGIONAL_INDEX),
@@ -188,6 +191,46 @@ def wait_for_file(path, timeout=20):
             return True
         time.sleep(0.2)
     return False
+
+
+def marker_time(downloads):
+    """When the last check finished, or 0. The browser rewrites the marker
+    at the end of every check, so a changed time says a new check is in."""
+    try:
+        return (downloads / "last-check").stat().st_mtime_ns
+    except OSError:
+        return 0
+
+
+def check_again(work, name, downloads, key, version, filters):
+    """Serves a signed bundle of this version and runs one more check against
+    the downloads folder a bundle has already been put in. Returns the
+    marker's text once the check is in."""
+    served = work / name
+    served.mkdir()
+    write_bundle(served, version=version, key=key, filters=filters)
+    server, feed_url = serve(served)
+    before = marker_time(downloads)
+    try:
+        with Browser(
+            user_data_dir=str(work / ("profile-" + name)),
+            args=[
+                f"--boring-list-url={feed_url}",
+                f"--boring-list-dir={downloads}",
+                f"--boring-list-key={key.spki_base64}",
+                "--boring-check-lists-now",
+                "--window-size=1360,900",
+            ],
+        ) as b:
+            b.get("chrome://boring-protection")
+            deadline = time.monotonic() + 20
+            while time.monotonic() < deadline and marker_time(downloads) == before:
+                time.sleep(0.2)
+            # Time for anything the check would still have put in place.
+            time.sleep(1.5)
+    finally:
+        server.shutdown()
+    return (downloads / "last-check").read_text()
 
 
 def run_check(feed_url, downloads, profile, key, screenshot=None):
@@ -280,6 +323,32 @@ def main():
         )
         checks["the page says how old the lists are"] = shows_age
         checks["the page has the updates switch"] = has_switch
+
+        # A second bundle of the version the browser already has (ledger 79,
+        # T5). The publisher counts up once a day, so two bundles of one
+        # day share a number, and a correctly signed manifest of the same
+        # number with other files in it must not replace what is in use.
+        # The next number is taken.
+        downloads = work / "downloads-good"
+        replay = "! same version, other list" + NL + "||replayed.invalid^" + NL
+        marker = check_again(work, "same-version", downloads, key, 900, replay)
+        checks["a signed manifest of the same version is refused"] = (
+            "outcome=stale" in marker
+        )
+        checks["and the list in use is unchanged"] = (
+            downloads / "easylist.txt"
+        ).read_text() == FILTERS
+        checks["and the version on record is still the old one"] = (
+            "version=900" in marker
+        )
+        newer = "! next version" + NL + "||next-version.invalid^" + NL
+        marker = check_again(work, "next-version", downloads, key, 901, newer)
+        checks["a signed manifest of the next version is taken"] = (
+            "version=901" in marker and "outcome=ok" in marker
+        )
+        checks["and its list replaces the old one"] = (
+            downloads / "easylist.txt"
+        ).read_text() == newer
 
         # A bundle whose hash does not match what arrived. This is the
         # one that matters: a list nobody can vouch for must not be used.

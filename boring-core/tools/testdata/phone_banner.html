@@ -8,6 +8,8 @@
        contact   a shop's contact page with a menu, a footer and a number
        news      a news story about these scams, quoting the wording
        weak      a plain page that says call Windows Support, with a number
+       huge      one 3 MB block of text, inside 150 nested fixed-position
+                 dialogs that each cover the window, with a number in it
      The numbers are fiction (555-01xx). -->
 <style>
   body { margin: 0; font: 16px/1.5 system-ui, sans-serif; color: #222; background: #fff; }
@@ -71,12 +73,25 @@
            1-800-555-0117 to fix it.</p>
       </main>`,
   };
+  // The page the phone scan must get through in time: every one of the
+  // nested dialogs holds the whole block, so a scan that laid out each
+  // dialog's text again would lay out 450 MB.
+  function huge() {
+    const words = 'The shop will be closed on Monday for stocktaking. ';
+    let html = '<p>' + words.repeat(60000) +
+        ' Questions? Call us on 1-800-555-0123. ' + words.repeat(2000) + '</p>';
+    for (let i = 0; i < 150; i++) {
+      html = '<div role="dialog" style="position:fixed;inset:0;overflow:hidden">' +
+          html + '</div>';
+    }
+    return html;
+  }
   const mode = new URLSearchParams(location.search).get('mode') || 'scam';
   function show(html) { document.body.innerHTML = html; }
   if (mode === 'late') {
     setTimeout(() => show(pages.scam), 1000);
   } else {
-    show(pages[mode]);
+    show(mode === 'huge' ? huge() : pages[mode]);
   }
 </script>
 </body>

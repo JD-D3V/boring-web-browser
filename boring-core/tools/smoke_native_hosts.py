@@ -58,6 +58,31 @@ sys.stdout.buffer.write(struct.pack("<I", len(reply)) + reply)
 sys.stdout.buffer.flush()
 '''
 
+# Put in front of the echo host when it is written: one line per start, with
+# the arguments the browser gave it, so a test can tell a start that went
+# through (an origin and a reconnect command) from one that is an error
+# report (the origin and --extension-not-installed).
+LAUNCH_LOG = '''import sys
+try:
+    with open(r"__LOG__", "a", encoding="utf-8") as _log:
+        _log.write(repr(sys.argv[1:]) + "\\n")
+except OSError:
+    pass
+'''
+
+# A second add-on, for the launch from the native side: it lists the hosts as
+# natively connectable and counts the connections the browser hands it.
+LAUNCHER_NAME = "Boring Test Native Launcher"
+LAUNCHER_WORKER = """
+chrome.runtime.onConnectNative.addListener(function(port) {
+  chrome.storage.local.get({connections: 0}, function(r) {
+    chrome.storage.local.set({connections: r.connections + 1});
+  });
+});
+"""
+# The error report the browser starts a host with when it will not connect.
+NOT_INSTALLED = "--extension-not-installed"
+
 CALL = """
   const [host, done] = arguments;
   chrome.runtime.sendNativeMessage(host, {hello: 'world'}, function(reply) {
@@ -138,23 +163,26 @@ def unregister():
 
 def write_host_files(work):
     """The echo host, its launcher and a manifest writer. Returns the
-    manifest path for each host and a function that writes the manifests
-    once the add-on's id is known."""
+    manifest path for each host, a function that writes the manifests once
+    the add-ons' ids are known, and the file every start of the host is
+    written down in."""
+    log = os.path.join(work, "host-starts.log")
     script = os.path.join(work, "echo_host.py")
     with open(script, "w", encoding="utf-8") as f:
-        f.write(ECHO_HOST)
+        f.write(LAUNCH_LOG.replace("__LOG__", log) + ECHO_HOST)
     launcher = os.path.join(work, "echo_host.bat")
     with open(launcher, "w", encoding="utf-8", newline="\r\n") as f:
-        f.write('@echo off\r\n"%s" "%s"\r\n' % (sys.executable, script))
+        f.write('@echo off\r\n"%s" "%s" %%*\r\n' % (sys.executable, script))
     paths = {n: os.path.join(work, n + ".json") for n in REGISTERED}
 
-    def write_manifests(ext_id):
+    def write_manifests(*ext_ids):
         for name, path in paths.items():
             manifest = {
                 "name": name,
                 "path": launcher,
                 "type": "stdio",
-                "allowed_origins": ["chrome-extension://%s/" % ext_id],
+                "allowed_origins": ["chrome-extension://%s/" % i for i in ext_ids],
+                "supports_native_initiated_connections": True,
             }
             # Chromium refuses a manifest without a description.
             manifest["description"] = (
@@ -163,7 +191,7 @@ def write_host_files(work):
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(manifest, f)
 
-    return paths, write_manifests
+    return paths, write_manifests, log
 
 
 def write_addon(work):
@@ -182,6 +210,82 @@ def write_addon(work):
     return root
 
 
+def write_launcher_addon(work):
+    """The add-on the host starts from the native side connect to. Needs the
+    OnConnectNative feature, a natively_connectable list and the
+    transientBackground permission."""
+    root = os.path.join(work, "launcher")
+    os.makedirs(root, exist_ok=True)
+    manifest = {
+        "manifest_version": 3,
+        "name": LAUNCHER_NAME,
+        "version": "1.0",
+        "permissions": ["nativeMessaging", "transientBackground", "storage"],
+        "natively_connectable": [HOST, HOST_GOOGLE],
+        "background": {"service_worker": "worker.js"},
+    }
+    with open(os.path.join(root, "manifest.json"), "w", encoding="utf-8") as f:
+        json.dump(manifest, f)
+    with open(os.path.join(root, "worker.js"), "w", encoding="utf-8") as f:
+        f.write(LAUNCHER_WORKER)
+    with open(os.path.join(root, "state.html"), "w", encoding="utf-8") as f:
+        f.write("<!doctype html><title>state</title>")
+    return root
+
+
+def connect_from_native(profile, ext_id, host):
+    """What a native app does to start a host: runs the browser with the
+    connect switches, which hands them to the browser already running on
+    this profile (headless, with no window of its own, and gone at once)."""
+    run = subprocess.run(
+        [
+            CHROME,
+            "--headless=new",
+            "--no-startup-window",
+            "--user-data-dir=" + profile,
+            "--profile-directory=Default",
+            "--enable-features=OnConnectNative",
+            "--native-messaging-connect-extension=" + ext_id,
+            "--native-messaging-connect-host=" + host,
+            "--native-messaging-connect-id=smoke1",
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=60,
+    )
+    return run.returncode
+
+
+def host_starts(path):
+    """The argument lists the host has been started with, in order."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            return [line.strip() for line in f if line.strip()]
+    except OSError:
+        return []
+
+
+def new_start(path, before, seconds=25):
+    """The next start of the host after `before` earlier ones, or None."""
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        starts = host_starts(path)
+        if len(starts) > before:
+            return starts[before]
+        time.sleep(0.4)
+    return None
+
+
+def connections(b, ext_id):
+    """How many native connections the launcher add-on has been handed."""
+    b.get("chrome-extension://%s/state.html" % ext_id)
+    return b.run_async(
+        "var done = arguments[arguments.length - 1];"
+        "chrome.storage.local.get({connections: 0}, function(r) {"
+        " done(r.connections); });"
+    )
+
+
 def wait_for(b, script, seconds=25):
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
@@ -194,13 +298,13 @@ def wait_for(b, script, seconds=25):
     return False
 
 
-def addon_id(b):
+def addon_id(b, name=ADDON_NAME):
     b.get("chrome://extensions")
     for _ in range(40):
         try:
             ids = b.run_async(EXT_IDS)
-            if ADDON_NAME in ids:
-                return ids[ADDON_NAME]
+            if name in ids:
+                return ids[name]
         except Exception:
             pass
         time.sleep(0.5)
@@ -249,7 +353,7 @@ def main():
     unregister()
     try:
         addon = write_addon(work)
-        manifests, write_manifests = write_host_files(work)
+        manifests, write_manifests, host_log = write_host_files(work)
         register(lambda name: manifests[name])
         args = ["--load-extension=" + addon]
 
@@ -313,6 +417,62 @@ def main():
                 row = seen["rows"].get("host-" + name)
                 if not row or not row["on"] or "On." not in row["text"]:
                     failures.append("updated profile should start with %s on: %r" % (name, row))
+
+        # 3. A host started from the native side (ledger 62) obeys the same
+        # switches. A native app starts the browser with the connect
+        # switches. A host the person has not switched on is not connected:
+        # the browser starts it only to tell it so (--extension-not-installed)
+        # and the add-on is handed nothing. Switched on, the same call goes
+        # through. The second half is what makes the first one mean anything,
+        # since the browser reports that same error when the add-on is not
+        # set up for the call.
+        profile = os.path.join(work, "launch")
+        launcher = write_launcher_addon(work)
+        args = ["--load-extension=" + launcher, "--enable-features=OnConnectNative"]
+        with NewProfileBrowser(user_data_dir=profile, args=args) as b:
+            lid = addon_id(b, LAUNCHER_NAME)
+            if not lid:
+                failures.append("the launcher add-on did not load")
+                return report(failures)
+            write_manifests(lid)
+            time.sleep(3)  # the add-on's worker has run and is listening
+            seen = 0
+
+            def from_native(label, host, goes_through):
+                nonlocal seen
+                code = connect_from_native(profile, lid, host)
+                start = new_start(host_log, seen)
+                print("native start, %s: exit %s, host args %s" % (label, code, start))
+                if start is None:
+                    failures.append("%s: the host was not started at all" % label)
+                    return
+                seen += 1
+                error = NOT_INSTALLED in start
+                if goes_through and error:
+                    failures.append("%s should connect, got the error report: %s" % (label, start))
+                if not goes_through and not error:
+                    failures.append("%s should be refused, but the host was started to connect: %s" % (label, start))
+
+            from_native("new profile, host not switched on", HOST, False)
+            from_native("new profile, second host not switched on", HOST_GOOGLE, False)
+            if not open_protection(b):
+                failures.append("the host rows never appeared (native start)")
+                return report(failures)
+            if not set_switch(b, HOST, True):
+                failures.append("the host row did not read On (native start)")
+            from_native("host switched on", HOST, True)
+            handed = connections(b, lid)
+            if handed != 1:
+                failures.append("the add-on should have been handed 1 connection, got %r" % handed)
+            if not open_protection(b):
+                failures.append("the host rows never appeared (native start, switch off)")
+                return report(failures)
+            if not set_switch(b, HOST, False):
+                failures.append("the host row did not read Blocked (native start)")
+            from_native("host switched off again", HOST, False)
+            handed = connections(b, lid)
+            if handed != 1:
+                failures.append("a refused host should hand the add-on nothing, got %r connections" % handed)
     finally:
         unregister()
         shutil.rmtree(work, ignore_errors=True)
