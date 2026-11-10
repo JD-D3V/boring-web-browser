@@ -7,7 +7,7 @@
 # hand from the Actions tab, or let the nightly run pick up the day's
 # changes.
 #
-# There is one build tree on that machine, E:\ung-153-47, and two things
+# There is one build tree on that machine, E:\ung-157, and two things
 # writing into it at once ruin it quietly. Two guards keep that from
 # happening: the concurrency group below, which queues this workflow
 # behind release.yml, and joblock.py, which a build JD starts by hand at
@@ -49,8 +49,8 @@ jobs:
       LOCK_OWNER: gh-build-${{ github.run_id }}-${{ github.run_attempt }}
       LOCK: ${{ github.workspace }}\boring-core\tools\joblock.py
       # The tools default to E:\ung; point them at the current tree.
-      BORING_OUT: E:\ung-153-47\build\src\out\Default
-      BORING_JOBLOCK: E:\ung-153-47\boring-build.lock
+      BORING_OUT: E:\ung-157\build\src\out\Default
+      BORING_JOBLOCK: E:\ung-157\boring-build.lock
     steps:
       - name: Check out our files
         uses: actions/checkout@v4
@@ -61,7 +61,7 @@ jobs:
 
       - name: Put boring-core into the build tree
         shell: cmd
-        run: python "%LOCK%" --owner "%LOCK_OWNER%" --job apply -- python boring-core\tools\apply.py --src E:\ung-153-47\build\src --patch-set 153
+        run: python "%LOCK%" --owner "%LOCK_OWNER%" --job apply -- python boring-core\tools\apply.py --src E:\ung-157\build\src --patch-set 157
 
       - name: Refresh the filter lists
         shell: cmd
@@ -85,7 +85,7 @@ jobs:
           call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
           set TMP=E:\tmp
           set TEMP=E:\tmp
-          cd /d E:\ung-153-47 || exit /b 1
+          cd /d E:\ung-157 || exit /b 1
           python "%LOCK%" --owner "%LOCK_OWNER%" --job "ninja build" -- python3 build.py --ci || exit /b 1
 
       - name: Check the browser still works
@@ -97,7 +97,7 @@ jobs:
         shell: cmd
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" || exit /b 1
-          cd /d E:\ung-153-47 || exit /b 1
+          cd /d E:\ung-157 || exit /b 1
           python "%LOCK%" --owner "%LOCK_OWNER%" --job package -- python3 package.py || exit /b 1
 
       - name: Keep the installer
@@ -105,7 +105,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-installer
-          path: E:\ung-153-47\build\*_installer_x64.exe
+          path: E:\ung-157\build\*_installer_x64.exe
           if-no-files-found: error
 
       # Best effort. The lease runs out on its own, so a job that dies

@@ -59,11 +59,11 @@ jobs:
     env:
       VERSION: ${{ inputs.version }}
       DIST: ${{ github.workspace }}\dist
-      UNG: E:\ung-153-47
-      OUT: E:\ung-153-47\build\src\out\Default
+      UNG: E:\ung-157
+      OUT: E:\ung-157\build\src\out\Default
       # The tools default to E:\ung; point them at the current tree.
-      BORING_OUT: E:\ung-153-47\build\src\out\Default
-      BORING_JOBLOCK: E:\ung-153-47\boring-build.lock
+      BORING_OUT: E:\ung-157\build\src\out\Default
+      BORING_JOBLOCK: E:\ung-157\boring-build.lock
       LOCK: ${{ github.workspace }}\boring-core\tools\joblock.py
       SIGN: ${{ github.workspace }}\boring-core\tools\sign_windows.py
       SIGN_LIST: E:\tmp\boring-sign-list.txt
@@ -133,7 +133,7 @@ jobs:
 
       - name: Put boring-core into the build tree
         shell: cmd
-        run: python "%LOCK%" --owner "%LOCK_OWNER%" --job apply -- python boring-core\tools\apply.py --src E:\ung-153-47\build\src --patch-set 153
+        run: python "%LOCK%" --owner "%LOCK_OWNER%" --job apply -- python boring-core\tools\apply.py --src E:\ung-157\build\src --patch-set 157
 
       - name: Refresh the filter lists
         shell: cmd
