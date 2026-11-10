@@ -64,6 +64,12 @@ class GuardTestHooks(unittest.TestCase):
             after_switch.index("IsLocalhost"), after_switch.index("CheckClipboardCopy")
         )
 
+    def test_hooks_ignore_an_error_page(self):
+        # Pass 2, S3: an error page commits with the failed (localhost) URL.
+        for name in ("guard_infobar.cc", "clipboard_guard.cc"):
+            text = read(BORING / "guards" / name)
+            self.assertIn("GetPrimaryMainFrame()->IsErrorDocument()", text, name)
+
     def test_smoke_drives_a_remote_page(self):
         smoke = read(TOOLS / "smoke_scam_guards.py")
         self.assertIn("not localhost: nothing answers the bar", smoke)

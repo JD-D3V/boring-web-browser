@@ -88,7 +88,8 @@ bool SwallowClipboardCopyForTest(const content::ClipboardEndpoint& source,
   // Only for a page on localhost: a copy from a real site is never held back
   // by the switch.
   content::WebContents* web_contents = source.web_contents();
-  if (!web_contents || !net::IsLocalhost(web_contents->GetLastCommittedURL())) {
+  if (!web_contents || !net::IsLocalhost(web_contents->GetLastCommittedURL()) ||
+      web_contents->GetPrimaryMainFrame()->IsErrorDocument()) {
     return false;
   }
   // What would have gone on the clipboard, as a JSON string so a command

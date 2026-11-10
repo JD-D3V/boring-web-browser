@@ -69,7 +69,10 @@ base::WeakPtr<GuardInfoBarDelegate> GuardInfoBarDelegate::Show(
 
   const base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
   if (weak && question && command_line->HasSwitch(kTestAnswerSwitch) &&
-      net::IsLocalhost(web_contents->GetLastCommittedURL())) {
+      net::IsLocalhost(web_contents->GetLastCommittedURL()) &&
+      // An error page commits with the URL that failed, so a real site could
+      // send the tab to http://127.0.0.1:1/ and borrow this answer.
+      !web_contents->GetPrimaryMainFrame()->IsErrorDocument()) {
     const bool safe =
         command_line->GetSwitchValueASCII(kTestAnswerSwitch) != "risk";
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
