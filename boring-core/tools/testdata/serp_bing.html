@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>vpn deal - Search (test)</title>
+<!--
+  For smoke_serp.py. A stand-in for a Bing results page, served from this
+  machine under the real name www.bing.com, so the product's address check
+  (components/boring/serp/serp_tab_helper.cc: bing.com, path /search) is
+  the one exercised. It carries the page shape the script works inside:
+  a results list and a footer, and nothing that loads from elsewhere. The
+  smoke adds its own ad shaped block, as it did on the live page.
+-->
+<style>
+  body { font: 14px/1.5 system-ui, sans-serif; margin: 0; padding: 16px; }
+  #b_results { list-style: none; margin: 0; padding: 0; max-width: 600px; }
+  .b_algo { margin: 0 0 16px 0; }
+  .b_algo h2 { margin: 0; font-size: 18px; }
+</style>
+</head>
+<body>
+<header id="b_header"><form action="/search"><input name="q" value="vpn deal"></form></header>
+<main id="b_content">
+  <ol id="b_results">
+    <li class="b_algo"><h2><a href="/result/1">VPN deals compared</a></h2><p>A plain description of the first result.</p></li>
+    <li class="b_algo"><h2><a href="/result/2">What a VPN does</a></h2><p>A plain description of the second result.</p></li>
+    <li class="b_algo"><h2><a href="/result/3">Choosing a VPN</a></h2><p>A plain description of the third result.</p></li>
+  </ol>
+</main>
+<footer id="b_footer">Privacy and cookies</footer>
+</body>
+</html>

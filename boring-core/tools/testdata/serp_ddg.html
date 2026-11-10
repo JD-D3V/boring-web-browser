@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>buy running shoes at DuckDuckGo (test)</title>
+<!--
+  For smoke_serp.py. A stand-in for a DuckDuckGo results page, served from
+  this machine under the real name duckduckgo.com at "/" with a query, the
+  address the product treats as results (serp_tab_helper.cc). Nothing on
+  it loads from elsewhere.
+-->
+<style>
+  body { font: 14px/1.5 system-ui, sans-serif; margin: 0; padding: 16px; }
+  ol { list-style: none; margin: 0; padding: 0; max-width: 600px; }
+  li { margin: 0 0 16px 0; }
+</style>
+</head>
+<body>
+<form action="/"><input name="q" value="buy running shoes"></form>
+<ol id="react-layout">
+  <li data-layout="organic"><h2><a href="/result/1">Running shoes guide</a></h2><p>A plain description of the first result.</p></li>
+  <li data-layout="organic"><h2><a href="/result/2">How to choose running shoes</a></h2><p>A plain description of the second result.</p></li>
+</ol>
+</body>
+</html>

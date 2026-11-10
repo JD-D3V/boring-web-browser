@@ -139,7 +139,8 @@ class Policy:
       urlhaus          11,786 bytes       390 hosts
       openphish        16,048 bytes       234 hosts
 
-    Combined, that is 138,411 filter rules and 624 scam hosts.
+    Combined, that is 138,411 filter rules and 624 scam hosts. The two
+    scam rows are historical: SCAM_POLICY holds the current feeds' numbers.
 
     Nothing here is a large round number picked for comfort. A floor
     that is too high refuses a legitimate quiet week and leaves people
@@ -158,25 +159,36 @@ class Policy:
     degraded_shrink_floor: float
 
 
-# The scam list, published whole or not at all like the others. The
-# floors below were set from the first two feeds (URLhaus, OpenPhish);
-# CERT Polska is far larger and DurableNapkin small, so recheck them
-# against the real feeds before the first run that publishes it.
+# The scam list, published whole or not at all like the others. Floors reset
+# for the two permitted feeds on 2026-11-10 (they were set for URLhaus and
+# OpenPhish), measured by fetching each once:
+#
+#   cert-polska    2,578,377 bytes   124,937 hosts   (125,420 on 2026-10-28)
+#   durablenapkin     60,231 bytes     2,187 hosts   2,165 after the filters
+#
+# The suffix filter dropped 0 from either feed. The top-sites filter dropped
+# 0 from CERT and 22 from DurableNapkin (wordpress.com and tumblr.com
+# subdomains, binomo.com, wallpaperflare.com, z-lib.is), which is past
+# MAX_POPULAR_DROPS, so DurableNapkin is refused as a source today and the
+# list is CERT alone. The feeds did not overlap. CERT keeps a six month
+# window and moved under half a per cent in 13 days.
 SCAM_POLICY = Policy(
     name="scamlist.txt",
-    # The smaller of the two scam feeds held 234 hosts, so one healthy
-    # source clears 100 twice over while a mostly broken run does not.
-    first_run_floor=100,
-    # URLhaus is a rolling window of malware hosts that are live right
-    # now and is about 60 per cent of the union, so week to week churn
-    # is real and large. Halving is the most an ordinary week should
-    # manage; past that something is wrong with the data.
-    healthy_shrink_floor=0.50,
-    # The two feeds did not overlap at all on 2026-09-19: 390 plus 234
-    # made a union of 624. Losing URLhaus leaves 234 of 624, so 37.5
-    # per cent is the worst a single source outage explains. 35 sits
-    # just under that, which keeps a real outage publishable.
-    degraded_shrink_floor=0.35,
+    # CERT carries the list (98 per cent of it). get_scamlist already holds
+    # it to 20,000 hosts, and DurableNapkin alone is about 2,000, so a first
+    # run with no previous bundle needs 20,000: CERT answered whole, or a
+    # list of the same size. Under 17 per cent of today's 124,937.
+    first_run_floor=20_000,
+    # Refuse a drop of more than 30 per cent with every source answering.
+    # 0.4 per cent moved in 13 days, so this leaves room for a campaign
+    # ending and the six month window rolling, and still refuses a truncated
+    # or emptied feed.
+    healthy_shrink_floor=0.70,
+    # Losing DurableNapkin costs under 2 per cent, so a failed source barely
+    # moves the count. Losing CERT leaves under 2 per cent of the list and
+    # is refused at any floor. 60 keeps a source outage plus ordinary churn
+    # publishable.
+    degraded_shrink_floor=0.60,
 )
 
 FILTER_POLICY = Policy(
