@@ -149,8 +149,10 @@ def browser_args(doh, pages):
     return [
         "--disable-boring-list-updates",
         f"--boring-test-quad9-endpoint=http://127.0.0.1:{doh.port}/dns-query",
-        # The page with the link is the only name that resolves.
-        f"--host-resolver-rules=MAP {FROM_PAGE} 127.0.0.1, MAP * ~NOTFOUND",
+        # The page with the link is the only name that resolves. The rule
+        # would also fail the address 127.0.0.1 the fake server is on.
+        f"--host-resolver-rules=MAP {FROM_PAGE} 127.0.0.1, "
+        "MAP * ~NOTFOUND, EXCLUDE 127.0.0.1",
         # HTTPS-Only would upgrade these plain http names (see
         # smoke_lookalike.seed_profile). This replaces drive.py's own
         # --disable-features, so it carries that one too.
