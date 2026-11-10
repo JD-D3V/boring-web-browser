@@ -7,6 +7,12 @@
 #include <tuple>
 #include <utility>
 
+#include "build/build_config.h"
+
+#if BUILDFLAG(IS_WIN)
+#include <windows.h>
+#endif
+
 #include "base/command_line.h"
 #include "base/files/file_util.h"
 #include "base/files/important_file_writer.h"
@@ -45,12 +51,29 @@ const base::TaskTraits kBlocking = {
     base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN};
 
 // The test switch is honoured only for a folder inside the system temp
-// directory. A path anywhere else, such as a network share, is ignored.
+// directory. A path anywhere else, such as a network share, is ignored. The
+// temp directory itself follows TMP/TEMP, so a share set there is refused
+// too: both paths must be on a local fixed drive.
+bool IsOnLocalDrive(const base::FilePath& path) {
+#if BUILDFLAG(IS_WIN)
+  const std::wstring& value = path.value();
+  if (value.size() < 3 || value[1] != L':' || value[2] != L'\\' ||
+      !((value[0] >= L'a' && value[0] <= L'z') ||
+        (value[0] >= L'A' && value[0] <= L'Z'))) {
+    return false;  // UNC, device and relative forms all land here.
+  }
+  const wchar_t root[] = {value[0], L':', L'\\', 0};
+  return ::GetDriveType(root) == DRIVE_FIXED;
+#else
+  return true;
+#endif
+}
+
 bool IsUnderTempDir(const base::FilePath& dir) {
   base::FilePath temp;
   return dir.IsAbsolute() && !dir.ReferencesParent() &&
          base::PathService::Get(base::DIR_TEMP, &temp) &&
-         temp.IsParent(dir);
+         IsOnLocalDrive(temp) && IsOnLocalDrive(dir) && temp.IsParent(dir);
 }
 
 bool FolderHasCopy(const base::FilePath& dir) {

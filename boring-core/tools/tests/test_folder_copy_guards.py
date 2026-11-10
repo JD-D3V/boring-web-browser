@@ -39,6 +39,16 @@ class SwitchIsForThisRunOnly(unittest.TestCase):
         self.assertIn("ReferencesParent", check)
         self.assertIn("IsAbsolute", check)
 
+    def test_switch_refuses_network_and_non_fixed_drives(self):
+        # TMP/TEMP can be pointed at a share for one run (review T4).
+        local = function_body(self.cc, "bool IsOnLocalDrive(")
+        self.assertIn("DRIVE_FIXED", local)
+        self.assertIn("GetDriveType", local)
+        check = function_body(self.cc, "bool IsUnderTempDir(")
+        self.assertEqual(check.count("IsOnLocalDrive("), 2)
+        self.assertIn("IsOnLocalDrive(temp)", check)
+        self.assertIn("IsOnLocalDrive(dir)", check)
+
     def test_switch_path_never_writes_prefs(self):
         init = function_body(self.cc, "void FolderCopy::Init()")
         self.assertNotIn("SetDir(", init)
