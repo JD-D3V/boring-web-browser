@@ -8,7 +8,10 @@ each docstring, in the next integration build.
 Usage: python -m pytest boring-core/tools/tests/test_r3_security.py
 """
 
+import json
 import re
+import shutil
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -104,6 +107,55 @@ class ScamClickThrough(unittest.TestCase):
             "turning the switch on clears an earlier Continue anyway",
             read(TOOLS / "smoke_scam.py"),
         )
+
+
+class TakeoverSiteName(unittest.TestCase):
+    """Item 66. smoke_takeover.py reads the page with a host and with text."""
+
+    def script(self):
+        cc = read(BORING / "scam" / "takeover" / "takeover_ui.cc")
+        return cc.split('R"SCRIPT(', 1)[1].split(')SCRIPT"', 1)[0]
+
+    def test_only_a_host_is_shown(self):
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("no node here")
+        script = self.script()
+        # Run the page's own lines against a fake page for each address.
+        harness = """
+const input = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+const out = input.cases.map(function(q) {
+  const el = {hidden: true, textContent: ''};
+  const location = {search: '?site=' + encodeURIComponent(q)};
+  const document = {getElementById: function(id) {
+    return id === 'site' ? el : {addEventListener: function() {}}; }};
+  const chrome = {send: function() {}};
+  new Function('location', 'document', 'chrome', input.src)(location, document, chrome);
+  return !el.hidden;
+});
+console.log(JSON.stringify(out));
+"""
+        shown = ["example.com", "a-b.co.uk", "192.168.0.1", "[::1]", "[2001:db8::1]", "xn--e1afmkfd.xn--p1ai"]
+        hidden = [
+            "Call Microsoft on 0800 123 456",
+            "call-now.example.com/ ",
+            "x" * 254,
+            "<b>hi</b>",
+            "example.com:8080",
+            "",
+        ]
+        cases = shown + hidden
+        done = subprocess.run(
+            [node, "-e", harness],
+            input=json.dumps({"src": script, "cases": cases}),
+            capture_output=True, text=True, timeout=30,
+        )
+        self.assertEqual(done.returncode, 0, done.stderr)
+        got = json.loads(done.stdout)
+        self.assertEqual(got, [True] * len(shown) + [False] * len(hidden))
+
+    def test_smoke_checks_it(self):
+        self.assertIn("free text in ?site= is not shown", read(TOOLS / "smoke_takeover.py"))
 
 
 if __name__ == "__main__":

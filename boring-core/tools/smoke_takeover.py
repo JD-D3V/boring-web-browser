@@ -181,6 +181,17 @@ def main():
                 "Your computer is fine" in text and "Close this tab" in text
             )
             checks["fullscreen is gone"] = not fullscreen(b)
+            checks["Get me out names the host the page was on"] = b.run(
+                "var e = document.getElementById('site');"
+                " return !e.hidden && e.textContent.startsWith('The page was on ')"
+            )
+            # Words typed into the address are not shown, only a host name.
+            b.get(GET_ME_OUT + "?site=Call%20Microsoft%20on%20800")
+            wait(lambda: b.run("return !!document.getElementById('close')"))
+            checks["free text in ?site= is not shown"] = b.run(
+                "return document.getElementById('site').hidden"
+                " && !document.body.innerText.includes('Call Microsoft')"
+            )
             try:
                 b.run("document.getElementById('close').click(); return 1")
             except RuntimeError:

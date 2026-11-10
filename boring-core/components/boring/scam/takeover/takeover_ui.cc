@@ -80,7 +80,10 @@ installed and nothing is broken.</p>
 
 constexpr char kScript[] = R"SCRIPT(
 var site = new URLSearchParams(location.search).get('site');
-if (site) {
+// Shown only when it is a host name or an address, so a typed-in address
+// cannot put its own words under the heading.
+var isHost = /^[a-z0-9.-]+$|^\[[0-9a-f:.]+\]$/i;
+if (site && site.length <= 253 && isHost.test(site)) {
   var el = document.getElementById('site');
   el.textContent = 'The page was on ' + site;
   el.hidden = false;
