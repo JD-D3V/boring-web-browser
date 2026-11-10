@@ -22,7 +22,7 @@ import sys
 
 import get_scamlist
 import pristine
-from rebrand import rebrand
+from rebrand import STRING_FILES, rebrand
 
 CORE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_SRC = r"E:\ung\build\src"
@@ -171,10 +171,49 @@ def rewind(src, patch, pristine=PRISTINE):
     return restored
 
 
+def seed_pristine(src, patches, pristine=PRISTINE):
+    """Save the original of every file the patches change, before the first.
+
+    clean_tree.py can only put back a file that has a copy in the store,
+    and a patched file gets one only if something saved it. This runs
+    before any patch goes on, so a file no patch of the series has
+    touched yet is still as it came. One a patch is already in is left
+    unsaved: it is not the original any more, and a stacked copy taken
+    from it would put the change back as if it were Chromium's.
+    """
+    skip = {rel.replace("/", os.sep) for rel in STRING_FILES}
+    seeded = []
+    for rel in sorted({rel for patch in patches for rel in patched_files(patch)}):
+        keep = os.path.join(pristine, rel)
+        if rel in skip or os.path.exists(keep):
+            continue
+        if not os.path.exists(os.path.join(src, rel)):
+            continue
+        include = "--include=" + rel.replace(os.sep, "/")
+        if any(
+            subprocess.run(
+                ["git", "apply", "--reverse", "--check", include, patch],
+                cwd=src,
+                capture_output=True,
+            ).returncode
+            == 0
+            for patch in patches
+            if rel in patched_files(patch)
+        ):
+            print("no pristine copy, already patched", rel)
+            continue
+        snapshot(src, rel, pristine)
+        seeded.append(rel)
+    if seeded:
+        print("pristine copy saved:", ", ".join(seeded))
+    return seeded
+
+
 def apply_patches(src, patch_set=None, pristine=PRISTINE):
     names = series_names()
     if not names:
         return
+    seed_pristine(src, [patch_path(name, patch_set) for name in names], pristine)
     # A rewind puts a whole file back, which can take another patch's
     # change with it, so anything already applied has to go on again.
     for attempt in range(2):
