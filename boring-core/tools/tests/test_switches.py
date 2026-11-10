@@ -115,8 +115,9 @@ class MigrationTest(unittest.TestCase):
 
 
 class EveryPrefHasASwitchTest(unittest.TestCase):
-    # Not a choice for the person: bookkeeping the browser keeps itself.
-    INTERNAL = {"kNativeHostsDecided"}
+    # Not set by a handler here: bookkeeping the browser keeps itself, or
+    # a pref the folder copy service sets on the page's behalf.
+    INTERNAL = {"kNativeHostsDecided", "kBoringFolderCopyArmed"}
 
     def test_every_yes_or_no_pref_is_set_from_the_protection_page(self):
         registered = re.findall(
