@@ -7,3 +7,6 @@ boring-core/components/boring/webstore/chromium-web-store/** -text
 **/patches/series text eol=lf
 # A test reads Cargo.lock for a two line pattern, so a CRLF checkout fails it.
 **/Cargo.lock text eol=lf
+# Vendored Chromium data files, byte-exact (hashes in boring-core/tools/data/SOURCES.txt).
+boring-core/tools/data/effective_tld_names.dat -text
+boring-core/tools/data/domains.list -text

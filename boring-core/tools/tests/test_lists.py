@@ -32,6 +32,17 @@ import get_scamlist  # noqa: E402
 import publish_lists  # noqa: E402
 from get_filterlists import FeedError, Fetched  # noqa: E402
 
+import scam_data  # noqa: E402
+
+
+def setUpModule():
+    scam_data.use_vendored_data()
+
+
+def tearDownModule():
+    scam_data.stop_vendored_data()
+
+
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "listdata")
 
 FILTER_URLS = [url for _, url in get_filterlists.LISTS]
@@ -174,7 +185,7 @@ def healthy_answers() -> dict:
         URLHAUS_URL: hostfile_bytes(),
         OPENPHISH_URL: url_feed_bytes(),
         get_scamlist.CERT_URL: cert_bytes(),
-        get_scamlist.DURABLENAPKIN_URL: hostfile_bytes(count=300, start=70000),
+        get_scamlist.DURABLENAPKIN_URL: hostfile_bytes(count=600, start=70000),
         **output_answers(*publish_lists.BUNDLED_OUTPUTS),
         get_filterlists.GPL3_UASSETS.text_url: GPL_TEXT,
         get_filterlists.GPL3_ADGUARD.text_url: GPL_TEXT,
@@ -409,15 +420,55 @@ class CoveragePolicy(unittest.TestCase):
 
     def test_healthy_shrink_floor(self):
         policy = publish_lists.SCAM_POLICY
-        publish_lists.check_coverage(policy, self.build(500, [True, True]), 1000)
+        publish_lists.check_coverage(policy, self.build(70_000, [True, True]), 100_000)
         with self.assertRaises(publish_lists.RefusedError):
-            publish_lists.check_coverage(policy, self.build(400, [True, True]), 1000)
+            publish_lists.check_coverage(
+                policy, self.build(69_999, [True, True]), 100_000
+            )
 
     def test_a_failed_source_buys_a_lower_floor_but_not_no_floor(self):
         policy = publish_lists.SCAM_POLICY
-        publish_lists.check_coverage(policy, self.build(400, [True, False]), 1000)
+        publish_lists.check_coverage(policy, self.build(60_000, [True, False]), 100_000)
         with self.assertRaises(publish_lists.RefusedError):
-            publish_lists.check_coverage(policy, self.build(300, [True, False]), 1000)
+            publish_lists.check_coverage(
+                policy, self.build(59_999, [True, False]), 100_000
+            )
+
+    def test_scam_floors_fit_the_real_feeds(self):
+        """Numbers measured 2026-11-10: CERT 124,937 hosts, DurableNapkin
+        2,165 after the filters (see the comment on SCAM_POLICY)."""
+        policy = publish_lists.SCAM_POLICY
+        cert, napkin = 124_937, 2_165
+        # Both feeds, CERT alone, and a first run on today's list all pass.
+        publish_lists.check_coverage(
+            policy, self.build(cert + napkin, [True, True]), None
+        )
+        publish_lists.check_coverage(policy, self.build(cert, [True, False]), None)
+        publish_lists.check_coverage(
+            policy, self.build(cert, [True, False]), cert + napkin
+        )
+        # A few per cent of churn is a normal week.
+        publish_lists.check_coverage(
+            policy, self.build(int(cert * 0.95), [True, True]), cert + napkin
+        )
+        # DurableNapkin alone (CERT down) is not a list, first run or not.
+        with self.assertRaises(publish_lists.RefusedError):
+            publish_lists.check_coverage(
+                policy, self.build(napkin, [False, True]), None
+            )
+        with self.assertRaises(publish_lists.RefusedError):
+            publish_lists.check_coverage(
+                policy, self.build(napkin, [False, True]), cert + napkin
+            )
+        # An empty or truncated CERT feed is refused.
+        with self.assertRaises(publish_lists.RefusedError):
+            publish_lists.check_coverage(policy, self.build(1_000, [True, True]), None)
+        with self.assertRaises(publish_lists.RefusedError):
+            publish_lists.check_coverage(
+                policy, self.build(cert // 2, [True, True]), cert + napkin
+            )
+        # The source level floor stays under the first run floor.
+        self.assertLessEqual(get_scamlist.CERT_MIN_HOSTS, policy.first_run_floor)
 
 
 class PublishPath(unittest.TestCase):
@@ -504,10 +555,10 @@ class PublishPath(unittest.TestCase):
         entry = next(f for f in manifest["files"] if f["name"] == "scamlist.txt")
         with open(os.path.join(self.out, "scamlist.txt"), encoding="utf-8") as f:
             text = f.read()
-        # 20,500 CERT hosts and 300 DurableNapkin hosts; the test entry
+        # 20,500 CERT hosts and 600 DurableNapkin hosts; the test entry
         # below the marker is not counted.
-        self.assertEqual(entry["entries"], 20_800)
-        self.assertEqual(get_scamlist.count_real_hosts(text), 20_800)
+        self.assertEqual(entry["entries"], 21_100)
+        self.assertEqual(get_scamlist.count_real_hosts(text), 21_100)
         self.assertEqual(entry["size"], len(text.encode("utf-8")))
         self.assertIn(get_scamlist.TEST_MARKER, text)
         self.assertEqual(
@@ -515,7 +566,9 @@ class PublishPath(unittest.TestCase):
             {"cert-polska", "durablenapkin"},
         )
         self.assertIn(get_scamlist.NOTICE_NAME, manifest["notices"])
-        self.assertTrue(os.path.exists(os.path.join(self.out, get_scamlist.NOTICE_NAME)))
+        self.assertTrue(
+            os.path.exists(os.path.join(self.out, get_scamlist.NOTICE_NAME))
+        )
 
     def test_feeds_that_may_not_be_passed_on_never_reach_the_bundle(self):
         code, _ = self.run_publish(healthy_answers(), extra=["--version", "500"])
@@ -541,10 +594,17 @@ class PublishPath(unittest.TestCase):
 
     def test_one_scam_feed_down_publishes_a_degraded_bundle(self):
         answers = healthy_answers()
-        answers[get_scamlist.CERT_URL] = FeedError("HTTP 503")
+        answers[get_scamlist.DURABLENAPKIN_URL] = FeedError("HTTP 503")
         code, _ = self.run_publish(answers, extra=["--version", "500"])
         self.assertEqual(code, 0)
         self.assertTrue(self.read_manifest()["degraded"])
+
+    def test_cert_down_alone_is_not_a_scam_list_on_a_first_run(self):
+        answers = healthy_answers()
+        answers[get_scamlist.CERT_URL] = FeedError("HTTP 503")
+        code, log = self.run_publish(answers, extra=["--version", "500"])
+        self.assertEqual(code, 1)
+        self.assertIn("scamlist.txt", log)
 
     def test_every_scam_feed_down_refuses_and_keeps_the_old_bundle(self):
         before = self.seed_previous()
@@ -560,7 +620,7 @@ class PublishPath(unittest.TestCase):
         before = self.seed_previous()
         answers = healthy_answers()
         answers[get_scamlist.CERT_URL] = FeedError("HTTP 503")
-        answers[get_scamlist.DURABLENAPKIN_URL] = hostfile_bytes(count=60, start=70000)
+        answers[get_scamlist.DURABLENAPKIN_URL] = hostfile_bytes(count=600, start=70000)
         code, log = self.run_publish(answers, extra=["--version", "101"])
         self.assertEqual(code, 1)
         self.assertIn("scamlist.txt", log)

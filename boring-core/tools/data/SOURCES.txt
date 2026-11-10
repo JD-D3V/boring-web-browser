@@ -1,0 +1,41 @@
+# Vendored data files
+
+Two data files from the Chromium source, copied byte for byte, so the scam
+list builder (get_scamlist.py) and its tests run anywhere, including a CI
+runner that has no Chromium tree. They are build-time data for our tools.
+Neither ships in the browser.
+
+get_scamlist.py reads these by default. Set BORING_SRC to a Chromium source
+tree to read that tree's copies of the same two files instead (paths below,
+relative to the tree).
+
+| File here | Chromium path | Size | SHA-256 |
+| --- | --- | --- | --- |
+| effective_tld_names.dat | net/base/registry_controlled_domains/effective_tld_names.dat | 347,299 | 16e2162bb6d43d932d48b7cd5903f916ada9e7e9c06b3b6dfd149cb76b10cc49 |
+| domains.list | components/url_formatter/spoof_checks/top_domains/domains.list | 121,819 | 7a40fa6e47b2860589dbec17ce18eeec634fb2739a54afd917609726029c4cd8 |
+
+Copied 2026-11-10 from Chromium 154.0.8037.57 (the tree behind
+ungoogled-chromium 154.0.8037.57-1.1). .gitattributes marks both `-text`, so a
+checkout never rewrites their line endings.
+
+## effective_tld_names.dat
+
+The Public Suffix List, as Chromium carries it. Licence: Mozilla Public
+License 2.0 (the notice is the file's own first lines, which stay in place).
+Keep the file unmodified, header included. Source: https://publicsuffix.org/
+
+## domains.list
+
+Chromium's list of top domains (from the Chrome UX Report), used for its
+lookalike checks. Licence: Chromium's BSD-style licence
+(https://chromium.googlesource.com/chromium/src/+/main/LICENSE).
+
+    Copyright 2015 The Chromium Authors. Redistribution and use in source and
+    binary forms, with or without modification, are permitted provided that
+    the conditions in that licence are met.
+
+## Updating
+
+When the browser moves to a new Chromium, copy the two files from the new
+tree over these, then update the version, sizes and hashes above. The
+get_scamlist tests read these copies, so a bad copy fails them.

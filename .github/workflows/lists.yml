@@ -77,6 +77,9 @@ jobs:
             echo "no lists release yet, this is the first run"
           fi
 
+      # The scam list is checked against the public suffix list and the top
+      # sites list. Both are copied into boring-core/tools/data (see SOURCES.txt
+      # there), so the runner needs no Chromium tree.
       # Unsigned here on purpose: this job never sees the key. The
       # signing job below signs exactly these bytes.
       - name: Build and check the bundle
@@ -88,6 +91,12 @@ jobs:
       - name: Check the bundle is there
         run: |
           test -s "$DIST/lists.json" || { echo "no manifest in $DIST"; exit 1; }
+          # The upload below sends every file in the folder, so these two
+          # only need to exist: the scam list and the notice that has to
+          # travel with it.
+          for f in scamlist.txt NOTICES-scam-blocklist.txt; do
+            test -s "$DIST/$f" || { echo "no $f in $DIST"; exit 1; }
+          done
           if [ -e "$DIST/resources.json" ]; then
             echo "resources.json must never be in a list bundle"; exit 1
           fi
