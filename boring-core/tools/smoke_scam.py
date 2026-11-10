@@ -10,7 +10,8 @@ domain and nothing leaves the machine.
 
 Checked:
   the warning shows, names the host, and has "Go back to safety";
-  "Go back to safety" leaves the page for the one before it;
+  "Go back to safety" returns to the previous page or, with no history,
+    opens the browser's New Tab page;
   "Continue anyway" is there, and works, when "No way past scam warnings"
     is off, and is gone when it is on (boring.protection.no_scam_bypass,
     turned on through the Protection page's own switch);
@@ -87,6 +88,28 @@ def open_url(b, url):
             raise
 
 
+def go_back_to(b, condition):
+    b.run(f"({GO_BACK}).click()")
+    deadline = time.monotonic() + 10
+    # Poll from WebDriver so the predicate survives a change of document
+    # and doesn't rely on eval, which the New Tab page's CSP disallows.
+    while time.monotonic() < deadline:
+        if b.run(f"return !!({condition})"):
+            return True
+        time.sleep(0.1)
+    return False
+
+
+def reset_warning_history(b):
+    # Keep the committed warning and discard previous entries. Even a
+    # fresh WebDriver tab can have an entry before its first test URL.
+    path = f"/session/{b.sid}/goog/cdp/execute"
+    b._req("POST", path, {"cmd": "Page.resetNavigationHistory", "params": {}})
+    return b._req(
+        "POST", path, {"cmd": "Page.getNavigationHistory", "params": {}}
+    )["value"]
+
+
 def switch_on(b, want):
     """True once the Protection page's switch reads `want`, false after 5 s."""
     deadline = time.monotonic() + 5
@@ -149,7 +172,8 @@ def main():
                         "no warning page" not in protection,
                     )
 
-                    b.get(f"http://{PARENT}:{pages.port}/")
+                    parent_url = f"http://{PARENT}:{pages.port}/"
+                    b.get(parent_url)
                     parent_ok = wait_for(b, "!!document.getElementById('ok')")
                     check("the parent of a listed host opens", parent_ok)
                     if not parent_ok:
@@ -165,20 +189,12 @@ def main():
                     check("Go back to safety is the main action", bool(b.run(f"return !!({GO_BACK})")) and bool(b.run("return !!document.querySelector('button.primary')")))
                     check("Continue anyway is offered", bool(b.run(f"return !!({CONTINUE})")))
 
-                    try:
-                        b.run(f"({GO_BACK}).click()")
-                    except RuntimeError as e:
-                        print("  click on Go back:", str(e)[:200])
-                    time.sleep(2)
-                    try:
-                        left = LISTED not in b.current_url()
-                        went_back = left
-                    except RuntimeError as e:
-                        went_back = False
-                        print("  after Go back:", str(e)[:200])
-                    check("Go back to safety leaves the warning", went_back)
-                    if not went_back:
-                        raise SystemExit("the browser is gone after Go back; stopping")
+                    went_back = go_back_to(
+                        b,
+                        f"location.href === {json.dumps(parent_url)} && "
+                        "document.getElementById('ok')",
+                    )
+                    check("Go back to safety returns to the previous page", went_back, b.current_url())
 
                     open_url(b, f"http://{SUB}:{pages.port}/")
                     check(
@@ -203,6 +219,20 @@ def main():
                     )
                     check("Continue anyway is hidden", not b.run(f"return !!({CONTINUE})"))
                     check("Go back to safety is still there", bool(b.run(f"return !!({GO_BACK})")))
+                    history = reset_warning_history(b)
+                    no_previous = history["currentIndex"] == 0 and len(history["entries"]) == 1
+                    check("the warning is the only history entry", no_previous, repr(history))
+                    if no_previous:
+                        went_to_new_tab = go_back_to(
+                            b,
+                            "location.protocol === 'chrome:' && "
+                            "location.host === 'boring-newtab' && document.title === 'New Tab'",
+                        )
+                        check(
+                            "Go back to safety with no history opens New Tab",
+                            went_to_new_tab,
+                            b.current_url(),
+                        )
 
             # The colour choices.
             for name, extra, paper, accent in VARIANTS:
