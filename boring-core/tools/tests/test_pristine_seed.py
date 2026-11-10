@@ -95,6 +95,17 @@ class SeedPristine(unittest.TestCase):
         self.assertEqual(apply.seed_pristine(self.src, [self.patch], self.store), [])
         self.assertFalse(os.path.exists(os.path.join(self.store, self.rel)))
 
+    def test_a_header_path_outside_the_tree_is_skipped(self):
+        outside = os.path.join(os.path.dirname(self.store), "escaped.txt")
+        for name in ("../escaped.txt", "a/../../escaped.txt", "/abs/escaped.txt"):
+            patch = os.path.join(self.src, "evil.patch")
+            self.write(
+                patch,
+                f"--- a/{name}\n+++ b/{name}\n@@ -1 +1 @@\n-x\n+y\n",
+            )
+            self.assertEqual(apply.seed_pristine(self.src, [patch], self.store), [])
+        self.assertFalse(os.path.exists(outside))
+
     def test_a_file_missing_from_the_tree_is_skipped(self):
         os.remove(self.file)
         self.assertEqual(apply.seed_pristine(self.src, [self.patch], self.store), [])

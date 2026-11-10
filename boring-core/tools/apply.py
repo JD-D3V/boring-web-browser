@@ -187,6 +187,14 @@ def seed_pristine(src, patches, pristine=PRISTINE):
         keep = os.path.join(pristine, rel)
         if rel in skip or os.path.exists(keep):
             continue
+        # A header path outside the tree would put the copy outside the store.
+        if (
+            os.path.isabs(rel)
+            or rel.startswith(("/", os.sep))
+            or ".." in rel.replace("\\", "/").split("/")
+        ):
+            print("patch names a path outside the tree, skipped", rel)
+            continue
         if not os.path.exists(os.path.join(src, rel)):
             continue
         include = "--include=" + rel.replace(os.sep, "/")
