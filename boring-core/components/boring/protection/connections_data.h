@@ -32,6 +32,7 @@ inline constexpr char kConnectionsJson[] = R"json({
         "components/boring/scam/quad9_block_checker.cc",
         "components/boring/scam/quad9_block_checker.h",
         "patches/154/privacy-defaults.patch",
+        "patches/157/privacy-defaults.patch",
         "patches/privacy-defaults.patch"
       ]
     },

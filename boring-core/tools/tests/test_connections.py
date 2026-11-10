@@ -34,6 +34,7 @@ COPIED = [
     "components/boring/scam/quad9_block_checker.h",
     "chromium_src/chrome/browser/boring/privacy_bridge.cc",
     "patches/154/privacy-defaults.patch",
+    "patches/157/privacy-defaults.patch",
     "patches/privacy-defaults.patch",
     "tools/net_audit.py",
 ]
