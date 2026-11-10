@@ -11,6 +11,14 @@
   ?mode=lock only goes fullscreen and locks the keyboard
   ?mode=lockesc does the same with lock(['Escape'])
   ?mode=all does everything.
+  ?mode=leave only sets the leave-page prompt
+  ?mode=trap sets it, then adds history entries until the browser steps in
+  ?mode=dialogs only loops alert() and confirm(), ten in all, no fullscreen
+  The page tells the test server what it sees about itself with
+  /__report?k=v requests, so a test can read what the page held before the
+  browser replaced it: fs (fullscreen), pl (pointer locked), plerr (pointer lock refused), ap (alarm
+  paused), ct (alarm position), kl (keyboard lock answer), bu (leave-page
+  event fired), dlg (dialogs that have returned) and state (one line of it).
 -->
 <style>
   html, body { margin: 0; height: 100%; background: #b00020; color: white;
@@ -24,6 +32,14 @@
 <script>
 var mode = new URLSearchParams(location.search).get('mode') || 'all';
 var started = false;
+var kl = 'none';
+var alarm = null;
+
+function report(k, v) {
+  try {
+    navigator.sendBeacon('/__report?k=' + k + '&v=' + encodeURIComponent(v));
+  } catch (e) {}
+}
 
 function beepUrl() {
   // A half second 440 Hz tone as a 8-bit mono WAV.
@@ -49,17 +65,47 @@ document.addEventListener('click', function() {
   goFullscreen();
   if (started) return;
   started = true;
+  if (mode == 'dialogs') { loopDialogs(); return; }
+  if (mode == 'leave') { armLeave(); return; }
   if (navigator.keyboard) {
     navigator.keyboard.lock(mode == 'lockesc' ? ['Escape'] : undefined)
-        .catch(function() {});
+        .then(function() { kl = 'ok'; report('kl', kl); },
+              function(e) { kl = 'err:' + e.name; report('kl', kl); });
+  }
+  if (mode == 'trap') {
+    // A leave-page prompt, then (once the click no longer counts as a user
+    // gesture) twenty-five history entries at once.
+    armLeave();
+    setTimeout(function() {
+      for (var i = 0; i < 25; i++) history.pushState({}, '', '#' + i);
+    }, 5500);
+    return;
   }
   if (mode != 'all') return;
-  var a = new Audio(beepUrl());
+  // From the click itself, which is a user gesture, and again on mouse moves.
+  try { document.body.requestPointerLock(); } catch (e) {}
+  var a = alarm = new Audio(beepUrl());
   a.loop = true;
   a.play().catch(function() {});
-  window.onbeforeunload = function(e) { e.preventDefault(); return 'Stay'; };
+  armLeave();
+  // For the test: did the page get to run its leave handlers at all.
+  window.addEventListener('pagehide', function() { report('pagehide', 1); });
+  document.addEventListener('visibilitychange', function() {
+    report('visibility', document.visibilityState);
+  });
+  setInterval(function() {
+    report('state', [document.fullscreenElement ? 1 : 0,
+                     document.pointerLockElement ? 1 : 0,
+                     a.paused ? 1 : 0, a.currentTime.toFixed(2), kl].join(','));
+  }, 250);
   document.addEventListener('mousemove', function() {
     try { document.body.requestPointerLock(); } catch (e) {}
+  });
+  document.addEventListener('pointerlockchange', function() {
+    report('pl', document.pointerLockElement ? 1 : 0);
+  });
+  document.addEventListener('pointerlockerror', function() {
+    report('plerr', 'focus=' + document.hasFocus() + ' fs=' + !!document.fullscreenElement);
   });
   document.addEventListener('keyup', goFullscreen);
   // Later, so fullscreen has been entered first. Each dialog leaves it.
@@ -68,6 +114,25 @@ document.addEventListener('click', function() {
     setTimeout(loop, 300);
   }, 1500);
 });
+function armLeave() {
+  window.onbeforeunload = function(e) {
+    report('bu', '1');
+    e.preventDefault();
+    return 'Stay';
+  };
+}
+
+function loopDialogs() {
+  var n = 0;
+  (function next() {
+    if (n >= 10) { report('done', n); return; }
+    if (n % 2) confirm('Your computer is infected. Call 0000 000 0000');
+    else alert('Your computer is infected. Call 0000 000 0000');
+    n++;
+    report('dlg', n);
+    setTimeout(next, 300);
+  })();
+}
 // Re-enter after the person leaves, from the page's own timer too.
 document.addEventListener('fullscreenchange', function() {
   document.title = document.fullscreenElement ? 'full' : 'windowed';
