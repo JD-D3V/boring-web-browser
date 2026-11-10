@@ -5,3 +5,5 @@ boring-core/components/boring/webstore/chromium-web-store/** -text
 # they stop applying, so keep them LF on every machine.
 *.patch text eol=lf
 **/patches/series text eol=lf
+# A test reads Cargo.lock for a two line pattern, so a CRLF checkout fails it.
+**/Cargo.lock text eol=lf

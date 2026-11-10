@@ -4,6 +4,10 @@
 # cloud runners on every push, next to lint.yml. Nothing here touches
 # the build tree or the self hosted machine.
 #
+# A cloud runner has no Chromium tree, so a test that reads one must
+# skip itself (the E:\ung-* default paths do not exist there) and a test
+# that needs a data file from the tree must ship its own copy.
+#
 # Windows only. The browser is Windows only, and several of these tests
 # reach for Windows things: signtool under the SDK, msvcrt file locking,
 # drive letters. The POSIX branches exist so the code reads sensibly
@@ -34,3 +38,16 @@ jobs:
         run: python boring-core/tools/check_connections.py
       - name: Run the tests
         run: python -m unittest discover -s boring-core/tools/tests -v
+
+  # The adblock engine the browser links in. Pure Rust, no Chromium tree, so
+  # a Linux runner is enough and starts faster than a Windows one. --locked
+  # makes a stale Cargo.lock a failure, the same as the lists build does.
+  rust:
+    name: Rust (cargo test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: boring-core/rust
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo test --locked
