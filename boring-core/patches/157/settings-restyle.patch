@@ -1,391 +1,28 @@
---- a/chrome/browser/resources/settings/settings_ui/settings_ui.html
-+++ b/chrome/browser/resources/settings/settings_ui/settings_ui.html
-@@ -3,13 +3,168 @@
-         display: flex;
-         flex-direction: column;
-         height: 100%;
--        --settings-menu-width: 266px;
--        /* Centered cards has a max-width of var(--cr-centered-card-max-width)
--         * and a width of a certain percentage. Therefore, to make room for the
--         * cards to be at their max width, the flex-basis of #main needs to be
--         * whatever value the percentage of would equal to the max width. */
--        --settings-main-basis: calc(var(--cr-centered-card-max-width) /
--            var(--cr-centered-card-width-percentage));
-+        /* V2: one fixed sidebar width. #left below is exactly this wide on
-+         * every route, so selecting an item (its label turns semibold) can
-+         * never move the content. 224px fits the longest label, "Autofill
-+         * and passwords", in semibold with the 20px + 12px insets on each
-+         * side. */
-+        --settings-menu-width: 224px;
-+        /* Where the toolbar search field starts, so it lines up with the
-+         * page heading: the sidebar's border-box width plus 1px, the same
-+         * relation that was measured natively for the old 210px sidebar
-+         * (211px). Correct here if a native screenshot shows it off. */
-+        --settings-menu-content-width-estimate: 225px;
-+        background: var(--boring-surface);
-+        color: var(--boring-ink);
-+
-+        /* ---- boring browser chrome://settings token remap ----
-+         * Declaring a --cr-* and --color-* custom property here, on settings-ui's
-+         * own :host, wins over anything an ancestor sets for it (colors.css
-+         * on the html element, html[webui-refresh-2026] in cr_shared_vars.css, the
-+         * fallback chains themselves) because custom-property inheritance is
-+         * resolved per element: every descendant of settings-ui - through
-+         * settings-menu, settings-main, settings-section, cr-toolbar,
-+         * cr-drawer, cr-button, md-select, cr-toggle, cr-dialog, and any
-+         * subpage, all the way down through their nested shadow roots - sees
-+         * this element's own declaration first, full stop.
-+         *
-+         * This does NOT reach a component that redeclares the same variable
-+         * unconditionally on its own :host or class (that redeclaration is
-+         * the "closest" one for its own subtree, so it wins regardless of
-+         * what we set here). Those were audited by grepping cr_elements and
-+         * settings for --var-name: assignments; the ones found are fixed
-+         * with a var() hook (fallback = the original literal, so every other
-+         * chrome:// surface using that file is unchanged) in cr_button.css,
-+         * cr_toolbar.css, cr_toolbar_search_field.css and md_select_lit.css,
-+         * then set below. cr_toggle.css reads --color-toggle-button-* as
-+         * var() inputs and never redeclares them; its sizes are declared on
-+         * its own :host, so those got hooks too (see the toggle block).
-+         */
-+
-+        /* Cards -> flat rows, no shadow, no separate card background. */
-+        --cr-card-background-color: transparent;
-+        --cr-card-shadow: none;
-+        --cr-card-border-radius: 0;
-+
-+        /* Typography. */
-+        --cr-primary-text-color: var(--boring-ink);
-+        --cr-secondary-text-color: var(--boring-muted);
-+        --cr-title-text-color: var(--boring-ink);
-+        --cr-link-color: var(--boring-accent);
-+        --cr-row-title-font-size: 14px;
-+        --cr-row-title-font-weight: 600;
-+        --cr-title-text-font-weight: 600;
-+
-+        /* Row geometry (see settings_shared_lit.css / cr_shared_style_lit.css
-+         * for where each of these actually lands). */
-+        --cr-separator-color: var(--boring-line);
-+        --cr-section-padding: 20px;
-+        --cr-section-vertical-padding: 18px;
-+        --cr-section-min-height: 40px;
-+        --cr-row-gap: 20px;
-+
-+        /* Per-page content box: the actual 40px/28px inset lives on #main
-+         * itself below (every route has a #main, not every route uses
-+         * .cr-centered-card-container - see the appearance page, which
-+         * didn't get the inset when it lived on the container). Rows and
-+         * the page heading both add their own --cr-section-padding (20px)
-+         * on top of #main's 28px, landing both at 48px from the sidebar
-+         * border: rows via the margin-inline swap below, the heading via
-+         * the matching padding-inline settings_section.html's #header adds.
-+         * .cr-centered-card-container still needs neutralizing so it
-+         * doesn't ALSO constrain width on the pages that do use it (it
-+         * would otherwise re-center a narrower box inside #main's already-
-+         * correct content box). */
-+        --cr-centered-card-max-width: none;
-+        --cr-centered-card-width-percentage: 1;
-+
-+        /* States. */
-+        --cr-hover-background-color: var(--boring-soft);
-+        --cr-hover-on-subtle-background-color: var(--boring-soft);
-+        --cr-focus-outline-color: var(--boring-accent);
-+        --cr-checked-color: var(--boring-accent);
-+
-+        /* Toggles: cr-toggle only reads these colours, never redefines
-+         * them. The off track uses the field token so the control's edge
-+         * keeps 3:1 against the page. The hovered knob on an on switch is
-+         * the soft tint, not the accent, so it never vanishes into the
-+         * accent track. */
-+        --color-toggle-button-track-on: var(--boring-accent);
-+        --color-toggle-button-track-off: var(--boring-field);
-+        --color-toggle-button-thumb-on: var(--boring-surface);
-+        --color-toggle-button-thumb-off: var(--boring-paper);
-+        --color-toggle-button-thumb-on-hover: var(--boring-soft);
-+
-+        /* Toggle size, via the cr_toggle.css hooks (fallbacks there are the
-+         * upstream sizes, so other chrome:// pages keep theirs): a 40x24
-+         * track with a 16px knob whose centre sits 12px in from either
-+         * end, the same size in every state. */
-+        --cr-toggle-track-width: 40px;
-+        --cr-toggle-track-height: 24px;
-+        --cr-toggle-track-border-color: var(--boring-field);
-+        --cr-toggle-knob-inset: 12px;
-+        --cr-toggle-knob-size: 16px;
-+        --cr-toggle-knob-size-active: 16px;
-+        --cr-toggle-knob-size-checked: 16px;
-+        --cr-toggle-knob-size-checked-active: 16px;
-+
-+        /* Buttons: default/secondary via the cr_button.css hooks; primary
-+         * (.action-button) was already fully var()-driven upstream. */
-+        --cr-button-height: 40px;
-+        --cr-button-border-radius: 7px;
-+        --cr-button-font-weight: 600;
-+        --cr-button-default-background-color: var(--boring-paper);
-+        --color-button-border: var(--boring-line);
-+        --color-button-foreground: var(--boring-ink);
-+        --color-button-background-prominent: var(--boring-accent);
-+        --color-button-foreground-prominent: var(--boring-accent-on);
-+
-+        /* Selects (md-select / cr-select), via the md_select_lit.css hooks
-+         * plus the already-var()-driven border color. */
-+        --cr-md-select-background-color: var(--boring-paper);
-+        --cr-md-select-border-radius: 6px;
-+        --cr-md-select-max-width: 170px;
-+        --md-select-width: auto;
-+        /* Field edges use the higher-contrast field token (3:1 or more
-+         * against the page in both themes); --boring-line is for dividers. */
-+        --color-combobox-container-outline: var(--boring-field);
-+        --color-textfield-filled-underline: var(--boring-field);
-+
-+        /* Toolbar (address-bar-styled search), via the cr_toolbar*.css
-+         * hooks plus the already-var()-driven background/text/icon colors.
-+         * No logo, no visible page name (the banner still has an accessible
-+         * name, via aria-label on the cr-toolbar element below, not from
-+         * this text), and the search field left-aligned to start at the
-+         * same x as the page heading: sidebar (225px estimate, see
-+         * --settings-menu-content-width-estimate above) + 1px border + 48px
-+         * of settings-main's own inner padding. */
-+        --cr-toolbar-background-color: var(--boring-surface);
-+        --cr-toolbar-border-bottom: 1px solid var(--boring-line);
-+        --cr-toolbar-foreground-color: var(--boring-ink);
-+        --cr-toolbar-header-display: none;
-+        --cr-toolbar-logo-display: none;
-+        --cr-toolbar-left-content-flex: 0 0 calc(
-+            var(--settings-menu-content-width-estimate) + 1px + 48px);
-+        --cr-toolbar-center-justify: flex-start;
-+        --cr-toolbar-field-width: 480px;
-+        --cr-toolbar-search-field-background: var(--boring-paper);
-+        --cr-toolbar-search-field-border: 1px solid var(--boring-field);
-+        --cr-toolbar-search-field-shape: 8px;
-+        --cr-toolbar-search-field-height: 38px;
-+        --cr-toolbar-search-field-font-size: 13px;
-+        --cr-toolbar-search-field-input-text-color: var(--boring-ink);
-+        --cr-toolbar-search-field-prompt-color: var(--boring-muted);
-+        --cr-toolbar-search-field-icon-color: var(--boring-muted);
-+
-+        /* Feeds --cr-toolbar-center-basis below: how much of the toolbar's
-+         * center zone the search field's containing box claims before
-+         * growing. #main is the real authority on content width now (see
-+         * its own rule further down), so this just matches that directly,
-+         * rather than computing it from
-+         * --cr-centered-card-max-width/-width-percentage (now neutralized
-+         * to none/1 for the reasons noted above - calc(none / 1) would be
-+         * invalid). */
-+        --settings-main-basis: 780px;
-       }
+diff --git a/chrome/browser/resources/settings/settings_columned_section_lit.css b/chrome/browser/resources/settings/settings_columned_section_lit.css
+--- a/chrome/browser/resources/settings/settings_columned_section_lit.css
++++ b/chrome/browser/resources/settings/settings_columned_section_lit.css
+@@ -23,7 +23,7 @@ settings-collapse-radio-button .settings-columned-section {
+ }
  
-       cr-toolbar {
-@@ -19,12 +174,6 @@
+ .settings-columned-section .description-header {
+-  color: var(--google-blue-600);
++  color: var(--boring-accent);
+ }
  
-       cr-toolbar:not([narrow]) {
-         --cr-toolbar-left-spacer-width: var(--settings-menu-width);
--      }
--
--      @media (prefers-color-scheme: light) {
--        cr-toolbar {
--          --iron-icon-fill-color: white;
--        }
-       }
+ :host-context([webui-refresh-2026]) {
+@@ -45,7 +45,7 @@ settings-collapse-radio-button .settings-columned-section {
  
-       #container {
-@@ -35,38 +184,108 @@
-         scrollbar-gutter: stable;
-       }
+ @media (prefers-color-scheme: dark) {
+   .settings-columned-section .description-header {
+-    color: var(--google-blue-300);
++    color: var(--boring-accent);
+   }
+ }
  
--      #left,
--      #main,
--      #right {
--        flex: 1 1 0;
--      }
--
-+      /* #left owns the sidebar's outer box and its 36px/20px inset (the
-+       * demo's .settings-nav padding); settings-menu (settings_menu.html,
-+       * not this file) should NOT add its own outer padding or a fixed
-+       * width on top of this - it fills #left's content box at 100% width.
-+       * Nav item padding (11px 12px per the demo) is still settings-menu's
-+       * own concern; that 12px plus this 20px is what puts item text and
-+       * the sidebar heading both at x=32.
-+       *
-+       * The width is fixed, not grown to fit the content: a sidebar sized
-+       * by its labels changed width when the selected label turned
-+       * semibold (205px to 209px), which moved the whole page. */
-       #left {
-+        border-inline-end: 1px solid var(--boring-line);
-+        box-sizing: border-box;
-+        flex: none;
-         height: 100%;
-+        min-width: var(--settings-menu-width);
-+        padding: 36px 20px;
-         position: sticky;
-         top: 0;
-+        width: var(--settings-menu-width);
-+      }
-+
-+      /* Visual page name, matching the demo's sidebar heading (.settings-nav
-+       * strong: margin 0 12px 24px, inside the nav's own 36px/20px padding).
-+       * The accessible page name still comes from the cr-toolbar banner's
-+       * own aria-label, so this is decorative and hidden from the
-+       * accessibility tree to avoid announcing "Settings" twice. */
-+      #sidebarHeading {
-+        color: var(--boring-ink);
-+        font-size: 16px;
-+        font-weight: 700;
-+        margin: 0 12px 24px;
-       }
- 
-       #left settings-menu {
-+        display: block;
-         max-height: 100%;
-         overflow: auto;
-         overscroll-behavior: contain;
--        width: var(--settings-menu-width);
--      }
--
-+        scrollbar-color: var(--boring-line) transparent;
-+        scrollbar-width: thin;
-+        width: 100%;
-+      }
-+
-+      /* Content sits directly next to the sidebar and is capped at the
-+       * boring browser content width; it is not centered in the remaining
-+       * window space with a matching #right spacer (see #right below).
-+       * #main is the one element every route has - top-level pages,
-+       * subpages and search results all render inside it - so its own
-+       * 40px/28px padding is the page inset that actually reaches all of
-+       * them, instead of relying on .cr-centered-card-container (only some
-+       * routes use it, and it wasn't reaching the appearance page). V2:
-+       * 780px wide at most, including the 48px on each side (28px here
-+       * plus the 20px every row and heading adds). */
-       #main {
--        flex-basis: var(--settings-main-basis);
--      }
--
--      /* The breakpoint of 980px was decided on by the rounded sum of
--       * var(--settings-main-basis), var(--settings-menu-width), and
--       * var(--cr-section-padding). */
--      @media (max-width: 980px) {
-+        box-sizing: border-box;
-+        flex: 0 1 780px;
-+        max-width: 780px;
-+        min-width: 0;
-+        padding: 40px 28px;
-+      }
-+
-+      #right {
-+        display: none;
-+      }
-+
-+      /* The demo's narrow settings breakpoint (UI_V1_DEMO_CONTRACT.md), not
-+       * upstream's 980px (which was sized for the centered-card layout this
-+       * patch replaces). Padding matches the demo's narrow content padding
-+       * (30px 24px): 24px inline is this 4px plus the 20px rows and the
-+       * heading each add on top (see settings_section.html). Below 800px
-+       * the sidebar is a horizontal strip above the content (the demo's
-+       * narrow .settings-nav), not a drawer behind a hamburger: #left stays
-+       * rendered at every width (no more hidden$="[[narrow_]]", see below)
-+       * and #container switches from a row to a column so #left stacks
-+       * above #main instead of sitting beside it. settings_menu.html has
-+       * its own narrow rule laying the nav out as a scrolling row of
-+       * items; #left just needs to stop being a fixed-width sticky
-+       * sidebar column and become a full-width strip instead. */
-+      @media (max-width: 800px) {
-         #main {
-           min-width: auto;
--          /* Add some padding to make room for borders and to prevent focus
--           * indicators from being cropped. */
--          padding: 0 3px;
-+          padding: 30px 4px;
-+        }
-+
-+        #container {
-+          flex-direction: column;
-+        }
-+
-+        #left {
-+          border-bottom: 1px solid var(--boring-line);
-+          border-inline-end: none;
-+          height: auto;
-+          min-width: 0;
-+          padding: 12px;
-+          position: static;
-+          width: 100%;
-+        }
-+
-+        #sidebarHeading {
-+          display: none;
-         }
-       }
-     </style>
-@@ -81,9 +300,9 @@
-         menu-label="$i18n{menuButtonLabel}"
-         on-search-changed="onSearchChanged_"
-         role="banner"
-+        aria-label="$i18n{settings}"
-         narrow="{{narrow_}}"
--        narrow-threshold="980"
--        show-menu="[[narrow_]]">
-+        narrow-threshold="800">
-     </cr-toolbar>
-     <cr-drawer id="drawer" on-close="onMenuClose_" heading="$i18n{settings}"
-         align="$i18n{textdirection}">
-@@ -96,7 +315,8 @@
-     </cr-drawer>
-     <div id="container" class="no-outline cr-scrollable">
-       <div id="scrollableShadow" class="cr-scrollable-top-shadow"></div>
--      <div id="left" hidden$="[[narrow_]]">
-+      <div id="left">
-+        <div id="sidebarHeading" aria-hidden="true">$i18n{settings}</div>
-         <settings-menu id="leftMenu" on-iron-activate="onIronActivate_">
-         </settings-menu>
-       </div>
---- a/chrome/browser/resources/settings/settings_ui/settings_ui.ts
-+++ b/chrome/browser/resources/settings/settings_ui/settings_ui.ts
-@@ -157,12 +157,9 @@
-     super.connectedCallback();
- 
--    const enableThemedColors =
--        loadTimeData.getString('webuiRefresh2026') !== '' ||
--        loadTimeData.getString('settingsRefresh2026') !== '';
--    if (enableThemedColors) {
--      this.addThemedColors_();
--      ColorChangeUpdater.forDocument().start();
--    }
-+    // Always load chrome://theme/colors.css: the page's --boring-* tokens read
-+    // --color-* from it, and without it they fall back to the fixed palette.
-+    this.addThemedColors_();
-+    ColorChangeUpdater.forDocument().start();
-     document.documentElement.classList.remove('loading');
- 
-     // Preload bold Roboto so it doesn't load and flicker the first time used.
-@@ -281,12 +278,19 @@
-       this.$.drawer.close();
-     }
- 
-+    // #left/leftMenu is always visible now (boring browser's narrow layout
-+    // is a horizontal strip above #main, not this drawer - see
-+    // settings_ui.html), and nothing opens the drawer any more, so the
-+    // "focus was on the left menu, narrow just turned on, move focus to the
-+    // button that opens the drawer" branch that used to live here doesn't
-+    // apply: the toolbar's menu button no longer renders (show-menu is no
-+    // longer bound to narrow_), and CrToolbarElement.focusMenuButton()
-+    // asserts showMenu, so calling it would throw. The drawer/#drawerMenu
-+    // branches below are unreachable the same way (nothing left ever gets
-+    // focus inside a drawer that never opens) but are harmless to leave, so
-+    // they're untouched.
-     const focusedElement = this.shadowRoot!.activeElement;
--    if (this.narrow_ && focusedElement === this.$.leftMenu) {
--      // If changed from non-narrow to narrow and the focus was on the left
--      // menu, move focus to the button that opens the drawer menu.
--      this.$.toolbar.focusMenuButton();
--    } else if (!this.narrow_ && this.$.toolbar.isMenuFocused()) {
-+    if (!this.narrow_ && this.$.toolbar.isMenuFocused()) {
-       // If changed from narrow to non-narrow and the focus was on the button
-       // that opens the drawer menu, move focus to the left menu.
-       this.$.leftMenu.focusFirstItem();
+diff --git a/chrome/browser/resources/settings/settings_page/settings_section.css b/chrome/browser/resources/settings/settings_page/settings_section.css
 --- a/chrome/browser/resources/settings/settings_page/settings_section.css
 +++ b/chrome/browser/resources/settings/settings_page/settings_section.css
-@@ -6,33 +6,71 @@
+@@ -6,11 +6,30 @@
   * #type=style-lit
   * #css_wrapper_metadata_end */
  
@@ -415,11 +52,16 @@
 +      var(--cr-separator-color), var(--cr-separator-color));
  }
  
+ :host-context([settings-refresh-2026]) {
+@@ -31,26 +50,45 @@
+   }
+ }
+ 
 +/* .cr-row/.settings-box rows carry their own --cr-section-padding
 + * inline inset; #header has none of its own by default, so it needs
 + * a matching inset to keep the heading flush with the row text below
 + * it. The shared inset that puts both at 48px from the sidebar
-+ * border comes from #main's own padding, see settings_ui.html. */
++ * border comes from #main's own padding, see settings_ui.css. */
  #header {
 +  align-items: center;
    display: flex;
@@ -465,6 +107,7 @@
  }
  
  #card {
+diff --git a/chrome/browser/resources/settings/settings_page/settings_subpage.css b/chrome/browser/resources/settings/settings_page/settings_subpage.css
 --- a/chrome/browser/resources/settings/settings_page/settings_subpage.css
 +++ b/chrome/browser/resources/settings/settings_page/settings_subpage.css
 @@ -21,6 +21,13 @@
@@ -472,7 +115,7 @@
    right: 0;
    top: 0;
 +  /* Same divider/text alignment fix as settings-section (see
-+   * settings_section.html): #headerLine and this subpage's own content rows
++   * settings_section.css): #headerLine and this subpage's own content rows
 +   * are .cr-row/.settings-box/.hr too, and a subpage is never a dialog, so
 +   * it's just as safe to scope here. */
 +  --cr-row-divider-border: none;
@@ -480,8 +123,8 @@
 +      var(--cr-separator-color), var(--cr-separator-color));
  }
  
- :host(:not(.multi-card)) {
-@@ -77,6 +84,10 @@
+ :host-context([settings-refresh-2026]) {
+@@ -97,6 +104,10 @@
    /* Show ellipsis if title would overflow. */
    overflow: hidden;
    text-overflow: ellipsis;
@@ -492,9 +135,10 @@
  }
  
  h1 {
+diff --git a/chrome/browser/resources/settings/settings_shared_lit.css b/chrome/browser/resources/settings/settings_shared_lit.css
 --- a/chrome/browser/resources/settings/settings_shared_lit.css
 +++ b/chrome/browser/resources/settings/settings_shared_lit.css
-@@ -22,11 +22,16 @@
+@@ -50,10 +50,15 @@ a[is=action-link] {
  /* Use <h2> as the "sub-header" mentioned in the UX design docs. */
  h2 {
    align-items: center;
@@ -513,8 +157,7 @@
    margin: 0;
    padding-bottom: 0;
    padding-top: 12px;
- }
-@@ -74,6 +79,7 @@
+@@ -103,6 +108,7 @@ iron-list[risk-selection] {
  
  a[href] {
    color: var(--cr-link-color);
@@ -522,7 +165,7 @@
  }
  
  /* For elements that are simple out-links but don't look like anchors. */
-@@ -181,10 +187,20 @@
+@@ -209,10 +215,20 @@ cr-radio-group {
  }
  
  /* A settings-box is a horizontal row of text or controls within a
@@ -545,7 +188,7 @@
    display: flex;
    min-height: var(--cr-section-min-height);
    padding: 0 var(--cr-section-padding);
-@@ -215,6 +231,7 @@
+@@ -245,6 +261,7 @@ cr-radio-group {
   * with dbeam@ or dschuyler@ prior to changing it. */
  .settings-box.first,
  .settings-box.continuation {
@@ -553,7 +196,7 @@
    border-top: none;
  }
  
-@@ -249,6 +266,9 @@
+@@ -279,6 +296,9 @@ h2.first {
  .secondary {
    color: var(--cr-secondary-text-color);
    font-weight: 400;
@@ -563,7 +206,7 @@
  }
  
  /* The |:empty| CSS selector only works when there is no whitespace.
-@@ -260,11 +280,36 @@
+@@ -290,11 +310,36 @@ h2.first {
    margin: 0;
  }
  
@@ -601,6 +244,398 @@
  }
  
  .settings-box .middle.two-line,
+diff --git a/chrome/browser/resources/settings/settings_ui/settings_ui.css b/chrome/browser/resources/settings/settings_ui/settings_ui.css
+--- a/chrome/browser/resources/settings/settings_ui/settings_ui.css
++++ b/chrome/browser/resources/settings/settings_ui/settings_ui.css
+@@ -16,13 +16,168 @@
+   display: flex;
+   flex-direction: column;
+   height: 100%;
+-  --settings-menu-width: 266px;
+-  /* Centered cards has a max-width of var(--cr-centered-card-max-width)
+-   * and a width of a certain percentage. Therefore, to make room for the
+-   * cards to be at their max width, the flex-basis of #main needs to be
+-   * whatever value the percentage of would equal to the max width. */
+-  --settings-main-basis: calc(var(--cr-centered-card-max-width) /
+-      var(--cr-centered-card-width-percentage));
++  /* V2: one fixed sidebar width. #left below is exactly this wide on
++   * every route, so selecting an item (its label turns semibold) can
++   * never move the content. 224px fits the longest label, "Autofill
++   * and passwords", in semibold with the 20px + 12px insets on each
++   * side. */
++  --settings-menu-width: 224px;
++  /* Where the toolbar search field starts, so it lines up with the
++   * page heading: the sidebar's border-box width plus 1px, the same
++   * relation that was measured natively for the old 210px sidebar
++   * (211px). Correct here if a native screenshot shows it off. */
++  --settings-menu-content-width-estimate: 225px;
++  background: var(--boring-surface);
++  color: var(--boring-ink);
++
++  /* ---- boring browser chrome://settings token remap ----
++   * Declaring a --cr-* and --color-* custom property here, on settings-ui's
++   * own :host, wins over anything an ancestor sets for it (colors.css
++   * on the html element, html[webui-refresh-2026] in cr_shared_vars.css, the
++   * fallback chains themselves) because custom-property inheritance is
++   * resolved per element: every descendant of settings-ui - through
++   * settings-menu, settings-main, settings-section, cr-toolbar,
++   * cr-drawer, cr-button, md-select, cr-toggle, cr-dialog, and any
++   * subpage, all the way down through their nested shadow roots - sees
++   * this element's own declaration first, full stop.
++   *
++   * This does NOT reach a component that redeclares the same variable
++   * unconditionally on its own :host or class (that redeclaration is
++   * the "closest" one for its own subtree, so it wins regardless of
++   * what we set here). Those were audited by grepping cr_elements and
++   * settings for --var-name: assignments; the ones found are fixed
++   * with a var() hook (fallback = the original literal, so every other
++   * chrome:// surface using that file is unchanged) in cr_button.css,
++   * cr_toolbar.css, cr_toolbar_search_field.css and md_select_lit.css,
++   * then set below. cr_toggle.css reads --color-toggle-button-* as
++   * var() inputs and never redeclares them; its sizes are declared on
++   * its own :host, so those got hooks too (see the toggle block).
++   */
++
++  /* Cards -> flat rows, no shadow, no separate card background. */
++  --cr-card-background-color: transparent;
++  --cr-card-shadow: none;
++  --cr-card-border-radius: 0;
++
++  /* Typography. */
++  --cr-primary-text-color: var(--boring-ink);
++  --cr-secondary-text-color: var(--boring-muted);
++  --cr-title-text-color: var(--boring-ink);
++  --cr-link-color: var(--boring-accent);
++  --cr-row-title-font-size: 14px;
++  --cr-row-title-font-weight: 600;
++  --cr-title-text-font-weight: 600;
++
++  /* Row geometry (see settings_shared_lit.css / cr_shared_style_lit.css
++   * for where each of these actually lands). */
++  --cr-separator-color: var(--boring-line);
++  --cr-section-padding: 20px;
++  --cr-section-vertical-padding: 18px;
++  --cr-section-min-height: 40px;
++  --cr-row-gap: 20px;
++
++  /* Per-page content box: the actual 40px/28px inset lives on #main
++   * itself below (every route has a #main, not every route uses
++   * .cr-centered-card-container - see the appearance page, which
++   * didn't get the inset when it lived on the container). Rows and
++   * the page heading both add their own --cr-section-padding (20px)
++   * on top of #main's 28px, landing both at 48px from the sidebar
++   * border: rows via the margin-inline swap below, the heading via
++   * the matching padding-inline settings_section.css's #header adds.
++   * .cr-centered-card-container still needs neutralizing so it
++   * doesn't ALSO constrain width on the pages that do use it (it
++   * would otherwise re-center a narrower box inside #main's already-
++   * correct content box). */
++  --cr-centered-card-max-width: none;
++  --cr-centered-card-width-percentage: 1;
++
++  /* States. */
++  --cr-hover-background-color: var(--boring-soft);
++  --cr-hover-on-subtle-background-color: var(--boring-soft);
++  --cr-focus-outline-color: var(--boring-accent);
++  --cr-checked-color: var(--boring-accent);
++
++  /* Toggles: cr-toggle only reads these colours, never redefines
++   * them. The off track uses the field token so the control's edge
++   * keeps 3:1 against the page. The hovered knob on an on switch is
++   * the soft tint, not the accent, so it never vanishes into the
++   * accent track. */
++  --color-toggle-button-track-on: var(--boring-accent);
++  --color-toggle-button-track-off: var(--boring-field);
++  --color-toggle-button-thumb-on: var(--boring-surface);
++  --color-toggle-button-thumb-off: var(--boring-paper);
++  --color-toggle-button-thumb-on-hover: var(--boring-soft);
++
++  /* Toggle size, via the cr_toggle.css hooks (fallbacks there are the
++   * upstream sizes, so other chrome:// pages keep theirs): a 40x24
++   * track with a 16px knob whose centre sits 12px in from either
++   * end, the same size in every state. */
++  --cr-toggle-track-width: 40px;
++  --cr-toggle-track-height: 24px;
++  --cr-toggle-track-border-color: var(--boring-field);
++  --cr-toggle-knob-inset: 12px;
++  --cr-toggle-knob-size: 16px;
++  --cr-toggle-knob-size-active: 16px;
++  --cr-toggle-knob-size-checked: 16px;
++  --cr-toggle-knob-size-checked-active: 16px;
++
++  /* Buttons: default/secondary via the cr_button.css hooks; primary
++   * (.action-button) was already fully var()-driven upstream. */
++  --cr-button-height: 40px;
++  --cr-button-border-radius: 7px;
++  --cr-button-font-weight: 600;
++  --cr-button-default-background-color: var(--boring-paper);
++  --color-button-border: var(--boring-line);
++  --color-button-foreground: var(--boring-ink);
++  --color-button-background-prominent: var(--boring-accent);
++  --color-button-foreground-prominent: var(--boring-accent-on);
++
++  /* Selects (md-select / cr-select), via the md_select_lit.css hooks
++   * plus the already-var()-driven border color. */
++  --cr-md-select-background-color: var(--boring-paper);
++  --cr-md-select-border-radius: 6px;
++  --cr-md-select-max-width: 170px;
++  --md-select-width: auto;
++  /* Field edges use the higher-contrast field token (3:1 or more
++   * against the page in both themes); --boring-line is for dividers. */
++  --color-combobox-container-outline: var(--boring-field);
++  --color-textfield-filled-underline: var(--boring-field);
++
++  /* Toolbar (address-bar-styled search), via the cr_toolbar*.css
++   * hooks plus the already-var()-driven background/text/icon colors.
++   * No logo, no visible page name (the banner still has an accessible
++   * name, via aria-label on the cr-toolbar element, not from
++   * this text), and the search field left-aligned to start at the
++   * same x as the page heading: sidebar (225px estimate, see
++   * --settings-menu-content-width-estimate above) + 1px border + 48px
++   * of settings-main's own inner padding. */
++  --cr-toolbar-background-color: var(--boring-surface);
++  --cr-toolbar-border-bottom: 1px solid var(--boring-line);
++  --cr-toolbar-foreground-color: var(--boring-ink);
++  --cr-toolbar-header-display: none;
++  --cr-toolbar-logo-display: none;
++  --cr-toolbar-left-content-flex: 0 0 calc(
++      var(--settings-menu-content-width-estimate) + 1px + 48px);
++  --cr-toolbar-center-justify: flex-start;
++  --cr-toolbar-field-width: 480px;
++  --cr-toolbar-search-field-background: var(--boring-paper);
++  --cr-toolbar-search-field-border: 1px solid var(--boring-field);
++  --cr-toolbar-search-field-shape: 8px;
++  --cr-toolbar-search-field-height: 38px;
++  --cr-toolbar-search-field-font-size: 13px;
++  --cr-toolbar-search-field-input-text-color: var(--boring-ink);
++  --cr-toolbar-search-field-prompt-color: var(--boring-muted);
++  --cr-toolbar-search-field-icon-color: var(--boring-muted);
++
++  /* Feeds --cr-toolbar-center-basis below: how much of the toolbar's
++   * center zone the search field's containing box claims before
++   * growing. #main is the real authority on content width now (see
++   * its own rule further down), so this just matches that directly,
++   * rather than computing it from
++   * --cr-centered-card-max-width/-width-percentage (now neutralized
++   * to none/1 for the reasons noted above - calc(none / 1) would be
++   * invalid). */
++  --settings-main-basis: 780px;
+ }
+ 
+ :host-context([settings-refresh-2026]) {
+@@ -59,12 +214,6 @@ cr-toolbar:not([narrow]) {
+   --cr-toolbar-left-spacer-width: var(--settings-menu-width);
+ }
+ 
+-@media (prefers-color-scheme: light) {
+-  cr-toolbar {
+-    --iron-icon-fill-color: white;
+-  }
+-}
+-
+ #container {
+   display: flex;
+   flex: 1;
+@@ -73,41 +222,111 @@ cr-toolbar:not([narrow]) {
+   scrollbar-gutter: stable;
+ }
+ 
+-#left,
+-#main,
+-#right {
+-  flex: 1 1 0;
+-}
+-
++/* #left owns the sidebar's outer box and its 36px/20px inset (the
++ * demo's .settings-nav padding); settings-menu (settings_menu.css,
++ * not this file) should NOT add its own outer padding or a fixed
++ * width on top of this - it fills #left's content box at 100% width.
++ * Nav item padding (11px 12px per the demo) is still settings-menu's
++ * own concern; that 12px plus this 20px is what puts item text and
++ * the sidebar heading both at x=32.
++ *
++ * The width is fixed, not grown to fit the content: a sidebar sized
++ * by its labels changed width when the selected label turned
++ * semibold (205px to 209px), which moved the whole page. */
+ #left {
++  border-inline-end: 1px solid var(--boring-line);
++  box-sizing: border-box;
++  flex: none;
+   height: 100%;
++  min-width: var(--settings-menu-width);
++  padding: 36px 20px;
+   position: sticky;
+   top: 0;
++  width: var(--settings-menu-width);
++}
++
++/* Visual page name, matching the demo's sidebar heading (.settings-nav
++ * strong: margin 0 12px 24px, inside the nav's own 36px/20px padding).
++ * The accessible page name still comes from the cr-toolbar banner's
++ * own aria-label, so this is decorative and hidden from the
++ * accessibility tree to avoid announcing "Settings" twice. */
++#sidebarHeading {
++  color: var(--boring-ink);
++  font-size: 16px;
++  font-weight: 700;
++  margin: 0 12px 24px;
+ }
+ 
+ #left settings-menu {
++  display: block;
+   max-height: 100%;
+   overflow: auto;
+   overscroll-behavior: contain;
+-  width: var(--settings-menu-width);
++  scrollbar-color: var(--boring-line) transparent;
++  scrollbar-width: thin;
++  width: 100%;
+ }
+ 
+ #left[collapsed] settings-menu {
+   width: 55px;
+ }
+ 
++/* Content sits directly next to the sidebar and is capped at the
++ * boring browser content width; it is not centered in the remaining
++ * window space with a matching #right spacer (see #right below).
++ * #main is the one element every route has - top-level pages,
++ * subpages and search results all render inside it - so its own
++ * 40px/28px padding is the page inset that actually reaches all of
++ * them, instead of relying on .cr-centered-card-container (only some
++ * routes use it, and it wasn't reaching the appearance page). V2:
++ * 780px wide at most, including the 48px on each side (28px here
++ * plus the 20px every row and heading adds). */
+ #main {
+-  flex-basis: var(--settings-main-basis);
++  box-sizing: border-box;
++  flex: 0 1 780px;
++  max-width: 780px;
++  min-width: 0;
++  padding: 40px 28px;
+ }
+ 
+-/* The breakpoint of 980px was decided on by the rounded sum of
+- * var(--settings-main-basis), var(--settings-menu-width), and
+- * var(--cr-section-padding). */
+-@media (max-width: 980px) {
++#right {
++  display: none;
++}
++
++/* The demo's narrow settings breakpoint (UI_V1_DEMO_CONTRACT.md), not
++ * upstream's 980px (which was sized for the centered-card layout this
++ * patch replaces). Padding matches the demo's narrow content padding
++ * (30px 24px): 24px inline is this 4px plus the 20px rows and the
++ * heading each add on top (see settings_section.css). Below 800px
++ * the sidebar is a horizontal strip above the content (the demo's
++ * narrow .settings-nav), not a drawer behind a hamburger: #left stays
++ * rendered at every width (no ?hidden binding on it any more, see
++ * settings_ui.html) and #container switches from a row to a column so
++ * #left stacks above #main instead of sitting beside it.
++ * settings_menu.css has its own narrow rule laying the nav out as a
++ * scrolling row of items; #left just needs to stop being a fixed-width
++ * sticky sidebar column and become a full-width strip instead. */
++@media (max-width: 800px) {
+   #main {
+     min-width: auto;
+-    /* Add some padding to make room for borders and to prevent focus
+-     * indicators from being cropped. */
+-    padding: 0 3px;
++    padding: 30px 4px;
++  }
++
++  #container {
++    flex-direction: column;
++  }
++
++  #left {
++    border-bottom: 1px solid var(--boring-line);
++    border-inline-end: none;
++    height: auto;
++    min-width: 0;
++    padding: 12px;
++    position: static;
++    width: 100%;
++  }
++
++  #sidebarHeading {
++    display: none;
+   }
+ }
+diff --git a/chrome/browser/resources/settings/settings_ui/settings_ui.html b/chrome/browser/resources/settings/settings_ui/settings_ui.html
+--- a/chrome/browser/resources/settings/settings_ui/settings_ui.html
++++ b/chrome/browser/resources/settings/settings_ui/settings_ui.html
+@@ -8,10 +8,10 @@
+         menu-label="$i18n{menuButtonLabel}"
+         @search-changed="${this.onSearchChanged_}"
+         role="banner"
++        aria-label="$i18n{settings}"
+         ?narrow="${this.narrow_}"
+         @narrow-changed="${this.onToolbarNarrowChanged_}"
+-        narrow-threshold="980"
+-        ?show-menu="${this.getLeftMenuHidden_()}">
++        narrow-threshold="800">
+     </cr-toolbar>
+     <cr-drawer id="drawer" @close="${this.onMenuClose_}" heading="$i18n{settings}"
+         align="$i18n{textdirection}">
+@@ -27,8 +27,8 @@
+     <div id="container" class="no-outline cr-scrollable">
+       <div id="scrollableShadow" class="cr-scrollable-top-shadow"></div>
+       <div id="left"
+-          ?hidden="${this.getLeftMenuHidden_()}"
+           ?collapsed="${this.getLeftMenuCollapsed_()}">
++        <div id="sidebarHeading" aria-hidden="true">$i18n{settings}</div>
+         <settings-menu id="leftMenu"
+             .collapsed="${this.getLeftMenuCollapsed_()}"
+             @iron-activate="${this.onIronActivate_}">
+diff --git a/chrome/browser/resources/settings/settings_ui/settings_ui.ts b/chrome/browser/resources/settings/settings_ui/settings_ui.ts
+--- a/chrome/browser/resources/settings/settings_ui/settings_ui.ts
++++ b/chrome/browser/resources/settings/settings_ui/settings_ui.ts
+@@ -102,13 +102,10 @@ export class SettingsUiElement extends SettingsUiElementBase {
+   override connectedCallback() {
+     super.connectedCallback();
+ 
+-    const enableThemedColors =
+-        loadTimeData.getString('webuiRefresh2026') !== '' ||
+-        loadTimeData.getString('settingsRefresh2026') !== '';
+-    if (enableThemedColors) {
+-      this.addThemedColors_();
+-      ColorChangeUpdater.forDocument().start();
+-    }
++    // Always load chrome://theme/colors.css: the page's --boring-* tokens read
++    // --color-* from it, and without it they fall back to the fixed palette.
++    this.addThemedColors_();
++    ColorChangeUpdater.forDocument().start();
+     document.documentElement.classList.remove('loading');
+ 
+     // Preload bold Roboto so it doesn't load and flicker the first time used.
+@@ -319,12 +316,19 @@ export class SettingsUiElement extends SettingsUiElementBase {
+       this.$.drawer.close();
+     }
+ 
++    // #left/leftMenu is always visible now (boring browser's narrow layout
++    // is a horizontal strip above #main, not this drawer - see
++    // settings_ui.css), and nothing opens the drawer any more, so the
++    // "focus was on the left menu, narrow just turned on, move focus to the
++    // button that opens the drawer" branch that used to live here doesn't
++    // apply: the toolbar's menu button no longer renders (show-menu is no
++    // longer bound), and CrToolbarElement.focusMenuButton() asserts
++    // showMenu, so calling it would throw. The drawer/#drawerMenu
++    // branches below are unreachable the same way (nothing left ever gets
++    // focus inside a drawer that never opens) but are harmless to leave, so
++    // they're untouched.
+     const focusedElement = this.shadowRoot.activeElement;
+-    if (this.narrow_ && focusedElement === this.$.leftMenu) {
+-      // If changed from non-narrow to narrow and the focus was on the left
+-      // menu, move focus to the button that opens the drawer menu.
+-      this.$.toolbar.focusMenuButton();
+-    } else if (!this.narrow_ && this.$.toolbar.isMenuFocused()) {
++    if (!this.narrow_ && this.$.toolbar.isMenuFocused()) {
+       // If changed from narrow to non-narrow and the focus was on the button
+       // that opens the drawer menu, move focus to the left menu.
+       this.$.leftMenu.focusFirstItem();
+diff --git a/chrome/browser/resources/settings/settings_vars.css b/chrome/browser/resources/settings/settings_vars.css
 --- a/chrome/browser/resources/settings/settings_vars.css
 +++ b/chrome/browser/resources/settings/settings_vars.css
 @@ -12,10 +12,28 @@
@@ -633,7 +668,7 @@
  
    --iron-icon-fill-color: var(--google-grey-700);
    --iron-icon-height: var(--cr-icon-size);
-@@ -26,7 +44,22 @@
+@@ -26,8 +44,23 @@ html {
  
  @media (prefers-color-scheme: dark) {
    html {
@@ -657,26 +692,34 @@
 +    --settings-error-color: var(--boring-warning);
    }
  }
---- a/chrome/browser/resources/settings/settings_columned_section_lit.css
-+++ b/chrome/browser/resources/settings/settings_columned_section_lit.css
-@@ -23,7 +23,7 @@
+ 
+diff --git a/ui/webui/resources/cr_elements/cr_button/cr_button.css b/ui/webui/resources/cr_elements/cr_button/cr_button.css
+--- a/ui/webui/resources/cr_elements/cr_button/cr_button.css
++++ b/ui/webui/resources/cr_elements/cr_button/cr_button.css
+@@ -11,7 +11,8 @@
+  * #css_wrapper_metadata_end */
+ 
+ :host {
+-  --cr-button-background-color: transparent;
++  --cr-button-background-color: var(--cr-button-default-background-color,
++      transparent);
+   --cr-button-border-color:  var(--color-button-border,
+       var(--cr-fallback-color-tonal-outline));
+   --cr-button-text-color: var(--color-button-foreground,
+@@ -40,10 +41,10 @@
+   user-select: none;
+   -webkit-tap-highlight-color: transparent;
+   border: var(--cr-button-border, 1px solid var(--cr-button-border-color));
+-  border-radius: 100px;
++  border-radius: var(--cr-button-border-radius, 100px);
+   background: var(--cr-button-background-color);
+   color: var(--cr-button-text-color);
+-  font-weight: 500;
++  font-weight: var(--cr-button-font-weight, 500);
+   line-height: 20px;
+   isolation: isolate;
  }
- 
- .settings-columned-section .description-header {
--  color: var(--google-blue-600);
-+  color: var(--boring-accent);
- }
- 
- :host-context([webui-refresh-2026]) {
-@@ -45,7 +45,7 @@
- 
- @media (prefers-color-scheme: dark) {
-   .settings-columned-section .description-header {
--    color: var(--google-blue-300);
-+    color: var(--boring-accent);
-   }
- }
- 
+diff --git a/ui/webui/resources/cr_elements/cr_shared_style_lit.css b/ui/webui/resources/cr_elements/cr_shared_style_lit.css
 --- a/ui/webui/resources/cr_elements/cr_shared_style_lit.css
 +++ b/ui/webui/resources/cr_elements/cr_shared_style_lit.css
 @@ -15,9 +15,23 @@
@@ -687,13 +730,13 @@
 +/* Horizontal rule line. --cr-row-divider-border/-background default to the
 + * original border-top and no background at all, so this is byte-for-byte
 + * unchanged everywhere that doesn't set the hooks. chrome://settings pages
-+ * (settings_section.html, settings_page/settings_subpage.css) swap the two:
-+ * border off, background on. The background is always painted content-box
-+ * (this element's own padding edge - i.e. wherever its text/controls sit,
-+ * whatever that padding happens to be, no need to know or duplicate the
-+ * value) so it starts and ends at the text instead of at this element's
-+ * own outer edge; a border can't be inset like that, which is why it has
-+ * to be a background instead once the fix is turned on. */
++ * (settings_page/settings_section.css, settings_page/settings_subpage.css)
++ * swap the two: border off, background on. The background is always painted
++ * content-box (this element's own padding edge - i.e. wherever its
++ * text/controls sit, whatever that padding happens to be, no need to know
++ * or duplicate the value) so it starts and ends at the text instead of at
++ * this element's own outer edge; a border can't be inset like that, which
++ * is why it has to be a background instead once the fix is turned on. */
  .hr {
 -  border-top: var(--cr-separator-line);
 +  background-image: var(--cr-row-divider-background, none);
@@ -704,7 +747,7 @@
 +  border-top: var(--cr-row-divider-border, var(--cr-separator-line));
  }
  
- iron-list.cr-separators > *:not([first]) {
+ .cr-separators > *:not([first]) {
 @@ -69,16 +83,28 @@
    width: calc(100% * var(--cr-centered-card-width-percentage));
  }
@@ -735,7 +778,7 @@
    border-top: none;
  }
  
-@@ -110,12 +136,23 @@
+@@ -110,7 +136,7 @@ cr-tooltip::part(tooltip) {
  .cr-title-text {
    color: var(--cr-title-text-color);
    font-size: 107.6923%; /* Go to 14px from 13px. */
@@ -744,10 +787,10 @@
  }
  
  .cr-secondary-text {
-   color: var(--cr-secondary-text-color);
+@@ -118,6 +144,17 @@ cr-tooltip::part(tooltip) {
    font-weight: 400;
-+}
-+
+ }
+ 
 +/* Row title text in the two most common row wrappers that don't use
 + * .cr-title-text: settings-toggle-button's "#labelWrapper > .label" and
 + * cr-link-row's "#labelWrapper > #label". Fallback is inherit, a no-op,
@@ -757,160 +800,12 @@
 +#labelWrapper > .label:not(.cr-secondary-text) {
 +  font-size: var(--cr-row-title-font-size, inherit);
 +  font-weight: var(--cr-row-title-font-weight, inherit);
- }
- 
++}
++
  .cr-form-field-label {
---- a/ui/webui/resources/cr_elements/cr_toolbar/cr_toolbar.css
-+++ b/ui/webui/resources/cr_elements/cr_toolbar/cr_toolbar.css
-@@ -13,19 +13,22 @@
- 
- :host {
-   align-items: center;
-+  background: var(--cr-toolbar-background-color, transparent);
-+  border-bottom: var(--cr-toolbar-border-bottom, none);
-   box-sizing: border-box;
--  color: var(--google-grey-900);
-+  color: var(--cr-toolbar-foreground-color, var(--google-grey-900));
-   display: flex;
-   height: var(--cr-toolbar-height);
- }
- 
- @media (prefers-color-scheme: dark) {
-   :host {
--    color: var(--cr-secondary-text-color);
-+    color: var(--cr-toolbar-foreground-color, var(--cr-secondary-text-color));
-   }
- }
- 
- h1 {
-+  display: var(--cr-toolbar-header-display, block);
-   flex: 1;
-   font-size: 170%;
-   font-weight: var(--cr-toolbar-header-font-weight, 500);
-@@ -71,7 +74,7 @@
- #centeredContent {
-   display: flex;
-   flex: 1 1 0;
--  justify-content: center;
-+  justify-content: var(--cr-toolbar-center-justify, center);
- }
- 
- #rightSpacer {
-@@ -93,7 +96,8 @@
- }
- 
- :host(:not([narrow])) #leftContent {
--  flex: 1 1 var(--cr-toolbar-field-margin, 0);
-+  flex: var(--cr-toolbar-left-content-flex,
-+      1 1 var(--cr-toolbar-field-margin, 0));
- }
- 
- :host(:not([narrow])) #centeredContent {
-@@ -128,7 +132,7 @@
- 
- :host([always-show-logo]) picture,
- :host(:not([narrow])) picture {
--  display: initial;
-+  display: var(--cr-toolbar-logo-display, initial);
-   margin-inline-end: 16px;
- }
- 
---- a/ui/webui/resources/cr_elements/cr_toolbar/cr_toolbar_search_field.css
-+++ b/ui/webui/resources/cr_elements/cr_toolbar/cr_toolbar_search_field.css
-@@ -103,7 +103,7 @@
- #searchTerm {
-   -webkit-font-smoothing: antialiased;
-   flex: 1;
--  font-size: 12px;
-+  font-size: var(--cr-toolbar-search-field-font-size, 12px);
-   font-weight: 500;
-   line-height: 185%;
-   margin: var(--cr-toolbar-search-field-term-margin, 0);
-@@ -135,7 +135,7 @@
-       var(--color-toolbar-search-field-foreground,
-       var(--cr-fallback-color-on-surface)));
-   font: inherit;
--  font-size: 12px;
-+  font-size: var(--cr-toolbar-search-field-font-size, 12px);
-   font-weight: 500;
-   outline: none;
-   padding: 0;
-@@ -161,16 +161,19 @@
- /** Wide layout. */
- :host(:not([narrow])) {
-   background: none;
-+  border: var(--cr-toolbar-search-field-border, none);
-+  box-sizing: border-box;
-   border-radius:
-       var(--cr-toolbar-search-field-border-radius, 46px);
-   cursor: var(--cr-toolbar-search-field-cursor, default);
--  height: 36px;
-+  height: var(--cr-toolbar-search-field-height, 36px);
-   max-width: var(--cr-toolbar-field-max-width, none);
-   overflow: hidden;
-   padding: 0 6px;
-   position: relative;
-   width: var(--cr-toolbar-field-width, 680px);
--  --cr-toolbar-search-field-border-radius: 100px;
-+  --cr-toolbar-search-field-border-radius: var(
-+      --cr-toolbar-search-field-shape, 100px);
- }
- 
- @media (prefers-color-scheme: dark) {
---- a/ui/webui/resources/cr_elements/md_select_lit.css
-+++ b/ui/webui/resources/cr_elements/md_select_lit.css
-@@ -10,7 +10,7 @@
- 
- .md-select {
-   --md-arrow-width: 7px;
--  --md-select-bg-color: transparent;
-+  --md-select-bg-color: var(--cr-md-select-background-color, transparent);
-   --md-select-option-bg-color: white;
-   --md-select-side-padding: 10px;
-   --md-select-text-color: inherit;
-@@ -23,14 +23,14 @@
-   background-size: var(--md-arrow-width);
-   border: solid 1px var(--color-combobox-container-outline,
-       var(--cr-fallback-color-neutral-outline));
--  border-radius: 8px;
-+  border-radius: var(--cr-md-select-border-radius, 8px);
-   box-sizing: border-box;
-   color: var(--md-select-text-color);
-   cursor: pointer;
-   font-family: inherit;
--  font-size: 12px;
-+  font-size: var(--cr-md-select-font-size, 12px);
-   height: 36px;
--  max-width: 100%;
-+  max-width: var(--cr-md-select-max-width, 100%);
-   outline: none;
-   padding-block-end: 0;
-   padding-block-start: 0;
---- a/ui/webui/resources/cr_elements/cr_button/cr_button.css
-+++ b/ui/webui/resources/cr_elements/cr_button/cr_button.css
-@@ -11,7 +11,8 @@
-  * #css_wrapper_metadata_end */
- 
- :host {
--  --cr-button-background-color: transparent;
-+  --cr-button-background-color: var(--cr-button-default-background-color,
-+      transparent);
-   --cr-button-border-color:  var(--color-button-border,
-       var(--cr-fallback-color-tonal-outline));
-   --cr-button-text-color: var(--color-button-foreground,
-@@ -40,10 +41,10 @@
-   user-select: none;
-   -webkit-tap-highlight-color: transparent;
-   border: var(--cr-button-border, 1px solid var(--cr-button-border-color));
--  border-radius: 100px;
-+  border-radius: var(--cr-button-border-radius, 100px);
-   background: var(--cr-button-background-color);
-   color: var(--cr-button-text-color);
--  font-weight: 500;
-+  font-weight: var(--cr-button-font-weight, 500);
-   line-height: 20px;
-   isolation: isolate;
- }
+   color: var(--cr-form-field-label-color);
+   display: block;
+diff --git a/ui/webui/resources/cr_elements/cr_toggle/cr_toggle.css b/ui/webui/resources/cr_elements/cr_toggle/cr_toggle.css
 --- a/ui/webui/resources/cr_elements/cr_toggle/cr_toggle.css
 +++ b/ui/webui/resources/cr_elements/cr_toggle/cr_toggle.css
 @@ -26,10 +26,11 @@
@@ -966,3 +861,132 @@
  
    /* Direction for on/off states
        - +1 means 'off' to the left, 'on' to the right, used in LTR.
+diff --git a/ui/webui/resources/cr_elements/cr_toolbar/cr_toolbar.css b/ui/webui/resources/cr_elements/cr_toolbar/cr_toolbar.css
+--- a/ui/webui/resources/cr_elements/cr_toolbar/cr_toolbar.css
++++ b/ui/webui/resources/cr_elements/cr_toolbar/cr_toolbar.css
+@@ -13,19 +13,22 @@
+ 
+ :host {
+   align-items: center;
++  background: var(--cr-toolbar-background-color, transparent);
++  border-bottom: var(--cr-toolbar-border-bottom, none);
+   box-sizing: border-box;
+-  color: var(--google-grey-900);
++  color: var(--cr-toolbar-foreground-color, var(--google-grey-900));
+   display: flex;
+   height: var(--cr-toolbar-height);
+ }
+ 
+ @media (prefers-color-scheme: dark) {
+   :host {
+-    color: var(--cr-secondary-text-color);
++    color: var(--cr-toolbar-foreground-color, var(--cr-secondary-text-color));
+   }
+ }
+ 
+ h1 {
++  display: var(--cr-toolbar-header-display, block);
+   flex: 1;
+   font-size: 170%;
+   font-weight: var(--cr-toolbar-header-font-weight, 500);
+@@ -71,7 +74,7 @@ cr-icon-button {
+ #centeredContent {
+   display: flex;
+   flex: 1 1 0;
+-  justify-content: center;
++  justify-content: var(--cr-toolbar-center-justify, center);
+ }
+ 
+ #rightSpacer {
+@@ -93,7 +96,8 @@ cr-icon-button {
+ }
+ 
+ :host(:not([narrow])) #leftContent {
+-  flex: 1 1 var(--cr-toolbar-field-margin, 0);
++  flex: var(--cr-toolbar-left-content-flex,
++      1 1 var(--cr-toolbar-field-margin, 0));
+ }
+ 
+ :host(:not([narrow])) #centeredContent {
+@@ -128,7 +132,7 @@ picture {
+ 
+ :host([always-show-logo]) picture,
+ :host(:not([narrow])) picture {
+-  display: initial;
++  display: var(--cr-toolbar-logo-display, initial);
+   margin-inline-end: 16px;
+ }
+ 
+diff --git a/ui/webui/resources/cr_elements/cr_toolbar/cr_toolbar_search_field.css b/ui/webui/resources/cr_elements/cr_toolbar/cr_toolbar_search_field.css
+--- a/ui/webui/resources/cr_elements/cr_toolbar/cr_toolbar_search_field.css
++++ b/ui/webui/resources/cr_elements/cr_toolbar/cr_toolbar_search_field.css
+@@ -103,7 +103,7 @@ cr-icon-button {
+ #searchTerm {
+   -webkit-font-smoothing: antialiased;
+   flex: 1;
+-  font-size: 12px;
++  font-size: var(--cr-toolbar-search-field-font-size, 12px);
+   font-weight: 500;
+   line-height: 185%;
+   margin: var(--cr-toolbar-search-field-term-margin, 0);
+@@ -135,7 +135,7 @@ input {
+       var(--color-toolbar-search-field-foreground,
+       var(--cr-fallback-color-on-surface)));
+   font: inherit;
+-  font-size: 12px;
++  font-size: var(--cr-toolbar-search-field-font-size, 12px);
+   font-weight: 500;
+   outline: none;
+   padding: 0;
+@@ -161,16 +161,19 @@ input[type='search']::-webkit-search-cancel-button {
+ /** Wide layout. */
+ :host(:not([narrow])) {
+   background: none;
++  border: var(--cr-toolbar-search-field-border, none);
++  box-sizing: border-box;
+   border-radius:
+       var(--cr-toolbar-search-field-border-radius, 46px);
+   cursor: var(--cr-toolbar-search-field-cursor, default);
+-  height: 36px;
++  height: var(--cr-toolbar-search-field-height, 36px);
+   max-width: var(--cr-toolbar-field-max-width, none);
+   overflow: hidden;
+   padding: 0 6px;
+   position: relative;
+   width: var(--cr-toolbar-field-width, 680px);
+-  --cr-toolbar-search-field-border-radius: 100px;
++  --cr-toolbar-search-field-border-radius: var(
++      --cr-toolbar-search-field-shape, 100px);
+ }
+ 
+ @media (prefers-color-scheme: dark) {
+diff --git a/ui/webui/resources/cr_elements/md_select_lit.css b/ui/webui/resources/cr_elements/md_select_lit.css
+--- a/ui/webui/resources/cr_elements/md_select_lit.css
++++ b/ui/webui/resources/cr_elements/md_select_lit.css
+@@ -10,7 +10,7 @@
+ 
+ .md-select {
+   --md-arrow-width: 7px;
+-  --md-select-bg-color: transparent;
++  --md-select-bg-color: var(--cr-md-select-background-color, transparent);
+   --md-select-option-bg-color: white;
+   --md-select-side-padding: 10px;
+   --md-select-text-color: inherit;
+@@ -23,14 +23,14 @@
+   background-size: var(--md-arrow-width);
+   border: solid 1px var(--color-combobox-container-outline,
+       var(--cr-fallback-color-neutral-outline));
+-  border-radius: 8px;
++  border-radius: var(--cr-md-select-border-radius, 8px);
+   box-sizing: border-box;
+   color: var(--md-select-text-color);
+   cursor: pointer;
+   font-family: inherit;
+-  font-size: 12px;
++  font-size: var(--cr-md-select-font-size, 12px);
+   height: 36px;
+-  max-width: 100%;
++  max-width: var(--cr-md-select-max-width, 100%);
+   outline: none;
+   padding-block-end: 0;
+   padding-block-start: 0;

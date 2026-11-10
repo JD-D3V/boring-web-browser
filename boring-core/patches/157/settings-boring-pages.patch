@@ -1,166 +1,7 @@
-diff --git a/chrome/browser/resources/settings/router.ts b/chrome/browser/resources/settings/router.ts
---- a/chrome/browser/resources/settings/router.ts
-+++ b/chrome/browser/resources/settings/router.ts
-@@ -52,6 +52,8 @@ export interface SettingsRoutes {
-   PRELOADING: Route;
-   PRIVACY: Route;
-   PRIVACY_GUIDE: Route;
-+  PROTECTION: Route;
-+  READING: Route;
-   RESET: Route;
-   RESET_DIALOG: Route;
-   SAFETY_HUB: Route;
-@@ -115,6 +117,7 @@ export interface SettingsRoutes {
-   SITE_SETTINGS_WEB_PRINTING: Route;
-   SKILLS: Route;
-   SUGGESTIONS_FROM_GEMINI: Route;
-+  SUMMARIES: Route;
-   SYNC: Route;
-   SYNC_ADVANCED: Route;
-   SYSTEM: Route;
-diff --git a/chrome/browser/resources/settings/route.ts b/chrome/browser/resources/settings/route.ts
---- a/chrome/browser/resources/settings/route.ts
-+++ b/chrome/browser/resources/settings/route.ts
-@@ -155,6 +155,13 @@ function createRoutes(): SettingsRoutes {
- 
-   const visibility = pageVisibility || {};
- 
-+  // boring: our own pages. Titles are plain strings rather than
-+  // $i18n{...} lookups since these are not upstream Chromium strings.
-+  if (visibility.protection !== false) {
-+    r.PROTECTION = r.BASIC.createSection('/protection', 'protection',
-+        'Protection');
-+  }
-+
-   if (visibility.people !== false) {
-     r.PEOPLE = r.BASIC.createSection(
-         '/people', 'people', loadTimeData.getString('peoplePageTitle'));
-@@ -206,6 +213,15 @@ function createRoutes(): SettingsRoutes {
-     }
-   }
- 
-+  // boring: our own AI feature, kept apart from Chromium's r.AI section
-+  // above since it is a different (and much smaller) thing: one page,
-+  // backed by components/boring/ai, with its own setup flow at
-+  // chrome://boring-ai.
-+  if (visibility.summaries !== false) {
-+    r.SUMMARIES = r.BASIC.createSection('/summaries', 'summaries',
-+        'Page summaries');
-+  }
-+
-   if (visibility.appearance !== false) {
-     r.APPEARANCE = r.BASIC.createSection(
-         '/appearance', 'appearance',
-@@ -213,6 +229,12 @@ function createRoutes(): SettingsRoutes {
-     r.FONTS = r.APPEARANCE.createChild('/fonts');
-   }
- 
-+  // boring: reading sits with appearance in the nav, so its route is
-+  // created here too.
-+  if (visibility.reading !== false) {
-+    r.READING = r.BASIC.createSection('/reading', 'reading', 'Reading');
-+  }
-+
-   if (visibility.yourSavedInfo !== false) {
-     r.AUTOFILL = r.BASIC.createSection(
-         '/autofill', 'yourSavedInfo',
-diff --git a/chrome/browser/resources/settings/page_visibility.ts b/chrome/browser/resources/settings/page_visibility.ts
---- a/chrome/browser/resources/settings/page_visibility.ts
-+++ b/chrome/browser/resources/settings/page_visibility.ts
-@@ -20,6 +20,12 @@ export interface PageVisibility {
-   people?: boolean;
-   performance?: boolean;
-   privacy?: boolean|PrivacyPageVisibility;
-+  // boring: our own pages. Left out of the guest-mode overrides below on
-+  // purpose, so Protection, Reading and Page summaries stay reachable even
-+  // in a guest session.
-+  protection?: boolean;
-+  reading?: boolean;
-+  summaries?: boolean;
-   reset?: boolean;
-   safetyHub?: boolean;
-   system?: boolean;
-diff --git a/chrome/browser/resources/settings/BUILD.gn b/chrome/browser/resources/settings/BUILD.gn
---- a/chrome/browser/resources/settings/BUILD.gn
-+++ b/chrome/browser/resources/settings/BUILD.gn
-@@ -51,6 +51,9 @@ build_webui("build") {
-
-   # -----------------web_component_files start ---------------------------------
-   web_component_files = [
-+    "boring_page/boring_protection_page.ts",
-+    "boring_page/boring_reading_page.ts",
-+    "boring_page/boring_summaries_page.ts",
-     "controls/collapse_radio_button.ts",
-     "controls/controlled_radio_button.ts",
-     "controls/settings_checkbox.ts",
-diff --git a/chrome/browser/resources/settings/settings_main/settings_main.html b/chrome/browser/resources/settings/settings_main/settings_main.html
---- a/chrome/browser/resources/settings/settings_main/settings_main.html
-+++ b/chrome/browser/resources/settings/settings_main/settings_main.html
-@@ -55,6 +55,15 @@
- 
- <cr-view-manager id="switcher"
-     show-all$="[[shouldShowAll_(inSearchMode_, lastRoute_)]]">
-+  <template is="dom-if" if="[[showPage_(pageVisibility_.protection)]]">
-+    <div slot="view" id="protection">
-+      <template is="dom-if" if="[[renderPlugin_(
-+          routes_.PROTECTION, lastRoute_, inSearchMode_)]]">
-+        <boring-protection-page prefs="{{prefs}}"></boring-protection-page>
-+      </template>
-+    </div>
-+  </template>
-+
-   <template is="dom-if" if="[[showPage_(pageVisibility_.people)]]">
-     <div slot="view" id="people">
-       <template is="dom-if" if="[[renderPlugin_(
-@@ -109,6 +118,15 @@
-     </div>
-   </template>
- 
-+  <template is="dom-if" if="[[showPage_(pageVisibility_.summaries)]]">
-+    <div slot="view" id="summaries">
-+      <template is="dom-if" if="[[renderPlugin_(
-+          routes_.SUMMARIES, lastRoute_, inSearchMode_)]]">
-+        <boring-summaries-page prefs="{{prefs}}"></boring-summaries-page>
-+      </template>
-+    </div>
-+  </template>
-+
-   <template is="dom-if" if="[[showPage_(pageVisibility_.appearance)]]">
-     <div slot="view" id="appearance">
-       <template is="dom-if" if="[[renderPlugin_(
-@@ -119,6 +137,15 @@
-     </div>
-   </template>
- 
-+  <template is="dom-if" if="[[showPage_(pageVisibility_.reading)]]">
-+    <div slot="view" id="reading">
-+      <template is="dom-if" if="[[renderPlugin_(
-+          routes_.READING, lastRoute_, inSearchMode_)]]">
-+        <boring-reading-page></boring-reading-page>
-+      </template>
-+    </div>
-+  </template>
-+
-   <div slot="view" id="search">
-     <template is="dom-if" if="[[renderPlugin_(
-         routes_.SEARCH, lastRoute_, inSearchMode_)]]">
-diff --git a/chrome/browser/resources/settings/settings_main/settings_main.ts b/chrome/browser/resources/settings/settings_main/settings_main.ts
---- a/chrome/browser/resources/settings/settings_main/settings_main.ts
-+++ b/chrome/browser/resources/settings/settings_main/settings_main.ts
-@@ -14,6 +14,9 @@ import '../about_page/about_page.js';
- import '../ai_page/ai_page_index.js';
- import '../appearance_page/appearance_page_index.js';
- import '../autofill_page/autofill_page_index.js';
-+import '../boring_page/boring_protection_page.js';
-+import '../boring_page/boring_reading_page.js';
-+import '../boring_page/boring_summaries_page.js';
- import '../on_startup_page/on_startup_page.js';
- import '../people_page/people_page_index.js';
- import '../performance_page/performance_page_index.js';
 diff --git a/chrome/browser/extensions/api/settings_private/prefs_util.cc b/chrome/browser/extensions/api/settings_private/prefs_util.cc
 --- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
 +++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
-@@ -219,6 +219,28 @@ const PrefsUtil::TypedPrefMap& PrefsUtil::GetAllowlistedKeys() {
+@@ -220,6 +220,28 @@ const PrefsUtil::TypedPrefMap& PrefsUtil::GetAllowlistedKeys() {
    }
    s_allowlist = new PrefsUtil::TypedPrefMap();
  
@@ -189,6 +30,19 @@ diff --git a/chrome/browser/extensions/api/settings_private/prefs_util.cc b/chro
    // Miscellaneous
    (*s_allowlist)[::embedder_support::kAlternateErrorPagesEnabled] =
        settings_api::PrefType::kBoolean;
+diff --git a/chrome/browser/resources/settings/BUILD.gn b/chrome/browser/resources/settings/BUILD.gn
+--- a/chrome/browser/resources/settings/BUILD.gn
++++ b/chrome/browser/resources/settings/BUILD.gn
+@@ -51,6 +51,9 @@ build_webui("build") {
+ 
+   # -----------------web_component_files start ---------------------------------
+   web_component_files = [
++    "boring_page/boring_protection_page.ts",
++    "boring_page/boring_reading_page.ts",
++    "boring_page/boring_summaries_page.ts",
+     "controls/collapse_radio_button.ts",
+     "controls/controlled_radio_button.ts",
+     "controls/settings_checkbox.ts",
 diff --git a/chrome/browser/resources/settings/boring_page/boring_protection_page.html b/chrome/browser/resources/settings/boring_page/boring_protection_page.html
 new file mode 100644
 --- /dev/null
@@ -607,3 +461,149 @@ new file mode 100644
 +
 +customElements.define(
 +    BoringSummariesPageElement.is, BoringSummariesPageElement);
+diff --git a/chrome/browser/resources/settings/page_visibility.ts b/chrome/browser/resources/settings/page_visibility.ts
+--- a/chrome/browser/resources/settings/page_visibility.ts
++++ b/chrome/browser/resources/settings/page_visibility.ts
+@@ -20,6 +20,12 @@ export interface PageVisibility {
+   people?: boolean;
+   performance?: boolean;
+   privacy?: boolean|PrivacyPageVisibility;
++  // boring: our own pages. Left out of the guest-mode overrides below on
++  // purpose, so Protection, Reading and Page summaries stay reachable even
++  // in a guest session.
++  protection?: boolean;
++  reading?: boolean;
++  summaries?: boolean;
+   reset?: boolean;
+   safetyHub?: boolean;
+   system?: boolean;
+diff --git a/chrome/browser/resources/settings/route.ts b/chrome/browser/resources/settings/route.ts
+--- a/chrome/browser/resources/settings/route.ts
++++ b/chrome/browser/resources/settings/route.ts
+@@ -155,6 +155,13 @@ function createRoutes(): SettingsRoutes {
+ 
+   const visibility = pageVisibility || {};
+ 
++  // boring: our own pages. Titles are plain strings rather than
++  // $i18n{...} lookups since these are not upstream Chromium strings.
++  if (visibility.protection !== false) {
++    r.PROTECTION = r.BASIC.createSection('/protection', 'protection',
++        'Protection');
++  }
++
+   if (visibility.people !== false) {
+     r.PEOPLE = r.BASIC.createSection(
+         '/people', 'people', loadTimeData.getString('peoplePageTitle'));
+@@ -209,6 +216,15 @@ function createRoutes(): SettingsRoutes {
+     }
+   }
+ 
++  // boring: our own AI feature, kept apart from Chromium's r.AI section
++  // above since it is a different (and much smaller) thing: one page,
++  // backed by components/boring/ai, with its own setup flow at
++  // chrome://boring-ai.
++  if (visibility.summaries !== false) {
++    r.SUMMARIES = r.BASIC.createSection('/summaries', 'summaries',
++        'Page summaries');
++  }
++
+   if (visibility.appearance !== false) {
+     r.APPEARANCE = r.BASIC.createSection(
+         '/appearance', 'appearance',
+@@ -216,6 +232,12 @@ function createRoutes(): SettingsRoutes {
+     r.FONTS = r.APPEARANCE.createChild('/fonts');
+   }
+ 
++  // boring: reading sits with appearance in the nav, so its route is
++  // created here too.
++  if (visibility.reading !== false) {
++    r.READING = r.BASIC.createSection('/reading', 'reading', 'Reading');
++  }
++
+   if (visibility.yourSavedInfo !== false) {
+     r.AUTOFILL = r.BASIC.createSection(
+         '/autofill', 'yourSavedInfo',
+diff --git a/chrome/browser/resources/settings/router.ts b/chrome/browser/resources/settings/router.ts
+--- a/chrome/browser/resources/settings/router.ts
++++ b/chrome/browser/resources/settings/router.ts
+@@ -52,6 +52,8 @@ export interface SettingsRoutes {
+   PRELOADING: Route;
+   PRIVACY: Route;
+   PRIVACY_GUIDE: Route;
++  PROTECTION: Route;
++  READING: Route;
+   RESET: Route;
+   RESET_DIALOG: Route;
+   SAFETY_HUB: Route;
+@@ -115,6 +117,7 @@ export interface SettingsRoutes {
+   SITE_SETTINGS_WEB_PRINTING: Route;
+   SKILLS: Route;
+   SUGGESTIONS_FROM_GEMINI: Route;
++  SUMMARIES: Route;
+   SYNC: Route;
+   SYNC_ADVANCED: Route;
+   SYSTEM: Route;
+diff --git a/chrome/browser/resources/settings/settings_main/settings_main.html b/chrome/browser/resources/settings/settings_main/settings_main.html
+--- a/chrome/browser/resources/settings/settings_main/settings_main.html
++++ b/chrome/browser/resources/settings/settings_main/settings_main.html
+@@ -50,6 +50,15 @@
+ 
+ <cr-view-manager id="switcher"
+     show-all$="[[shouldShowAll_(inSearchMode_, lastRoute_)]]">
++  <template is="dom-if" if="[[showPage_(pageVisibility_.protection)]]">
++    <div slot="view" id="protection">
++      <template is="dom-if" if="[[renderPlugin_(
++          routes_.PROTECTION, lastRoute_, inSearchMode_)]]">
++        <boring-protection-page prefs="{{prefs}}"></boring-protection-page>
++      </template>
++    </div>
++  </template>
++
+   <template is="dom-if" if="[[showPage_(pageVisibility_.people)]]">
+     <div slot="view" id="people">
+       <template is="dom-if" if="[[renderPlugin_(
+@@ -101,6 +110,15 @@
+     </div>
+   </template>
+ 
++  <template is="dom-if" if="[[showPage_(pageVisibility_.summaries)]]">
++    <div slot="view" id="summaries">
++      <template is="dom-if" if="[[renderPlugin_(
++          routes_.SUMMARIES, lastRoute_, inSearchMode_)]]">
++        <boring-summaries-page prefs="{{prefs}}"></boring-summaries-page>
++      </template>
++    </div>
++  </template>
++
+   <template is="dom-if" if="[[showPage_(pageVisibility_.appearance)]]">
+     <div slot="view" id="appearance">
+       <template is="dom-if" if="[[renderPlugin_(
+@@ -111,6 +129,15 @@
+     </div>
+   </template>
+ 
++  <template is="dom-if" if="[[showPage_(pageVisibility_.reading)]]">
++    <div slot="view" id="reading">
++      <template is="dom-if" if="[[renderPlugin_(
++          routes_.READING, lastRoute_, inSearchMode_)]]">
++        <boring-reading-page></boring-reading-page>
++      </template>
++    </div>
++  </template>
++
+   <div slot="view" id="search">
+     <template is="dom-if" if="[[renderPlugin_(
+         routes_.SEARCH, lastRoute_, inSearchMode_)]]">
+diff --git a/chrome/browser/resources/settings/settings_main/settings_main.ts b/chrome/browser/resources/settings/settings_main/settings_main.ts
+--- a/chrome/browser/resources/settings/settings_main/settings_main.ts
++++ b/chrome/browser/resources/settings/settings_main/settings_main.ts
+@@ -14,6 +14,9 @@ import '../about_page/about_page.js';
+ import '../ai_page/ai_page_index.js';
+ import '../appearance_page/appearance_page_index.js';
+ import '../autofill_page/autofill_page_index.js';
++import '../boring_page/boring_protection_page.js';
++import '../boring_page/boring_reading_page.js';
++import '../boring_page/boring_summaries_page.js';
+ import '../on_startup_page/on_startup_page.js';
+ import '../people_page/people_page_index.js';
+ import '../performance_page/performance_page_index.js';
