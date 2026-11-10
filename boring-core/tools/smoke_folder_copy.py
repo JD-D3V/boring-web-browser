@@ -19,6 +19,9 @@ The folder picker cannot be driven, so the test folder is set with
     Preferences, and a folder outside the temp directory is ignored.
   - A settings file that adds an @@ exception rule is flagged in the
     preview as turning blocking off for some sites.
+  - One that adds only a ## cosmetic rule, a ##+js rule, a #?# rule or a #$#
+    rule (no @@ line) is flagged as changing how some sites look or act,
+    and one that adds only an ordinary blocking rule is not.
 """
 
 import http.server
@@ -270,6 +273,58 @@ def add_exception_rules(folder):
         json.dump(data, f)
 
 
+# What a synced second PC could add besides an @@ exception: rules that hide
+# parts of a page or run script on it. (label, one rule of that kind)
+COSMETIC_RULES = [
+    ("##", "example.org##.ad-banner"),
+    ("##+js", "example.org##+js(abort-on-property-read, adsEnabled)"),
+    ("#?#", "example.org#?#div:has(> .sponsor)"),
+    ("#$#", "example.org#$#body { overflow: auto !important }"),
+]
+COSMETIC_NOTE = "change how certain sites look or act (less protection)"
+
+
+def set_folder_rules(folder, lines):
+    """The folder's settings file, with only these filter rules in it."""
+    path = os.path.join(folder, SETTINGS)
+    data = json.loads(read(path) or "{}")
+    data["settings"] = {RULES: chr(10).join(lines)}
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f)
+
+
+def run_d(folder, profile):
+    """A fresh profile loads settings files that add one kind of rule each.
+    The number of rules differs per case, so the preview line of one case
+    can be told from the one before it."""
+    cases = [(f"adds a {label} rule", label, [rule]) for label, rule in COSMETIC_RULES]
+    cases.append(("adds only an ordinary blocking rule", None, ["||ads.example^"]))
+    args = ["--boring-folder-copy-dir=" + folder]
+    with Browser(user_data_dir=profile, args=args) as b:
+        open_protection(b)
+        wait_until(lambda: (lambda r: r if r and r["saveOver"] else None)(folder_row(b)), 15)
+        for count, (what, label, special) in enumerate(cases, start=1):
+            set_folder_rules(folder, special + [f"||plain{n}.example^" for n in range(count - 1)])
+            b.run("document.getElementById('folder-load').click(); return 1")
+            row = wait_until(
+                lambda: (lambda r: r if r and f"to {count} rule" in r["preview"] else None)(
+                    folder_row(b)),
+                20)
+            check(bool(row), f"D: a settings file that {what} is listed ({count} rules)")
+            if not row:
+                continue
+            print("   preview:", row["preview"].replace(chr(10), " / "))
+            if label:
+                check("My filter rules" in row["preview"] and COSMETIC_NOTE in row["preview"],
+                      f"D: a {label} rule is flagged as changing how sites look or act")
+                check("turn blocking off" not in row["preview"],
+                      f"D: and a {label} rule is not called turning blocking off")
+            else:
+                check("My filter rules" in row["preview"] and "look or act" not in row["preview"]
+                      and "less protection" not in row["preview"],
+                      "D: an ordinary blocking rule carries no warning")
+
+
 def run_b(folder, profile):
     settings = os.path.join(folder, SETTINGS)
     bookmarks = os.path.join(folder, BOOKMARKS)
@@ -376,6 +431,7 @@ def main():
         run_a(folder, os.path.join(work, "A"), server.server_address[1])
         add_exception_rules(folder)
         run_b(folder, os.path.join(work, "B"))
+        run_d(folder, os.path.join(work, "D"))
         outside = tempfile.mkdtemp(prefix="smoke-outside-", dir=os.path.dirname(TMP.rstrip("/" + os.sep)))
         try:
             run_outside(outside, os.path.join(work, "C"))
