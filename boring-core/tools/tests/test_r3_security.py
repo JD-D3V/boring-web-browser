@@ -64,5 +64,29 @@ class GuardTestHooks(unittest.TestCase):
         self.assertIn("not localhost: nothing answers the bar", smoke)
 
 
+class NativeLaunchPath(unittest.TestCase):
+    """Item 62. The launch-from-native path asks the same delegate check."""
+
+    def test_patch_asks_the_delegate_before_launching(self):
+        patch = read(PATCHES / "native-hosts-launch.patch")
+        files = re.findall(r"^\+\+\+ b/(\S+)", patch, re.M)
+        self.assertEqual(
+            files,
+            ["chrome/browser/extensions/api/messaging/native_messaging_launch_from_native.cc"],
+        )
+        self.assertIn("ChromeMessagingDelegate().IsNativeMessagingHostAllowed(", patch)
+        self.assertIn("PolicyPermission::DISALLOW", patch)
+        # The check comes before the host is created.
+        self.assertLess(patch.index("DISALLOW"), patch.index("const extensions::PortId"))
+
+    def test_patch_is_in_the_series_after_the_delegate_patch(self):
+        series = read(PATCHES / "series").split()
+        self.assertEqual(series.count("native-hosts-launch.patch"), 1)
+        self.assertLess(
+            series.index("native-hosts-check.patch"),
+            series.index("native-hosts-launch.patch"),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

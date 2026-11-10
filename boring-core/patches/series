@@ -76,3 +76,4 @@ session-restore-default.patch
 forget-session.patch
 fingerprint-uniform.patch
 native-hosts-check.patch
+native-hosts-launch.patch
