@@ -16,8 +16,9 @@
 <li>The installer is not signed, so an update may show a Windows warning too. Not confirmed: the test served the update from the same PC.</li>
 </ul>
 <h2>Blocking</h2><ul>
-<li>Dangerous sites are blocked only if Quad9 knows them. New sites get through.</li>
-<li>A blocked site shows as “not found”, not as a warning.</li>
+<li>Dangerous sites are blocked only if they are on the built-in scam list or Quad9 knows them. New sites get through.</li>
+<li>The scam list comes from CERT Polska and DurableNapkin only, so it is thin outside Poland. It changes only with a browser update.</li>
+<li>A site blocked by the scam list shows a warning page. A site blocked only by Quad9 still shows as “not found”.</li>
 <li>Switching secure DNS away from Quad9, or turning it off, removes that protection.</li>
 <li>Secure DNS may be turned off on a managed network or when Windows uses a VPN or policy that sets its own DNS. Not tested.</li>
 <li>The browser checks about once a week for newer blocking lists, but none are published yet, so the lists are the ones it shipped with.</li>
@@ -41,7 +42,7 @@
 <li>Sponsored results are hidden only on supported search pages.</li>
 <li>A remote summary provider receives the page text. Use a local one, or none, for private pages.</li>
 </ul>
-<h2>Not in this release</h2><p>Scam warning page, scam list, sync, Tor windows, code signing.</p>
+<h2>Not yet</h2><p>A broad scam list, sync, Tor windows, code signing.</p>
 <h2>Found in testing</h2><p>The automated test pass on 154.0.8037.57 and a clean install and update in Windows Sandbox found nothing a user would see. No open issue from that pass.</p>
 <p>Found in the clean machine test and fixed before release: the ad block engine needed the Visual C++ runtime, so on a PC without it, ad and tracker blocking was off. It now carries its own runtime, and blocking was checked on the clean install. The update prompt also showed the Chromium version without our release number, which read like a downgrade.</p>
 </main><footer class="wrap"><a href="index.html">Back to Boring Browser</a><span>Independent project by JD · Release 2</span></footer></body></html>

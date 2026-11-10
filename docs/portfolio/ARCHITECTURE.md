@@ -36,7 +36,7 @@ a new upstream version.
 - **New WebUI surfaces**, under `chrome://boring-*` and wired into
   settings: a Protection page, a first-run welcome screen, a new tab page
   with a search engine picker, an on-click summary panel, and reader mode.
-  A scam warning page exists in code but is not used in release 1.
+  A scam warning page shows for sites on the built-in scam list.
 - **Engine-level ad and tracker blocking**, via a small Rust static
   library (`boring-core/rust/`, crate name `boring_adblock`) that wraps
   the third-party `adblock` crate and is called from C++ through an FFI
@@ -44,7 +44,8 @@ a new upstream version.
 - **Privacy defaults**, in `privacy-defaults.patch`: HTTPS-first
   (balanced), Quad9 secure DNS (which refuses known malware and phishing
   domains), and ungoogled-chromium's fingerprint noise on canvas, text and
-  element sizes. WebRTC is kept to proxied routes, which ungoogled already
+  element sizes, plus generic graphics card, core count, touch points and
+  screen size values. WebRTC is kept to proxied routes, which ungoogled already
   does.
 - **Tracking parameter removal**, a navigation throttle in
   `components/boring/privacy` that strips known tracking parameters from
@@ -103,6 +104,7 @@ maintainable rather than a one-time hack:
 The goal is to take Chromium's own security work (engine, sandboxing,
 patch cadence) essentially for free, add a specific and narrow set of
 things Chromium/ungoogled-chromium do not do (blocking and privacy
-defaults on from the start, a Senior Safe Mode, on-click summaries, and
-later scam blocking once a list may be redistributed), and keep the patch surface small enough that one person can
+defaults on from the start, plain switches against screen takeovers and
+scam warning bypasses, on-click summaries, and scam blocking from lists
+that may be redistributed), and keep the patch surface small enough that one person can
 actually keep it current. It is not an attempt to out-build Chromium.

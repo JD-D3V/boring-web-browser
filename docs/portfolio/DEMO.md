@@ -40,13 +40,14 @@ the project (no marketing language).
    for ads and trackers, dangerous sites (Quad9), HTTPS-first, WebRTC,
    fingerprint noise and updates.
 
-4. **A blocked dangerous site** (~20s). Open a Quad9 test domain, not a
-   live malicious site, and show that it does not load. There is no
-   warning page in release 1; say so on screen.
+4. **A blocked dangerous site** (~20s). Open the scam list's test address,
+   not a live malicious site, and show the warning page. Say that the list
+   is thin outside Poland.
 
-5. **Senior Safe Mode** (~20s). Turn it on from the welcome screen or the
-   Protection page. Show sponsored results staying hidden, and the
-   confirmation it asks for before turning off.
+5. **The plain switches** (~20s). On the Protection page, show Stop screen
+   takeovers and Hide sponsored results (both on), and turn on No way past
+   scam warnings (off by default, offered on the welcome screen). Show the
+   continue anyway link disappear from the warning page.
 
 6. **Reader mode** (~20s). Open a normal article page, trigger reader
    mode from the toolbar, show the clean, decluttered result.

@@ -17,24 +17,46 @@ defaults and a calmer UI. It is not a new engine.
 
 - Ad, tracker and pop-up blocking.
 - HTTPS first (Chromium's balanced mode).
-- Quad9 secure DNS. Quad9 refuses known malware and phishing domains, so
-  they do not open. There is no warning page, and new sites get through.
+- A scam warning page for sites on a built-in list, and Quad9 secure DNS.
+  Quad9 refuses known malware and phishing domains, so they do not open.
+  New sites get through.
 - WebRTC kept to proxied routes.
-- Fingerprint noise on canvas, text measurement and element sizes.
+- Fingerprint noise on canvas, text measurement and element sizes. Every
+  page also reads the same graphics card name, a core count of 8, no touch
+  points and a common screen size.
 - Tracking parameters removed from links to other sites. The list comes
   from Brave; `utm_` tags are kept.
 - DuckDuckGo search, with a picker on the new tab page.
-- Sponsored search results hidden on supported search pages.
+- Cookie banners blocked, and answered with no where a page asks.
+- Tracking redirects and AMP copies skipped, so a link opens the real page.
+- Stop screen takeovers. A page cannot lock your keyboard, mouse or screen
+  with fake alerts. Video fullscreen still works. If a page does lock up,
+  one button closes the tab.
+- Warn about scam tricks: downloads of remote control tools such as
+  AnyDesk, a page that copies a command for you to run, and sites named
+  like another site.
+- A quiet note when a warning-looking page shows a phone number.
+- Hide sponsored results on Google and Bing searches.
 
 Also there:
 
-- Senior Safe Mode. One switch that keeps sponsored results hidden and
-  asks before it can be turned off.
+- No way past scam warnings. Off by default, and offered on the Welcome
+  page. It takes away the "continue anyway" link on a scam warning.
 - Reader view from the toolbar.
 - Page summaries, only on click. Off until you pick a provider. A remote
   provider receives the page text.
 - Turn off blocking on one site from the toolbar shield. Chromium's own
-  pop-up blocker stays on. The Protection page lists these sites.
+  pop-up blocker stays on. The Protection page lists these sites. The
+  shield also shows what was blocked on the page, and has Forget this
+  site, clear on close and never sleep for that site.
+- Fire button: wipe the whole session in one click.
+- Split view. New profiles open where you left off.
+- What the browser connects to, on the Protection page: every connection
+  it makes on its own, why, and a switch for each. You can add your own
+  filter lists by address (https only, weekly, 5 MB each). Programs on
+  this computer that talk to add-ons are blocked until you switch them
+  on, one by one, on new profiles. Password manager, AI and other add-ons
+  have their own rows.
 - Chrome Web Store extensions. Every install asks first. The store helper
   ([chromium-web-store](https://github.com/NeverDecaf/chromium-web-store)
   1.5.5.4) is built in, can be removed, and changes only with a browser
@@ -54,9 +76,11 @@ EdDSA signature from our key. A copy run from the zip does not update;
 use the installer for updates. The daily check can be turned off on the
 Protection page.
 
-## Not in release 1
+## Not yet
 
-- Scam warning page and scam site list. No feed we may redistribute yet.
+- A broad scam list. The built-in one comes from CERT Polska and
+  DurableNapkin only, so it is thin outside Poland. It changes only with
+  a browser update.
 - Widevine, so no Netflix or other DRM video.
 - Sync. `sync-server/` is a separate Go server the browser does not use.
 - Tor windows.
@@ -66,7 +90,8 @@ Protection page.
 ## Honest limits
 
 - Nothing has been independently audited.
-- Protection is not antivirus. Quad9 only knows reported sites.
+- Protection is not antivirus. The scam list is short and mostly covers
+  Poland. Quad9 only knows reported sites.
 - The network behaviour of each build is measured before release and
   listed on the project's privacy page. Sites you visit and your search
   engine are contacted as you browse.
@@ -85,8 +110,8 @@ Protection page.
 | `boring-core/rust/` | Ours. Wraps the third-party `adblock` crate |
 | `boring-core/tools/` | Ours. Apply, rebase, smoke tests, packaging |
 
-HTTPS-first, secure DNS, WebRTC routing and fingerprint noise are
-Chromium and ungoogled-chromium features. Our part is turning them on by
+HTTPS-first, secure DNS, WebRTC routing and the canvas, text and size
+noise are Chromium and ungoogled-chromium features. Our part is turning them on by
 default and showing them on the Protection page. The sandbox is never
 turned off.
 
@@ -147,6 +172,11 @@ changed since, so it is not shown.
 - `boring-core/components/boring/privacy/debounce_brave.inc`: MPL-2.0,
   Brave's debounce rules, unchanged. Our own rules are in
   `debounce_boring.inc`.
+- Scam list: the CERT Polska Warning List (used under its data policy)
+  and the DurableNapkin Scam Blocklist (MIT). The notice ships as
+  `NOTICES-scam-blocklist.txt`.
+- Cookie banner list: Easylist Cookie List, CC BY 3.0. The notice ships as
+  `NOTICES-easylist-cookie.txt`.
 - WinSparkle: MIT.
 - chromium-web-store (NeverDecaf): MIT.
 - English (US) spelling dictionary: SCOWL licence.

@@ -34,17 +34,19 @@ the installer. Do not turn SmartScreen or Defender off. Signing is planned
 after release 1. A signature identifies the publisher; it does not prove
 the software is safe.
 
-## No scam warning page
+## The scam list is thin
 
 Scam and phishing blocking needs a list we are allowed to pass on. The
-feeds we tried (URLhaus, OpenPhish) allow access but not redistribution
-inside an installer, so no scam list ships. The warning page code is in the
-tree but has nothing to act on.
+feeds we tried first (URLhaus, OpenPhish) allow access but not
+redistribution inside an installer. The list that ships uses only the two
+we have permission for: the CERT Polska Warning List and the DurableNapkin
+Scam Blocklist. CERT Polska's list is aimed at Polish users, so coverage is
+thin elsewhere. The list changes only with a browser update.
 
-What release 1 does instead: secure DNS through Quad9, which refuses to
-look up known malware and phishing domains. There is no warning page. The
-site just does not open. New or unreported sites get through, and changing
-secure DNS away from Quad9 removes this protection.
+A site on the list opens a warning page. Secure DNS through Quad9 also
+refuses to look up known malware and phishing domains, but a site it
+blocks just does not open. New or unreported sites get through, and
+changing secure DNS away from Quad9 removes that part.
 
 ## No Widevine
 
