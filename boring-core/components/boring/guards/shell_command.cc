@@ -23,6 +23,9 @@ constexpr size_t kMaxLength = 64 * 1024;
 constexpr size_t kEdge = 4 * 1024;
 // How far past a command word its arguments are looked for.
 constexpr size_t kReach = 4000;
+// Up to this much long text is scanned whole, in overlapping windows, so a
+// command padded on both sides is still found. Above it only the ends are.
+constexpr size_t kScanCap = 1024 * 1024;
 
 char Lower(char c) {
   return (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c;
@@ -314,8 +317,18 @@ bool LooksLikeShellCommand(std::string_view text) {
     return false;
   }
   if (text.size() > kMaxLength) {
-    // Padding must not hide a command: a page can put 64 KB of filler in
-    // front of it or behind it. What a terminal runs is still at one end.
+    // Padding must not hide a command: a page can put 64 KB of filler on
+    // either side of it, or both. Windows of kEdge + kReach, stepping by
+    // kEdge, hold every command start with its arguments.
+    if (text.size() <= kScanCap) {
+      for (size_t at = 0; at < text.size(); at += kEdge) {
+        if (LooksLikeCommandText(text.substr(at, kEdge + kReach))) {
+          return true;
+        }
+      }
+      return false;
+    }
+    // Huge text: what a terminal runs is still at one end.
     return LooksLikeCommandText(text.substr(0, kEdge)) ||
            LooksLikeCommandText(text.substr(text.size() - kEdge));
   }
