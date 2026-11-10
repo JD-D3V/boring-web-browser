@@ -5,3 +5,6 @@ boring-core/components/boring/webstore/chromium-web-store/** -text
 # they stop applying, so keep them LF on every machine.
 *.patch text eol=lf
 **/patches/series text eol=lf
+# Vendored Chromium data files, byte-exact (hashes in boring-core/tools/data/SOURCES.txt).
+boring-core/tools/data/effective_tld_names.dat -text
+boring-core/tools/data/domains.list -text

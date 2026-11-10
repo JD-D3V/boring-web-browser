@@ -77,28 +77,9 @@ jobs:
             echo "no lists release yet, this is the first run"
           fi
 
-      # The scam list is checked against two data files that ship in the
-      # Chromium source (the public suffix list and the top sites list), and
-      # get_scamlist.py reads them from BORING_SRC. This runner has no
-      # Chromium tree, so the two files are fetched at the tag the browser is
-      # built on. Change the tag when the browser moves to a new Chromium. A
-      # file that is missing or not what it should be stops the build: the
-      # script checks the content, not only that it is there.
-      - name: Fetch the Chromium data files the scam list is checked against
-        env:
-          CHROMIUM_TAG: "154.0.8037.57"
-        run: |
-          set -euo pipefail
-          base="https://chromium.googlesource.com/chromium/src/+/refs/tags/$CHROMIUM_TAG"
-          src="$RUNNER_TEMP/chromium-src"
-          for f in net/base/registry_controlled_domains/effective_tld_names.dat \
-                   components/url_formatter/spoof_checks/top_domains/domains.list; do
-            mkdir -p "$src/$(dirname "$f")"
-            curl -fsSL --retry 3 "$base/$f?format=TEXT" | base64 -d > "$src/$f"
-            test -s "$src/$f" || { echo "$f came back empty"; exit 1; }
-          done
-          echo "BORING_SRC=$src" >> "$GITHUB_ENV"
-
+      # The scam list is checked against the public suffix list and the top
+      # sites list. Both are copied into boring-core/tools/data (see SOURCES.txt
+      # there), so the runner needs no Chromium tree.
       # Unsigned here on purpose: this job never sees the key. The
       # signing job below signs exactly these bytes.
       - name: Build and check the bundle

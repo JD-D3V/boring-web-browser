@@ -32,6 +32,17 @@ import get_scamlist  # noqa: E402
 import publish_lists  # noqa: E402
 from get_filterlists import FeedError, Fetched  # noqa: E402
 
+import scam_data  # noqa: E402
+
+
+def setUpModule():
+    scam_data.use_vendored_data()
+
+
+def tearDownModule():
+    scam_data.stop_vendored_data()
+
+
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "listdata")
 
 FILTER_URLS = [url for _, url in get_filterlists.LISTS]
@@ -174,7 +185,7 @@ def healthy_answers() -> dict:
         URLHAUS_URL: hostfile_bytes(),
         OPENPHISH_URL: url_feed_bytes(),
         get_scamlist.CERT_URL: cert_bytes(),
-        get_scamlist.DURABLENAPKIN_URL: hostfile_bytes(count=300, start=70000),
+        get_scamlist.DURABLENAPKIN_URL: hostfile_bytes(count=600, start=70000),
         **output_answers(*publish_lists.BUNDLED_OUTPUTS),
         get_filterlists.GPL3_UASSETS.text_url: GPL_TEXT,
         get_filterlists.GPL3_ADGUARD.text_url: GPL_TEXT,
@@ -544,10 +555,10 @@ class PublishPath(unittest.TestCase):
         entry = next(f for f in manifest["files"] if f["name"] == "scamlist.txt")
         with open(os.path.join(self.out, "scamlist.txt"), encoding="utf-8") as f:
             text = f.read()
-        # 20,500 CERT hosts and 300 DurableNapkin hosts; the test entry
+        # 20,500 CERT hosts and 600 DurableNapkin hosts; the test entry
         # below the marker is not counted.
-        self.assertEqual(entry["entries"], 20_800)
-        self.assertEqual(get_scamlist.count_real_hosts(text), 20_800)
+        self.assertEqual(entry["entries"], 21_100)
+        self.assertEqual(get_scamlist.count_real_hosts(text), 21_100)
         self.assertEqual(entry["size"], len(text.encode("utf-8")))
         self.assertIn(get_scamlist.TEST_MARKER, text)
         self.assertEqual(
@@ -609,7 +620,7 @@ class PublishPath(unittest.TestCase):
         before = self.seed_previous()
         answers = healthy_answers()
         answers[get_scamlist.CERT_URL] = FeedError("HTTP 503")
-        answers[get_scamlist.DURABLENAPKIN_URL] = hostfile_bytes(count=60, start=70000)
+        answers[get_scamlist.DURABLENAPKIN_URL] = hostfile_bytes(count=600, start=70000)
         code, log = self.run_publish(answers, extra=["--version", "101"])
         self.assertEqual(code, 1)
         self.assertIn("scamlist.txt", log)

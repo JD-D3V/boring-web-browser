@@ -35,6 +35,8 @@ SUFFIX_FIXTURE = os.path.join(
 TOP_FIXTURE = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "listdata", "top_domains_test.list"
 )
+VENDORED_SUFFIXES = os.path.join(get_scamlist.DATA_DIR, "effective_tld_names.dat")
+VENDORED_TOP = os.path.join(get_scamlist.DATA_DIR, "domains.list")
 _suffix_patch = mock.patch.object(get_scamlist, "PUBLIC_SUFFIX_FILE", SUFFIX_FIXTURE)
 _top_patch = mock.patch.object(get_scamlist, "TOP_DOMAINS_FILE", TOP_FIXTURE)
 
@@ -49,12 +51,15 @@ def tearDownModule():
     _suffix_patch.stop()
 
 
+NAPKIN_N = get_scamlist.DURABLENAPKIN_MIN_HOSTS
+
+
 def cert_text(count: int, start: int = 0, trailing_newline: bool = False) -> str:
     text = "\n".join(f"scam{i:06d}.example.invalid" for i in range(start, start + count))
     return text + ("\n" if trailing_newline else "")
 
 
-def napkin_text(count: int = 40) -> str:
+def napkin_text(count: int = NAPKIN_N) -> str:
     lines = ["# Scam Blocklist by DurableNapkin", f"# Domains: {count}", "# -"]
     lines += [f"0.0.0.0 napkin{i:03d}.example.invalid" for i in range(count)]
     return "\n".join(lines) + "\n"
@@ -172,14 +177,14 @@ class PublicSuffixes(unittest.TestCase):
         answers = {
             get_scamlist.CERT_URL: cert_text(get_scamlist.CERT_MIN_HOSTS)
             + "\nco.uk\ngithub.io",
-            get_scamlist.DURABLENAPKIN_URL: napkin_text(40),
+            get_scamlist.DURABLENAPKIN_URL: napkin_text(),
         }
         built = get_scamlist.build_scam_list(fetch=stub_fetch(answers))
         self.assertEqual(built.failed, [])
         lines = built.text.splitlines()
         self.assertNotIn("co.uk", lines)
         self.assertNotIn("github.io", lines)
-        self.assertEqual(built.entries, get_scamlist.CERT_MIN_HOSTS + 40)
+        self.assertEqual(built.entries, get_scamlist.CERT_MIN_HOSTS + NAPKIN_N)
 
     def test_a_feed_full_of_suffixes_is_refused(self):
         many = "\n".join(f"{c}.pl" for c in "abcdefg")
@@ -187,7 +192,7 @@ class PublicSuffixes(unittest.TestCase):
         answers = {
             get_scamlist.CERT_URL: cert_text(get_scamlist.CERT_MIN_HOSTS)
             + "\n" + suffixes,
-            get_scamlist.DURABLENAPKIN_URL: napkin_text(40),
+            get_scamlist.DURABLENAPKIN_URL: napkin_text(),
         }
         built = get_scamlist.build_scam_list(fetch=stub_fetch(answers))
         self.assertEqual([s.name for s in built.failed], ["cert-polska"])
@@ -199,17 +204,11 @@ class PublicSuffixes(unittest.TestCase):
             with self.assertRaises(OSError):
                 get_scamlist.build_scam_list(fetch=stub_fetch({
                     get_scamlist.CERT_URL: cert_text(get_scamlist.CERT_MIN_HOSTS),
-                    get_scamlist.DURABLENAPKIN_URL: napkin_text(40),
+                    get_scamlist.DURABLENAPKIN_URL: napkin_text(),
                 }))
 
     def test_the_real_list_knows_the_usual_suffixes(self):
-        real = os.path.join(
-            os.environ.get("BORING_SRC", r"E:\ung-154\build\src"),
-            "net", "base", "registry_controlled_domains", "effective_tld_names.dat",
-        )
-        if not os.path.exists(real):
-            self.skipTest("no Chromium source tree here")
-        with mock.patch.object(get_scamlist, "PUBLIC_SUFFIX_FILE", real):
+        with mock.patch.object(get_scamlist, "PUBLIC_SUFFIX_FILE", VENDORED_SUFFIXES):
             _, dropped = get_scamlist.drop_public_suffixes(
                 {"co.uk", "com.pl", "github.io", "azurewebsites.net", "example.co.uk"}
             )
@@ -234,7 +233,7 @@ class PopularSites(unittest.TestCase):
         answers = {
             get_scamlist.CERT_URL: cert_text(get_scamlist.CERT_MIN_HOSTS)
             + "\nchase.com\nwww.paypal.com",
-            get_scamlist.DURABLENAPKIN_URL: napkin_text(40),
+            get_scamlist.DURABLENAPKIN_URL: napkin_text(),
         }
         built = get_scamlist.build_scam_list(fetch=stub_fetch(answers))
         self.assertEqual(built.failed, [])
@@ -246,7 +245,7 @@ class PopularSites(unittest.TestCase):
         many = "\n".join(f"www{i}.chase.com" for i in range(8))
         answers = {
             get_scamlist.CERT_URL: cert_text(get_scamlist.CERT_MIN_HOSTS) + "\n" + many,
-            get_scamlist.DURABLENAPKIN_URL: napkin_text(40),
+            get_scamlist.DURABLENAPKIN_URL: napkin_text(),
         }
         built = get_scamlist.build_scam_list(fetch=stub_fetch(answers))
         self.assertEqual([s.name for s in built.failed], ["cert-polska"])
@@ -257,7 +256,7 @@ class PopularSites(unittest.TestCase):
             with self.assertRaises(OSError):
                 get_scamlist.build_scam_list(fetch=stub_fetch({
                     get_scamlist.CERT_URL: cert_text(get_scamlist.CERT_MIN_HOSTS),
-                    get_scamlist.DURABLENAPKIN_URL: napkin_text(40),
+                    get_scamlist.DURABLENAPKIN_URL: napkin_text(),
                 }))
 
     def test_a_brand_file_that_reads_as_empty_stops_the_build(self):
@@ -274,24 +273,126 @@ class PopularSites(unittest.TestCase):
         self.assertGreaterEqual(len(sites), get_scamlist.MIN_BRANDS)
 
     def test_the_real_top_list_is_read_and_brands_are_added(self):
-        real = os.path.join(
-            os.environ.get("BORING_SRC", r"E:\ung-154\build\src"),
-            "components", "url_formatter", "spoof_checks", "top_domains", "domains.list",
-        )
-        if not os.path.exists(real):
-            self.skipTest("no Chromium source tree here")
-        with mock.patch.object(get_scamlist, "TOP_DOMAINS_FILE", real):
+        with mock.patch.object(get_scamlist, "TOP_DOMAINS_FILE", VENDORED_TOP):
             sites = get_scamlist.load_popular_sites()
         self.assertIn("google.com", sites)
         self.assertIn("paypal.com", sites)
         self.assertGreater(len(sites), 5000)
 
 
+class PopularSitesPrivateSuffixes(unittest.TestCase):
+    """Ledger 102. A blog on a hosting platform is not the platform."""
+
+    def setUp(self):
+        for name, path in (
+            ("PUBLIC_SUFFIX_FILE", VENDORED_SUFFIXES),
+            ("TOP_DOMAINS_FILE", VENDORED_TOP),
+        ):
+            patcher = mock.patch.object(get_scamlist, name, path)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_a_name_on_a_hosting_platform_is_kept(self):
+        hosts = {
+            "scam-blog.wordpress.com", "store.scam-blog.wordpress.com",
+            "scam-shop.tumblr.com", "scam.github.io", "scam.pages.dev",
+        }
+        kept, dropped = get_scamlist.drop_popular_sites(hosts)
+        self.assertEqual(dropped, set())
+        self.assertEqual(kept, hosts)
+
+    def test_the_platform_and_real_popular_sites_are_dropped(self):
+        hosts = {
+            "wordpress.com", "tumblr.com", "paypal.com", "login.paypal.com",
+            "scam-blog.wordpress.com",
+        }
+        kept, dropped = get_scamlist.drop_popular_sites(hosts)
+        self.assertEqual(
+            dropped, {"wordpress.com", "tumblr.com", "paypal.com", "login.paypal.com"}
+        )
+        self.assertEqual(kept, {"scam-blog.wordpress.com"})
+
+    def test_a_feed_of_blogs_on_a_platform_is_not_refused(self):
+        blogs = "\n".join(f"scam{i}.wordpress.com" for i in range(12))
+        answers = {
+            get_scamlist.CERT_URL: cert_text(get_scamlist.CERT_MIN_HOSTS) + "\n" + blogs,
+            get_scamlist.DURABLENAPKIN_URL: napkin_text(),
+        }
+        built = get_scamlist.build_scam_list(fetch=stub_fetch(answers))
+        self.assertEqual(built.failed, [])
+        self.assertIn("scam11.wordpress.com", built.text.splitlines())
+
+    def test_more_than_five_popular_entries_still_refuse_the_feed(self):
+        count = get_scamlist.MAX_POPULAR_DROPS + 1
+        popular = "\n".join(f"www{i}.paypal.com" for i in range(count))
+        answers = {
+            get_scamlist.CERT_URL: cert_text(get_scamlist.CERT_MIN_HOSTS) + "\n" + popular,
+            get_scamlist.DURABLENAPKIN_URL: napkin_text(),
+        }
+        built = get_scamlist.build_scam_list(fetch=stub_fetch(answers))
+        self.assertEqual([s.name for s in built.failed], ["cert-polska"])
+        self.assertIn("popular sites", built.failed[0].reason)
+
+
+class VendoredData(unittest.TestCase):
+    """The two Chromium data files travel with the repo."""
+
+    def test_the_vendored_files_are_there_and_are_the_real_ones(self):
+        with open(VENDORED_SUFFIXES, encoding="utf-8") as f:
+            self.assertIn("Mozilla Public", f.read(400))
+        self.assertGreater(os.path.getsize(VENDORED_SUFFIXES), 300_000)
+        self.assertGreater(os.path.getsize(VENDORED_TOP), 100_000)
+
+    def test_the_default_is_the_vendored_copy(self):
+        with mock.patch.dict(os.environ):
+            os.environ.pop("BORING_SRC", None)
+            self.assertEqual(
+                get_scamlist._data_file("domains.list", "a", "b"), VENDORED_TOP
+            )
+
+    def test_boring_src_overrides_it(self):
+        with mock.patch.dict(os.environ, {"BORING_SRC": "T"}):
+            self.assertEqual(
+                get_scamlist._data_file("domains.list", "a", "b"),
+                os.path.join("T", "a", "b"),
+            )
+
+
+class SourceFloors(unittest.TestCase):
+    """Ledger 102. Each permitted source has its own minimum."""
+
+    def build(self, napkin_count):
+        answers = {
+            get_scamlist.CERT_URL: cert_text(get_scamlist.CERT_MIN_HOSTS),
+            get_scamlist.DURABLENAPKIN_URL: napkin_text(napkin_count),
+        }
+        return get_scamlist.build_scam_list(fetch=stub_fetch(answers))
+
+    def test_durablenapkin_cut_to_30_hosts_is_a_failed_source(self):
+        built = self.build(30)
+        self.assertEqual([s.name for s in built.failed], ["durablenapkin"])
+        self.assertIn("at least 500", built.failed[0].reason)
+
+    def test_durablenapkin_at_its_floor_passes(self):
+        built = self.build(get_scamlist.DURABLENAPKIN_MIN_HOSTS)
+        self.assertEqual(built.failed, [])
+
+    def test_the_real_floors_fit_the_feeds_as_measured(self):
+        # Measured 2026-11-10: CERT 124,920 and DurableNapkin 2,165 after
+        # the filters. A floor above either would refuse a healthy feed.
+        self.assertLess(get_scamlist.SOURCE_MIN_HOSTS["cert-polska"], 124_920 // 2)
+        self.assertLess(get_scamlist.SOURCE_MIN_HOSTS["durablenapkin"], 2_165 // 2)
+
+    def test_a_source_without_its_own_floor_uses_the_generic_one(self):
+        self.assertNotIn("unnamed", get_scamlist.SOURCE_MIN_HOSTS)
+        self.assertEqual(get_scamlist.MIN_SOURCE_HOSTS, 25)
+
+
 class Assembly(unittest.TestCase):
     def answers(self, **overrides):
         answers = {
             get_scamlist.CERT_URL: cert_text(get_scamlist.CERT_MIN_HOSTS),
-            get_scamlist.DURABLENAPKIN_URL: napkin_text(40),
+            get_scamlist.DURABLENAPKIN_URL: napkin_text(),
         }
         answers.update(overrides)
         return answers
@@ -299,7 +400,7 @@ class Assembly(unittest.TestCase):
     def test_both_feeds_are_merged(self):
         built = get_scamlist.build_scam_list(fetch=stub_fetch(self.answers()))
         self.assertEqual(built.failed, [])
-        self.assertEqual(built.entries, get_scamlist.CERT_MIN_HOSTS + 40)
+        self.assertEqual(built.entries, get_scamlist.CERT_MIN_HOSTS + NAPKIN_N)
         self.assertEqual(
             [s.name for s in built.sources], ["cert-polska", "durablenapkin"]
         )
@@ -310,17 +411,17 @@ class Assembly(unittest.TestCase):
     def test_overlap_counts_once(self):
         answers = self.answers(
             **{get_scamlist.DURABLENAPKIN_URL: "0.0.0.0 scam000001.example.invalid\n" * 1
-               + napkin_text(40)}
+               + napkin_text()}
         )
         built = get_scamlist.build_scam_list(fetch=stub_fetch(answers))
-        self.assertEqual(built.entries, get_scamlist.CERT_MIN_HOSTS + 40)
+        self.assertEqual(built.entries, get_scamlist.CERT_MIN_HOSTS + NAPKIN_N)
 
     def test_a_truncated_cert_download_is_a_failed_source(self):
         built = get_scamlist.build_scam_list(
             fetch=stub_fetch(self.answers(**{get_scamlist.CERT_URL: cert_text(500)}))
         )
         self.assertEqual([s.name for s in built.failed], ["cert-polska"])
-        self.assertEqual(built.entries, 40)
+        self.assertEqual(built.entries, NAPKIN_N)
         self.assertTrue(built.degraded)
 
     def test_big_shared_hosts_are_never_blocked(self):
@@ -351,7 +452,7 @@ class Assembly(unittest.TestCase):
         with open(listed, encoding="utf-8") as f:
             self.assertEqual(
                 get_scamlist.count_real_hosts(f.read()),
-                get_scamlist.CERT_MIN_HOSTS + 40,
+                get_scamlist.CERT_MIN_HOSTS + NAPKIN_N,
             )
         self.assertTrue(os.path.isfile(os.path.join(work, get_scamlist.NOTICE_NAME)))
 

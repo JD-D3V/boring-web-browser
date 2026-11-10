@@ -38,6 +38,7 @@ import time
 from pathlib import Path
 
 from drive import Browser
+from smoke_lists import run_openssl
 from smoke_local import HTML, Pages, wait_for
 
 BING_HOST = "www.bing.com"
@@ -100,11 +101,14 @@ DEEP_TEXT = """
 """
 
 
-# The browser is pointed at the local server and at nothing else. HTTPS-Only
-# is on by default and would upgrade these plain http names, so the pages
-# could not load: seed_profile turns it off, and this replaces drive.py's
-# own --disable-features, so it carries that one too.
+# The browser is pointed at the local server and at nothing else. The two
+# names are on Chromium's HSTS preload list, so the browser goes to https
+# whatever is asked for: the stand-in server speaks https with a throwaway
+# certificate, and the browser is told to accept it. HTTPS-Only is on by
+# default too, and seed_profile turns it off. --disable-features replaces
+# drive.py's own, so it carries that one too.
 LOCAL_ARGS = [
+    "--ignore-certificate-errors",
     f"--host-resolver-rules=MAP {BING_HOST} 127.0.0.1, "
     f"MAP {DDG_HOST} 127.0.0.1, MAP * ~NOTFOUND",
     "--disable-features=CalculateNativeWinOcclusion,HttpsUpgrades,"
@@ -117,6 +121,20 @@ AD_HIDDEN = (
 )
 AD_CHIPPED = "!!document.querySelector('#boring-test-ad .boring-sponsored-chip')"
 SCRIPT_RAN = "document.documentElement.dataset.boringSerp === '1'"
+
+
+def make_certificate(folder):
+    """A throwaway certificate for the two names. Returns (certificate, key)."""
+    cert = os.path.join(folder, "serp-cert.pem")
+    key = os.path.join(folder, "serp-key.pem")
+    run_openssl(
+        [
+            "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "2",
+            "-keyout", key, "-out", cert, "-subj", f"/CN={BING_HOST}",
+            "-addext", f"subjectAltName=DNS:{BING_HOST},DNS:{DDG_HOST}",
+        ]
+    )
+    return cert, key
 
 
 def seed_profile(profile):
@@ -248,16 +266,20 @@ def main():
 
     # One table for both names: Bing's results are at /search, DuckDuckGo's
     # at / with a query, which is also how the product tells them apart.
-    server = Pages({"/search": (bing_page, HTML), "/": (ddg_page, HTML)})
-    try:
-        failures = run_checks(
-            server.url(BING_HOST, BING_PATH_AND_QUERY),
-            server.url(DDG_HOST, DDG_PATH_AND_QUERY),
-            args=LOCAL_ARGS,
-            seed=True,
+    with tempfile.TemporaryDirectory(dir=os.environ.get("TMP") or None) as folder:
+        server = Pages(
+            {"/search": (bing_page, HTML), "/": (ddg_page, HTML)},
+            tls=make_certificate(folder),
         )
-    finally:
-        server.close()
+        try:
+            failures = run_checks(
+                server.url(BING_HOST, BING_PATH_AND_QUERY),
+                server.url(DDG_HOST, DDG_PATH_AND_QUERY),
+                args=LOCAL_ARGS,
+                seed=True,
+            )
+        finally:
+            server.close()
 
     for failure in failures:
         print("FAIL:", failure)
