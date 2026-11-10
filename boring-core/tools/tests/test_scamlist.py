@@ -12,6 +12,7 @@ Usage: python -m unittest discover -s boring-core/tools/tests
 import contextlib
 import io
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -408,6 +409,46 @@ class DevelopmentStandIn(unittest.TestCase):
         self.stage()
         with open(self.list_path, encoding="utf-8") as f:
             self.assertEqual(f.read(), "real.example.invalid\n")
+
+    def test_an_older_stand_in_is_replaced(self):
+        os.makedirs(os.path.dirname(self.list_path))
+        with open(self.list_path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(
+                get_scamlist.DEV_HEADER
+                + "\n"
+                + get_scamlist.TEST_MARKER
+                + "\nboring-scam-test.invalid\n"
+            )
+        self.stage()
+        with open(self.list_path, encoding="utf-8", newline="") as f:
+            self.assertEqual(f.read(), get_scamlist.development_list())
+
+    def kmin_hosts(self):
+        src = os.path.join(
+            os.path.dirname(TOOLS), "components", "boring", "scam", "scam_service.cc"
+        )
+        with open(src, encoding="utf-8") as f:
+            m = re.search(r"kMinHosts\s*=\s*(\d+);", f.read())
+        self.assertIsNotNone(m, "kMinHosts not found in scam_service.cc")
+        return int(m.group(1))
+
+    def count_hosts(self, text):
+        return len(
+            [l for l in text.splitlines() if l.strip() and not l.startswith("#")]
+        )
+
+    def test_the_stand_in_is_above_the_browsers_floor(self):
+        floor = self.kmin_hosts()
+        self.assertGreaterEqual(
+            self.count_hosts(get_scamlist.development_list()), floor
+        )
+
+    def test_the_smoke_scam_list_is_above_the_browsers_floor(self):
+        import smoke_scam
+
+        self.assertGreaterEqual(
+            self.count_hosts(smoke_scam.SCAM_LIST), self.kmin_hosts()
+        )
 
     def test_a_tree_with_no_output_folder_is_not_given_one(self):
         self.stage()

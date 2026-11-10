@@ -314,12 +314,22 @@ def stage_scam_list(src):
     get_scamlist.py), never by the build, and stay there from one build
     to the next. A tree that never had a scam list shows the Protection
     page as unavailable, so it gets the development stand-in. A list that
-    is already there, real or not, is left alone.
+    is already there, real or not, is left alone, except an older stand-in,
+    which is replaced by the current one (an old one is under the floor the
+    browser accepts).
     """
     out = os.path.join(src, "out", "Default")
     path = os.path.join(out, "boring", "scamlist.txt")
-    if not os.path.isdir(out) or os.path.exists(path):
+    if not os.path.isdir(out):
         return
+    if os.path.exists(path):
+        with open(path, encoding="utf-8", errors="replace", newline="") as f:
+            current = f.read()
+        if (
+            not current.startswith(get_scamlist.DEV_HEADER)
+            or current == get_scamlist.development_list()
+        ):
+            return
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8", newline="\n") as f:
         f.write(get_scamlist.development_list())

@@ -35,6 +35,7 @@ version = "0.1.0"
 dependencies = [
  "adblock",
  "base64",
+ "psl",
  "serde_json",
 ]
 

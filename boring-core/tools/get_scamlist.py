@@ -555,9 +555,25 @@ def development_list() -> str:
     apply.py puts this in a build tree that has no scam list yet, so the
     browser starts with a list to load, as it does in a release, instead
     of reporting a missing file. It has no real hosts, count_real_hosts()
-    says 0, and check_package.py refuses to ship it.
+    says 0, and check_package.py refuses to ship it. It holds DEV_PAD_COUNT
+    test names, above the browser's floor (kMinHosts in scam_service.cc),
+    because a list below the floor loads as failed.
     """
-    return "\n".join([DEV_HEADER, TEST_MARKER, *sorted(TEST_HOSTS)]) + "\n"
+    return "\n".join([DEV_HEADER, TEST_MARKER, *dev_test_hosts()]) + "\n"
+
+
+# The browser treats a scam list with fewer hosts than kMinHosts
+# (components/boring/scam/scam_service.cc, 10) as failed. The stand-in and
+# the smoke test lists pad their test names to this many.
+DEV_PAD_COUNT = 12
+
+
+def dev_test_hosts() -> list[str]:
+    """TEST_HOSTS plus numbered names, DEV_PAD_COUNT in all."""
+    extra = DEV_PAD_COUNT - len(TEST_HOSTS)
+    return sorted(
+        [*TEST_HOSTS, *(f"boring-scam-pad-{i:02d}.invalid" for i in range(1, extra + 1))]
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

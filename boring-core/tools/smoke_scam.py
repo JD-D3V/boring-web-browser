@@ -44,6 +44,8 @@ SCAM_LIST = (
     f"{LISTED}\n"
     "# --- test entries below this line, not protection ---\n"
     "boring-scam-test.invalid\n"
+    # The browser refuses a list with fewer than 10 hosts (kMinHosts).
+    + "".join(f"boring-scam-pad-{i:02d}.invalid\n" for i in range(1, 12))
 )
 
 # What each colour choice must paint, from boring_color_mixer.cc: the
