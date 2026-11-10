@@ -50,6 +50,7 @@ def main():
                 user_data_dir=os.path.join(work, "profile"),
                 args=chrome_args,
                 keep_switches=["enable-automation"],
+                headful=True,
             ) as b:
                 b.get("chrome://boring-protection")
                 time.sleep(2)

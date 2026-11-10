@@ -60,6 +60,7 @@ def main():
             user_data_dir=os.path.join(work, "profile"),
             args=chrome_args,
             keep_switches=["enable-automation"],
+            headful=True,
         ) as b:
             write_manifests(addon_id(b))
             if not open_protection(b):
