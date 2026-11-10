@@ -312,6 +312,9 @@ def downloads_and_copies(s, checks):
     checks["ClickFix bar shows"] = wait(lambda: NOTICE in s.bars())
     if clip != REPLACEMENT:
         print("DIAG clipboard after command copy:", repr(clip))
+    checks["a command behind 70 KB of blank lines is replaced too"] = (
+        s.copy_on("padded") and s.read_clipboard() == REPLACEMENT
+    )
     checks["execCommand copy is replaced too"] = (
         s.copy_on("exec") and s.read_clipboard() == REPLACEMENT
     )

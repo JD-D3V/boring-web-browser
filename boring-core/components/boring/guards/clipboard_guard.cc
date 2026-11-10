@@ -23,10 +23,6 @@ namespace guards {
 
 namespace {
 
-// Nothing longer is a one-line command (shell_command.cc has the same
-// limit); looking at a whole copied article would only be slow.
-constexpr size_t kMaxChars = 64 * 1024;
-
 // Test hook, like --boring-guards-test-answer: copies from pages are logged
 // and dropped instead of written, so a smoke test never touches the
 // person's real clipboard. Does nothing unless the switch is given, and then
@@ -46,8 +42,9 @@ constexpr char16_t kReplacement[] =
     u"Blocked: this page tried to copy a command.";
 
 bool LooksLikeCommand(const std::u16string& text) {
-  return !text.empty() && text.size() <= kMaxChars &&
-         LooksLikeShellCommand(base::UTF16ToUTF8(text));
+  // Any length: shell_command.cc looks at both ends of long text, so
+  // padding does not hide a command.
+  return !text.empty() && LooksLikeShellCommand(base::UTF16ToUTF8(text));
 }
 
 }  // namespace
