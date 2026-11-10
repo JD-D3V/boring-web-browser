@@ -28,8 +28,9 @@
 #include "components/boring/core/boring_capabilities.h"
 #include "components/boring/core/boring_prefs.h"
 #include "components/prefs/pref_service.h"
+#include "crypto/keypair.h"
 #include "crypto/sha2.h"
-#include "crypto/signature_verifier.h"
+#include "crypto/sign.h"
 #include "net/base/load_flags.h"
 #include "net/base/url_util.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
@@ -266,16 +267,16 @@ bool ManifestIsSigned(const std::string& manifest,
     return false;
   }
 
-  // TODO(JD): crypto::SignatureVerifier is marked for removal upstream
-  // in favour of crypto/sign. Move to it on a Chromium roll that still
-  // has both, rather than on the one that drops this.
-  crypto::SignatureVerifier verifier;
-  if (!verifier.VerifyInit(crypto::SignatureVerifier::ECDSA_SHA256, *signature,
-                           spki)) {
+  // A key that does not parse, has bytes after it, or is not an EC key
+  // is refused here. crypto::sign::Verify would CHECK on a key of the
+  // wrong type rather than return false.
+  const std::optional<crypto::keypair::PublicKey> key =
+      crypto::keypair::PublicKey::FromSubjectPublicKeyInfo(spki);
+  if (!key || !key->IsEc()) {
     return false;
   }
-  verifier.VerifyUpdate(base::as_byte_span(manifest));
-  return verifier.VerifyFinal();
+  return crypto::sign::Verify(crypto::sign::ECDSA_SHA256, *key,
+                              base::as_byte_span(manifest), *signature);
 }
 
 std::unique_ptr<network::SimpleURLLoader> MakeLoader(const GURL& url,

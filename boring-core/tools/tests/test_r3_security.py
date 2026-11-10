@@ -84,6 +84,26 @@ class ListManifestVersion(unittest.TestCase):
         self.assertNotIn("if (*version < local_.version) {", cc)
 
 
+class ListSignatureCheck(unittest.TestCase):
+    """Item 19. The 157 port verifies the lists manifest with crypto/sign."""
+
+    def test_manifest_is_verified_with_ecdsa_p256_sha256(self):
+        cc = read(BORING / "lists" / "list_updater.cc")
+        self.assertNotIn("signature_verifier.h", cc)
+        self.assertNotIn("SignatureVerifier", cc)
+        self.assertIn('#include "crypto/sign.h"', cc)
+        self.assertIn('constexpr char kSignatureAlgorithm[] = "ecdsa-p256-sha256";', cc)
+        self.assertIn("crypto::keypair::PublicKey::FromSubjectPublicKeyInfo(spki);", cc)
+        # Verify CHECKs on a key of the wrong type, so the type is checked first.
+        self.assertIn("if (!key || !key->IsEc()) {\n    return false;\n  }", cc)
+        self.assertIn(
+            "return crypto::sign::Verify(crypto::sign::ECDSA_SHA256, *key,\n"
+            "                              base::as_byte_span(manifest), *signature);",
+            cc,
+        )
+        self.assertEqual(cc.count("crypto::sign::Verify("), 1)
+
+
 class NativeLaunchPath(unittest.TestCase):
     """Item 62. The launch-from-native path asks the same delegate check."""
 
