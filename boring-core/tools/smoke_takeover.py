@@ -192,6 +192,12 @@ def main():
                 "return document.getElementById('site').hidden"
                 " && !document.body.innerText.includes('Call Microsoft')"
             )
+            # A name that reads as a phone number is not shown either.
+            b.get(GET_ME_OUT + "?site=call-microsoft-1-800-555-0100")
+            wait(lambda: b.run("return !!document.getElementById('close')"))
+            checks["phone-number-like ?site= is not shown"] = b.run(
+                "return document.getElementById('site').hidden"
+            )
             try:
                 b.run("document.getElementById('close').click(); return 1")
             except RuntimeError:

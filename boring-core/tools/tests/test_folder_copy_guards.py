@@ -91,9 +91,12 @@ class ExceptionRulesAreFlagged(unittest.TestCase):
         weakens = function_body(self.cc, "bool Weakens(")
         self.assertIn("Kind::kText", weakens)
         self.assertIn("AddsException(", weakens)
-        adds = function_body(self.cc, "bool AddsException(")
+        adds = function_body(self.cc, "Added AddsException(")
         self.assertIn('"@@"', adds)
         self.assertIn('"#@"', adds)
+        # Pass 2: new cosmetic and scriptlet rules are flagged too.
+        self.assertIn('"##"', adds)
+        self.assertIn("some change how certain sites look or act", self.cc)
         self.assertIn("old_lines.count(line)", adds)
 
     def test_preview_says_so_in_plain_words(self):

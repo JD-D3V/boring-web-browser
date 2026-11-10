@@ -147,6 +147,8 @@ console.log(JSON.stringify(out));
         hidden = [
             "Call Microsoft on 0800 123 456",
             "call-now.example.com/ ",
+            "call-microsoft-1-800-555-0100",
+            "support.0800-123-4567.example.com",
             "x" * 254,
             "<b>hi</b>",
             "example.com:8080",

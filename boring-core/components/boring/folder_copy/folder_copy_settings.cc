@@ -163,9 +163,13 @@ std::string Describe(const Setting& setting, const base::Value& value) {
   return std::string();
 }
 
-// Filter rules that switch blocking off: a network exception (@@) or a
-// cosmetic or scriptlet exception (#@#). Only lines that are new count.
-bool AddsException(const std::string& from, const std::string& to) {
+// New filter rules that change what a site gets. kException switches
+// blocking off: a network exception (@@) or a cosmetic or scriptlet
+// exception (#@#). kCosmetic hides parts of a page or injects a script (##,
+// ##+js). Only lines that are new count.
+enum class Added { kNothing, kException, kCosmetic };
+
+Added AddsException(const std::string& from, const std::string& to) {
   auto lines = [](const std::string& text) {
     std::set<std::string> out;
     size_t start = 0;
@@ -181,13 +185,19 @@ bool AddsException(const std::string& from, const std::string& to) {
     return out;
   };
   const std::set<std::string> old_lines = lines(from);
+  Added result = Added::kNothing;
   for (const std::string& line : lines(to)) {
-    if (!old_lines.count(line) &&
-        (line.rfind("@@", 0) == 0 || line.find("#@") != std::string::npos)) {
-      return true;
+    if (old_lines.count(line)) {
+      continue;
+    }
+    if (line.rfind("@@", 0) == 0 || line.find("#@") != std::string::npos) {
+      return Added::kException;
+    }
+    if (line.find("##") != std::string::npos) {
+      result = Added::kCosmetic;
     }
   }
-  return false;
+  return result;
 }
 
 bool Weakens(const Setting& setting,
@@ -200,7 +210,8 @@ bool Weakens(const Setting& setting,
     return from.GetInt() == 1 && to.GetInt() == 0;
   }
   if (setting.kind == Kind::kText) {
-    return AddsException(from.GetString(), to.GetString());
+    return AddsException(from.GetString(), to.GetString()) !=
+           Added::kNothing;
   }
   return false;
 }
@@ -275,7 +286,11 @@ std::vector<SettingChange> DiffSettings(const PrefService* prefs,
     change.to = Describe(*setting, value);
     change.weakens = Weakens(*setting, *pref->GetValue(), value);
     if (setting->kind == Kind::kText && change.weakens) {
-      change.to += ", and some turn blocking off for certain sites";
+      change.to +=
+          AddsException(pref->GetValue()->GetString(), value.GetString()) ==
+                  Added::kException
+              ? ", and some turn blocking off for certain sites"
+              : ", and some change how certain sites look or act";
     }
     changes.push_back(std::move(change));
   }
