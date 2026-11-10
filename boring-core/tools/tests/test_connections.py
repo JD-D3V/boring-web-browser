@@ -30,6 +30,8 @@ COPIED = [
     "components/boring/update/browser_updater.cc",
     "components/boring/ai/ai_summary_service.cc",
     "components/boring/ai/ai_summary_service.h",
+    "components/boring/scam/quad9_block_checker.cc",
+    "components/boring/scam/quad9_block_checker.h",
     "chromium_src/chrome/browser/boring/privacy_bridge.cc",
     "patches/154/privacy-defaults.patch",
     "patches/privacy-defaults.patch",
