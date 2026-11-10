@@ -32,6 +32,15 @@ VCVARS = (
 
 # (file name, host) -> the tool that should be named.
 TOOL_HITS = [
+    # Pass 2, T3: other program types, no ending, look-alike letters.
+    ("AnyDesk.scr", "", "AnyDesk"),
+    ("AnyDesk.com", "", "AnyDesk"),
+    ("AnyDesk.iso", "", "AnyDesk"),
+    ("AnyDesk.bat", "", "AnyDesk"),
+    ("AnyDesk", "", "AnyDesk"),
+    ("\u0410nyDesk.exe", "", "AnyDesk"),
+    ("TeamV\u0456ewer_Setup.exe", "", "TeamViewer"),
+    ("\uff21ny\uff24esk.exe", "", "AnyDesk"),
     ("AnyDesk.exe", "", "AnyDesk"),
     ("AnyDesk (1).exe", "", "AnyDesk"),
     ("ANYDESK.EXE", "", "AnyDesk"),
@@ -78,6 +87,8 @@ TOOL_HITS = [
 ]
 
 TOOL_MISSES = [
+    ("notes", ""),
+    ("report.docx", "anydesk.com"),
     ("report.pdf", "anydesk.com"),
     ("anydesk-guide.pdf", ""),
     ("teamviewer notes.txt", ""),
