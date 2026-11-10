@@ -15,6 +15,10 @@ The folder picker cannot be driven, so the test folder is set with
     bookmarklet), keeps B's own, and lists the settings without applying
     them. Only "Change them" applies; the files then follow B.
   - Turning the row off stops the writes.
+  - The switch is for one run: nothing about it reaches the profile's
+    Preferences, and a folder outside the temp directory is ignored.
+  - A settings file that adds an @@ exception rule is flagged in the
+    preview as turning blocking off for some sites.
 """
 
 import http.server
@@ -161,6 +165,29 @@ def open_protection(b):
     wait_js(b, "return !!document.getElementById('folder-copy')")
 
 
+def saved_folder_pref(profile):
+    """The folder copy pref in the profile's Preferences, or None."""
+    text = read(os.path.join(profile, "Default", "Preferences"))
+    if text is None:
+        return None
+    prefs = json.loads(text)
+    return (prefs.get("boring", {}).get("folder_copy", {}) or {}).get("dir")
+
+
+def run_outside(folder, profile):
+    """A folder outside temp is ignored: the row stays off and nothing is written."""
+    with Browser(user_data_dir=profile, args=["--boring-folder-copy-dir=" + folder]) as b:
+        open_protection(b)
+        time.sleep(9)
+        row = folder_row(b)
+        check(bool(row) and not row["on"],
+              f"C: a folder outside temp leaves the row off ({row and row['line']!r})")
+        check(not os.path.exists(os.path.join(folder, SETTINGS))
+              and not os.path.exists(os.path.join(folder, BOOKMARKS)),
+              "C: nothing is written to a folder outside temp")
+    check(not saved_folder_pref(profile), "C: and nothing is saved in the profile")
+
+
 def run_a(folder, profile, server_port):
     settings = os.path.join(folder, SETTINGS)
     bookmarks = os.path.join(folder, BOOKMARKS)
@@ -226,7 +253,18 @@ def run_a(folder, profile, server_port):
         for what in (SECRET_COOKIE, SECRET_KEY, HISTORY_MARK, "api_key", "password"):
             check(what.lower() not in files.lower(), f"A: the files hold no {what!r}")
         first = read(settings)
+    check(not saved_folder_pref(profile),
+          f"A: the switch folder is not saved in the profile ({saved_folder_pref(profile)!r})")
     return first
+
+
+def add_exception_rules(folder):
+    """A synced second PC could put an exception rule in the settings file."""
+    path = os.path.join(folder, SETTINGS)
+    data = json.loads(read(path) or "{}")
+    data.setdefault("settings", {})[RULES] = "||ads.example^\n@@||example.org^$document"
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f)
 
 
 def run_b(folder, profile):
@@ -267,6 +305,9 @@ def run_b(folder, profile):
                   and "Skip tracking redirects: On to Off (less protection)" in row["preview"],
                   "B: protections that would turn off are listed")
             check("AI assistant: Off to Gemini" in row["preview"], "B: the AI provider change is listed")
+            check("My filter rules" in row["preview"]
+                  and "turn blocking off for certain sites (less protection)" in row["preview"],
+                  "B: an added @@ exception rule is flagged as turning blocking off")
             check(row["weakFirst"] == sorted(row["weakFirst"], reverse=True),
                   f"B: the ones that lower protection come first ({row['weakFirst']})")
         applied_early = b.run("return !document.getElementById('fingerprint').checked")
@@ -330,7 +371,13 @@ def main():
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
         run_a(folder, os.path.join(work, "A"), server.server_address[1])
+        add_exception_rules(folder)
         run_b(folder, os.path.join(work, "B"))
+        outside = tempfile.mkdtemp(prefix="smoke-outside-", dir=os.path.dirname(TMP.rstrip("/" + os.sep)))
+        try:
+            run_outside(outside, os.path.join(work, "C"))
+        finally:
+            shutil.rmtree(outside, ignore_errors=True)
     finally:
         server.shutdown()
         shutil.rmtree(work, ignore_errors=True)
