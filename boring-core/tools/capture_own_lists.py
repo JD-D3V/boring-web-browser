@@ -16,7 +16,7 @@ import time
 
 from capture_native import frame_window, grab, user32
 from drive import CHROME, OFFSCREEN, Browser
-from smoke_local import list_folder, browser_args
+from smoke_local import browser_args, list_folder
 from smoke_own_lists import BUNDLED, SWITCH, ListServer, add, row_with
 
 TMP = os.environ.get("TMP", r"E:\tmp")

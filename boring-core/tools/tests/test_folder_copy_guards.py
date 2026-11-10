@@ -23,7 +23,7 @@ def read(*parts):
 
 def function_body(source, signature):
     start = source.index(signature)
-    return source[start:source.index("\n}\n", start)]
+    return source[start : source.index("\n}\n", start)]
 
 
 class SwitchIsForThisRunOnly(unittest.TestCase):

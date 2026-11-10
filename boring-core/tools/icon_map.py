@@ -44,40 +44,65 @@ OURS_SUFFIXES = tuple(n + ".icon" for n in OURS)
 # "danger" more strongly than our outline, and a scam-safe browser keeps
 # the stronger cue.
 ICON_MAP = {
-    "b-back": ["arrow_back", "arrow_back_old", "arrow_back_chrome_refresh_old",
-               "back_arrow_old", "back_arrow_chrome_refresh_old",
-               "back_arrow_touch_old"],
-    "b-forward": ["arrow_forward", "arrow_forward_old", "forward_arrow_old",
-                  "forward_arrow_chrome_refresh_old", "forward_arrow_touch_old"],
-    "b-reload": ["autorenew", "autorenew_old", "reload_chrome_refresh_old",
-                 "reload_touch_old"],
+    "b-back": [
+        "arrow_back",
+        "arrow_back_old",
+        "arrow_back_chrome_refresh_old",
+        "back_arrow_old",
+        "back_arrow_chrome_refresh_old",
+        "back_arrow_touch_old",
+    ],
+    "b-forward": [
+        "arrow_forward",
+        "arrow_forward_old",
+        "forward_arrow_old",
+        "forward_arrow_chrome_refresh_old",
+        "forward_arrow_touch_old",
+    ],
+    "b-reload": [
+        "autorenew",
+        "autorenew_old",
+        "reload_chrome_refresh_old",
+        "reload_touch_old",
+    ],
     "b-stop": ["navigate_stop_chrome_refresh_old", "navigate_stop_touch_old"],
-    "b-home": ["navigate_home_chrome_refresh_old", "navigate_home_touch_old",
-               "home"],
+    "b-home": ["navigate_home_chrome_refresh_old", "navigate_home_touch_old", "home"],
     "b-star": ["star", "star_old", "star_chrome_refresh_old"],
     "b-star-filled": ["star_filled", "star_active_chrome_refresh_old"],
-    "b-download": ["download_toolbar_button_chrome_refresh_old",
-                   "download_toolbar_button_old",
-                   "download_toolbar_button_touch_old"],
+    "b-download": [
+        "download_toolbar_button_chrome_refresh_old",
+        "download_toolbar_button_old",
+        "download_toolbar_button_touch_old",
+    ],
     "b-downloads-tray": ["download_menu_old"],
     "b-extensions": ["extension_chrome_refresh_old", "extension_old"],
     "b-menu": ["boring_menu"],
     "b-protection": ["boring_protection"],
-    "b-close": ["close_tab_chrome_refresh_old", "close_chrome_refresh_old",
-                "close"],
+    "b-close": ["close_tab_chrome_refresh_old", "close_chrome_refresh_old", "close"],
     "b-new-tab": ["new_tab_refresh_old", "add_old"],
     "b-group": ["tab_group_old"],
-    "b-lock": ["lock", "lock_old", "https_valid_old",
-               "secure_page_info_chrome_refresh_old"],
+    "b-lock": [
+        "lock",
+        "lock_old",
+        "https_valid_old",
+        "secure_page_info_chrome_refresh_old",
+    ],
     "b-search": ["search", "search_chrome_refresh_old", "search_menu_old"],
     "b-page-info": ["tune"],
-    "b-share": ["share", "share_chrome_refresh_old",
-                "share_win_chrome_refresh_old", "share_windows"],
+    "b-share": [
+        "share",
+        "share_chrome_refresh_old",
+        "share_win_chrome_refresh_old",
+        "share_windows",
+    ],
     "b-translate": ["translate", "translate_old", "g_translate"],
     "b-settings": ["settings", "settings_menu_old"],
     "b-history": ["history", "history_old"],
-    "b-bookmarks": ["bookmarks_side_panel_refresh_old",
-                    "bookmarks_side_panel_old", "bookmarks_lists_menu_old"],
+    "b-bookmarks": [
+        "bookmarks_side_panel_refresh_old",
+        "bookmarks_side_panel_old",
+        "bookmarks_lists_menu_old",
+    ],
     "b-print": ["print", "print_menu_old"],
     "b-find": ["find_in_page"],
     "b-incognito": ["incognito_refresh_menu_old"],
@@ -98,21 +123,38 @@ ICON_MAP = {
     "b-save": ["file_save_chrome_refresh_old", "file_save_old", "file_save"],
     "b-exit": ["exit_menu_old", "exit_to_app"],
     "b-tab-groups": ["saved_tab_group_bar_everything_old"],
-    "b-plus": ["zoom_plus_menu_refresh_old", "zoom_plus_chrome_refresh_old",
-               "add_chrome_refresh_old"],
-    "b-minus": ["zoom_minus_menu_refresh_old", "zoom_minus_chrome_refresh_old",
-                "zoom_minus_old", "remove_old"],
+    "b-plus": [
+        "zoom_plus_menu_refresh_old",
+        "zoom_plus_chrome_refresh_old",
+        "add_chrome_refresh_old",
+    ],
+    "b-minus": [
+        "zoom_minus_menu_refresh_old",
+        "zoom_minus_chrome_refresh_old",
+        "zoom_minus_old",
+        "remove_old",
+    ],
     "b-copy": ["copy_menu_old", "copy_old", "content_copy"],
     "b-link": ["link_chrome_refresh_old", "link"],
-    "b-chevron-right": ["submenu_arrow_chrome_refresh_old",
-                        "chevron_right_chrome_refresh_old", "chevron_right_old",
-                        "chevron_right", "keyboard_arrow_right",
-                        "keyboard_arrow_right_flippable"],
+    "b-chevron-right": [
+        "submenu_arrow_chrome_refresh_old",
+        "chevron_right_chrome_refresh_old",
+        "chevron_right_old",
+        "chevron_right",
+        "keyboard_arrow_right",
+        "keyboard_arrow_right_flippable",
+    ],
     "b-chevron-left": ["keyboard_arrow_left"],
-    "b-chevron-down": ["keyboard_arrow_down_chrome_refresh_old",
-                       "keyboard_arrow_down_old", "keyboard_arrow_down"],
-    "b-chevron-up": ["keyboard_arrow_up_chrome_refresh_old",
-                     "keyboard_arrow_up_old", "keyboard_arrow_up"],
+    "b-chevron-down": [
+        "keyboard_arrow_down_chrome_refresh_old",
+        "keyboard_arrow_down_old",
+        "keyboard_arrow_down",
+    ],
+    "b-chevron-up": [
+        "keyboard_arrow_up_chrome_refresh_old",
+        "keyboard_arrow_up_old",
+        "keyboard_arrow_up",
+    ],
 }
 
 
@@ -140,10 +182,13 @@ def resolve(tree_root):
 
 def _symbols():
     import re
+
     with open(ICONS_SVG, encoding="utf-8") as f:
         text = f.read()
-    return {re.search(r'id="([^"]+)"', m.group(0)).group(1): m.group(0)
-            for m in re.finditer(r"<symbol\b.*?</symbol>", text, re.S)}
+    return {
+        re.search(r'id="([^"]+)"', m.group(0)).group(1): m.group(0)
+        for m in re.finditer(r"<symbol\b.*?</symbol>", text, re.S)
+    }
 
 
 def flips_in_rtl(tree_root, rel):
@@ -180,10 +225,12 @@ def generate(tree_root, out_root):
         for name in names:
             if name in OURS:
                 # Ours already, not in the Chromium tree.
-                rels = [("chrome/app/vector_icons/%s.icon" % name, None)]
+                rels = [(f"chrome/app/vector_icons/{name}.icon", None)]
             else:
-                rels = [(rel, original_canvas(tree_root, rel))
-                        for rel in resolved.get(name, [])]
+                rels = [
+                    (rel, original_canvas(tree_root, rel))
+                    for rel in resolved.get(name, [])
+                ]
             for rel, canvas in rels:
                 flips = flips_in_rtl(tree_root, rel)
                 text = svg_to_icon.convert_symbol(symbols[sid], name, canvas, flips)
@@ -199,17 +246,31 @@ def generate(tree_root, out_root):
 # without looking at them, so a typo only fails hours later at compile
 # time; this catches it first.
 ARITY = {
-    "CANVAS_DIMENSIONS": 1, "STROKE": 1, "MOVE_TO": 2, "LINE_TO": 2,
-    "H_LINE_TO": 1, "V_LINE_TO": 1, "CUBIC_TO": 6, "ARC_TO": 7, "CIRCLE": 3,
-    "ROUND_RECT": 5, "CLOSE": 0, "NEW_PATH": 0, "FLIPS_IN_RTL": 0,
-    "FILL_RULE_NONZERO": 0, "CAP_SQUARE": 0,
+    "CANVAS_DIMENSIONS": 1,
+    "STROKE": 1,
+    "MOVE_TO": 2,
+    "LINE_TO": 2,
+    "H_LINE_TO": 1,
+    "V_LINE_TO": 1,
+    "CUBIC_TO": 6,
+    "ARC_TO": 7,
+    "CIRCLE": 3,
+    "ROUND_RECT": 5,
+    "CLOSE": 0,
+    "NEW_PATH": 0,
+    "FLIPS_IN_RTL": 0,
+    "FILL_RULE_NONZERO": 0,
+    "CAP_SQUARE": 0,
 }
 
 
 def check_syntax(text, where="icon"):
     """Raise ValueError on an unknown command or the wrong argument count."""
-    body = " ".join(ln for ln in text.splitlines()
-                    if ln.strip() and not ln.lstrip().startswith("//"))
+    body = " ".join(
+        ln
+        for ln in text.splitlines()
+        if ln.strip() and not ln.lstrip().startswith("//")
+    )
     tokens = [t.strip() for t in body.split(",")]
     if tokens and tokens[-1] == "":
         tokens.pop()
@@ -218,17 +279,17 @@ def check_syntax(text, where="icon"):
     while i < len(tokens):
         name = tokens[i]
         if name not in ARITY:
-            raise ValueError("%s: unknown command %r" % (where, name))
+            raise ValueError(f"{where}: unknown command {name!r}")
         n = ARITY[name]
-        args = tokens[i + 1:i + 1 + n]
+        args = tokens[i + 1 : i + 1 + n]
         if len(args) < n or any(a in ARITY or a == "" for a in args):
-            raise ValueError("%s: %s needs %d numbers" % (where, name, n))
+            raise ValueError(f"{where}: {name} needs {n} numbers")
         for a in args:
             float(a.rstrip("f"))
         seen_canvas |= name == "CANVAS_DIMENSIONS"
         i += 1 + n
     if not seen_canvas:
-        raise ValueError("%s: no CANVAS_DIMENSIONS" % where)
+        raise ValueError(f"{where}: no CANVAS_DIMENSIONS")
 
 
 def validate(paths, tree_root):
@@ -239,8 +300,9 @@ def validate(paths, tree_root):
     for p in paths:
         with open(p, encoding="utf-8") as f:
             check_syntax(f.read(), os.path.basename(p))
-    aggregator = os.path.join(tree_root, "components", "vector_icons",
-                              "aggregate_vector_icons.py")
+    aggregator = os.path.join(
+        tree_root, "components", "vector_icons", "aggregate_vector_icons.py"
+    )
     templates = os.path.join(tree_root, "chrome", "app", "vector_icons")
     with tempfile.TemporaryDirectory() as work:
         for t in ("vector_icons.cc.template", "vector_icons.h.template"):
@@ -255,13 +317,22 @@ def validate(paths, tree_root):
         with open(listing, "w") as f:
             f.write("\n".join(names))
         result = subprocess.run(
-            [sys.executable, aggregator, "--working_directory=" + work,
-             "--file_list=" + listing,
-             "--output_cc=" + os.path.join(work, "out.cc"),
-             "--output_h=" + os.path.join(work, "out.h")],
-            capture_output=True, text=True, cwd=work)
+            [
+                sys.executable,
+                aggregator,
+                "--working_directory=" + work,
+                "--file_list=" + listing,
+                "--output_cc=" + os.path.join(work, "out.cc"),
+                "--output_h=" + os.path.join(work, "out.h"),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=work,
+        )
         if result.returncode != 0:
-            raise RuntimeError("icon aggregator failed:\n" + result.stderr + result.stdout)
+            raise RuntimeError(
+                "icon aggregator failed:\n" + result.stderr + result.stdout
+            )
 
 
 if __name__ == "__main__":

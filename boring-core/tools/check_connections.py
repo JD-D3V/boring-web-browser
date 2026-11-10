@@ -96,7 +96,9 @@ def header_text(core):
         "\n"
         "namespace boring {\n"
         "\n"
-        'inline constexpr char kConnectionsJson[] = R"json(' + raw.rstrip("\n") + ')json";\n'
+        'inline constexpr char kConnectionsJson[] = R"json('
+        + raw.rstrip("\n")
+        + ')json";\n'
         "\n"
         "}  // namespace boring\n"
         "\n"
@@ -243,7 +245,9 @@ def check(core=CORE):
 
 def main():
     if "--write" in sys.argv:
-        (CORE / HEADER_REL).write_text(header_text(CORE), encoding="utf-8", newline="\n")
+        (CORE / HEADER_REL).write_text(
+            header_text(CORE), encoding="utf-8", newline="\n"
+        )
         print("wrote", HEADER_REL)
         return 0
     errors = check()

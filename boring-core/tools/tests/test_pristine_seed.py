@@ -114,8 +114,10 @@ class SeedPristine(unittest.TestCase):
         # path check can stop it.
         patch = os.path.join(self.src, "evil.patch")
         self.write(patch, "--- a/C:foo.txt\n+++ b/C:foo.txt\n@@ -1 +1 @@\n-x\n+y\n")
-        with mock.patch.object(apply.os.path, "exists", return_value=True), \
-                mock.patch.object(apply, "snapshot") as snapshot:
+        with (
+            mock.patch.object(apply.os.path, "exists", return_value=True),
+            mock.patch.object(apply, "snapshot") as snapshot,
+        ):
             self.assertEqual(apply.seed_pristine(self.src, [patch], self.store), [])
         snapshot.assert_not_called()
 

@@ -18,12 +18,17 @@ import argparse
 import ctypes
 import os
 import time
+from ctypes import wintypes
 from pathlib import Path
 
-from ctypes import wintypes
-
-from capture_native import (ENUMPROC, chrome_pids, frame_window, parents_of,
-                            user32, write_png)
+from capture_native import (
+    ENUMPROC,
+    chrome_pids,
+    frame_window,
+    parents_of,
+    user32,
+    write_png,
+)
 from capture_search_menu import grab_raw, window_rect
 from drive import CHROME, OFFSCREEN, Browser
 
@@ -80,7 +85,7 @@ def shoot_popup(popup, path, margin=16):
             if px[s] == 0 and px[s + 1] == 0 and px[s + 2] == 0:
                 continue
             d = ((y + margin) * w + (x + margin)) * 4
-            canvas[d:d + 3] = px[s:s + 3]
+            canvas[d : d + 3] = px[s : s + 3]
     write_png(str(path), w, h, bytes(canvas))
     print(f"saved {path} ({cw}x{ch} menu)")
     return True

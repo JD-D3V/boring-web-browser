@@ -30,7 +30,9 @@ class Quad9Guards(unittest.TestCase):
         self.assertIn("net::IsHostnameNonUnique(url.host())", text)
 
     def test_the_gate_wants_secure_mode_and_quad9_alone(self):
-        text = source("chromium_src", "chrome", "browser", "boring", "privacy_bridge.cc")
+        text = source(
+            "chromium_src", "chrome", "browser", "boring", "privacy_bridge.cc"
+        )
         for needle in (
             "net::SecureDnsMode::kSecure",
             "ManagementMode::kNoOverride",

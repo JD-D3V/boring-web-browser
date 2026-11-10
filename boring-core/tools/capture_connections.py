@@ -38,7 +38,9 @@ def main():
     ) as b:
         b.get("chrome://boring-protection")
         for _ in range(40):
-            if b.run("return document.querySelectorAll('#connections-own .setting-row').length > 0"):
+            if b.run(
+                "return document.querySelectorAll('#connections-own .setting-row').length > 0"
+            ):
                 break
             time.sleep(0.5)
         for _ in range(40):

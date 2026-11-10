@@ -64,9 +64,7 @@ class DefaultsTest(unittest.TestCase):
         text = read(PREFS_H)
         self.assertIn('kStopTakeovers[] = "boring.protection.stop_takeovers"', text)
         self.assertIn('kNoScamBypass[] = "boring.protection.no_scam_bypass"', text)
-        self.assertIn(
-            'kHideSponsoredResults[] = "boring.hide_sponsored_results"', text
-        )
+        self.assertIn('kHideSponsoredResults[] = "boring.hide_sponsored_results"', text)
 
     def test_takeovers_and_hide_sponsored_on_the_bypass_switch_off(self):
         text = read(PREFS_CC)
@@ -108,7 +106,9 @@ class MigrationTest(unittest.TestCase):
             PATCHES / "154" / "chrome-browser-prefs.patch",
         ):
             text = read(path)
-            self.assertIn("+  boring::MigrateObsoleteProfilePrefs(profile_prefs);", text)
+            self.assertIn(
+                "+  boring::MigrateObsoleteProfilePrefs(profile_prefs);", text
+            )
             self.assertRegex(
                 text, r"BEGIN_MIGRATE_OBSOLETE_PROFILE_PREFS\n[^\n]*\n\+\n\+  // boring"
             )
@@ -120,9 +120,7 @@ class EveryPrefHasASwitchTest(unittest.TestCase):
     INTERNAL = {"kNativeHostsDecided", "kBoringFolderCopyArmed"}
 
     def test_every_yes_or_no_pref_is_set_from_the_protection_page(self):
-        registered = re.findall(
-            r"RegisterBooleanPref\(prefs::(k\w+),", read(PREFS_CC)
-        )
+        registered = re.findall(r"RegisterBooleanPref\(prefs::(k\w+),", read(PREFS_CC))
         self.assertGreaterEqual(len(registered), 9)
         page = read(PROTECTION)
         for pref in registered:
@@ -161,7 +159,10 @@ class PagesTest(unittest.TestCase):
             self.assertNotIn("&mdash;", read(path))
 
     def test_settings_page_binds_the_same_prefs(self):
-        for path in (PATCHES / "settings-boring-pages.patch", PATCHES / "154" / "settings-boring-pages.patch"):
+        for path in (
+            PATCHES / "settings-boring-pages.patch",
+            PATCHES / "154" / "settings-boring-pages.patch",
+        ):
             text = read(path)
             for pref in (
                 "boring.protection.stop_takeovers",
@@ -169,7 +170,7 @@ class PagesTest(unittest.TestCase):
                 "boring.hide_sponsored_results",
             ):
                 self.assertIn(f'(*s_allowlist)["{pref}"]', text)
-                self.assertIn("pref=\"{{prefs." + pref + "}}\"", text)
+                self.assertIn('pref="{{prefs.' + pref + '}}"', text)
 
 
 if __name__ == "__main__":

@@ -26,8 +26,15 @@ COPYRIGHT = "// Copyright 2026 boring. BSD style license.\n"
 # transform, a gradient) changes how it looks in a way this converter does
 # not reproduce, so it stops the conversion instead of being dropped.
 GEOMETRY_ATTRS = {"d", "cx", "cy", "r", "x", "y", "width", "height", "rx", "ry"}
-STYLE_ATTRS = {"fill", "stroke", "stroke-width", "stroke-linecap",
-               "stroke-linejoin", "fill-rule", "transform"}
+STYLE_ATTRS = {
+    "fill",
+    "stroke",
+    "stroke-width",
+    "stroke-linecap",
+    "stroke-linejoin",
+    "fill-rule",
+    "transform",
+}
 SCALE = re.compile(r"^\s*scale\(\s*([-+]?(?:\d*\.\d+|\d+\.?))\s*\)\s*$")
 
 NUMBER = re.compile(r"[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?")
@@ -37,7 +44,7 @@ ARGS = {"M": 2, "L": 2, "H": 1, "V": 1, "C": 6, "S": 4, "A": 7, "Z": 0}
 
 def fmt(x):
     """A number the way .icon files write it: short, no trailing zeros."""
-    s = ("%.4f" % x).rstrip("0").rstrip(".")
+    s = (f"{x:.4f}").rstrip("0").rstrip(".")
     return "0" if s in ("-0", "") else s
 
 
@@ -67,7 +74,7 @@ def path_commands(d, scale=1.0):
         up = op.upper()
         rel = op.islower()
         n = ARGS[up]
-        a = [float(t) for t in tokens[i:i + n]]
+        a = [float(t) for t in tokens[i : i + n]]
         i += n
         if len(a) < n:
             raise ValueError("path ends mid-command: " + d)
@@ -105,7 +112,18 @@ def path_commands(d, scale=1.0):
             cx, cy = ex, ey
         elif up == "A":
             cx, cy = ox + a[5], oy + a[6]
-            out.append(line("ARC_TO", a[0] * scale, a[1] * scale, a[2], a[3], a[4], cx * scale, cy * scale))
+            out.append(
+                line(
+                    "ARC_TO",
+                    a[0] * scale,
+                    a[1] * scale,
+                    a[2],
+                    a[3],
+                    a[4],
+                    cx * scale,
+                    cy * scale,
+                )
+            )
         last_c2 = c2
     return out
 
@@ -125,8 +143,13 @@ def element_geometry(el, scale=1.0):
     tag = el.tag.split("}")[-1]
     unknown = set(el.attrib) - GEOMETRY_ATTRS - STYLE_ATTRS
     if unknown:
-        raise ValueError("unsupported attribute on <%s>: %s" % (tag, ", ".join(sorted(unknown))))
-    f = lambda k, default=0.0: float(el.get(k, default)) * scale
+        raise ValueError(
+            "unsupported attribute on <{}>: {}".format(tag, ", ".join(sorted(unknown)))
+        )
+
+    def f(k, default=0.0):
+        return float(el.get(k, default)) * scale
+
     if tag == "path":
         return path_commands(el.get("d"), scale)
     if tag == "circle":
@@ -182,10 +205,14 @@ def convert_symbol(symbol_xml, name, canvas=None, flips_in_rtl=False):
             body.extend(geometry)
             first = False
 
-    head = [COPYRIGHT.rstrip("\n"), "",
-            "// %s, from the rounded icon set (design/v7/icons-full/icons.svg)." % name,
-            "// 2 px stroke on a %d grid, round caps." % size,
-            "", line("CANVAS_DIMENSIONS", canvas)]
+    head = [
+        COPYRIGHT.rstrip("\n"),
+        "",
+        f"// {name}, from the rounded icon set (design/v7/icons-full/icons.svg).",
+        f"// 2 px stroke on a {size} grid, round caps.",
+        "",
+        line("CANVAS_DIMENSIONS", canvas),
+    ]
     if flips_in_rtl:
         head.append("FLIPS_IN_RTL,")
     return "\n".join(head + body) + "\n"
