@@ -39,7 +39,7 @@ from get_filterlists import (
     utc_stamp,
 )
 
-DEFAULT_OUT = os.environ.get("BORING_OUT", r"E:\ung-154\build\src\out\Default")
+DEFAULT_OUT = os.environ.get("BORING_OUT", r"E:\ung-157\build\src\out\Default")
 
 # Always present, used by the smoke tests. Never counted as coverage.
 TEST_HOSTS = ("boring-scam-test.invalid",)
@@ -142,7 +142,7 @@ NEVER_BLOCK = frozenset(
 # every site below it. It is read from the source tree, so a missing file
 # stops the build rather than skipping the check.
 PUBLIC_SUFFIX_FILE = os.path.join(
-    os.environ.get("BORING_SRC", r"E:\ung-154\build\src"),
+    os.environ.get("BORING_SRC", r"E:\ung-157\build\src"),
     "net",
     "base",
     "registry_controlled_domains",
@@ -199,7 +199,7 @@ def drop_public_suffixes(hosts: set[str]) -> tuple[set[str], set[str]]:
 # on. The top list ships inside Chromium (read from the source tree, so a
 # missing file stops the build); the brand names are our own.
 TOP_DOMAINS_FILE = os.path.join(
-    os.environ.get("BORING_SRC", r"E:\ung-154\build\src"),
+    os.environ.get("BORING_SRC", r"E:\ung-157\build\src"),
     "components",
     "url_formatter",
     "spoof_checks",

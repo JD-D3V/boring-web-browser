@@ -161,7 +161,7 @@ DICTIONARY_PATTERN = "Dictionaries/en-US-*.bdic"
 
 def tree_dictionary(out=None):
     """Dictionaries/en-US-<version>.bdic, as the tree beside out names it."""
-    out = out or os.environ.get("BORING_OUT", r"E:\ung\build\src\out\Default")
+    out = out or os.environ.get("BORING_OUT", r"E:\ung-157\build\src\out\Default")
     table = os.path.join(
         out, "..", "..", "components", "spellcheck", "common", "spellcheck_common.cc"
     )
