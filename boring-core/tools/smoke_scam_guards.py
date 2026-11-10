@@ -134,8 +134,10 @@ def click_id(b, element):
 
 
 class Session:
-    def __init__(self, name, port, answer=None):
-        self.base = f"http://guards.localhost:{port}"
+    def __init__(self, name, port, answer=None, remote=False):
+        # remote: the pages are on a name that is not localhost, to show the
+        # test switches do nothing there.
+        self.base = f"http://{'guards.example' if remote else 'guards.localhost'}:{port}"
         self.root = WORK / name
         shutil.rmtree(self.root, ignore_errors=True)
         self.dl = self.root / "dl"
@@ -147,6 +149,10 @@ class Session:
             "download": {"default_directory": str(self.dl), "prompt_for_download": False},
             "savefile": {"default_directory": str(self.dl)},
         }
+        if remote:
+            # Plain http on a non-localhost name needs HTTPS-Only off.
+            prefs["https_only_mode_enabled"] = False
+            prefs["https_first_balanced_mode_enabled"] = False
         (profile / "Default" / "Preferences").write_text(json.dumps(prefs))
         args = [
             "--headless=new",
@@ -157,6 +163,8 @@ class Session:
         ]
         if answer:
             args.append(f"--boring-guards-test-answer={answer}")
+        if remote:
+            args.append("--host-resolver-rules=MAP guards.example 127.0.0.1")
         self.seen = 0
         self.b = Browser(user_data_dir=str(profile), args=args)
 
@@ -382,6 +390,21 @@ def answers(port, checks):
             s.diagnose("keep")
 
 
+def remote_page(port, checks):
+    """The answer switch does nothing for a page that is not on localhost.
+    (The clipboard switch is not driven here: without it a copy would reach
+    the real clipboard. clipboard_guard.cc has the same localhost limit.)"""
+    with Session("remote", port, answer="risk", remote=True) as s:
+        s.download("anydesk")
+        checks["not localhost: the question bar shows"] = wait(lambda: ASK in s.bars())
+        time.sleep(6)
+        checks["not localhost: nothing answers the bar"] = not any(
+            n.startswith("AnyDesk") for n in s.saved()
+        )
+        if not checks["not localhost: nothing answers the bar"]:
+            s.diagnose("remote")
+
+
 def tripped_tab(port, checks):
     """A tab that tripped the takeover detector gets the strong wording."""
     with Session("strong", port, answer="safe") as s:
@@ -416,6 +439,7 @@ def main():
             downloads_and_copies(s, checks)
             switch_off(s, checks)
         answers(port, checks)
+        remote_page(port, checks)
         tripped_tab(port, checks)
     finally:
         srv.shutdown()

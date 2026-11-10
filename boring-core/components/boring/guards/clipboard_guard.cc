@@ -14,6 +14,7 @@
 #include "components/boring/guards/shell_command.h"
 #include "components/boring/scam/takeover/takeover_tab_helper.h"
 #include "content/public/browser/web_contents.h"
+#include "net/base/url_util.h"
 #include "ui/display/types/display_constants.h"
 #include "url/gurl.h"
 
@@ -28,7 +29,8 @@ constexpr size_t kMaxChars = 64 * 1024;
 
 // Test hook, like --boring-guards-test-answer: copies from pages are logged
 // and dropped instead of written, so a smoke test never touches the
-// person's real clipboard. Does nothing unless the switch is given.
+// person's real clipboard. Does nothing unless the switch is given, and then
+// only for a page on localhost.
 constexpr char kTestClipboardSwitch[] = "boring-guards-test-clipboard";
 
 constexpr char16_t kNotice[] =
@@ -84,6 +86,12 @@ bool SwallowClipboardCopyForTest(const content::ClipboardEndpoint& source,
                                  const content::ClipboardPasteData& data) {
   if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
           kTestClipboardSwitch)) {
+    return false;
+  }
+  // Only for a page on localhost: a copy from a real site is never held back
+  // by the switch.
+  content::WebContents* web_contents = source.web_contents();
+  if (!web_contents || !net::IsLocalhost(web_contents->GetLastCommittedURL())) {
     return false;
   }
   // What would have gone on the clipboard, as a JSON string so a command
