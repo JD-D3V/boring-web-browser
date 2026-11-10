@@ -1,0 +1,18 @@
+// A few rules in the shape of Chromium's effective_tld_names.dat, for the
+// scam list tests. Not the real list.
+
+// ===BEGIN ICANN DOMAINS===
+com
+uk
+co.uk
+pl
+com.pl
+gov.pl
+*.ck
+!www.ck
+// ===END ICANN DOMAINS===
+
+// ===BEGIN PRIVATE DOMAINS===
+github.io
+blogspot.co.uk
+// ===END PRIVATE DOMAINS===

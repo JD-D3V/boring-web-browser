@@ -136,6 +136,63 @@ NEVER_BLOCK = frozenset(
 )
 
 
+# The public suffix list that ships inside Chromium. An entry that is itself
+# a public suffix (co.uk, com.pl, github.io) is not a site, and the browser
+# blocks a listed host and every name under it, so one such line would block
+# every site below it. It is read from the source tree, so a missing file
+# stops the build rather than skipping the check.
+PUBLIC_SUFFIX_FILE = os.path.join(
+    os.environ.get("BORING_SRC", r"E:\ung-154\build\src"),
+    "net",
+    "base",
+    "registry_controlled_domains",
+    "effective_tld_names.dat",
+)
+
+# A feed has no reason to hold more than a stray suffix. More than this and
+# the source is refused as a whole, like any other bad download.
+MAX_SUFFIX_DROPS = 5
+
+
+def load_public_suffixes() -> tuple[set[str], set[str], set[str]]:
+    """The plain, wildcard (*.x) and exception (!x) rules, as ASCII names."""
+    plain: set[str] = set()
+    wild: set[str] = set()
+    exceptions: set[str] = set()
+    with open(PUBLIC_SUFFIX_FILE, encoding="utf-8") as f:
+        for line in f:
+            rule = line.split()[0].lower() if line.strip() else ""
+            if not rule or rule.startswith("//"):
+                continue
+            try:
+                rule = rule.encode("idna").decode("ascii")
+            except UnicodeError:
+                pass
+            if rule.startswith("!"):
+                exceptions.add(rule[1:])
+            elif rule.startswith("*."):
+                wild.add(rule[2:])
+            else:
+                plain.add(rule)
+    if "com" not in plain or "co.uk" not in plain:
+        raise FeedError(f"{PUBLIC_SUFFIX_FILE} does not look like the suffix list")
+    return plain, wild, exceptions
+
+
+def drop_public_suffixes(hosts: set[str]) -> tuple[set[str], set[str]]:
+    """Splits hosts into (kept, dropped), dropping the public suffixes."""
+    plain, wild, exceptions = load_public_suffixes()
+    dropped = set()
+    for host in hosts:
+        h = host.rstrip(".")
+        if h in exceptions:
+            continue
+        parent = h.split(".", 1)[1] if "." in h else ""
+        if h in plain or parent in wild:
+            dropped.add(host)
+    return hosts - dropped, dropped
+
+
 def parse_hostfile(text: str) -> set[str]:
     """The hosts a hostfile blocks. FeedError if it is not a hostfile."""
     lines = text.splitlines()
@@ -296,6 +353,10 @@ def _collect(name: str, url: str, parse, fetch_fn) -> tuple[SourceStatus, set[st
     # figure is real coverage too.
     hosts -= set(TEST_HOSTS)
     hosts -= NEVER_BLOCK
+    hosts, suffixes = drop_public_suffixes(hosts)
+    if len(suffixes) > MAX_SUFFIX_DROPS:
+        status.reason = f"{len(suffixes)} entries are public suffixes"
+        return status, set()
 
     if len(hosts) < MIN_SOURCE_HOSTS:
         status.entries = len(hosts)

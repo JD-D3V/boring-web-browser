@@ -7,6 +7,8 @@ touch points, WebGL graphics card name and one of a few common screen sizes:
   maxTouchPoints       0
   WebGL                UNMASKED_VENDOR "Google Inc.", UNMASKED_RENDERER
                        "ANGLE (generic)", for webgl and webgl2
+  WebGPU               adapter info vendor and architecture are "" (skipped
+                       when the run has no navigator.gpu or no adapter)
   screen               the smallest common size that holds the real screen;
                        availWidth/availHeight match width/height
 
@@ -81,6 +83,20 @@ var w = new Worker(URL.createObjectURL(new Blob(
     ['postMessage(navigator.hardwareConcurrency)'], {type: 'text/javascript'})));
 w.onmessage = function(e) { done(e.data); };
 w.onerror = function() { done(-1); };
+"""
+
+
+# WebGPU adapter info: 'none' when there is no navigator.gpu or no adapter
+# (a headless run may have neither); that case is skipped, not failed.
+GPU = """
+var done = arguments[arguments.length - 1];
+if (!navigator.gpu) { done('none'); return; }
+navigator.gpu.requestAdapter().then(function(a) {
+  if (!a) { done('none'); return; }
+  Promise.resolve(a.info).then(function(i) {
+    done({vendor: i.vendor, architecture: i.architecture});
+  });
+}, function() { done('none'); });
 """
 
 
@@ -175,6 +191,13 @@ def generic_checks(s, checks):
         g = p[key]
         checks[f"{label}: vendor is generic"] = bool(g) and g.get("vendor") == VENDOR
         checks[f"{label}: renderer is generic"] = bool(g) and g.get("renderer") == RENDERER
+    gpu = s.b.run_async(GPU)
+    print("webgpu:", json.dumps(gpu))
+    if gpu != "none":
+        checks["webgpu: vendor and architecture are blank"] = gpu == {
+            "vendor": "",
+            "architecture": "",
+        }
     want = expected_screen(p["rw"], p["rh"])
     checks[f"screen is {want[0]}x{want[1]} for a real {p['rw']}x{p['rh']}"] = (
         (p["sw"], p["sh"]) == want

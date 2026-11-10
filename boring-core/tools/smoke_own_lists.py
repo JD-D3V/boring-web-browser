@@ -218,6 +218,11 @@ def main():
             with Browser(user_data_dir=profile, args=args) as b:
                 b.get(PROTECTION)
                 wait_for(b, "!!document.getElementById('add-user-list')")
+                check(
+                    "the add box warns that a list can change any site",
+                    "Add lists only from people you trust"
+                    in b.run("return document.getElementById('user-list-desc').textContent"),
+                )
                 for address in (
                     server.url("/list.txt"),
                     "http://example.com/list.txt",

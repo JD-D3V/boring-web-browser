@@ -15,10 +15,12 @@ namespace {
 
 using View = std::string_view;
 
-// Nothing shorter is a command worth warning about, and a page that
-// copies a whole article is not putting a one-liner on the clipboard.
+// Nothing shorter is a command worth warning about.
 constexpr size_t kMinLength = 6;
 constexpr size_t kMaxLength = 64 * 1024;
+// Longer text is padding around something. A terminal runs what it is
+// pasted, so the start and the end are looked at (see LooksLikeShellCommand).
+constexpr size_t kEdge = 4 * 1024;
 // How far past a command word its arguments are looked for.
 constexpr size_t kReach = 4000;
 
@@ -279,12 +281,7 @@ bool BorrowedTools(View t) {
   return false;
 }
 
-}  // namespace
-
-bool LooksLikeShellCommand(std::string_view text) {
-  if (text.size() < kMinLength || text.size() > kMaxLength) {
-    return false;
-  }
+bool LooksLikeCommandText(View text) {
   std::string lowered;
   lowered.reserve(text.size());
   for (char c : text) {
@@ -293,6 +290,36 @@ bool LooksLikeShellCommand(std::string_view text) {
   const View t = lowered;
   return PowerShellCommand(t) || CmdCommand(t) || MshtaCommand(t) ||
          FetchedAndRun(t) || InvokeExpression(t) || BorrowedTools(t);
+}
+
+// Without the blank space a page pads a command with.
+View Trimmed(View text) {
+  const auto is_space = [](char c) {
+    return c == ' ' || c == '\t' || c == '\r' || c == '\n';
+  };
+  while (!text.empty() && is_space(text.front())) {
+    text.remove_prefix(1);
+  }
+  while (!text.empty() && is_space(text.back())) {
+    text.remove_suffix(1);
+  }
+  return text;
+}
+
+}  // namespace
+
+bool LooksLikeShellCommand(std::string_view text) {
+  text = Trimmed(text);
+  if (text.size() < kMinLength) {
+    return false;
+  }
+  if (text.size() > kMaxLength) {
+    // Padding must not hide a command: a page can put 64 KB of filler in
+    // front of it or behind it. What a terminal runs is still at one end.
+    return LooksLikeCommandText(text.substr(0, kEdge)) ||
+           LooksLikeCommandText(text.substr(text.size() - kEdge));
+  }
+  return LooksLikeCommandText(text);
 }
 
 }  // namespace guards

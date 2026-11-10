@@ -14,6 +14,7 @@
 #include "components/boring/guards/shell_command.h"
 #include "components/boring/scam/takeover/takeover_tab_helper.h"
 #include "content/public/browser/web_contents.h"
+#include "net/base/url_util.h"
 #include "ui/display/types/display_constants.h"
 #include "url/gurl.h"
 
@@ -22,13 +23,10 @@ namespace guards {
 
 namespace {
 
-// Nothing longer is a one-line command (shell_command.cc has the same
-// limit); looking at a whole copied article would only be slow.
-constexpr size_t kMaxChars = 64 * 1024;
-
 // Test hook, like --boring-guards-test-answer: copies from pages are logged
 // and dropped instead of written, so a smoke test never touches the
-// person's real clipboard. Does nothing unless the switch is given.
+// person's real clipboard. Does nothing unless the switch is given, and then
+// only for a page on localhost.
 constexpr char kTestClipboardSwitch[] = "boring-guards-test-clipboard";
 
 constexpr char16_t kNotice[] =
@@ -44,8 +42,9 @@ constexpr char16_t kReplacement[] =
     u"Blocked: this page tried to copy a command.";
 
 bool LooksLikeCommand(const std::u16string& text) {
-  return !text.empty() && text.size() <= kMaxChars &&
-         LooksLikeShellCommand(base::UTF16ToUTF8(text));
+  // Any length: shell_command.cc looks at both ends of long text, so
+  // padding does not hide a command.
+  return !text.empty() && LooksLikeShellCommand(base::UTF16ToUTF8(text));
 }
 
 }  // namespace
@@ -84,6 +83,12 @@ bool SwallowClipboardCopyForTest(const content::ClipboardEndpoint& source,
                                  const content::ClipboardPasteData& data) {
   if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
           kTestClipboardSwitch)) {
+    return false;
+  }
+  // Only for a page on localhost: a copy from a real site is never held back
+  // by the switch.
+  content::WebContents* web_contents = source.web_contents();
+  if (!web_contents || !net::IsLocalhost(web_contents->GetLastCommittedURL())) {
     return false;
   }
   // What would have gone on the clipboard, as a JSON string so a command
