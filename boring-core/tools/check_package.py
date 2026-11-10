@@ -131,6 +131,22 @@ REQUIRED_NOTICES = [
     "NOTICES-scam-blocklist.txt",
 ]
 
+# The Brave debounce rules (MPL-2.0) are credited in the licence file that
+# ships (apply.py writes LICENCE_SUFFIX into it). Their file, the licence and
+# where the rules come from have to be named there.
+LICENSE_FILE = "license-boringbrowser.txt"
+DEBOUNCE_CREDIT = (
+    "debounce_brave.inc",
+    "Mozilla Public License 2.0",
+    "brave/adblock-lists",
+)
+
+
+def debounce_credit_missing(text):
+    """The parts of the Brave debounce credit that text does not have."""
+    return [part for part in DEBOUNCE_CREDIT if part not in text]
+
+
 CORE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # The en-US Hunspell dictionary, so spelling works with no download.
@@ -239,6 +255,15 @@ def check_feature_contents(relative, reader, report, label):
             report.note(
                 f"[{label}] Chromium Web Store {version} manifest has no update_url"
             )
+    elif os.path.basename(relative).lower() == LICENSE_FILE:
+        missing = debounce_credit_missing(reader().decode("utf-8", "replace"))
+        if missing:
+            report.fail(
+                f"[{label}] {relative} does not credit Brave's debounce rules "
+                f"(MPL-2.0): missing {', '.join(missing)}"
+            )
+        else:
+            report.note(f"[{label}] {relative} credits Brave's debounce rules")
     elif relative.lower() == "boring/scamlist.txt":
         # apply.py leaves a test-only stand-in in a tree with no list.
         hosts = count_real_hosts(reader().decode("utf-8", "replace"))

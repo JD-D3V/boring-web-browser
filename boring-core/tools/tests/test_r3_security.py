@@ -9,9 +9,11 @@ Usage: python -m pytest boring-core/tools/tests/test_r3_security.py
 """
 
 import json
+import os
 import re
 import shutil
 import subprocess
+import sys
 import unittest
 from pathlib import Path
 
@@ -156,6 +158,49 @@ console.log(JSON.stringify(out));
 
     def test_smoke_checks_it(self):
         self.assertIn("free text in ?site= is not shown", read(TOOLS / "smoke_takeover.py"))
+
+
+class DebounceCredit(unittest.TestCase):
+    """Item 68. The Brave debounce credit is required in the shipped licence."""
+
+    def setUp(self):
+        if str(TOOLS) not in sys.path:
+            sys.path.insert(0, str(TOOLS))
+        import apply
+        import check_package
+
+        self.apply = apply
+        self.check_package = check_package
+
+    def check(self, text, name="LICENSE-BoringBrowser.txt"):
+        report = self.check_package.Report()
+        self.check_package.check_feature_contents(
+            name, lambda: text.encode("utf-8"), report, "t"
+        )
+        return report
+
+    def test_the_licence_apply_writes_passes(self):
+        suffix = self.apply.LICENCE_SUFFIX[
+            os.path.join("notices", "LICENSE-BoringBrowser.txt")
+        ].decode("utf-8")
+        mit = read(CORE.parent / "LICENSE")
+        self.assertEqual(self.check(mit + suffix).problems, [])
+
+    def test_the_bare_licence_fails(self):
+        report = self.check(read(CORE.parent / "LICENSE"))
+        self.assertEqual(len(report.problems), 1)
+        self.assertIn("debounce", report.problems[0])
+
+    def test_each_part_of_the_credit_is_needed(self):
+        suffix = self.apply.LICENCE_SUFFIX[
+            os.path.join("notices", "LICENSE-BoringBrowser.txt")
+        ].decode("utf-8")
+        for part in self.check_package.DEBOUNCE_CREDIT:
+            with self.subTest(part=part):
+                self.assertEqual(len(self.check(suffix.replace(part, "")).problems), 1)
+
+    def test_other_files_are_not_asked(self):
+        self.assertEqual(self.check("nothing", "NOTICES-other.txt").problems, [])
 
 
 if __name__ == "__main__":
