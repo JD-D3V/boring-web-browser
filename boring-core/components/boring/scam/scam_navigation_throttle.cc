@@ -9,6 +9,7 @@
 #include "base/command_line.h"
 #include "components/boring/core/boring_capabilities.h"
 #include "components/boring/scam/lookalike_navigation_throttle.h"
+#include "components/boring/scam/quad9_block_throttle.h"
 #include "components/boring/scam/scam_blocking_page.h"
 #include "components/boring/scam/scam_service.h"
 #include "components/security_interstitials/content/security_interstitial_tab_helper.h"
@@ -45,6 +46,8 @@ void ScamNavigationThrottle::MaybeCreateAndAdd(
   AddScamThrottle(registry);
   // After the scam throttle, so a listed site gets the stronger warning.
   LookalikeNavigationThrottle::MaybeCreateAndAdd(registry);
+  // Needs no scam list, so it is not behind kScamBlockingAvailable.
+  Quad9BlockThrottle::MaybeCreateAndAdd(registry);
 }
 
 ScamNavigationThrottle::ScamNavigationThrottle(

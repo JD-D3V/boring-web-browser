@@ -8,6 +8,12 @@ static_library("scam") {
     "lookalike_brands.h",
     "lookalike_navigation_throttle.cc",
     "lookalike_navigation_throttle.h",
+    "quad9_answer.cc",
+    "quad9_answer.h",
+    "quad9_block_checker.cc",
+    "quad9_block_checker.h",
+    "quad9_block_throttle.cc",
+    "quad9_block_throttle.h",
     "scam_blocking_page.cc",
     "scam_blocking_page.h",
     "scam_controller_client.cc",
@@ -20,7 +26,7 @@ static_library("scam") {
     "warning_page.h",
   ]
   # lookalike_brands.cc is plain C++ (tools/tests/test_lookalike.py builds it
-  # alone) and includes its list.
+  # alone) and includes its list. So is quad9_answer.cc (test_quad9_answer.py).
   inputs = [ "lookalike_brands.inc" ]
   # chrome/browser already depends on this target. The scam guards and the
   # phone number banner ride along with it rather than adding a line to
@@ -34,6 +40,7 @@ static_library("scam") {
     "//components/boring/adblock:browser",
     "//components/boring/core",
     "//components/boring/lists",
+    "//components/boring/privacy",
     "//components/lookalikes/core",
     "//components/lookalikes/core:proto",
     "//components/prefs",
@@ -43,6 +50,9 @@ static_library("scam") {
     "//components/user_prefs",
     "//content/public/browser",
     "//net",
+    "//net/traffic_annotation",
+    "//services/network/public/cpp",
+    "//services/network/public/mojom",
     "//ui/base",
     "//ui/color",
     "//ui/color:color_headers",
