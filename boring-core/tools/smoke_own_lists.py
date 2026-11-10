@@ -221,7 +221,10 @@ def main():
                 check(
                     "the add box warns that a list can change any site",
                     "Add lists only from people you trust"
-                    in b.run("return document.getElementById('user-list-desc').textContent"),
+                    in b.run(
+                        "return document.getElementById('user-list-desc')"
+                        ".textContent.replace(/\\s+/g, ' ')"
+                    ),
                 )
                 for address in (
                     server.url("/list.txt"),
