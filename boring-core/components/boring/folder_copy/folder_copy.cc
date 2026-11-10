@@ -13,6 +13,7 @@
 #include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/ref_counted.h"
+#include "base/path_service.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/task/bind_post_task.h"
 #include "base/task/thread_pool.h"
@@ -42,6 +43,15 @@ constexpr size_t kMaxBookmarksFileBytes = 64 * 1024 * 1024;
 const base::TaskTraits kBlocking = {
     base::MayBlock(), base::TaskPriority::USER_VISIBLE,
     base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN};
+
+// The test switch is honoured only for a folder inside the system temp
+// directory. A path anywhere else, such as a network share, is ignored.
+bool IsUnderTempDir(const base::FilePath& dir) {
+  base::FilePath temp;
+  return dir.IsAbsolute() && !dir.ReferencesParent() &&
+         base::PathService::Get(base::DIR_TEMP, &temp) &&
+         temp.IsParent(dir);
+}
 
 bool FolderHasCopy(const base::FilePath& dir) {
   return base::PathExists(dir.AppendASCII(kBookmarksFileName)) ||
@@ -204,8 +214,11 @@ void FolderCopy::Init() {
   if (command_line->HasSwitch(kFolderCopyDirSwitch)) {
     const base::FilePath dir =
         command_line->GetSwitchValuePath(kFolderCopyDirSwitch);
-    if (!dir.empty() && dir != Dir()) {
-      SetDir(dir);
+    if (IsUnderTempDir(dir) && dir != Dir()) {
+      // For this run only: nothing about it is saved in the profile.
+      test_dir_ = dir;
+      test_armed_ = false;
+      Restart(dir);
     }
   }
   ScheduleWrite(kStartupDelay);
@@ -243,15 +256,25 @@ base::CallbackListSubscription FolderCopy::Subscribe(
 }
 
 base::FilePath FolderCopy::Dir() const {
-  return prefs_->GetFilePath(prefs::kBoringFolderCopyDir);
+  return test_dir_.empty() ? prefs_->GetFilePath(prefs::kBoringFolderCopyDir)
+                           : test_dir_;
 }
 
 bool FolderCopy::Armed() const {
-  return prefs_->GetBoolean(prefs::kBoringFolderCopyArmed);
+  return test_dir_.empty() ? prefs_->GetBoolean(prefs::kBoringFolderCopyArmed)
+                           : test_armed_;
+}
+
+void FolderCopy::SetArmed(bool armed) {
+  if (test_dir_.empty()) {
+    prefs_->SetBoolean(prefs::kBoringFolderCopyArmed, armed);
+  } else {
+    test_armed_ = armed;
+  }
 }
 
 void FolderCopy::Arm() {
-  prefs_->SetBoolean(prefs::kBoringFolderCopyArmed, true);
+  SetArmed(true);
   ScheduleWrite(kDebounce);
 }
 
@@ -260,6 +283,14 @@ void FolderCopy::Notify() {
 }
 
 void FolderCopy::SetDir(const base::FilePath& dir) {
+  // A folder picked on the page replaces the one from the test switch.
+  test_dir_.clear();
+  prefs_->SetFilePath(prefs::kBoringFolderCopyDir, dir);
+  prefs_->SetBoolean(prefs::kBoringFolderCopyArmed, false);
+  Restart(dir);
+}
+
+void FolderCopy::Restart(const base::FilePath& dir) {
   write_timer_.Stop();
   write_again_ = false;
   saved_at_ = base::Time();
@@ -267,8 +298,6 @@ void FolderCopy::SetDir(const base::FilePath& dir) {
   message_.clear();
   changes_.clear();
   pending_ = base::DictValue();
-  prefs_->SetFilePath(prefs::kBoringFolderCopyDir, dir);
-  prefs_->SetBoolean(prefs::kBoringFolderCopyArmed, false);
   checking_ = !dir.empty();
   if (checking_) {
     // A folder that has a copy already waits for the person to say which
@@ -299,7 +328,7 @@ void FolderCopy::SaveOver() {
   changes_.clear();
   pending_ = base::DictValue();
   message_.clear();
-  prefs_->SetBoolean(prefs::kBoringFolderCopyArmed, true);
+  SetArmed(true);
   WriteNow();
   Notify();
 }
