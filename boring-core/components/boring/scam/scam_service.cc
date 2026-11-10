@@ -15,10 +15,13 @@
 #include "base/supports_user_data.h"
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
+#include "components/prefs/pref_service.h"
+#include "components/user_prefs/user_prefs.h"
 #include "content/public/browser/browser_context.h"
 #include "url/gurl.h"
 
 #include "components/boring/adblock/adblock_ffi.h"
+#include "components/boring/core/boring_prefs.h"
 #include "components/boring/lists/list_paths.h"
 
 namespace boring {
@@ -206,8 +209,13 @@ bool ScamService::ShouldBlock(content::BrowserContext* context,
     return false;
   }
   const std::string host(url.host());
-  const AllowedHosts* allowed = GetAllowedHosts(context, /*create=*/false);
-  if (allowed && allowed->hosts.count(host)) {
+  AllowedHosts* allowed = GetAllowedHosts(context, /*create=*/false);
+  PrefService* prefs = context ? user_prefs::UserPrefs::Get(context) : nullptr;
+  if (allowed && prefs && prefs->GetBoolean(prefs::kNoScamBypass)) {
+    // "No way past scam warnings" wins over any click-through made before it
+    // was turned on, and it stays gone if the switch is turned off again.
+    allowed->hosts.clear();
+  } else if (allowed && allowed->hosts.count(host)) {
     return false;
   }
   const BoringLibrary* lib = GetBoringLibrary();

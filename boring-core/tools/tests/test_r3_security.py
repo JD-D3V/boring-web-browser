@@ -88,5 +88,23 @@ class NativeLaunchPath(unittest.TestCase):
         )
 
 
+class ScamClickThrough(unittest.TestCase):
+    """Item 65. smoke_scam.py clicks through, turns the switch on, reloads."""
+
+    def test_the_switch_wins_over_the_session_allow_list(self):
+        cc = read(BORING / "scam" / "scam_service.cc")
+        body = cc.split("bool ScamService::ShouldBlock(", 1)[1].split("\n}\n", 1)[0]
+        self.assertIn("kNoScamBypass", body)
+        # Read before the allow-list is used.
+        self.assertLess(body.index("kNoScamBypass"), body.index("hosts.count(host)"))
+        self.assertIn("hosts.clear()", body)
+
+    def test_smoke_checks_it(self):
+        self.assertIn(
+            "turning the switch on clears an earlier Continue anyway",
+            read(TOOLS / "smoke_scam.py"),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
