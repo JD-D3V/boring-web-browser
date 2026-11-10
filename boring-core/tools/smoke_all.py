@@ -66,7 +66,18 @@ CHECKS = [
     ("colour scheme and layout fixes", "smoke_ui_polish.py"),
     ("assistance scripts", "smoke_assistance.py"),
     ("assistance gemini adapter", "smoke_assistance_gemini.py"),
+    ("fingerprint protection", "smoke_fingerprint.py"),
+    ("your own blocking lists", "smoke_own_lists.py"),
+    ("apps on this computer (native hosts)", "smoke_native_hosts.py"),
+    ("keep a copy in a folder", "smoke_folder_copy.py"),
 ]
+
+# Every smoke_*.py that is not a check, with the reason. A new file must
+# be in CHECKS or here (tests/test_smoke_all.py fails otherwise).
+LEFT_OUT = {
+    "smoke_all.py": "this runner",
+    "smoke_local.py": "helpers shared by other checks, no test of its own",
+}
 
 
 NATIVE_CHECKS = {
