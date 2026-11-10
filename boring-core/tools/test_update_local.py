@@ -73,6 +73,7 @@ sys.path.insert(0, str(TOOLS))
 
 import make_appcast  # noqa: E402
 import rename_release  # noqa: E402
+from drive import require_headful  # noqa: E402
 
 CORE = TOOLS.parent
 DEFAULT_TOOL = make_appcast.DEFAULT_TOOL
@@ -469,6 +470,7 @@ class Browser:
     """The installed browser with a throwaway profile."""
 
     def __init__(self, chrome: Path, work: Path, extra: list[str]) -> None:
+        require_headful()
         self.profile = Path(tempfile.mkdtemp(prefix="profile-", dir=work))
         self.proc = subprocess.Popen(
             [
@@ -974,8 +976,9 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{case.name}{tag}: {case.what}")
         return 0
     try:
+        require_headful()
         check_setup(args)
-    except (SetupError, OSError) as error:
+    except (RuntimeError, OSError) as error:
         print(f"setup: {error}", file=sys.stderr)
         return CONFIG_ERROR
 

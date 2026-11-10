@@ -34,7 +34,8 @@ from ctypes import wintypes
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 import get_chromium_web_store as cws
-from drive import CHROME, OUT, Browser, free_port
+from capture_native import chrome_pids, parents_of
+from drive import CHROME, OUT, Browser, free_port, require_headful
 
 TEST_NAME = "Boring Smoke Test Extension"
 PROMPT_TITLE = f'Add "{TEST_NAME}"?'
@@ -176,17 +177,9 @@ def write_download_prefs(profile, downloads):
 # chrome.exe under test. Vtable slots are from UIAutomationClient.h.
 
 user32 = ctypes.WinDLL("user32")
-kernel32 = ctypes.WinDLL("kernel32")
 ole32 = ctypes.WinDLL("ole32")
 oleaut32 = ctypes.WinDLL("oleaut32")
 oleaut32.SysFreeString.argtypes = [ctypes.c_void_p]
-kernel32.OpenProcess.restype = wintypes.HANDLE
-kernel32.QueryFullProcessImageNameW.argtypes = [
-    wintypes.HANDLE,
-    wintypes.DWORD,
-    wintypes.LPWSTR,
-    ctypes.POINTER(wintypes.DWORD),
-]
 
 
 class GUID(ctypes.Structure):
@@ -220,23 +213,13 @@ def _release(obj):
         ctypes.WINFUNCTYPE(ctypes.c_ulong, ctypes.c_void_p)(vtable[0][2])(obj)
 
 
-def process_path(pid):
-    handle = kernel32.OpenProcess(0x1000, False, pid)  # query limited info
-    if not handle:
-        return ""
-    try:
-        size = wintypes.DWORD(1024)
-        buf = ctypes.create_unicode_buffer(size.value)
-        if kernel32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
-            return buf.value
-        return ""
-    finally:
-        kernel32.CloseHandle(handle)
-
-
-def our_windows():
-    """Visible top-level windows of the chrome.exe under test."""
-    want = os.path.normcase(os.path.abspath(CHROME))
+def our_windows(driver_pid):
+    """Visible top-level windows of this driver's browser."""
+    pids = {
+        pid
+        for pid, parent in parents_of(chrome_pids(CHROME)).items()
+        if parent == driver_pid
+    }
     found = []
 
     @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
@@ -244,7 +227,7 @@ def our_windows():
         if user32.IsWindowVisible(hwnd):
             pid = wintypes.DWORD()
             user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-            if os.path.normcase(process_path(pid.value)) == want:
+            if pid.value in pids:
                 found.append(hwnd)
         return True
 
@@ -294,19 +277,19 @@ def control_names(hwnd):
     return names
 
 
-def all_names():
+def all_names(driver_pid):
     names = []
-    for hwnd in our_windows():
+    for hwnd in our_windows(driver_pid):
         with contextlib.suppress(OSError):
             names.extend(control_names(hwnd))
     return names
 
 
-def wait_for_name(predicate, timeout=30):
+def wait_for_name(driver_pid, predicate, timeout=30):
     deadline = time.time() + timeout
     names = []
     while time.time() < deadline:
-        names = all_names()
+        names = all_names(driver_pid)
         if any(predicate(n) for n in names):
             return True, names
         time.sleep(1)
@@ -314,6 +297,7 @@ def wait_for_name(predicate, timeout=30):
 
 
 def check_prompt(check):
+    require_headful()
     work = scratch("boring-crx-")
     server = None
     try:
@@ -330,7 +314,7 @@ def check_prompt(check):
         os.makedirs(downloads)
         write_download_prefs(profile, downloads)
 
-        with Browser(user_data_dir=profile, args=[NO_NETWORK]) as b:
+        with Browser(user_data_dir=profile, args=[NO_NETWORK], headful=True) as b:
             b.get(f"http://127.0.0.1:{port}/")
             # A real click, so the download has a user gesture behind it.
             link = b._req(
@@ -340,7 +324,7 @@ def check_prompt(check):
             )["value"][ELEMENT]
             b._req("POST", f"/session/{b.sid}/element/{link}/click", {})
 
-            shown, names = wait_for_name(lambda n: TEST_NAME in n)
+            shown, names = wait_for_name(b.proc.pid, lambda n: TEST_NAME in n)
             check(
                 "a .crx from a web page gets the install prompt",
                 shown,

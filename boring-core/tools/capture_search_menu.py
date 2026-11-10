@@ -150,7 +150,7 @@ def run(theme, out, size, binary):
     if theme == "dark":
         args.append("--force-dark-mode")
     ok = True
-    with Browser(args=args, keep_switches=["enable-automation"]) as b:
+    with Browser(args=args, keep_switches=["enable-automation"], headful=True) as b:
         if not open_newtab(b):
             print("the new tab page did not load")
             return False

@@ -42,8 +42,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-import focus_lock
-from drive import CHROME, OFFSCREEN
+from drive import CHROME, OFFSCREEN, require_headful
 from measure_startup import DevTools
 from smoke_local import Checks, set_local_state, set_profile_pref
 
@@ -211,6 +210,7 @@ class Cdp(DevTools):
 
 
 def launch(exe, profile, extra):
+    require_headful()
     port_file = profile / "DevToolsActivePort"
     if port_file.exists():
         port_file.unlink()
@@ -478,6 +478,4 @@ def run(cdp, url, checks):
 
 
 if __name__ == "__main__":
-    # It starts its browsers itself, not through drive.Browser.
-    with focus_lock.hold():
-        sys.exit(main())
+    sys.exit(main())

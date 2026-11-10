@@ -334,7 +334,7 @@ def main():
         with tempfile.TemporaryDirectory(prefix="siteoff-") as profile:
             # A first run makes the profile, and shows the lists block
             # on both sites before anything is turned off.
-            with Browser(user_data_dir=profile, args=args) as b:
+            with Browser(user_data_dir=profile, args=args, headful=True) as b:
                 b.get(off_page)
                 check(
                     "ads blocked on the test site to begin with", wait_until_blocking(b)
@@ -345,7 +345,7 @@ def main():
                 return 1
             write_off_sites(profile, [OFF_SITE])
 
-            with Browser(user_data_dir=profile, args=args) as b:
+            with Browser(user_data_dir=profile, args=args, headful=True) as b:
                 hwnd = frame_window(CHROME, under=b.proc.pid)
 
                 b.get(control_page)

@@ -534,7 +534,7 @@ def main():
         with tempfile.TemporaryDirectory(prefix="sitepanel-") as profile:
             # --- run one: the panel, then the settings page ------------------
             print(f"  focus before the browser starts: {foreground_is_ours(0)[1]!r}")
-            with Browser(user_data_dir=profile, args=args) as b:
+            with Browser(user_data_dir=profile, args=args, headful=True) as b:
                 frame = frame_window(CHROME, under=b.proc.pid)
                 focus_note(b, "browser started")
                 page_tab = current_handle(b)
@@ -771,7 +771,7 @@ def main():
             )
 
             # --- run two: the same profile, restarted ------------------------
-            with Browser(user_data_dir=profile, args=args) as b:
+            with Browser(user_data_dir=profile, args=args, headful=True) as b:
                 frame = frame_window(CHROME, under=b.proc.pid)
                 b.get(page)
                 got = page_loaded(b) or {}

@@ -42,8 +42,8 @@ from collections import Counter
 from pathlib import Path
 from urllib.parse import urlsplit
 
-import focus_lock
-from drive import CHROME as DRIVE_CHROME, OFFSCREEN, Browser
+from drive import CHROME as DRIVE_CHROME
+from drive import OFFSCREEN, Browser, require_headful
 
 CHROME = Path(DRIVE_CHROME)
 
@@ -201,6 +201,7 @@ def hosts_in(netlog_path: Path) -> tuple[Counter, Counter]:
 
 
 def run_scenario(name: str, seconds: int, keep: bool) -> dict:
+    require_headful()
     spec = SCENARIOS[name]
     profile = Path(tempfile.mkdtemp(prefix=f"netaudit-{name}-", dir=TMP))
     if spec.get("seed_all_off"):
@@ -233,7 +234,7 @@ def run_scenario(name: str, seconds: int, keep: bool) -> dict:
         driver_args = [a for a in args[1:] if not a.startswith("--user-data-dir=")]
         driver_args = [a for a in driver_args if a not in spec["urls"]]
         print(" ", " ".join(driver_args))
-        with Browser(user_data_dir=str(profile), args=driver_args) as b:
+        with Browser(user_data_dir=str(profile), args=driver_args, headful=True) as b:
             for url in spec["urls"]:
                 b.get(url)
             time.sleep(seconds)
@@ -403,5 +404,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    with focus_lock.hold():
-        sys.exit(main())
+    sys.exit(main())

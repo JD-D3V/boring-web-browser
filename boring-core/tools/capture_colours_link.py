@@ -37,7 +37,9 @@ def main():
     ]
     if args.dark:
         chrome_args.append("--force-dark-mode")
-    with Browser(args=chrome_args, keep_switches=["enable-automation"]) as b:
+    with Browser(
+        args=chrome_args, keep_switches=["enable-automation"], headful=True
+    ) as b:
         b.get("chrome://boring-newtab")
         time.sleep(2.0)
         found = b.run("var c=document.getElementById('colours');"

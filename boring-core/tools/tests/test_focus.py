@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
-"""Offline tests for focus_lock.py (keeps test browsers off the foreground)
-and the report in probe_focus.py (which shows whether they stayed off).
+"""Offline tests for smoke browser launch isolation and focus reporting."""
 
-Usage:
-  python -m unittest discover -s boring-core/tools/tests
-"""
-
+import ctypes
 import os
 import sys
-import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -17,95 +12,134 @@ TOOLS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS))
 
 import drive  # noqa: E402
-import focus_lock  # noqa: E402
 import probe_focus  # noqa: E402
+import smoke_all  # noqa: E402
 
 
-class FocusLockTest(unittest.TestCase):
+class LaunchIsolationTest(unittest.TestCase):
     def setUp(self):
-        env = mock.patch.dict(os.environ)
-        env.start()
-        self.addCleanup(env.stop)
-        os.environ.pop("BORING_WINDOW_POSITION", None)
-        patched = mock.patch.object(focus_lock, "_lock")
-        self.lock = patched.start()
+        patched = mock.patch.dict(os.environ)
         self.addCleanup(patched.stop)
-        self.assertEqual(focus_lock._holders, 0)
-
-    def test_locked_before_hold_returns_and_unlocked_on_release(self):
-        h = focus_lock.hold()
-        self.assertEqual(self.lock.call_args_list[0], mock.call(focus_lock.LSFW_LOCK))
-        h.release()
-        self.assertEqual(
-            self.lock.call_args_list[-1], mock.call(focus_lock.LSFW_UNLOCK)
-        )
-        self.assertEqual(focus_lock._holders, 0)
-
-    def test_nested_holds_unlock_once_after_the_last(self):
-        a, b = focus_lock.hold(), focus_lock.hold()
-        a.release()
-        self.assertNotIn(mock.call(focus_lock.LSFW_UNLOCK), self.lock.call_args_list)
-        b.release()
-        unlocks = self.lock.call_args_list.count(mock.call(focus_lock.LSFW_UNLOCK))
-        self.assertEqual(unlocks, 1)
-
-    def test_releasing_twice_is_harmless(self):
-        a, b = focus_lock.hold(), focus_lock.hold()
-        a.release()
-        a.release()
-        self.assertEqual(focus_lock._holders, 1)
-        b.release()
-        self.assertEqual(focus_lock._holders, 0)
-
-    def test_with_block_releases_when_the_body_fails(self):
-        with self.assertRaises(ValueError), focus_lock.hold():
-            raise ValueError("boom")
-        self.assertEqual(focus_lock._holders, 0)
-
-    def test_asked_again_while_held_because_a_click_drops_the_lock(self):
-        with (
-            mock.patch.object(focus_lock, "REASSERT_SECONDS", 0.01),
-            focus_lock.hold(),
-        ):
-            time.sleep(0.15)
-            locks = self.lock.call_args_list.count(mock.call(focus_lock.LSFW_LOCK))
-        self.assertGreater(locks, 3)
-
-    def test_watching_on_purpose_locks_nothing(self):
-        os.environ["BORING_WINDOW_POSITION"] = "40,40"
-        with focus_lock.hold():
-            pass
-        self.lock.assert_not_called()
-        self.assertEqual(focus_lock._holders, 0)
-
-
-class BrowserHoldsTheForegroundTest(unittest.TestCase):
-    """drive.Browser must give the foreground back however it ends."""
-
-    def setUp(self):
-        patched = mock.patch.object(focus_lock, "_lock")
         patched.start()
-        self.addCleanup(patched.stop)
+        os.environ.pop("BORING_ALLOW_HEADFUL", None)
+        os.environ.pop("BORING_WINDOW_POSITION", None)
+        winapi = mock.patch.object(ctypes, "windll", create=True)
+        self.addCleanup(winapi.stop)
+        self.lock = winapi.start().user32.LockSetForegroundWindow
 
-    def test_a_browser_that_fails_to_start_does_not_leave_the_lock_held(self):
-        with (
-            mock.patch.object(drive, "free_port", side_effect=OSError("no port")),
-            self.assertRaises(OSError),
+    def test_webdriver_launches_headless_without_taking_global_lock(self):
+        for args, env in (
+            (None, {}),
+            (["--headless=new"], {"BORING_WINDOW_POSITION": "40,40"}),
+            (["headless=old"], {"BORING_ALLOW_HEADFUL": "1"}),
         ):
+            with (
+                self.subTest(args=args, env=env),
+                mock.patch.dict(os.environ, env),
+                mock.patch.object(drive.subprocess, "Popen") as start,
+                mock.patch.object(drive.Browser, "_req") as req,
+            ):
+                start.return_value.poll.return_value = None
+                req.return_value = {"value": {"sessionId": "test"}}
+                with drive.Browser(args=args):
+                    pass
+                caps = next(
+                    call.args[2]
+                    for call in req.call_args_list
+                    if call.args[:2] == ("POST", "/session")
+                )
+                chrome_args = caps["capabilities"]["alwaysMatch"]["goog:chromeOptions"][
+                    "args"
+                ]
+                self.assertEqual(
+                    ["--headless=new"],
+                    [arg for arg in chrome_args if arg.startswith("--headless")],
+                )
+                self.lock.assert_not_called()
+
+    def test_session_start_failure_terminates_the_owned_driver(self):
+        with (
+            mock.patch.object(drive.subprocess, "Popen") as start,
+            mock.patch.object(drive.Browser, "_req") as req,
+            self.assertRaisesRegex(RuntimeError, "session failed"),
+        ):
+            start.return_value.poll.return_value = None
+            req.side_effect = [None, RuntimeError("session failed")]
             drive.Browser()
-        self.assertEqual(focus_lock._holders, 0)
+        start.return_value.terminate.assert_called_once()
 
-    def test_quit_gives_the_foreground_back_even_if_the_session_delete_fails(self):
-        b = drive.Browser.__new__(drive.Browser)
-        b._focus = focus_lock.hold()
-        b.sid, b.proc = "s", mock.Mock()
+    def test_session_delete_failure_terminates_the_owned_driver(self):
         with (
-            mock.patch.object(b, "_req", side_effect=RuntimeError("gone")),
-            self.assertRaises(RuntimeError),
+            mock.patch.object(drive.subprocess, "Popen") as start,
+            mock.patch.object(drive.Browser, "_req") as req,
+            self.assertRaisesRegex(RuntimeError, "session gone"),
         ):
-            b.quit()
-        self.assertEqual(focus_lock._holders, 0)
-        b.proc.terminate.assert_called_once()
+            start.return_value.poll.return_value = None
+            req.side_effect = [
+                None,
+                {"value": {"sessionId": "test"}},
+                RuntimeError("session gone"),
+            ]
+            with drive.Browser():
+                pass
+        start.return_value.terminate.assert_called_once()
+
+    def test_native_request_fails_before_starting_driver(self):
+        os.environ["BORING_WINDOW_POSITION"] = "40,40"
+        with (
+            mock.patch.object(drive.subprocess, "Popen") as start,
+            self.assertRaisesRegex(RuntimeError, "BORING_ALLOW_HEADFUL=1"),
+        ):
+            drive.Browser(headful=True)
+        start.assert_not_called()
+
+    def test_switch_terminator_is_rejected_before_starting_driver(self):
+        with (
+            mock.patch.object(drive.subprocess, "Popen") as start,
+            self.assertRaisesRegex(ValueError, "switch name"),
+        ):
+            drive.Browser(args=["--", "--headless=new"])
+        start.assert_not_called()
+
+    def test_explicit_native_launch_preserves_visible_window_options(self):
+        os.environ["BORING_ALLOW_HEADFUL"] = "1"
+        os.environ["BORING_WINDOW_POSITION"] = "40,40"
+        with (
+            mock.patch.object(drive.subprocess, "Popen") as start,
+            mock.patch.object(drive.Browser, "_req") as req,
+        ):
+            start.return_value.poll.return_value = None
+            req.return_value = {"value": {"sessionId": "test"}}
+            with drive.Browser(headful=True):
+                pass
+        caps = next(
+            call.args[2]
+            for call in req.call_args_list
+            if call.args[:2] == ("POST", "/session")
+        )
+        chrome_args = caps["capabilities"]["alwaysMatch"]["goog:chromeOptions"]["args"]
+        self.assertIn("--window-position=40,40", chrome_args)
+        self.assertFalse(any(arg.startswith("--headless") for arg in chrome_args))
+        self.lock.assert_not_called()
+
+    def test_suite_reports_blocked_native_checks_as_incomplete(self):
+        with (
+            mock.patch.object(
+                smoke_all,
+                "CHECKS",
+                [
+                    ("native check", "smoke_tabs.py"),
+                    ("headless check", "smoke_scam.py"),
+                ],
+            ),
+            mock.patch.object(smoke_all.subprocess, "run") as run,
+            mock.patch("builtins.print") as printed,
+        ):
+            run.return_value.returncode = 0
+            self.assertEqual(smoke_all.main(), 1)
+        run.assert_called_once()
+        self.assertTrue(run.call_args.args[0][1].endswith("smoke_scam.py"))
+        self.assertIn("blocked", str(printed.call_args_list).lower())
 
 
 class ProbeReportTest(unittest.TestCase):

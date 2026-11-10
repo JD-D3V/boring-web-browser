@@ -2,13 +2,15 @@
 """Run every check against the built browser and print a summary.
 
 Usage: python smoke_all.py
+Set BORING_ALLOW_HEADFUL=1 in a dedicated Windows test session for the
+full suite. Without it, native checks are reported as blocked.
 """
 
 import os
 import subprocess
 import sys
 
-from drive import OUT
+from drive import headful_allowed
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -67,31 +69,29 @@ CHECKS = [
 ]
 
 
-def stop_browsers():
-    # Only the copies from our build folder. Killing every chrome.exe by
-    # name would also close the Google Chrome someone is using.
-    script = (
-        "Get-Process chrome, chromedriver -ErrorAction SilentlyContinue"
-        " | Where-Object { $_.Path -and $_.Path.StartsWith($env:BORING_OUT,"
-        " [StringComparison]::OrdinalIgnoreCase) }"
-        " | Stop-Process -Force"
-    )
-    subprocess.run(
-        ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
-        capture_output=True,
-        env={**os.environ, "BORING_OUT": OUT},
-    )
+NATIVE_CHECKS = {
+    "smoke_memory.py",
+    "smoke_siteoff.py",
+    "smoke_site_panel.py",
+    "smoke_webstore.py",
+    "smoke_forget.py",
+    "smoke_tabs.py",
+    "smoke_vtabs.py",
+}
 
 
 def main():
     results = []
+    allow_headful = headful_allowed()
     for label, script in CHECKS:
         path = os.path.join(HERE, script)
         if not os.path.exists(path):
             results.append((label, "no test yet"))
             continue
+        if script in NATIVE_CHECKS and not allow_headful:
+            results.append((label, "blocked (needs BORING_ALLOW_HEADFUL=1)"))
+            continue
         print("\n=== " + label + " ===")
-        stop_browsers()
         result = subprocess.run([sys.executable, path], cwd=HERE)
         # 3 means a check that does not apply to this build, and it is
         # not a pass: a capability we deliberately left out should read
@@ -103,14 +103,12 @@ def main():
         else:
             outcome = "FAIL"
         results.append((label, outcome))
-    stop_browsers()
-
     print("\n\nSummary")
     print("-------")
     failed = 0
     for label, outcome in results:
         print(f"{label:<38} {outcome}")
-        if outcome == "FAIL":
+        if outcome == "FAIL" or outcome.startswith("blocked"):
             failed += 1
     return 1 if failed else 0
 
