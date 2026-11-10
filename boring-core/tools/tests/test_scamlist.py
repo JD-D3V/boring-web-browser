@@ -37,6 +37,11 @@ TOP_FIXTURE = os.path.join(
 )
 VENDORED_SUFFIXES = os.path.join(get_scamlist.DATA_DIR, "effective_tld_names.dat")
 VENDORED_TOP = os.path.join(get_scamlist.DATA_DIR, "domains.list")
+# Six different sites that are on the vendored top sites list and not in
+# NEVER_BLOCK (which is stripped before popular sites are counted).
+SIX_POPULAR_SITES = [
+    "paypal.com", "chase.com", "wellsfargo.com", "netflix.com", "ebay.com", "walmart.com",
+]
 _suffix_patch = mock.patch.object(get_scamlist, "PUBLIC_SUFFIX_FILE", SUFFIX_FIXTURE)
 _top_patch = mock.patch.object(get_scamlist, "TOP_DOMAINS_FILE", TOP_FIXTURE)
 
@@ -242,12 +247,14 @@ class PopularSites(unittest.TestCase):
         self.assertNotIn("www.paypal.com", lines)
 
     def test_a_feed_full_of_popular_sites_is_refused(self):
-        many = "\n".join(f"www{i}.chase.com" for i in range(8))
+        # Several names under one site would be one site; these are six.
+        many = "\n".join(f"www.{site}" for site in SIX_POPULAR_SITES)
         answers = {
             get_scamlist.CERT_URL: cert_text(get_scamlist.CERT_MIN_HOSTS) + "\n" + many,
             get_scamlist.DURABLENAPKIN_URL: napkin_text(),
         }
-        built = get_scamlist.build_scam_list(fetch=stub_fetch(answers))
+        with mock.patch.object(get_scamlist, "TOP_DOMAINS_FILE", VENDORED_TOP):
+            built = get_scamlist.build_scam_list(fetch=stub_fetch(answers))
         self.assertEqual([s.name for s in built.failed], ["cert-polska"])
         self.assertIn("popular sites", built.failed[0].reason)
 
@@ -322,9 +329,9 @@ class PopularSitesPrivateSuffixes(unittest.TestCase):
         self.assertEqual(built.failed, [])
         self.assertIn("scam11.wordpress.com", built.text.splitlines())
 
-    def test_more_than_five_popular_entries_still_refuse_the_feed(self):
-        count = get_scamlist.MAX_POPULAR_DROPS + 1
-        popular = "\n".join(f"www{i}.paypal.com" for i in range(count))
+    def test_more_than_five_popular_sites_still_refuse_the_feed(self):
+        self.assertEqual(len(SIX_POPULAR_SITES), get_scamlist.MAX_POPULAR_DROPS + 1)
+        popular = "\n".join(SIX_POPULAR_SITES)
         answers = {
             get_scamlist.CERT_URL: cert_text(get_scamlist.CERT_MIN_HOSTS) + "\n" + popular,
             get_scamlist.DURABLENAPKIN_URL: napkin_text(),
@@ -332,6 +339,34 @@ class PopularSitesPrivateSuffixes(unittest.TestCase):
         built = get_scamlist.build_scam_list(fetch=stub_fetch(answers))
         self.assertEqual([s.name for s in built.failed], ["cert-polska"])
         self.assertIn("popular sites", built.failed[0].reason)
+
+    def test_many_entries_on_a_few_popular_sites_do_not_refuse_the_feed(self):
+        # The shape of the DurableNapkin feed on 2026-11-10: seven entries,
+        # three sites. All seven go; the feed is kept.
+        entries = [
+            "binomo.com", "www.binomo.com",
+            "wallpaperflare.com", "www.wallpaperflare.com",
+            "z-lib.is", "www.z-lib.is", "store.z-lib.is",
+        ]
+        answers = {
+            get_scamlist.CERT_URL: cert_text(get_scamlist.CERT_MIN_HOSTS)
+            + "\n" + "\n".join(entries),
+            get_scamlist.DURABLENAPKIN_URL: napkin_text(),
+        }
+        built = get_scamlist.build_scam_list(fetch=stub_fetch(answers))
+        self.assertEqual(built.failed, [])
+        lines = set(built.text.splitlines())
+        self.assertFalse(lines & set(entries))
+        self.assertEqual(get_scamlist.count_popular_sites(set(entries)), 3)
+
+    def test_the_site_count_is_per_registrable_domain(self):
+        self.assertEqual(
+            get_scamlist.count_popular_sites(
+                {"paypal.com", "login.paypal.com", "chase.com"}
+            ),
+            2,
+        )
+        self.assertEqual(get_scamlist.count_popular_sites(set()), 0)
 
 
 class VendoredData(unittest.TestCase):

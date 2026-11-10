@@ -227,7 +227,9 @@ BRANDS_FILE = os.path.join(
     "lookalike_brands.inc",
 )
 
-# Like MAX_SUFFIX_DROPS: a feed with more popular sites than this is refused.
+# Like MAX_SUFFIX_DROPS: a feed naming more popular sites than this is refused.
+# Counted in distinct sites, not entries: www.x.com and x.com are one site.
+# Every such entry is dropped either way.
 MAX_POPULAR_DROPS = 5
 # lookalike_brands.inc holds about 100 brands. Fewer than this means the
 # file or the pattern that reads it changed.
@@ -287,6 +289,20 @@ def drop_popular_sites(hosts: set[str]) -> tuple[set[str], set[str]]:
         if h in popular or registrable_domain(h, plain, wild, exceptions) in popular
     }
     return hosts - dropped, dropped
+
+
+def count_popular_sites(dropped: set[str]) -> int:
+    """How many different sites the dropped entries belong to.
+
+    A feed that lists www, the bare name and a store host of one popular site
+    has named one site, not three. The refusal limit counts sites."""
+    plain, wild, exceptions = load_public_suffixes()
+    plain = plain | PLATFORM_SUFFIXES
+    popular = load_popular_sites()
+    return len({
+        h if h in popular else registrable_domain(h, plain, wild, exceptions)
+        for h in dropped
+    })
 
 
 def parse_hostfile(text: str) -> set[str]:
@@ -464,8 +480,9 @@ def _collect(name: str, url: str, parse, fetch_fn) -> tuple[SourceStatus, set[st
     hosts, popular = drop_popular_sites(hosts)
     if popular:
         print(f"{name}: dropped popular sites: {sorted(popular)[:20]}", file=sys.stderr)
-    if len(popular) > MAX_POPULAR_DROPS:
-        status.reason = f"{len(popular)} entries are popular sites"
+    sites = count_popular_sites(popular)
+    if sites > MAX_POPULAR_DROPS:
+        status.reason = f"{len(popular)} entries are popular sites ({sites} sites)"
         return status, set()
 
     floor = SOURCE_MIN_HOSTS.get(name, MIN_SOURCE_HOSTS)
