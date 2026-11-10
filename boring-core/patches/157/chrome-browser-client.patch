@@ -11,10 +11,10 @@ diff --git a/chrome/browser/chrome_content_browser_client.cc b/chrome/browser/ch
  #include "components/captive_portal/core/buildflags.h"
  #include "components/content_settings/browser/page_specific_content_settings.h"
  #include "components/content_settings/browser/ui/javascript_optimizer_setting.h"
-@@ -6029,6 +6032,12 @@ ChromeContentBrowserClient::CreateURLLoaderThrottles(
-     result.push_back(std::move(contextual_tasks_throttle));
+@@ -6289,6 +6292,12 @@ ChromeContentBrowserClient::CreateURLLoaderThrottles(
+     result.push_back(std::move(glic_throttle));
    }
- 
+
 +  auto boring_adblock_throttle =
 +      boring::AdblockThrottle::MaybeCreate(request, browser_context);
 +  if (boring_adblock_throttle) {
