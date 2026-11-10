@@ -1,7 +1,7 @@
 diff --git a/chrome/browser/resources/settings/router.ts b/chrome/browser/resources/settings/router.ts
 --- a/chrome/browser/resources/settings/router.ts
 +++ b/chrome/browser/resources/settings/router.ts
-@@ -51,6 +51,8 @@ export interface SettingsRoutes {
+@@ -52,6 +52,8 @@ export interface SettingsRoutes {
    PRELOADING: Route;
    PRIVACY: Route;
    PRIVACY_GUIDE: Route;
@@ -11,8 +11,8 @@ diff --git a/chrome/browser/resources/settings/router.ts b/chrome/browser/resour
    RESET_DIALOG: Route;
    SAFETY_HUB: Route;
 @@ -115,6 +117,7 @@ export interface SettingsRoutes {
+   SITE_SETTINGS_WEB_PRINTING: Route;
    SKILLS: Route;
-   SPELL_CHECK: Route;
    SUGGESTIONS_FROM_GEMINI: Route;
 +  SUMMARIES: Route;
    SYNC: Route;
@@ -83,16 +83,16 @@ diff --git a/chrome/browser/resources/settings/page_visibility.ts b/chrome/brows
 diff --git a/chrome/browser/resources/settings/BUILD.gn b/chrome/browser/resources/settings/BUILD.gn
 --- a/chrome/browser/resources/settings/BUILD.gn
 +++ b/chrome/browser/resources/settings/BUILD.gn
-@@ -88,6 +88,9 @@ build_webui("build") {
-     "autofill_page/suggestions_from_gemini/suggestions_from_gemini_page.ts",
-     "autofill_page/travel/travel_page.ts",
-     "autofill_page/walletable_pass_detection_toggle.ts",
+@@ -51,6 +51,9 @@ build_webui("build") {
+
+   # -----------------web_component_files start ---------------------------------
+   web_component_files = [
 +    "boring_page/boring_protection_page.ts",
 +    "boring_page/boring_reading_page.ts",
 +    "boring_page/boring_summaries_page.ts",
-     "clear_browsing_data_dialog/clear_browsing_data_dialog.ts",
-     "clear_browsing_data_dialog/clear_browsing_data_time_picker.ts",
-     "clear_browsing_data_dialog/history_deletion_dialog.ts",
+     "controls/collapse_radio_button.ts",
+     "controls/controlled_radio_button.ts",
+     "controls/settings_checkbox.ts",
 diff --git a/chrome/browser/resources/settings/settings_main/settings_main.html b/chrome/browser/resources/settings/settings_main/settings_main.html
 --- a/chrome/browser/resources/settings/settings_main/settings_main.html
 +++ b/chrome/browser/resources/settings/settings_main/settings_main.html
