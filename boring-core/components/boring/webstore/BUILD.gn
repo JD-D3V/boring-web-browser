@@ -21,6 +21,7 @@ static_library("webstore") {
     "//components/user_prefs",
     "//content/public/browser",
     "//extensions/browser",
+    "//extensions/browser:crx_installer",
     "//extensions/common",
     "//extensions/common:mojom",
   ]
