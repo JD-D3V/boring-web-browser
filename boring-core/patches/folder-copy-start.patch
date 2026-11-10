@@ -1,0 +1,12 @@
+--- a/chrome/browser/ui/tab_helpers.cc
++++ b/chrome/browser/ui/tab_helpers.cc
+@@ -108,2 +108,3 @@
+ #include "components/blocked_content/popup_opener_tab_helper.h"
++#include "components/boring/folder_copy/folder_copy.h"
+ #include "components/boring/lists/list_updater.h"
+@@ -342,4 +343,5 @@
+   Profile* profile =
+       Profile::FromBrowserContext(web_contents->GetBrowserContext());
++  boring::folder_copy::FolderCopy::Start(profile);
+ 
+   // --- Section 1: Common tab helpers ---

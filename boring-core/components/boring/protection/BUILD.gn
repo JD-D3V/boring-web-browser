@@ -23,6 +23,7 @@ static_library("protection") {
     "//components/boring/ai",
     "//components/boring/branding",
     "//components/boring/core",
+    "//components/boring/folder_copy",
     "//components/boring/lists",
     "//components/boring/performance",
     "//components/boring/privacy",

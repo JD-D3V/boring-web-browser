@@ -1,0 +1,31 @@
+# Copyright 2026 boring. BSD style license.
+
+# "Keep a copy in a folder". Reaches into chrome/browser for the bookmark
+# export and import, so it is only depended on from the Protection page
+# and the tab helper hook, never from chrome/browser itself.
+static_library("folder_copy") {
+  sources = [
+    "folder_copy.cc",
+    "folder_copy.h",
+    "folder_copy_settings.cc",
+    "folder_copy_settings.h",
+    "folder_picker.cc",
+    "folder_picker.h",
+  ]
+  deps = [
+    "//base",
+    "//chrome/browser/bookmarks",
+    "//chrome/browser/importer",
+    "//chrome/browser/profiles:profile",
+    "//chrome/browser/ui/select_file_policy",
+    "//components/bookmarks/browser",
+    "//components/boring/ai",
+    "//components/boring/core",
+    "//components/boring/lists",
+    "//components/prefs",
+    "//components/user_data_importer/common",
+    "//content/public/browser",
+    "//ui/shell_dialogs",
+    "//url",
+  ]
+}

@@ -6,6 +6,7 @@
 #include <string_view>
 #include <utility>
 
+#include "base/files/file_path.h"
 #include "base/values.h"
 #include "components/boring/core/native_hosts.h"
 #include "components/pref_registry/pref_registry_syncable.h"
@@ -49,6 +50,8 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   // person's other devices.
   registry->RegisterListPref(prefs::kNativeHostsAllowed);
   registry->RegisterBooleanPref(prefs::kNativeHostsDecided, false);
+  registry->RegisterFilePathPref(prefs::kBoringFolderCopyDir, base::FilePath());
+  registry->RegisterBooleanPref(prefs::kBoringFolderCopyArmed, false);
 }
 
 void MigrateObsoleteProfilePrefs(PrefService* prefs) {
