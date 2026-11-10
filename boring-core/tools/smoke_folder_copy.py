@@ -33,8 +33,11 @@ import time
 from drive import Browser
 
 URL = "chrome://boring-protection"
-TMP = os.environ.get("TMP", r"E:\tmp")
+# The switch is honoured only under the temp directory the browser sees,
+# and the browser inherits ours, so the test folders go under that.
+TMP = tempfile.gettempdir()
 ROOT = os.path.join(TMP, "feat-folder-copy")
+RULES = "boring.adblock.custom_rules"
 SETTINGS = "boring-settings.json"
 BOOKMARKS = "bookmarks.html"
 SECRET_COOKIE = "ZZSECRETCOOKIE9"
