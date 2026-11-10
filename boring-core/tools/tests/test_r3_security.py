@@ -75,6 +75,15 @@ class GuardTestHooks(unittest.TestCase):
         self.assertIn("not localhost: nothing answers the bar", smoke)
 
 
+class ListManifestVersion(unittest.TestCase):
+    """Pass 2, T5. An equal version number is not applied."""
+
+    def test_equal_version_is_refused(self):
+        cc = read(BORING / "lists" / "list_updater.cc")
+        self.assertIn("if (*version <= local_.version) {", cc)
+        self.assertNotIn("if (*version < local_.version) {", cc)
+
+
 class NativeLaunchPath(unittest.TestCase):
     """Item 62. The launch-from-native path asks the same delegate check."""
 
