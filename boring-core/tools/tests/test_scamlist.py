@@ -260,6 +260,19 @@ class PopularSites(unittest.TestCase):
                     get_scamlist.DURABLENAPKIN_URL: napkin_text(40),
                 }))
 
+    def test_a_brand_file_that_reads_as_empty_stops_the_build(self):
+        gone = os.path.join(tempfile.mkdtemp(prefix="brands-"), "brands.inc")
+        self.addCleanup(shutil.rmtree, os.path.dirname(gone), ignore_errors=True)
+        with open(gone, "w", encoding="utf-8") as f:
+            f.write('{"paypal", "paypal.com"}\n// a format the pattern no longer reads\n')
+        with mock.patch.object(get_scamlist, "BRANDS_FILE", gone):
+            with self.assertRaises(get_scamlist.FeedError):
+                get_scamlist.load_popular_sites()
+
+    def test_the_shipped_brand_file_clears_the_minimum(self):
+        sites = get_scamlist.load_popular_sites()
+        self.assertGreaterEqual(len(sites), get_scamlist.MIN_BRANDS)
+
     def test_the_real_top_list_is_read_and_brands_are_added(self):
         real = os.path.join(
             os.environ.get("BORING_SRC", r"E:\ung-154\build\src"),

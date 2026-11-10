@@ -216,6 +216,9 @@ BRANDS_FILE = os.path.join(
 
 # Like MAX_SUFFIX_DROPS: a feed with more popular sites than this is refused.
 MAX_POPULAR_DROPS = 5
+# lookalike_brands.inc holds about 100 brands. Fewer than this means the
+# file or the pattern that reads it changed.
+MIN_BRANDS = 50
 
 
 def load_popular_sites() -> set[str]:
@@ -228,7 +231,14 @@ def load_popular_sites() -> set[str]:
     if "google.com" not in sites:
         raise FeedError(f"{TOP_DOMAINS_FILE} does not look like the top sites list")
     with open(BRANDS_FILE, encoding="utf-8") as f:
-        sites.update(re.findall(r'^\{"[a-z0-9]+", "([a-z0-9.-]+)"\}', f.read(), re.M))
+        brands = re.findall(r'^\{"[a-z0-9]+", "([a-z0-9.-]+)"\}', f.read(), re.M)
+    # A format change that makes the pattern match nothing would otherwise
+    # drop the brands quietly and let a brand's own site onto the list.
+    if len(brands) < MIN_BRANDS:
+        raise FeedError(
+            f"{BRANDS_FILE} gave {len(brands)} brands, expected at least {MIN_BRANDS}"
+        )
+    sites.update(brands)
     return sites
 
 

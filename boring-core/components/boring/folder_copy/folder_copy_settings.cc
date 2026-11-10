@@ -166,7 +166,7 @@ std::string Describe(const Setting& setting, const base::Value& value) {
 // New filter rules that change what a site gets. kException switches
 // blocking off: a network exception (@@) or a cosmetic or scriptlet
 // exception (#@#). kCosmetic hides parts of a page or injects a script (##,
-// ##+js). Only lines that are new count.
+// ##+js, #?#, #$#). Only lines that are new count.
 enum class Added { kNothing, kException, kCosmetic };
 
 Added AddsException(const std::string& from, const std::string& to) {
@@ -193,7 +193,9 @@ Added AddsException(const std::string& from, const std::string& to) {
     if (line.rfind("@@", 0) == 0 || line.find("#@") != std::string::npos) {
       return Added::kException;
     }
-    if (line.find("##") != std::string::npos) {
+    if (line.find("##") != std::string::npos ||
+        line.find("#?#") != std::string::npos ||
+        line.find("#$#") != std::string::npos) {
       result = Added::kCosmetic;
     }
   }

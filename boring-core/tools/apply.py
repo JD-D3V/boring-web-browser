@@ -190,6 +190,7 @@ def seed_pristine(src, patches, pristine=PRISTINE):
         # A header path outside the tree would put the copy outside the store.
         if (
             os.path.isabs(rel)
+            or os.path.splitdrive(rel)[0]  # C:foo is not absolute but names a drive
             or rel.startswith(("/", os.sep))
             or ".." in rel.replace("\\", "/").split("/")
         ):

@@ -96,6 +96,9 @@ class ExceptionRulesAreFlagged(unittest.TestCase):
         self.assertIn('"#@"', adds)
         # Pass 2: new cosmetic and scriptlet rules are flagged too.
         self.assertIn('"##"', adds)
+        # Pass 3: procedural and style-injection rules count as well.
+        self.assertIn('"#?#"', adds)
+        self.assertIn('"#$#"', adds)
         self.assertIn("some change how certain sites look or act", self.cc)
         self.assertIn("old_lines.count(line)", adds)
 
