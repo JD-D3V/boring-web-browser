@@ -28,6 +28,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
+#include "components/boring/scam/lookalike_blocking_page.h"
 #include "components/constrained_window/constrained_window_views.h"
 #include "components/content_settings/core/browser/content_settings_info.h"
 #include "components/content_settings/core/browser/host_content_settings_map.h"
@@ -270,6 +271,8 @@ void ForgetSite(Profile* profile,
     return;
   }
   ResetPermissions(profile, url);
+  // A remembered "Continue anyway" on the look-alike warning goes too.
+  ForgetLookalike(profile, site);
   auto filter = content::BrowsingDataFilterBuilder::Create(
       content::BrowsingDataFilterBuilder::Mode::kDelete);
   filter->AddRegisterableDomain(site);

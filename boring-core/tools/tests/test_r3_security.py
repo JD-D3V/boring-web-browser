@@ -203,5 +203,35 @@ class DebounceCredit(unittest.TestCase):
         self.assertEqual(self.check("nothing", "NOTICES-other.txt").problems, [])
 
 
+class NoteFixes(unittest.TestCase):
+    """Item 67: the cheap note-level findings (S12, S13, S14)."""
+
+    def test_s12_add_box_warns_about_lists(self):
+        ui = read(BORING / "protection" / "protection_ui.cc")
+        self.assertIn("A list can hide or change parts of any site", ui)
+        self.assertIn("Add lists only from", ui)
+        self.assertIn(
+            "Add lists only from people you trust",
+            read(TOOLS / "smoke_own_lists.py"),
+        )
+
+    def test_s13_site_rules_checks_the_callback_id(self):
+        cc = read(BORING / "protection" / "site_rules_handler.cc")
+        get = cc.split("void SiteRulesHandler::HandleGet(", 1)[1].split("\n}\n", 1)[0]
+        self.assertIn("!args[0].is_string()", get)
+
+    def test_s14_forget_site_takes_back_the_lookalike_click_through(self):
+        forget = read(
+            CORE / "chromium_src" / "chrome" / "browser" / "ui" / "views" / "boring"
+            / "boring_forget.cc"
+        )
+        body = forget.split("void ForgetSite(", 1)[1].split("\n}\n", 1)[0]
+        self.assertIn("ForgetLookalike(profile, site)", body)
+        page = read(BORING / "scam" / "lookalike_blocking_page.cc")
+        fn = page.split("void ForgetLookalike(", 1)[1].split("\n}\n", 1)[0]
+        self.assertIn("kLookalikeAllowedSites", fn)
+        self.assertIn("domains.erase(domain)", fn)
+
+
 if __name__ == "__main__":
     unittest.main()

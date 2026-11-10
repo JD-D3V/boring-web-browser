@@ -420,7 +420,9 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
     <div class="add-list">
       <label for="user-list-address"><strong>Add a filter list</strong></label>
       <p id="user-list-desc">Paste its address. It must start with https://
-      and be under 5 MB. It is downloaded now and then about once a week.</p>
+      and be under 5 MB. It is downloaded now and then about once a week.
+      A list can hide or change parts of any site. Add lists only from
+      people you trust.</p>
       <div class="actions">
         <input type="text" id="user-list-address" spellcheck="false"
             autocomplete="off" aria-describedby="user-list-desc">

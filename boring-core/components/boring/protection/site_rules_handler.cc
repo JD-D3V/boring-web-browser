@@ -39,7 +39,7 @@ void SiteRulesHandler::RegisterMessages() {
 
 // [callback id, origin]
 void SiteRulesHandler::HandleGet(const base::ListValue& args) {
-  if (args.size() != 2 || !args[1].is_string()) {
+  if (args.size() != 2 || !args[0].is_string() || !args[1].is_string()) {
     return;
   }
   AllowJavascript();
