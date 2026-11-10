@@ -32,6 +32,14 @@ namespace {
 // up without restarting the browser.
 constexpr base::TimeDelta kCheckInterval = base::Minutes(30);
 
+// A list with fewer hosts than this is treated as broken (only comments, no
+// host lines), not as "ready", so the Protection page never says scam
+// protection works while it blocks nothing. Real lists hold tens of
+// thousands. The development stand-in that tools/apply.py stages and the
+// smoke test lists hold a few more than this (tools/tests/test_scamlist.py
+// checks that).
+constexpr size_t kMinHosts = 10;
+
 // Hosts this profile chose to continue to, kept on the browser context
 // so they die with the profile and never reach another one.
 constexpr char kAllowedHostsKey[] = "boring_scam_allowed_hosts";
@@ -160,8 +168,15 @@ void ScamService::LoadOnBackgroundThread() {
     return;
   }
 
-  auto built = base::MakeRefCounted<ScamBlocklist>(handle);
   const size_t hosts = lib->scamlist_size(handle);
+  if (hosts < kMinHosts) {
+    lib->scamlist_free(handle);
+    LOG(ERROR) << "boring scam: blocklist has only " << hosts
+               << " hosts, scam protection is OFF";
+    fail("the blocklist has too few hosts");
+    return;
+  }
+  auto built = base::MakeRefCounted<ScamBlocklist>(handle);
   {
     base::AutoLock lock(lock_);
     // Dropping the old reference here does not free anything that is

@@ -18,8 +18,9 @@ struct PrivacyState {
   // Secure DNS: "off", "automatic" or "secure", and the server address.
   std::string dns_mode;
   std::string dns_server;
-  // True when the resolver in use is Quad9, whose filtering is what
-  // blocks known malware and phishing domains.
+  // True when Secure DNS is in secure mode with Quad9 as the only server,
+  // set by the person (not automatic mode, a policy or parental controls).
+  // Quad9's filtering is what blocks known malware and phishing domains.
   bool dns_filters_threats = false;
   // Set by an administrator or policy, so the person cannot change it.
   bool dns_managed = false;

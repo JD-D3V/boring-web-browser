@@ -687,16 +687,26 @@ pub unsafe extern "C" fn boring_scamlist_contains(
             None => return 0,
         };
         let set = &unsafe { &*handle }.0;
-        let mut part: &str = host.trim_end_matches('.');
-        loop {
+        let host: &str = host.trim_end_matches('.');
+        // The walk up stops at the registrable domain (example.com,
+        // example.co.uk, name.github.io), so an entry that is a public
+        // suffix (co.uk, github.io) never blocks everything under it. A
+        // host that is itself a suffix has no such domain and is not
+        // blocked.
+        let Some(registrable) = psl::domain_str(host) else {
+            return 0;
+        };
+        let mut part = host;
+        while part.len() >= registrable.len() {
             if set.contains(part) {
                 return 1;
             }
             match part.split_once('.') {
-                Some((_, rest)) if rest.contains('.') => part = rest,
-                _ => return 0,
+                Some((_, rest)) => part = rest,
+                None => break,
             }
         }
+        0
     });
     result.unwrap_or(0)
 }
@@ -780,6 +790,44 @@ bad.test
         assert!(!scam_list_blocks(list, "notbad.test"));
         assert!(scam_list_blocks(list, "bad.test"));
         assert!(scam_list_blocks(list, "www.bad.test"));
+    }
+
+    // An entry that is a public suffix must not block every site under it.
+    #[test]
+    fn scam_list_entry_that_is_a_public_suffix_blocks_nothing() {
+        let list = "co.uk
+*.com.au
+github.io
+blogspot.com
+com
+bad.example.net
+";
+        assert!(!scam_list_blocks(list, "shop.co.uk"));
+        assert!(!scam_list_blocks(list, "www.shop.co.uk"));
+        assert!(!scam_list_blocks(list, "co.uk"));
+        assert!(!scam_list_blocks(list, "bank.com.au"));
+        assert!(!scam_list_blocks(list, "someone.github.io"));
+        assert!(!scam_list_blocks(list, "a.b.someone.github.io"));
+        assert!(!scam_list_blocks(list, "blog.blogspot.com"));
+        assert!(!scam_list_blocks(list, "example.com"));
+        // Ordinary entries still work beside them.
+        assert!(scam_list_blocks(list, "bad.example.net"));
+        assert!(scam_list_blocks(list, "www.bad.example.net"));
+    }
+
+    // A single site on a shared suffix can still be listed, and so can
+    // everything under it.
+    #[test]
+    fn scam_list_blocks_one_site_on_a_shared_suffix() {
+        let list = "paypal-login.github.io
+fake-shop.co.uk
+";
+        assert!(scam_list_blocks(list, "paypal-login.github.io"));
+        assert!(scam_list_blocks(list, "www.paypal-login.github.io"));
+        assert!(!scam_list_blocks(list, "other.github.io"));
+        assert!(scam_list_blocks(list, "fake-shop.co.uk"));
+        assert!(scam_list_blocks(list, "www.fake-shop.co.uk"));
+        assert!(!scam_list_blocks(list, "good-shop.co.uk"));
     }
 
     #[test]

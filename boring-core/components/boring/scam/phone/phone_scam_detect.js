@@ -205,7 +205,9 @@
   const DIALOG_SELECTOR =
       'dialog, [role="dialog"], [role="alertdialog"], [aria-modal="true"]';
 
-  function collectLayout(doc, win) {
+  // bodyText is the page's text, read once by the caller: reading it again
+  // is a second layout of the whole page.
+  function collectLayout(doc, win, bodyText) {
     const vw = win.innerWidth || 1, vh = win.innerHeight || 1;
     const viewport = vw * vh;
     const layout = {
@@ -234,6 +236,11 @@
       const placed = style.position === 'fixed' ||
           (style.position === 'absolute' && parseInt(style.zIndex, 10) > 0);
       if (!dialog && !(placed && area >= 0.12 * viewport)) continue;
+      // textContent costs no layout and is about as long as the visible
+      // text, so a long block is passed over before its text is laid out.
+      // Without this, nested blocks on a huge page each lay out the whole
+      // page's text again.
+      if ((el.textContent || '').length > 1500) continue;
       const inner = el.innerText || '';
       if (inner.length > 1500 || el.querySelectorAll('a[href]').length > 4) {
         continue;
@@ -262,8 +269,7 @@
         .filter((a) => !/^tel:/i.test(a.getAttribute('href'))).length;
     const landmarks = doc.querySelectorAll(
         'nav, header, footer, [role="navigation"], [role="contentinfo"]').length;
-    const length = ((doc.body && doc.body.innerText) || '').length;
-    layout.bare = links <= 4 && landmarks === 0 && length <= 1800;
+    layout.bare = links <= 4 && landmarks === 0 && bodyText.length <= 1800;
     return layout;
   }
 
@@ -281,7 +287,7 @@
       return {scary: false, kinds, layout: []};
     }
     return analyse(
-        {text, telLinks, layout: tabSuspicious ? {} : collectLayout(doc, win)},
+        {text, telLinks, layout: tabSuspicious ? {} : collectLayout(doc, win, text)},
         !!tabSuspicious);
   }
 

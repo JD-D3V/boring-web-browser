@@ -22,7 +22,12 @@ Checked:
   a name that does not exist (NXDOMAIN with an SOA), a server that errors,
     one that sends junk and one that is too slow all leave the ordinary
     "site can't be reached" page;
-  Secure DNS off, or another provider, sends no question at all.
+  a server that answers with a redirect: the redirect is refused, not
+    followed, and the ordinary page shows;
+  intranet looking names (single label, .local, unknown ending) send no
+    question;
+  Secure DNS off, automatic mode, another provider, or Quad9 with a second
+    server, sends no question at all.
 
 Usage: python smoke_dns_warning.py
 """
@@ -40,11 +45,17 @@ import quad9_wire
 from drive import Browser
 from smoke_local import set_local_state, wait_for
 
-BLOCKED = "blocked-demo-qz.test"
-GONE = "gone-demo-qz.test"
-BROKEN = "broken-demo-qz.test"
-JUNK = "junk-demo-qz.test"
-SLOW = "slow-demo-qz.test"
+# Real top level domains: the browser leaves intranet looking names (an
+# unknown ending such as .test, a single label, .local) out of the check.
+BLOCKED = "blocked-demo-qz.com"
+GONE = "gone-demo-qz.com"
+BROKEN = "broken-demo-qz.com"
+JUNK = "junk-demo-qz.com"
+SLOW = "slow-demo-qz.com"
+REDIRECT = "redirect-demo-qz.com"
+# The server would call these blocked, so a question about one shows up as
+# a warning.
+INTRANET = ("printer-demo-qz", "nas-demo-qz.local", "intranet-demo-qz.test")
 FROM_PAGE = "ok-demo-qz.test"
 QUAD9 = "https://dns.quad9.net/dns-query"
 OTHER = "https://dns.google/dns-query"
@@ -73,9 +84,25 @@ class FakeDoh:
 
     def __init__(self):
         asked = self.asked = []
+        followed = self.followed = []
 
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self):
+                if self.path.startswith("/followed"):
+                    # Where the redirect points: a browser that follows it
+                    # lands here.
+                    followed.append(self.path)
+                    query = parse_qs(urlparse(self.path).query).get("dns", [""])[0]
+                    name, _ = quad9_wire.read_question(
+                        quad9_wire.decode_get_query(query)
+                    )
+                    body = quad9_wire.blocked_answer(name)
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/dns-message")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
                 query = parse_qs(urlparse(self.path).query).get("dns", [""])[0]
                 try:
                     name, _ = quad9_wire.read_question(
@@ -95,6 +122,14 @@ class FakeDoh:
                     body = b"\xff" * 40 + b"not a dns message"
                 elif name == SLOW:
                     time.sleep(SLOW_SECONDS)
+                    body = quad9_wire.blocked_answer(name)
+                elif name == REDIRECT:
+                    self.send_response(302)
+                    self.send_header("Location", "/followed?dns=" + query)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return
+                elif name in INTRANET:
                     body = quad9_wire.blocked_answer(name)
                 else:
                     status = 404
@@ -315,10 +350,44 @@ def main():
                     repr(doh.asked),
                 )
 
-        # --- Secure DNS off, and another provider ---------------------------
+            # The server sends the browser to another address: the redirect
+            # is refused, so the question is not handed on.
+            doh.asked.clear()
+            doh.followed.clear()
+            open_url(b, f"http://{REDIRECT}/")
+            found = wait_for(b, NOT_FOUND, 15000)
+            time.sleep(1)
+            check(
+                "a redirect from the server: the ordinary page, no warning",
+                found and not b.run(f"return !!({WARNED})"),
+                text(b)[:200],
+            )
+            check("a redirect from the server: Quad9 was asked", REDIRECT in doh.asked)
+            check(
+                "a redirect from the server: not followed",
+                not doh.followed,
+                repr(doh.followed),
+            )
+
+            # Intranet looking names are not sent to Quad9 at all.
+            for name in INTRANET:
+                doh.asked.clear()
+                open_url(b, f"http://{name}/")
+                found = wait_for(b, NOT_FOUND, 15000)
+                time.sleep(1)
+                check(
+                    f"{name}: the ordinary page, no warning",
+                    found and not b.run(f"return !!({WARNED})"),
+                    text(b)[:200],
+                )
+                check(f"{name}: no question was sent", not doh.asked, repr(doh.asked))
+
+        # --- Secure DNS off, and anything but Quad9 alone -------------------
         for label, mode, template in (
             ("Secure DNS off", "off", QUAD9),
             ("another provider", "secure", OTHER),
+            ("automatic mode", "automatic", QUAD9),
+            ("Quad9 and a second server", "secure", f"{QUAD9} {OTHER}"),
         ):
             profile, b = session(mode, template)
             with profile, b:

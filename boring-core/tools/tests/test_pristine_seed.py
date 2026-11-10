@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 TOOLS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if TOOLS not in sys.path:
@@ -105,6 +106,18 @@ class SeedPristine(unittest.TestCase):
             )
             self.assertEqual(apply.seed_pristine(self.src, [patch], self.store), [])
         self.assertFalse(os.path.exists(outside))
+
+    @unittest.skipUnless(os.name == "nt", "drive letters are a Windows thing")
+    def test_a_drive_relative_header_path_is_skipped(self):
+        # "C:foo" is not absolute, but joining it onto the tree drops the
+        # tree on Windows. The file is made to look present so that only the
+        # path check can stop it.
+        patch = os.path.join(self.src, "evil.patch")
+        self.write(patch, "--- a/C:foo.txt\n+++ b/C:foo.txt\n@@ -1 +1 @@\n-x\n+y\n")
+        with mock.patch.object(apply.os.path, "exists", return_value=True), \
+                mock.patch.object(apply, "snapshot") as snapshot:
+            self.assertEqual(apply.seed_pristine(self.src, [patch], self.store), [])
+        snapshot.assert_not_called()
 
     def test_a_file_missing_from_the_tree_is_skipped(self):
         os.remove(self.file)

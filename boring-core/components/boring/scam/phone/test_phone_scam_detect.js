@@ -149,3 +149,58 @@ test('rates on the written samples', () => {
   const unexpected = missed.filter((s) => !quietOnPurpose.has(s.name));
   assert.deepEqual(unexpected.map((s) => s.name), []);
 });
+
+// scanDocument against a stand-in page: counts how often the page's text is
+// laid out (innerText). A huge page with many long blocks must not pay for
+// the whole text once per block.
+function standInPage(blocks) {
+  const sample = samples.scam.find((s) => detect.analyse(snapshot(s)).scary);
+  const reads = {body: 0, blocks: 0};
+  const makeBlock = (text) => ({
+    textContent: text,
+    get innerText() {
+      reads.blocks++;
+      return text;
+    },
+    matches: () => false,
+    querySelectorAll: () => [],
+    querySelector: () => null,
+    getBoundingClientRect: () => ({width: 1000, height: 800}),
+  });
+  const elements = blocks.map(makeBlock);
+  const doc = {
+    fullscreenElement: null,
+    body: {
+      get innerText() {
+        reads.body++;
+        return sample.text;
+      },
+    },
+    querySelectorAll: (selector) =>
+        selector.startsWith('div') ? elements : [],
+  };
+  const win = {
+    innerWidth: 1000,
+    innerHeight: 800,
+    getComputedStyle: () => ({
+      display: 'block', visibility: 'visible', opacity: '1',
+      position: 'fixed', zIndex: '1', backgroundColor: 'rgb(255, 255, 255)',
+      color: 'rgb(0, 0, 0)',
+    }),
+  };
+  return {doc, win, reads};
+}
+
+test('a huge page does not lay out its text once per long block', () => {
+  const huge = 'filler text '.repeat(10000);
+  const {doc, win, reads} =
+      standInPage(Array.from({length: 800}, () => huge));
+  detect.scanDocument(doc, win, false);
+  assert.equal(reads.blocks, 0);
+  assert.equal(reads.body, 1);
+});
+
+test('a short pop-up holding the number is still found', () => {
+  const {doc, win} = standInPage(['Call 1-800-555-0199 now']);
+  assert.equal(detect.scanDocument(doc, win, false).scary, true);
+});

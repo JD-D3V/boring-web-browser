@@ -216,6 +216,9 @@ BRANDS_FILE = os.path.join(
 
 # Like MAX_SUFFIX_DROPS: a feed with more popular sites than this is refused.
 MAX_POPULAR_DROPS = 5
+# lookalike_brands.inc holds about 100 brands. Fewer than this means the
+# file or the pattern that reads it changed.
+MIN_BRANDS = 50
 
 
 def load_popular_sites() -> set[str]:
@@ -228,7 +231,14 @@ def load_popular_sites() -> set[str]:
     if "google.com" not in sites:
         raise FeedError(f"{TOP_DOMAINS_FILE} does not look like the top sites list")
     with open(BRANDS_FILE, encoding="utf-8") as f:
-        sites.update(re.findall(r'^\{"[a-z0-9]+", "([a-z0-9.-]+)"\}', f.read(), re.M))
+        brands = re.findall(r'^\{"[a-z0-9]+", "([a-z0-9.-]+)"\}', f.read(), re.M)
+    # A format change that makes the pattern match nothing would otherwise
+    # drop the brands quietly and let a brand's own site onto the list.
+    if len(brands) < MIN_BRANDS:
+        raise FeedError(
+            f"{BRANDS_FILE} gave {len(brands)} brands, expected at least {MIN_BRANDS}"
+        )
+    sites.update(brands)
     return sites
 
 
@@ -555,9 +565,25 @@ def development_list() -> str:
     apply.py puts this in a build tree that has no scam list yet, so the
     browser starts with a list to load, as it does in a release, instead
     of reporting a missing file. It has no real hosts, count_real_hosts()
-    says 0, and check_package.py refuses to ship it.
+    says 0, and check_package.py refuses to ship it. It holds DEV_PAD_COUNT
+    test names, above the browser's floor (kMinHosts in scam_service.cc),
+    because a list below the floor loads as failed.
     """
-    return "\n".join([DEV_HEADER, TEST_MARKER, *sorted(TEST_HOSTS)]) + "\n"
+    return "\n".join([DEV_HEADER, TEST_MARKER, *dev_test_hosts()]) + "\n"
+
+
+# The browser treats a scam list with fewer hosts than kMinHosts
+# (components/boring/scam/scam_service.cc, 10) as failed. The stand-in and
+# the smoke test lists pad their test names to this many.
+DEV_PAD_COUNT = 12
+
+
+def dev_test_hosts() -> list[str]:
+    """TEST_HOSTS plus numbered names, DEV_PAD_COUNT in all."""
+    extra = DEV_PAD_COUNT - len(TEST_HOSTS)
+    return sorted(
+        [*TEST_HOSTS, *(f"boring-scam-pad-{i:02d}.invalid" for i in range(1, extra + 1))]
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

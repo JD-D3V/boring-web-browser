@@ -16,6 +16,7 @@
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "net/base/net_errors.h"
+#include "net/base/url_util.h"
 #include "url/gurl.h"
 
 namespace boring {
@@ -56,7 +57,11 @@ Quad9BlockThrottle::WillFailRequest() {
   content::BrowserContext* context =
       contents ? contents->GetBrowserContext() : nullptr;
   const GURL& url = handle->GetURL();
+  // Intranet and single label names (printer, nas.lan, corp.local) are
+  // answered by the system or the local network, not by Quad9, and are not
+  // sent to it.
   if (!context || !url.SchemeIsHTTPOrHTTPS() || !url.has_host() ||
+      net::IsHostnameNonUnique(url.host()) ||
       !GetPrivacyState(context).dns_filters_threats) {
     return content::NavigationThrottle::PROCEED;
   }

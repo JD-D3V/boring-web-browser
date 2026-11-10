@@ -12,6 +12,7 @@ Usage: python -m unittest discover -s boring-core/tools/tests
 import contextlib
 import io
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -259,6 +260,19 @@ class PopularSites(unittest.TestCase):
                     get_scamlist.DURABLENAPKIN_URL: napkin_text(40),
                 }))
 
+    def test_a_brand_file_that_reads_as_empty_stops_the_build(self):
+        gone = os.path.join(tempfile.mkdtemp(prefix="brands-"), "brands.inc")
+        self.addCleanup(shutil.rmtree, os.path.dirname(gone), ignore_errors=True)
+        with open(gone, "w", encoding="utf-8") as f:
+            f.write('{"paypal", "paypal.com"}\n// a format the pattern no longer reads\n')
+        with mock.patch.object(get_scamlist, "BRANDS_FILE", gone):
+            with self.assertRaises(get_scamlist.FeedError):
+                get_scamlist.load_popular_sites()
+
+    def test_the_shipped_brand_file_clears_the_minimum(self):
+        sites = get_scamlist.load_popular_sites()
+        self.assertGreaterEqual(len(sites), get_scamlist.MIN_BRANDS)
+
     def test_the_real_top_list_is_read_and_brands_are_added(self):
         real = os.path.join(
             os.environ.get("BORING_SRC", r"E:\ung-154\build\src"),
@@ -408,6 +422,46 @@ class DevelopmentStandIn(unittest.TestCase):
         self.stage()
         with open(self.list_path, encoding="utf-8") as f:
             self.assertEqual(f.read(), "real.example.invalid\n")
+
+    def test_an_older_stand_in_is_replaced(self):
+        os.makedirs(os.path.dirname(self.list_path))
+        with open(self.list_path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(
+                get_scamlist.DEV_HEADER
+                + "\n"
+                + get_scamlist.TEST_MARKER
+                + "\nboring-scam-test.invalid\n"
+            )
+        self.stage()
+        with open(self.list_path, encoding="utf-8", newline="") as f:
+            self.assertEqual(f.read(), get_scamlist.development_list())
+
+    def kmin_hosts(self):
+        src = os.path.join(
+            os.path.dirname(TOOLS), "components", "boring", "scam", "scam_service.cc"
+        )
+        with open(src, encoding="utf-8") as f:
+            m = re.search(r"kMinHosts\s*=\s*(\d+);", f.read())
+        self.assertIsNotNone(m, "kMinHosts not found in scam_service.cc")
+        return int(m.group(1))
+
+    def count_hosts(self, text):
+        return len(
+            [l for l in text.splitlines() if l.strip() and not l.startswith("#")]
+        )
+
+    def test_the_stand_in_is_above_the_browsers_floor(self):
+        floor = self.kmin_hosts()
+        self.assertGreaterEqual(
+            self.count_hosts(get_scamlist.development_list()), floor
+        )
+
+    def test_the_smoke_scam_list_is_above_the_browsers_floor(self):
+        import smoke_scam
+
+        self.assertGreaterEqual(
+            self.count_hosts(smoke_scam.SCAM_LIST), self.kmin_hosts()
+        )
 
     def test_a_tree_with_no_output_folder_is_not_given_one(self):
         self.stage()

@@ -10,10 +10,15 @@
 
 #include "base/strings/string_util.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/net/secure_dns_config.h"
+#include "chrome/browser/net/stub_resolver_config_reader.h"
+#include "chrome/browser/net/system_network_context_manager.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/common/pref_names.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/browser_context.h"
+#include "net/dns/public/dns_over_https_config.h"
+#include "net/dns/public/secure_dns_mode.h"
 
 namespace boring {
 
@@ -31,9 +36,20 @@ PrivacyState GetPrivacyState(content::BrowserContext* context) {
   // Only Quad9's filtering service blocks threats; its unfiltered
   // address (dns10.quad9.net) does not, and neither does anyone else's
   // resolver as far as we know, so nothing else is credited with it.
+  // True only when the lookup really goes to Quad9 and nowhere else: secure
+  // mode (not automatic, which can fall back to the system resolver), Quad9
+  // the only server, and no policy or parental control in the way.
+  SecureDnsConfig config = SystemNetworkContextManager::
+      GetStubResolverConfigReader()->GetSecureDnsConfiguration(false);
+  const auto& servers = config.doh_servers().servers();
   state.dns_filters_threats =
-      state.dns_mode != "off" && !state.dns_mode.empty() &&
-      base::StartsWith(state.dns_server, "https://dns.quad9.net/");
+      config.mode() == net::SecureDnsMode::kSecure &&
+      config.management_mode() == SecureDnsConfig::ManagementMode::kNoOverride &&
+      !state.dns_managed && servers.size() == 1 &&
+      base::StartsWith(servers[0].server_template(),
+                       "https://dns.quad9.net/") &&
+      !(local_state &&
+        local_state->IsManagedPreference(prefs::kDnsOverHttpsTemplates));
 
   Profile* profile = Profile::FromBrowserContext(context);
   const PrefService* prefs = profile ? profile->GetPrefs() : nullptr;

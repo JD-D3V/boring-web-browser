@@ -86,6 +86,9 @@ std::unique_ptr<network::SimpleURLLoader> MakeLoader(const GURL& url) {
   request->credentials_mode = network::mojom::CredentialsMode::kOmit;
   request->referrer_policy = net::ReferrerPolicy::NO_REFERRER;
   request->load_flags = net::LOAD_DISABLE_CACHE;
+  // The server answers the question itself. A redirect would hand the site
+  // name to whichever host it names.
+  request->redirect_mode = network::mojom::RedirectMode::kError;
   request->headers.SetHeader("Accept", "application/dns-message");
   auto loader = network::SimpleURLLoader::Create(std::move(request), annotation);
   loader->SetTimeoutDuration(kTimeout);

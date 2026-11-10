@@ -28,6 +28,10 @@ adblock = { version = "0.13.3", default-features = false, features = [
     "full-regex-handling",
 ] }
 serde_json = "1"
+# The public suffix list, so a scam list entry that is a suffix (co.uk,
+# github.io) cannot block everything under it. Already built in as a part
+# of the engine's domain resolver; this names the same version.
+psl = "2.1"
 
 [dev-dependencies]
 base64 = "0.22"
