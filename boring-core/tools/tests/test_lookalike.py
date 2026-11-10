@@ -41,6 +41,10 @@ TOP_DOMAINS = os.path.join(
 
 # (address, the site it copies)
 HITS = [
+    # Free hosting platforms count as registries (pass 2, T1).
+    ("paypa1-login.github.io", "paypal.com"),
+    ("amaz0n.netlify.app", "amazon.com"),
+    ("paypa1.pages.dev", "paypal.com"),
     ("paypa1.com", "paypal.com"),
     ("rnicrosoft.com", "microsoft.com"),
     ("micros0ft.com", "microsoft.com"),
@@ -76,6 +80,8 @@ HITS = [
 
 # Ordinary addresses: nothing to say about any of these.
 CLEAN = [
+    "paypal.github.io",
+    "my-notes.github.io",
     # The brands themselves, on their own and other endings.
     "paypal.com",
     "paypal.org",
@@ -290,6 +296,17 @@ class LookalikeMatcher(unittest.TestCase):
         # The browser also skips any address on that same list (see
         # lookalike_navigation_throttle.cc), so these would not warn anyway.
         self.assertEqual(flagged, [])
+
+
+class ThrottleUsesPrivateRegistries(unittest.TestCase):
+    """Pass 2, T1. The check sees the name on a hosting platform."""
+
+    def test_domain_counts_private_registries(self):
+        cc = open(os.path.join(SCAM, "lookalike_navigation_throttle.cc"), encoding="utf-8").read()
+        self.assertIn("INCLUDE_PRIVATE_REGISTRIES", cc)
+        self.assertIn("IsDomainAndRegistryATopDomain(domain)", cc)
+        self.assertIn("FindLookalikeBrand(domain)", cc)
+        self.assertNotIn("IsTopDomain(url)", cc)
 
 
 class AllowListIsWrittenAtOnce(unittest.TestCase):

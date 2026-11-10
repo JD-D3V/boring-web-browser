@@ -19,6 +19,7 @@
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/web_contents.h"
 #include "net/base/net_errors.h"
+#include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "net/base/url_util.h"
 
 namespace boring {
@@ -48,13 +49,21 @@ std::optional<Lookalike> FindLookalike(const GURL& url) {
   if (net::HostStringIsLocalhost(host) || net::IsHostnameNonUnique(host)) {
     return std::nullopt;
   }
-  const std::string domain = lookalikes::GetETLDPlusOne(host);
-  if (domain.empty() || lookalikes::IsSafeTLD(host)) {
+  const std::string public_domain = lookalikes::GetETLDPlusOne(host);
+  if (public_domain.empty() || lookalikes::IsSafeTLD(host)) {
     return std::nullopt;
+  }
+  // The name a person can register, counting free hosting platforms such as
+  // github.io and pages.dev as registries: "paypa1-login.github.io" is its
+  // own name, not a page of github.io.
+  std::string domain = net::registry_controlled_domains::GetDomainAndRegistry(
+      host, net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES);
+  if (domain.empty()) {
+    domain = public_domain;
   }
   // One of the 10,000 most visited sites, or under one: it is the real
   // thing, whatever it looks like.
-  if (url_formatter::IsTopDomain(url)) {
+  if (url_formatter::IsDomainAndRegistryATopDomain(domain)) {
     return std::nullopt;
   }
 
@@ -83,7 +92,7 @@ std::optional<Lookalike> FindLookalike(const GURL& url) {
 
   // Plain-letter copies such as paypa1.com, which Chromium does not warn
   // about. See lookalike_brands.h.
-  const std::string brand = FindLookalikeBrand(info.domain_and_registry);
+  const std::string brand = FindLookalikeBrand(domain);
   if (!brand.empty()) {
     return Lookalike{domain, RealSite(brand)};
   }
