@@ -61,7 +61,7 @@ the project (no marketing language).
    navigation, showing it's a normal, readable settings surface, not
    hiding anything unusual.
 
-9. **Close** (~10s). A title card: release 1, Chromium 153.0.8010.52,
+9. **Close** (~10s). A title card: release 3, Chromium 157.0.8103.38,
    unsigned, link to this repo.
 
 ## What must not be on screen

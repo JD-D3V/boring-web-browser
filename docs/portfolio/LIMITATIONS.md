@@ -4,11 +4,9 @@ What release 1 does not do, or has not proven yet.
 
 ## What was tested
 
-Release 1 is built on Chromium 153.0.8010.52. The release files passed
-the full automated suite on the build PC (smoke tests, sandbox, package
-check, network audit). They were then installed on a clean Windows 11
-24H2 in Windows Sandbox: first run, browsing, settings kept across a
-restart, ad blocking, the offline update test and uninstall.
+Release 3 is built on Chromium 157.0.8103.38.
+
+@@R3_WHAT_WAS_TESTED@@
 
 That clean install found a real bug: the ad block engine needed the
 Visual C++ runtime, so on a PC without it blocking was silently off.

@@ -4,14 +4,15 @@ A plain, private Windows browser. It is Chromium's engine, de-Googled by
 ungoogled-chromium, with a small patch layer on top for blocking, privacy
 defaults and a calmer UI. It is not a new engine.
 
-## Release 1
+## Release 3
 
-- Chromium 153.0.8010.52, via ungoogled-chromium 153.0.8010.52-1.1.
+- Chromium 157.0.8103.38, via ungoogled-chromium 157.0.8103.38-1.1.
 - Windows x64 only.
 - Not code signed. SmartScreen will warn. Do not turn it off; check the
   SHA-256 from the release page instead.
-- Downloads: the [release 1 page](https://github.com/JD-D3V/boring-web-browser/releases/tag/v153.0.8010.52.1),
+- Downloads: the [release 3 page](https://github.com/JD-D3V/boring-web-browser/releases/tag/v157.0.8103.38.1),
   with the installer, the zip and `SHA256SUMS.txt`.
+- Installer SHA-256: `@@R3_SHA256_INSTALLER@@`
 
 ## On by default
 
@@ -110,7 +111,7 @@ Protection page.
 | --- | --- |
 | Blink, V8, the sandbox, site isolation | Chromium, untouched |
 | De-Googling | [ungoogled-chromium](https://github.com/ungoogled-software/ungoogled-chromium) |
-| `boring-core/patches/` (37 patches) | Ours. UI shape, settings, new pages, privacy defaults, packaging |
+| `boring-core/patches/` (80 patches) | Ours. UI shape, settings, new pages, privacy defaults, packaging |
 | `boring-core/components/boring/` | Ours. Blocking, per-site blocking off, Protection page, new tab, welcome, reader, summaries, tracking parameters, updater glue, Chrome and Edge import, store helper setup |
 | Store helper | [chromium-web-store](https://github.com/NeverDecaf/chromium-web-store) by NeverDecaf, bundled with its self-update address removed and its check interval set to 5 hours |
 | `boring-core/rust/` | Ours. Wraps the third-party `adblock` crate |
@@ -128,13 +129,13 @@ Windows only. Needs Visual Studio 2022 with C++, ATL and MFC, the Windows
 about 100 GB free on an SSD.
 
 1. Build [ungoogled-chromium-windows](https://github.com/ungoogled-software/ungoogled-chromium-windows)
-   at tag `153.0.8010.52-1.1` with its own `build.py`.
-   `--patch-set 153` below picks our patches rebased for Chromium 153.
+   at tag `157.0.8103.38-1.1` with its own `build.py`.
+   `--patch-set 157` below picks our patches rebased for Chromium 157.
 2. Fetch the updater DLL, then apply our layer:
 
    ```
    python boring-core/tools/get_winsparkle.py
-   python boring-core/tools/apply.py --patch-set 153 --src <checkout>\build\src
+   python boring-core/tools/apply.py --patch-set 157 --src <checkout>\build\src
    ```
 
 3. Build, from a VS developer prompt:

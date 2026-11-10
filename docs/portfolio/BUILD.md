@@ -34,7 +34,7 @@ From a "Developer Command Prompt for VS 2022":
 ```
 git clone --recurse-submodules https://github.com/ungoogled-software/ungoogled-chromium-windows.git ung
 cd ung
-git checkout --recurse-submodules 153.0.8010.52-1.1
+git checkout --recurse-submodules 157.0.8103.38-1.1
 python3 build.py
 ```
 
@@ -53,7 +53,7 @@ somewhere separate, then run:
 
 ```
 python boring-core/tools/get_winsparkle.py
-python boring-core/tools/apply.py --patch-set 153 --src <path-to-ungoogled-chromium-checkout>\build\src
+python boring-core/tools/apply.py --patch-set 157 --src <path-to-ungoogled-chromium-checkout>\build\src
 ```
 
 This does three things:

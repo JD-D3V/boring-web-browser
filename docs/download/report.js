@@ -24,6 +24,6 @@ form.addEventListener('submit', (event) => {
   document.querySelector('#draft').value = `To: jmill004@mtroyal.ca\nSubject: ${subject}\n\n${body}`;
   document.querySelector('#open-email').href = `mailto:jmill004@mtroyal.ca?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   document.querySelector('#email-preview').hidden = false;
-  document.querySelector('#report-status').textContent = 'Draft prepared—not sent. Review it, then open your email app to send.';
+  document.querySelector('#report-status').textContent = 'Draft prepared, not sent. Review it, then open your email app to send.';
   document.querySelector('#draft').focus();
 });

@@ -8,8 +8,8 @@ which is itself a patch set over stock Chromium that strips Google's
 services, telemetry and background calls. Chromium's Blink engine, V8, the
 sandbox and site isolation are all upstream and untouched.
 
-Release 1 base: **Chromium 153.0.8010.52** (ungoogled-chromium tag
-`153.0.8010.52-1.1`). See [LIMITATIONS.md](LIMITATIONS.md).
+Release 3 base: **Chromium 157.0.8103.38** (ungoogled-chromium tag
+`157.0.8103.38-1.1`). See [LIMITATIONS.md](LIMITATIONS.md).
 
 ## The layers
 
