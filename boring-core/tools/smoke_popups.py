@@ -22,6 +22,7 @@ left to native verification.
 
 import json
 import os
+import shutil
 import socket
 import sys
 import tempfile
@@ -90,12 +91,21 @@ def open_page(profile, url):
     # chromedriver starts the browser with --disable-popup-blocking, so
     # without this the test would be asking a browser with the pop-up
     # blocker switched off whether it blocks pop-ups.
+    # The browser restores the last session, so the pop-up window an earlier
+    # run opened would come back and be counted as a new one.
+    shutil.rmtree(os.path.join(profile, "Default", "Sessions"), ignore_errors=True)
     with Browser(user_data_dir=profile, keep_switches=["disable-popup-blocking"]) as b:
         b.get(url)
         time.sleep(2)
         result = b.run("return window.__boringPopup || ''")
         title = b.run("return document.title")
         handles = b._req("GET", f"/session/{b.sid}/window/handles")["value"]
+        targets = b._req(
+            "POST",
+            f"/session/{b.sid}/goog/cdp/execute",
+            {"cmd": "Target.getTargets", "params": {}},
+        )["value"]["targetInfos"]
+        print("  pages:", [t["url"] for t in targets if t["type"] == "page"])
         return result, title, len(handles)
 
 
