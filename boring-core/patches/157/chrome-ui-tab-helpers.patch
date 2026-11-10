@@ -1,0 +1,53 @@
+diff --git a/chrome/browser/ui/tab_helpers.cc b/chrome/browser/ui/tab_helpers.cc
+--- a/chrome/browser/ui/tab_helpers.cc
++++ b/chrome/browser/ui/tab_helpers.cc
+@@ -11,6 +11,7 @@
+ 
+ #include "base/command_line.h"
+ #include "base/feature_list.h"
++#include "base/functional/bind.h"
+ #include "base/logging.h"
+ #include "build/build_config.h"
+ #include "chrome/browser/bookmarks/bookmark_model_factory.h"
+@@ -28,7 +29,11 @@
+ #include "chrome/browser/ui/autofill/autofill_client_provider_factory.h"
+ #include "chrome/common/buildflags.h"
+ #include "chrome/common/chrome_features.h"
++#include "chrome/browser/lifetime/application_lifetime.h"
+ #include "chrome/common/chrome_switches.h"
++#include "components/boring/lists/list_updater.h"
++#include "components/boring/serp/serp_tab_helper.h"
++#include "components/boring/update/browser_updater.h"
+ #include "components/dom_distiller/core/dom_distiller_features.h"
+ #include "components/enterprise/buildflags/buildflags.h"
+ #include "components/infobars/content/content_infobar_manager.h"
+@@ -40,6 +45,7 @@
+ #include "components/tabs/public/tab_interface.h"
+ #include "components/tracing/common/tracing_switches.h"
+ #include "components/zoom/zoom_controller.h"
++#include "content/public/browser/storage_partition.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/common/buildflags.h"
+ #include "extensions/buildflags/buildflags.h"
+@@ -108,6 +114,21 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents,
+     autofill_client_provider.CreateClientForWebContents(web_contents);
+   }
+ 
++  boring::SerpTabHelper::CreateForWebContents(web_contents);
++  // Opening a tab is a quiet moment to see whether the blocking lists
++  // have been replaced. Not in incognito: this has nothing to do with
++  // what is being browsed and should not ride on a session that is
++  // meant to disappear.
++  if (!profile->IsOffTheRecord()) {
++    boring::ListUpdater::GetInstance()->MaybeCheck(
++        profile->GetPrefs(), profile->GetDefaultStoragePartition()
++                                 ->GetURLLoaderFactoryForBrowserProcess());
++  }
++  // The browser updater starts with the first tab of the session and
++  // then keeps its own schedule. It closes the browser the normal way
++  // when an update has been downloaded, checked and started.
++  boring::BrowserUpdater::StartOnce(base::BindRepeating(&chrome::AttemptExit));
++
+   // NO! Do not just add your tab helper here. This is a large alphabetized
+   // block; please insert your tab helper above in alphabetical order.
+ 

@@ -1,0 +1,19 @@
+diff --git a/chrome/browser/ui/tab_helpers.cc b/chrome/browser/ui/tab_helpers.cc
+--- a/chrome/browser/ui/tab_helpers.cc
++++ b/chrome/browser/ui/tab_helpers.cc
+@@ -32,6 +32,7 @@
+ #include "chrome/browser/lifetime/application_lifetime.h"
+ #include "chrome/common/chrome_switches.h"
+ #include "components/boring/lists/list_updater.h"
++#include "components/boring/scam/phone/phone_scam_tab_helper.h"
+ #include "components/boring/scam/takeover/takeover_tab_helper.h"
+ #include "components/boring/serp/serp_tab_helper.h"
+ #include "components/boring/update/browser_updater.h"
+@@ -130,6 +131,7 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents,
+   // when an update has been downloaded, checked and started.
+   boring::BrowserUpdater::StartOnce(base::BindRepeating(&chrome::AttemptExit));
+   boring::TakeoverTabHelper::CreateForWebContents(web_contents);
++  boring::PhoneScamTabHelper::CreateForWebContents(web_contents);
+ 
+   // NO! Do not just add your tab helper here. This is a large alphabetized
+   // block; please insert your tab helper above in alphabetical order.

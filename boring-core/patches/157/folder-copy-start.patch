@@ -1,0 +1,19 @@
+diff --git a/chrome/browser/ui/tab_helpers.cc b/chrome/browser/ui/tab_helpers.cc
+--- a/chrome/browser/ui/tab_helpers.cc
++++ b/chrome/browser/ui/tab_helpers.cc
+@@ -31,6 +31,7 @@
+ #include "chrome/common/chrome_features.h"
+ #include "chrome/browser/lifetime/application_lifetime.h"
+ #include "chrome/common/chrome_switches.h"
++#include "components/boring/folder_copy/folder_copy.h"
+ #include "components/boring/lists/list_updater.h"
+ #include "components/boring/scam/phone/phone_scam_tab_helper.h"
+ #include "components/boring/scam/takeover/takeover_tab_helper.h"
+@@ -106,6 +107,7 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents,
+ 
+   Profile* profile =
+       Profile::FromBrowserContext(web_contents->GetBrowserContext());
++  boring::folder_copy::FolderCopy::Start(profile);
+ 
+   // --- Section 1: Common tab helpers ---
+   // AutofillClientProvider initializes ContentAutofillClient for web_contents,

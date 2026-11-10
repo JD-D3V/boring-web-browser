@@ -1,0 +1,30 @@
+diff --git a/chrome/browser/ui/webui/chrome_web_ui_configs.cc b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+--- a/chrome/browser/ui/webui/chrome_web_ui_configs.cc
++++ b/chrome/browser/ui/webui/chrome_web_ui_configs.cc
+@@ -68,6 +68,7 @@
+ #include "components/safe_browsing/buildflags.h"
+ #include "components/security_interstitials/content/connection_help_ui.h"
+ #include "components/security_interstitials/content/known_interception_disclosure_ui.h"
++#include "components/boring/scam/takeover/takeover_ui.h"
+ #include "components/webui/user_actions/user_actions_ui.h"
+ #include "content/public/browser/webui_config_map.h"
+ #include "extensions/buildflags/buildflags.h"
+@@ -281,6 +282,7 @@ void RegisterChromeWebUIConfigs() {
+   map.AddWebUIConfig(std::make_unique<AccessibilityUIConfig>());
+   map.AddWebUIConfig(std::make_unique<AutofillInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<BluetoothInternalsUIConfig>());
++  map.AddWebUIConfig(std::make_unique<boring::BoringTakeoverUIConfig>());
+   map.AddWebUIConfig(
+       std::make_unique<browser_actuator::BrowserActuatorInternalsUIConfig>());
+   map.AddWebUIConfig(std::make_unique<chrome_urls::ChromeUrlsUIConfig>());
+diff --git a/chrome/browser/ui/webui/BUILD.gn b/chrome/browser/ui/webui/BUILD.gn
+--- a/chrome/browser/ui/webui/BUILD.gn
++++ b/chrome/browser/ui/webui/BUILD.gn
+@@ -98,6 +98,7 @@ source_set("configs") {
+     "//components/lens:buildflags",
+     "//components/notebooks/internals/webui",
+     "//components/webui/user_actions",
++    "//components/boring/scam/takeover",
+     "//skia",
+     "//third_party/abseil-cpp:absl",
+     "//ui/webui:buildflags",

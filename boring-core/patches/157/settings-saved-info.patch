@@ -1,0 +1,73 @@
+--- a/chrome/browser/resources/settings/autofill_page/autofill_page.html
++++ b/chrome/browser/resources/settings/autofill_page/autofill_page.html
+@@ -1,33 +1,37 @@
+ <style include="settings-shared">
++  /* Same page-heading pattern as settings_section.html's #header .title
++   * (settings-restyle.patch): 32px/550/-0.045em/1.1, left-aligned, 12px
++   * bottom margin, no top margin, and the same --cr-section-padding start
++   * inset #header adds - this page has no settings-section wrapping its
++   * hero (see below), so there's no #header to add that inset for free.
++   * This page hand-rolls its own title/subtitle elements instead of a
++   * settings-section because its account card and category cards aren't
++   * inset by --cr-section-padding themselves, unlike a settings-section's
++   * rows; wrapping them would shift their alignment relative to today's
++   * rendering, which is out of scope for a heading fix. So the heading
++   * numbers are reproduced locally here instead of reusing that file
++   * directly, and only the heading/subtitle get the matching inset - the
++   * account card and category cards below are unchanged from today. */
+   #title {
+     color: var(--cr-primary-text-color);
+-    font-size: 1.375rem;
+-    font-weight: 500;
+-    letter-spacing: 0.02em;
+-    margin-bottom: 8px;
+-    margin-top: 24px;
++    font-size: 32px;
++    font-weight: 550;
++    letter-spacing: -0.045em;
++    line-height: 1.1;
++    margin-bottom: 12px;
++    margin-top: 0;
+     outline: none;
+-    text-align: center;
++    padding-inline-start: var(--cr-section-padding);
+   }
+ 
++  /* Already has class="secondary" (settings_shared_lit.css: muted color,
++   * 12px, 5px top margin, 430px max-width) - this only adds page-specific
++   * bottom spacing before the account card and the same start inset as
++   * #title. The centering/max-width/font-size this used to have for the
++   * old centered hero layout is gone. */
+   #subtitle {
+-    font-size: 0.813rem;
+-    line-height: 1.25rem;
+-    margin: 8px auto 4px auto;
+-    max-width: 400px;
+-    text-align: center;
+-  }
+-
+-  .section-header {
+-    color: var(--cr-primary-text-color);
+-    font-size: 0.88rem;
+-    font-weight: 400;
+-    letter-spacing: 0.02em;
+-    margin-bottom: 12px;
+-    margin-top: var(--cr-section-vertical-margin);
+-    outline: none;
+-    padding-bottom: 4px;
+-    padding-top: 8px;
++    margin-bottom: 20px;
++    padding-inline-start: var(--cr-section-padding);
+   }
+ 
+   .card-container {
+@@ -68,9 +72,6 @@
+ <settings-account-card prefs="{{prefs}}">
+ </settings-account-card>
+ 
+-<h2 id="autofillPageTitle" class="section-header">
+-  $i18n{autofillPageTitle}
+-</h2>
+ <div class="card-container" on-data-category-click="onDataCategoryClick_"
+     on-data-chip-click="onDataChipClick_">
+   <category-reference-card card-title="$i18n{localPasswordManager}"
