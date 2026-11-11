@@ -168,6 +168,9 @@ class Session:
             user_data_dir=str(profile),
             args=["--headless=new", "--enable-unsafe-swiftshader"],
         )
+        # On 157 a browser started with its own profile folder refuses
+        # fullscreen ("not granted") until the tab is brought to the front.
+        cdp(self.b, "Page.bringToFront", {})
 
     def __enter__(self):
         return self
