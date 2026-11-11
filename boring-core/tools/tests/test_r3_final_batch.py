@@ -74,5 +74,17 @@ class OffTheRecordSharedSwitches(unittest.TestCase):
         self.assertLess(m.start(), body.index('row.Set("canSwitch", can_switch)'))
 
 
+class NewTabEngineMenuNumbers(unittest.TestCase):
+    """C6. The engine button rectangle from the page is saturated, not cast."""
+
+    def test_no_plain_cast_of_page_numbers(self):
+        src = read(BORING / "newtab" / "newtab_ui.cc")
+        start = src.index("void HandleShowEngineMenu(")
+        body = src[start : src.index("\n  }\n", start)]
+        self.assertNotIn("static_cast<int>", body)
+        self.assertEqual(body.count("base::saturated_cast<int>(args["), 4)
+        self.assertIn('#include "base/numerics/safe_conversions.h"', src)
+
+
 if __name__ == "__main__":
     unittest.main()

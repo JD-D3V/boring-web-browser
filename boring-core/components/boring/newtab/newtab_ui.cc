@@ -10,6 +10,7 @@
 #include "base/functional/bind.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/memory/weak_ptr.h"
+#include "base/numerics/safe_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
@@ -952,10 +953,12 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
     if (args.size() != 4 || !numbers) {
       return;
     }
-    const gfx::Rect anchor(static_cast<int>(args[0].GetDouble()),
-                           static_cast<int>(args[1].GetDouble()),
-                           static_cast<int>(args[2].GetDouble()),
-                           static_cast<int>(args[3].GetDouble()));
+    // The page sends doubles: saturate, since a plain cast of one out of
+    // the int range (or NaN) is undefined behaviour.
+    const gfx::Rect anchor(base::saturated_cast<int>(args[0].GetDouble()),
+                           base::saturated_cast<int>(args[1].GetDouble()),
+                           base::saturated_cast<int>(args[2].GetDouble()),
+                           base::saturated_cast<int>(args[3].GetDouble()));
     const bool shown = ShowSearchEngineMenuForPage(
         web_ui()->GetWebContents(), anchor,
         base::BindRepeating(&NewTabMessageHandler::OnEngineMenuPick,
