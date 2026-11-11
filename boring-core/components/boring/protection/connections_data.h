@@ -39,7 +39,11 @@ inline constexpr char kConnectionsJson[] = R"json({
     {
       "id": "blocking_lists",
       "label": "Blocking and scam lists",
-      "hosts": ["github.com"],
+      "hosts": [
+        "github.com",
+        "release-assets.githubusercontent.com",
+        "objects.githubusercontent.com"
+      ],
       "why": "Checks for newer lists about once a week. No account, no cookie.",
       "switch": {
         "kind": "profile",

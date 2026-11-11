@@ -34,9 +34,11 @@
 #include "net/base/load_flags.h"
 #include "net/base/url_util.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
+#include "net/url_request/redirect_info.h"
 #include "services/network/public/cpp/resource_request.h"
 #include "services/network/public/cpp/shared_url_loader_factory.h"
 #include "services/network/public/cpp/simple_url_loader.h"
+#include "services/network/public/mojom/url_response_head.mojom.h"
 #include "url/url_constants.h"
 
 namespace boring {
@@ -47,6 +49,14 @@ namespace {
 // so this address never has to change.
 constexpr char kDefaultFeedUrl[] =
     "https://github.com/JD-D3V/boring-web-browser/releases/download/lists/";
+
+// GitHub answers a release download with a redirect to one of these.
+// release-assets is the current host, objects the one it used before.
+// Keep in step with components/boring/protection/connections.json.
+constexpr std::string_view kReleaseAssetHosts[] = {
+    "release-assets.githubusercontent.com",
+    "objects.githubusercontent.com",
+};
 
 constexpr char kManifestName[] = "lists.json";
 constexpr char kManifestSignatureName[] = "lists.json.sig";
@@ -319,6 +329,18 @@ std::unique_ptr<network::SimpleURLLoader> MakeLoader(const GURL& url,
   return network::SimpleURLLoader::Create(std::move(request), annotation);
 }
 
+// A download may be sent on to the feed's own host or, over https, to
+// GitHub's release download hosts. Nowhere else.
+bool IsAllowedRedirect(const GURL& feed, const GURL& to) {
+  if (to.scheme() == feed.scheme() && to.host() == feed.host() &&
+      to.port() == feed.port()) {
+    return true;
+  }
+  return to.SchemeIs(url::kHttpsScheme) &&
+         std::ranges::find(kReleaseAssetHosts, to.host()) !=
+             std::end(kReleaseAssetHosts);
+}
+
 }  // namespace
 
 // static
@@ -474,6 +496,7 @@ void ListUpdater::OnLookedAtDisk(Local local) {
   version_ = local_.version;
   asked_ = true;
   loader_ = MakeLoader(GetFeedUrl().Resolve(kManifestName), /*no_cache=*/true);
+  LimitRedirects();
   loader_->DownloadToString(
       factory_.get(),
       base::BindOnce(&ListUpdater::OnManifest, weak_factory_.GetWeakPtr()),
@@ -492,6 +515,7 @@ void ListUpdater::OnManifest(std::optional<std::string> body) {
   manifest_ = std::move(*body);
   loader_ = MakeLoader(GetFeedUrl().Resolve(kManifestSignatureName),
                        /*no_cache=*/true);
+  LimitRedirects();
   loader_->DownloadToString(factory_.get(),
                             base::BindOnce(&ListUpdater::OnManifestSignature,
                                            weak_factory_.GetWeakPtr()),
@@ -587,10 +611,27 @@ void ListUpdater::FetchNextList() {
   const Wanted& wanted = wanted_[next_];
   // The name passed GetDownloadTarget(), so it is a plain file name.
   loader_ = MakeLoader(GetFeedUrl().Resolve(wanted.name), /*no_cache=*/false);
+  LimitRedirects();
   loader_->DownloadToString(factory_.get(),
                             base::BindOnce(&ListUpdater::OnListDownloaded,
                                            weak_factory_.GetWeakPtr()),
                             kMaxListBytes);
+}
+
+void ListUpdater::LimitRedirects() {
+  loader_->SetOnRedirectCallback(base::BindRepeating(
+      [](base::WeakPtr<ListUpdater> self, const GURL& url_before_redirect,
+         const net::RedirectInfo& redirect_info,
+         const network::mojom::URLResponseHead& response_head,
+         std::vector<std::string>* removed_headers) {
+        if (!self || IsAllowedRedirect(GetFeedUrl(), redirect_info.new_url)) {
+          return;
+        }
+        // Deleting the loader here is allowed and stops the download.
+        self->loader_.reset();
+        self->FinishWith(kOutcomeNetwork);
+      },
+      weak_factory_.GetWeakPtr()));
 }
 
 void ListUpdater::OnListDownloaded(std::optional<std::string> body) {

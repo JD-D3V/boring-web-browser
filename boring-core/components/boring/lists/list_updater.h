@@ -163,6 +163,9 @@ class ListUpdater {
   // Reads a manifest whose signature has already been checked.
   void ApplyManifest();
   void FetchNextList();
+  // Ends the check if `loader_` is sent on to a host other than the
+  // feed's own and GitHub's release download hosts.
+  void LimitRedirects();
   void OnListDownloaded(std::optional<std::string> body);
   void OnListSaved(bool saved);
   // Ends the check, recording why. Every path out goes through here.
