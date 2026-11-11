@@ -257,6 +257,10 @@ def native_remove_answers(work, failures):
         return None, seen
 
     def press(hwnd, name):
+        # Chromium dialogs ignore a button press in the first moments after
+        # they appear (an input protector against clicks meant for the page
+        # underneath); a press the instant the window is found does nothing.
+        time.sleep(1.5)
         with Window(hwnd) as w:
             return w.press(lambda n: n == name)
 
