@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """The real-window pass lists what it must, and its dry run starts nothing."""
 
+import datetime
+import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -93,6 +96,55 @@ class PicturesTest(unittest.TestCase):
             "appearance",
         ):
             self.assertIn(f"chrome://settings/{page}", urls)
+
+
+class RunStepTest(unittest.TestCase):
+    """The runner's own bookkeeping, with steps that start no browser."""
+
+    def run_fake(self, code, timeout=60, **kw):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            (out / "logs").mkdir()
+            step = run_window_pass.Step("t", "fake", [["-c", code]], timeout, "", **kw)
+            ctx = {
+                "logs": out / "logs",
+                "build": out,
+                "env": dict(os.environ),
+                "probe": False,
+                "current": None,
+                "version": "x",
+                "started": datetime.datetime.now(),
+                "tools": "t",
+                "all_steps": [step],
+                "out": out,
+            }
+            result = run_window_pass.run_step(step, ctx)
+            run_window_pass.write_summary(out / "S.txt", ctx, [result], "test")
+            return result, (out / "S.txt").read_text(encoding="utf-8")
+
+    def test_exit_zero_is_a_pass(self):
+        result, _ = self.run_fake("print('PASS: a')")
+        self.assertEqual(result.status, "PASS")
+
+    def test_a_skip_is_said_in_the_word_and_kept_in_the_summary(self):
+        result, text = self.run_fake(
+            "print('PASS: a'); print('SKIP: b')", detail=(r"^SKIP",)
+        )
+        self.assertEqual(result.status, "PASS+SKIP")
+        self.assertIn("SKIP: b", text)
+
+    def test_a_non_zero_exit_is_a_fail(self):
+        result, _ = self.run_fake("import sys; print('FAIL: a'); sys.exit(1)")
+        self.assertEqual(result.status, "FAIL")
+        self.assertEqual(result.counts, "0 pass, 1 fail, 0 skip")
+
+    def test_a_stuck_step_is_killed_at_its_limit(self):
+        result, _ = self.run_fake("import time; time.sleep(60)", timeout=2)
+        self.assertEqual(result.status, "TIMEOUT")
+
+    def test_an_info_step_is_never_a_pass(self):
+        result, _ = self.run_fake("print('case: x')", info_only=True)
+        self.assertEqual(result.status, "NOT RUN")
 
 
 class DryRunTest(unittest.TestCase):

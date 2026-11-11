@@ -531,7 +531,8 @@ def run_step(step, ctx):
         elif bad:
             status = "FAIL"
         else:
-            status = "PASS"
+            # A skipped check could not be exercised, so it is said in the word.
+            status = "PASS+SKIP" if sk else "PASS"
     result.status = status
 
     wanted = [re.compile(p_) for p_ in step.detail]
@@ -553,7 +554,7 @@ def write_summary(path, ctx, results, state):
     lines.append(f"updated:  {datetime.datetime.now():%Y-%m-%d %H:%M:%S}")
     lines.append(f"tools:    {ctx['tools']}")
     lines.append("")
-    head = f"{'step':<20} {'result':<8} {'time':>6}  {'focus':<14} {'counts':<26} what"
+    head = f"{'step':<20} {'result':<10} {'time':>6}  {'focus':<14} {'counts':<26} what"
     lines.append(head)
     lines.append("-" * len(head))
     for r in results:
@@ -562,22 +563,24 @@ def write_summary(path, ctx, results, state):
             f"  [left {r.leftovers} process(es) behind, killed]" if r.leftovers else ""
         )
         lines.append(
-            f"{r.step.id:<20} {r.status:<8} {t:>6}  {r.focus:<14} {r.counts:<26} "
+            f"{r.step.id:<20} {r.status:<10} {t:>6}  {r.focus:<14} {r.counts:<26} "
             f"{r.step.title}{note}"
         )
     pending = [s for s in ctx["all_steps"] if s.id not in {r.step.id for r in results}]
     for s in pending:
-        lines.append(f"{s.id:<20} {'pending':<8} {'':>6}  {'':<14} {'':<26} {s.title}")
+        lines.append(f"{s.id:<20} {'pending':<10} {'':>6}  {'':<14} {'':<26} {s.title}")
     lines.append("")
+    lines.append("Result words: PASS = exit 0, nothing skipped.")
     lines.append(
-        "Result words: PASS = exit 0. FAIL = a check failed or the tool exited non-zero."
+        "PASS+SKIP = exit 0, but a check could not be exercised (listed below)."
+    )
+    lines.append(
+        "FAIL = a check failed or the tool exited non-zero. ERROR = the runner failed."
     )
     lines.append(
         "TIMEOUT = killed at its time limit. NOT RUN = deliberately not run here."
     )
-    lines.append(
-        "A SKIP inside a step is a check that could not be exercised; it is not a pass."
-    )
+    lines.append("A SKIP is never counted as a pass.")
     lines.append("")
     for r in results:
         lines.append(f"== {r.step.id}: {r.step.title}")
