@@ -92,22 +92,22 @@ new file mode 100644
 +          on-click="onProtectionDetailsClick_" external>
 +      </cr-link-row>
 +      <settings-toggle-button id="stopTakeoversToggle" class="hr"
-+          pref="{{prefs.boring.protection.stop_takeovers}}"
++          pref-key="boring.protection.stop_takeovers"
 +          label="Stop screen takeovers"
 +          sub-label="Stops a page from locking your screen or keyboard with fake alerts.">
 +      </settings-toggle-button>
 +      <settings-toggle-button id="noScamBypassToggle" class="hr"
-+          pref="{{prefs.boring.protection.no_scam_bypass}}"
++          pref-key="boring.protection.no_scam_bypass"
 +          label="No way past scam warnings"
 +          sub-label="Takes away the continue anyway link on a scam warning.">
 +      </settings-toggle-button>
 +      <settings-toggle-button id="hideSponsoredToggle" class="hr"
-+          pref="{{prefs.boring.hide_sponsored_results}}"
++          pref-key="boring.hide_sponsored_results"
 +          label="Hide sponsored results"
 +          sub-label="Removes paid results from Google and Bing searches.">
 +      </settings-toggle-button>
 +      <settings-toggle-button id="listUpdatesToggle"
-+          pref="{{prefs.boring.list_updates}}"
++          pref-key="boring.list_updates"
 +          label="Keep blocking lists up to date"
 +          sub-label="Checks for newer lists about once a week. No account, no cookie, nothing about you or the pages you visit.">
 +      </settings-toggle-button>
@@ -116,7 +116,7 @@ diff --git a/chrome/browser/resources/settings/boring_page/boring_protection_pag
 new file mode 100644
 --- /dev/null
 +++ b/chrome/browser/resources/settings/boring_page/boring_protection_page.ts
-@@ -0,0 +1,57 @@
+@@ -0,0 +1,56 @@
 +// Copyright 2026 boring. BSD style license.
 +
 +/**
@@ -135,7 +135,6 @@ new file mode 100644
 +import '../settings_page/settings_section.js';
 +import '../settings_shared.css.js';
 +
-+import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
 +import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 +
 +import {getSearchManager} from '../search_settings.js';
@@ -143,10 +142,10 @@ new file mode 100644
 +
 +import {getTemplate} from './boring_protection_page.html.js';
 +
-+const BoringProtectionPageElementBase = PrefsMixin(PolymerElement);
-+
-+export class BoringProtectionPageElement extends
-+    BoringProtectionPageElementBase implements SettingsPlugin {
++// The toggles read and write their pref through pref-key (Chromium's
++// PrefService). Nothing passes a prefs object down to this page any more.
++export class BoringProtectionPageElement extends PolymerElement implements
++    SettingsPlugin {
 +  static get is() {
 +    return 'boring-protection-page';
 +  }
@@ -348,21 +347,21 @@ new file mode 100644
 +      <div class="cr-row first">
 +        <div class="cr-padded-text flex">Page summaries</div>
 +        <div class="cr-secondary-text">
-+          [[computeProviderLabel_(prefs.boring.ai.provider.value)]]
++          [[computeProviderLabel_(providerPref_.value)]]
 +        </div>
 +      </div>
 +      <cr-button id="setUpButton" on-click="onSetUpClick_">
 +        Set up page summaries
 +      </cr-button>
 +      <div class="boring-information">
-+        [[computeDestinationNote_(prefs.boring.ai.provider.value)]]
++        [[computeDestinationNote_(providerPref_.value)]]
 +      </div>
 +    </settings-section>
 diff --git a/chrome/browser/resources/settings/boring_page/boring_summaries_page.ts b/chrome/browser/resources/settings/boring_page/boring_summaries_page.ts
 new file mode 100644
 --- /dev/null
 +++ b/chrome/browser/resources/settings/boring_page/boring_summaries_page.ts
-@@ -0,0 +1,98 @@
+@@ -0,0 +1,114 @@
 +// Copyright 2026 boring. BSD style license.
 +
 +/**
@@ -378,7 +377,7 @@ new file mode 100644
 +import '../settings_page/settings_section.js';
 +import '../settings_shared.css.js';
 +
-+import {PrefsMixin} from '/shared/settings/prefs/prefs_mixin.js';
++import {PrefServiceObserverMixin} from '/shared/settings/prefs2/pref_service_observer_mixin.js';
 +import {PolymerElement} from 'chrome://resources/polymer/v3_0/polymer/polymer_bundled.min.js';
 +
 +import {getSearchManager} from '../search_settings.js';
@@ -408,7 +407,7 @@ new file mode 100644
 +  groq: 'Groq',
 +};
 +
-+const BoringSummariesPageElementBase = PrefsMixin(PolymerElement);
++const BoringSummariesPageElementBase = PrefServiceObserverMixin(PolymerElement);
 +
 +export class BoringSummariesPageElement extends
 +    BoringSummariesPageElementBase implements SettingsPlugin {
@@ -418,6 +417,22 @@ new file mode 100644
 +
 +  static get template() {
 +    return getTemplate();
++  }
++
++  static get properties() {
++    return {
++      providerPref_: Object,
++    };
++  }
++
++  declare private providerPref_:
++      chrome.settingsPrivate.PrefObject<string>|undefined;
++
++  override connectedCallback() {
++    super.connectedCallback();
++    // Kept current by Chromium's PrefService; nothing passes a prefs object
++    // down to this page any more.
++    this.mirrorPref('boring.ai.provider', 'providerPref_');
 +  }
 +
 +  private computeProviderLabel_(provider: string): string {
@@ -554,7 +569,7 @@ diff --git a/chrome/browser/resources/settings/settings_main/settings_main.html 
 +    <div slot="view" id="protection">
 +      <template is="dom-if" if="[[renderPlugin_(
 +          routes_.PROTECTION, lastRoute_, inSearchMode_)]]">
-+        <boring-protection-page prefs="{{prefs}}"></boring-protection-page>
++        <boring-protection-page></boring-protection-page>
 +      </template>
 +    </div>
 +  </template>
@@ -570,7 +585,7 @@ diff --git a/chrome/browser/resources/settings/settings_main/settings_main.html 
 +    <div slot="view" id="summaries">
 +      <template is="dom-if" if="[[renderPlugin_(
 +          routes_.SUMMARIES, lastRoute_, inSearchMode_)]]">
-+        <boring-summaries-page prefs="{{prefs}}"></boring-summaries-page>
++        <boring-summaries-page></boring-summaries-page>
 +      </template>
 +    </div>
 +  </template>

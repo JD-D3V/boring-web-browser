@@ -172,6 +172,22 @@ class PagesTest(unittest.TestCase):
                 self.assertIn(f'(*s_allowlist)["{pref}"]', text)
                 self.assertIn('pref="{{prefs.' + pref + '}}"', text)
 
+    def test_157_settings_page_binds_through_pref_key(self):
+        # On 157 nothing passes a prefs object down to settings-main's pages,
+        # so a {{prefs.x}} binding shows every toggle off (ledger 118).
+        text = read(PATCHES / "157" / "settings-boring-pages.patch")
+        for pref in (
+            "boring.protection.stop_takeovers",
+            "boring.protection.no_scam_bypass",
+            "boring.hide_sponsored_results",
+            "boring.list_updates",
+        ):
+            self.assertIn(f'(*s_allowlist)["{pref}"]', text)
+            self.assertIn(f'pref-key="{pref}"', text)
+        self.assertNotIn("{{prefs", text)
+        self.assertNotIn("prefs.boring", text)
+        self.assertIn("this.mirrorPref('boring.ai.provider', 'providerPref_')", text)
+
 
 if __name__ == "__main__":
     unittest.main()
