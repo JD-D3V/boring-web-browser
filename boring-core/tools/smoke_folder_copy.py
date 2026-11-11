@@ -19,8 +19,9 @@ The folder picker cannot be driven, so the test folder is set with
     Preferences, and a folder outside the temp directory is ignored.
   - A settings file that adds an @@ exception rule is flagged in the
     preview as turning blocking off for some sites.
-  - One that adds only a ## cosmetic rule, a ##+js rule, a #?# rule or a #$#
-    rule (no @@ line) is flagged as changing how some sites look or act,
+  - One that adds only a ## cosmetic rule, a ##+js rule, a #?#, #$# or #%#
+    rule, or a network rule with $redirect, $csp or $replace (no @@ line)
+    is flagged as changing how some sites look or act,
     and one that adds only an ordinary blocking rule is not.
 """
 
@@ -280,6 +281,10 @@ COSMETIC_RULES = [
     ("##+js", "example.org##+js(abort-on-property-read, adsEnabled)"),
     ("#?#", "example.org#?#div:has(> .sponsor)"),
     ("#$#", "example.org#$#body { overflow: auto !important }"),
+    ("#%#", "example.org#%#//scriptlet('abort-on-property-read', 'adsEnabled')"),
+    ("$redirect", "||bank.example/fraud.js$script,redirect=noopjs"),
+    ("$csp", "||bank.example^$csp=script-src 'self'"),
+    ("$replace", "||bank.example/app.js$replace=/check/skip/"),
 ]
 COSMETIC_NOTE = "change how certain sites look or act (less protection)"
 

@@ -398,6 +398,14 @@ def downloads_and_copies(s, checks):
         lambda: s.bars().count(ASK) >= 2
     )
     checks["the bar is not the strong one"] = ASK_STRONG not in s.bars()
+    # A script under a tool's name counts as a program too.
+    s.download("anydesk-script")
+    checks["AnyDesk.js download shows the bar"] = wait(
+        lambda: s.bars().count(ASK) >= 3
+    )
+    checks["AnyDesk.js is held, not saved"] = steady(
+        lambda: "AnyDesk.js" not in s.saved(), seconds=4
+    )
     if not checks["AnyDesk download shows the bar"]:
         s.diagnose("AnyDesk")
 

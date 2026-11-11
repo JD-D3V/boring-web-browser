@@ -57,7 +57,9 @@ class OffTheRecordSharedSwitches(unittest.TestCase):
 
     def test_apply_refuses_before_it_changes_anything(self):
         body = self.body("void ApplyConnection(")
-        refuse = body.index("if (IsBrowserWideKind(*kind) && context->IsOffTheRecord())")
+        refuse = body.index(
+            "if (IsBrowserWideKind(*kind) && context->IsOffTheRecord())"
+        )
         self.assertIn("return;", body[refuse : refuse + 120])
         self.assertLess(refuse, body.index("SetSecureDnsEnabled(on)"))
         self.assertLess(refuse, body.index("BrowserUpdater::SetAutomatic(on)"))

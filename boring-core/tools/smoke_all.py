@@ -71,6 +71,10 @@ CHECKS = [
     ("your own blocking lists", "smoke_own_lists.py"),
     ("apps on this computer (native hosts)", "smoke_native_hosts.py"),
     ("keep a copy in a folder", "smoke_folder_copy.py"),
+    (
+        "last batch (guest links, shared switches, new tab numbers)",
+        "smoke_final_batch.py",
+    ),
 ]
 
 # Every smoke_*.py that is not a check, with the reason. A new file must
