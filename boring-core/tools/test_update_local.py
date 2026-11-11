@@ -859,6 +859,12 @@ class Harness:
                     until=lambda: o.installer_ran,
                 )
             o.browser_alive = True  # it is meant to close for this one
+            # WinSparkle starts the installer as a child of the browser and
+            # then asks the browser to quit. Killing the browser's tree before
+            # it has quit would kill the installer mid-extract (seen once on
+            # the first Release 3 run: no new version folder), so let it go.
+            if o.installer_ran:
+                wait_for(lambda: browser.proc.poll() is not None, 60, step=0.5)
         finally:
             browser.close()
         # Let the installer finish before anything else looks at the copy.
