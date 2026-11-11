@@ -2177,6 +2177,11 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     web_ui()->CallJavascriptFunctionUnsafe("showRegional", lists, chosen);
   }
 
+  // Switch kinds that change state shared by every profile.
+  static bool IsBrowserWideKind(const std::string& kind) {
+    return kind == "local_state" || kind == "updater";
+  }
+
   // The switch behind one "On its own" row. The row's kind and pref come
   // from the compiled-in file, never from the page.
   void ApplyConnection(const std::string& id, bool on) {
@@ -2194,6 +2199,11 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
       }
       content::BrowserContext* context =
           web_ui()->GetWebContents()->GetBrowserContext();
+      // Secure DNS and automatic updates are shared by every profile, so a
+      // guest or incognito window may not change them.
+      if (IsBrowserWideKind(*kind) && context->IsOffTheRecord()) {
+        return;
+      }
       if (*kind == "local_state") {
         SetSecureDnsEnabled(on);
       } else if (*kind == "profile") {
@@ -2325,6 +2335,11 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
         if (state == "removed") {
           detail = "The store is not installed.";
         }
+      }
+      if (can_switch && IsBrowserWideKind(*kind) &&
+          context->IsOffTheRecord()) {
+        can_switch = false;
+        detail = "Change this in a normal window.";
       }
       base::DictValue row = entry->Clone();
       row.Remove("switch");

@@ -39,5 +39,40 @@ class GuestSettingsLinks(unittest.TestCase):
             )
 
 
+class OffTheRecordSharedSwitches(unittest.TestCase):
+    """P2b. A guest or incognito window cannot turn off secure DNS or updates."""
+
+    def setUp(self):
+        self.src = read(BORING / "protection" / "protection_ui.cc")
+
+    def body(self, signature):
+        start = self.src.index(signature)
+        return self.src[start : self.src.index("\n  }\n", start)]
+
+    def test_only_the_two_shared_kinds_count(self):
+        self.assertIn(
+            'return kind == "local_state" || kind == "updater";',
+            self.body("static bool IsBrowserWideKind("),
+        )
+
+    def test_apply_refuses_before_it_changes_anything(self):
+        body = self.body("void ApplyConnection(")
+        refuse = body.index("if (IsBrowserWideKind(*kind) && context->IsOffTheRecord())")
+        self.assertIn("return;", body[refuse : refuse + 120])
+        self.assertLess(refuse, body.index("SetSecureDnsEnabled(on)"))
+        self.assertLess(refuse, body.index("BrowserUpdater::SetAutomatic(on)"))
+
+    def test_rows_say_so_and_cannot_be_switched(self):
+        body = self.body("base::ListValue OwnConnections()")
+        m = re.search(
+            r"if \(can_switch && IsBrowserWideKind\(\*kind\) &&\s+"
+            r"context->IsOffTheRecord\(\)\) \{\s+can_switch = false;\s+"
+            r'detail = "Change this in a normal window.";',
+            body,
+        )
+        self.assertTrue(m)
+        self.assertLess(m.start(), body.index('row.Set("canSwitch", can_switch)'))
+
+
 if __name__ == "__main__":
     unittest.main()
