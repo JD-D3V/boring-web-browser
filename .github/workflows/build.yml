@@ -3,9 +3,9 @@
 # This runs on a self hosted runner, not GitHub's free cloud runners.
 # Chromium is far too big for those.
 #
-# The build takes hours, so this does not run on every push. Start it by
-# hand from the Actions tab, or let the nightly run pick up the day's
-# changes.
+# The build takes hours, so this does not run on every push, and it has no
+# schedule: with no runner registered, a nightly run only queued and was
+# cancelled. Start it by hand from the Actions tab once the runner exists.
 #
 # There is one build tree on that machine, E:\ung-157, and two things
 # writing into it at once ruin it quietly. Two guards keep that from
@@ -22,9 +22,6 @@ on:
         description: "Also make the installer and zip"
         type: boolean
         default: false
-  schedule:
-    # Every day at 03:00 UTC, when the machine is likely free.
-    - cron: "0 3 * * *"
 
 # This job builds and checks, it never publishes, so its token has no
 # business writing anything. The runner is the machine that will hold

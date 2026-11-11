@@ -42,12 +42,17 @@ def main():
     ) as b:
         b.get("chrome://boring-newtab")
         time.sleep(2.0)
-        found = b.run("var c=document.getElementById('colours');"
-                      "if(!c) return 'no button'; c.click(); return 'clicked'")
+        found = b.run(
+            "var c=document.getElementById('colours');"
+            "if(!c) return 'no button'; c.click(); return 'clicked'"
+        )
         print("button:", found)
         time.sleep(args.wait)
         hwnd = frame_window(binary, under=b.proc.pid)
-        x, y, = (int(v) for v in OFFSCREEN.split(","))
+        (
+            x,
+            y,
+        ) = (int(v) for v in OFFSCREEN.split(","))
         user32.MoveWindow(hwnd, x, y, w, h, True)
         time.sleep(0.8)
         got = grab(hwnd, args.out)

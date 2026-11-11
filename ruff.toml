@@ -6,6 +6,24 @@
 target-version = "py312"
 line-length = 88
 
+# Files other open branches are changing. Reformatting them now would make
+# those branches conflict, so ruff leaves them alone (format and check) until
+# the branches are merged. Delete this list in the follow-up that formats
+# them (ledger 107); nothing else is excluded.
+extend-exclude = [
+  "boring-core/tools/smoke_*.py",
+  "boring-core/tools/get_scamlist.py",
+  "boring-core/tools/get_filterlists.py",
+  "boring-core/tools/publish_lists.py",
+  "boring-core/tools/check_package.py",
+  "boring-core/tools/tests/test_lists.py",
+  "boring-core/tools/tests/test_scamlist.py",
+  "boring-core/tools/tests/test_ubo_lists.py",
+  "boring-core/tools/tests/scam_data.py",
+  "boring-core/tools/tests/test_connections.py",
+  "boring-core/tools/tests/test_r3_security.py",
+]
+
 [lint]
 select = [
   "E", "W",   # pycodestyle: style + whitespace
@@ -15,3 +33,6 @@ select = [
   "B",        # flake8-bugbear: common gotchas
   "SIM",      # flake8-simplify: simpler equivalents
 ]
+# `ruff format` owns line length. What it cannot wrap (a long string, a URL in
+# a comment) is not worth a failing check.
+ignore = ["E501"]

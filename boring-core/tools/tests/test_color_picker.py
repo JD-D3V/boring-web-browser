@@ -17,24 +17,40 @@ from pathlib import Path
 CORE = Path(__file__).resolve().parents[2]
 PATCH = CORE / "patches" / "colour-picker-schemes.patch"
 SERIES = CORE / "patches" / "series"
-MIXER = CORE / "chromium_src" / "chrome" / "browser" / "ui" / "color" / "boring_color_mixer.cc"
+MIXER = (
+    CORE
+    / "chromium_src"
+    / "chrome"
+    / "browser"
+    / "ui"
+    / "color"
+    / "boring_color_mixer.cc"
+)
 
-RGB = re.compile(r"SkColorSetRGB\(\s*(?:0x)?([0-9a-fA-F]+),\s*(?:0x)?([0-9a-fA-F]+),\s*(?:0x)?([0-9a-fA-F]+)\s*\)")
+RGB = re.compile(
+    r"SkColorSetRGB\(\s*(?:0x)?([0-9a-fA-F]+),\s*(?:0x)?([0-9a-fA-F]+),\s*(?:0x)?([0-9a-fA-F]+)\s*\)"
+)
 
 
 def added():
-    return "\n".join(ln[1:] for ln in PATCH.read_text(encoding="utf-8").splitlines()
-                     if ln.startswith("+") and not ln.startswith("+++"))
+    return "\n".join(
+        ln[1:]
+        for ln in PATCH.read_text(encoding="utf-8").splitlines()
+        if ln.startswith("+") and not ln.startswith("+++")
+    )
 
 
 def after():
     """The patched text as the build sees it: added and untouched lines."""
-    return "\n".join(ln[1:] for ln in PATCH.read_text(encoding="utf-8").splitlines()
-                     if ln[:1] in ("+", " ") and not ln.startswith("+++"))
+    return "\n".join(
+        ln[1:]
+        for ln in PATCH.read_text(encoding="utf-8").splitlines()
+        if ln[:1] in ("+", " ") and not ln.startswith("+++")
+    )
 
 
 def seed(src, name):
-    m = re.search(r"%s\s*=\s*(SkColorSetRGB\([^)]*\))" % name, src)
+    m = re.search(rf"{name}\s*=\s*(SkColorSetRGB\([^)]*\))", src)
     r = RGB.search(m.group(1))
     base = 16 if "0x" in m.group(1) else 10
     return tuple(int(r.group(i), base) for i in (1, 2, 3))
@@ -43,7 +59,10 @@ def seed(src, name):
 def picker_entry(label):
     """The seed colour of the swatch with this label in the patch."""
     text = after()
-    m = re.search(r"DynamicColorInfo\(\s*/\*id=\*/\d+,\s*(SkColorSetRGB\([^)]*\)),\s*%s," % label, text)
+    m = re.search(
+        rf"DynamicColorInfo\(\s*/\*id=\*/\d+,\s*(SkColorSetRGB\([^)]*\)),\s*{label},",
+        text,
+    )
     assert m, label
     r = RGB.search(m.group(1))
     base = 16 if "0x" in m.group(1) else 10
@@ -69,9 +88,12 @@ class ColourPickerTest(unittest.TestCase):
 
     def test_the_seeds_differ_and_the_old_teal_still_means_beige(self):
         src = MIXER.read_text(encoding="utf-8")
-        seeds = [seed(src, n) for n in ("kCoolSeed", "kBeigeSeed", "kLegacyBeigeSeed", "kGreenSeed")]
+        seeds = [
+            seed(src, n)
+            for n in ("kCoolSeed", "kBeigeSeed", "kLegacyBeigeSeed", "kGreenSeed")
+        ]
         self.assertEqual(len(set(seeds)), 4)
-        self.assertEqual(seed(src, "kLegacyBeigeSeed"), (0x17, 0x6b, 0x5b))
+        self.assertEqual(seed(src, "kLegacyBeigeSeed"), (0x17, 0x6B, 0x5B))
         self.assertRegex(src, r"key\.user_color == kLegacyBeigeSeed")
         self.assertRegex(src, r"key\.user_color == kBeigeSeed")
 
@@ -92,14 +114,25 @@ class ColourPickerTest(unittest.TestCase):
 
     def test_green_is_picked_by_its_seed_and_has_its_own_palette(self):
         src = MIXER.read_text(encoding="utf-8")
-        self.assertRegex(src, r"bool WantsGreen[^{]*\{\s*if \(key\.user_color == kGreenSeed\)")
-        self.assertRegex(src, r"WantsGreen\(key\)\s*\?\s*\(dark \? kGreenDark : kGreenLight\)")
+        self.assertRegex(
+            src, r"bool WantsGreen[^{]*\{\s*if \(key\.user_color == kGreenSeed\)"
+        )
+        self.assertRegex(
+            src, r"WantsGreen\(key\)\s*\?\s*\(dark \? kGreenDark : kGreenLight\)"
+        )
 
     def test_only_the_picker_file_changes(self):
-        files = sorted(ln for ln in PATCH.read_text(encoding="utf-8").splitlines() if ln.startswith("+++ "))
-        self.assertEqual(files, [
-            "+++ b/chrome/browser/ui/webui/cr_components/theme_color_picker/customize_chrome_colors.cc",
-        ])
+        files = sorted(
+            ln
+            for ln in PATCH.read_text(encoding="utf-8").splitlines()
+            if ln.startswith("+++ ")
+        )
+        self.assertEqual(
+            files,
+            [
+                "+++ b/chrome/browser/ui/webui/cr_components/theme_color_picker/customize_chrome_colors.cc",
+            ],
+        )
 
 
 if __name__ == "__main__":

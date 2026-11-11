@@ -23,7 +23,7 @@ class NativeHostsBlock(unittest.TestCase):
         header = read(BORING, "core", "boring_prefs.h")
         name = re.search(r'kNativeHostsAllowed\[\] = "([^"]+)"', header).group(1)
         patch = read(PATCH)
-        self.assertIn('GetList("%s")' % name, patch)
+        self.assertIn(f'GetList("{name}")', patch)
         self.assertIn("kNativeMessagingBlocklist", patch)
         self.assertIn("kNativeMessagingAllowlist", patch)
 
@@ -37,9 +37,14 @@ class NativeHostsBlock(unittest.TestCase):
         patch = read(PATCH)
         files = re.findall(r"^\+\+\+ b/(\S+)", patch, re.M)
         self.assertEqual(
-            files, ["chrome/browser/extensions/api/messaging/chrome_messaging_delegate.cc"]
+            files,
+            ["chrome/browser/extensions/api/messaging/chrome_messaging_delegate.cc"],
         )
-        added = [l for l in patch.splitlines() if l.startswith("+") and not l.startswith("+++")]
+        added = [
+            ln
+            for ln in patch.splitlines()
+            if ln.startswith("+") and not ln.startswith("+++")
+        ]
         self.assertLess(len(added), 20)
 
     def test_prefs_registered_and_migrated(self):
@@ -57,8 +62,10 @@ class NativeHostsBlock(unittest.TestCase):
 
     def test_registry_scan_reads_both_key_families(self):
         cc = read(BORING, "core", "native_hosts.cc")
-        for key in ("SOFTWARE\\\\Chromium\\\\NativeMessagingHosts",
-                    "SOFTWARE\\\\Google\\\\Chrome\\\\NativeMessagingHosts"):
+        for key in (
+            "SOFTWARE\\\\Chromium\\\\NativeMessagingHosts",
+            "SOFTWARE\\\\Google\\\\Chrome\\\\NativeMessagingHosts",
+        ):
             self.assertIn(key, cc)
         for root in ("HKEY_CURRENT_USER", "HKEY_LOCAL_MACHINE"):
             self.assertIn(root, cc)

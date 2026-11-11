@@ -29,8 +29,15 @@ class RoundJoinPatchTest(unittest.TestCase):
     @unittest.skipUnless(os.path.isdir(TREE), "Chromium 154 tree not present")
     def test_patch_applies_or_is_already_applied_to_the_154_tree(self):
         def check(*extra):
-            return subprocess.run(["git", "apply", "--check", *extra, str(PATCH)],
-                                  cwd=TREE, capture_output=True).returncode == 0
+            return (
+                subprocess.run(
+                    ["git", "apply", "--check", *extra, str(PATCH)],
+                    cwd=TREE,
+                    capture_output=True,
+                ).returncode
+                == 0
+            )
+
         self.assertTrue(check() or check("--reverse"))
 
 

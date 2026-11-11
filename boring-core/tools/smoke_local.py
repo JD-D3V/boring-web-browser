@@ -22,6 +22,7 @@ Not a test itself.
 
 import json
 import os
+import ssl
 import tempfile
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -44,11 +45,27 @@ class Pages:
     opened as the site with rules and as the site without.
     """
 
-    def __init__(self, pages):
+    def __init__(self, pages, tls=None):
+        """tls is (certificate file, key file) to serve https, else plain http.
+
+        The handshake runs in the connection's own thread: the browser opens
+        idle connections ahead of use, and one that never speaks would hold
+        up a server that did the handshake while accepting.
+        """
         self.pages = pages
         table = pages
+        context = None
+        if tls:
+            context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            context.load_cert_chain(*tls)
+        self.scheme = "https" if tls else "http"
 
         class Handler(BaseHTTPRequestHandler):
+            def setup(self):
+                if context:
+                    self.request = context.wrap_socket(self.request, server_side=True)
+                super().setup()
+
             def do_GET(self):
                 path = self.path.split("?", 1)[0]
                 found = table.get(path)
@@ -68,12 +85,18 @@ class Pages:
             def log_message(self, *args):
                 pass
 
-        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        class Server(ThreadingHTTPServer):
+            def handle_error(self, request, client_address):
+                # A browser dropping a connection mid handshake is not news.
+                if not context:
+                    super().handle_error(request, client_address)
+
+        self.server = Server(("127.0.0.1", 0), Handler)
         self.port = self.server.server_port
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
 
     def url(self, host, path="/"):
-        return f"http://{host}:{self.port}{path}"
+        return f"{self.scheme}://{host}:{self.port}{path}"
 
     def close(self):
         self.server.shutdown()

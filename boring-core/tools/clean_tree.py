@@ -42,25 +42,29 @@ def series(core, patch_set):
             if not name or name.startswith("#"):
                 continue
             rebased = os.path.join(core, "patches", patch_set or "", name)
-            out.append(rebased if patch_set and os.path.exists(rebased)
-                       else os.path.join(core, "patches", name))
+            out.append(
+                rebased
+                if patch_set and os.path.exists(rebased)
+                else os.path.join(core, "patches", name)
+            )
     return out
 
 
 def touched(patch):
     with open(patch, encoding="utf-8") as f:
-        return {l[6:].strip().replace("/", os.sep)
-                for l in f if l.startswith("+++ b/")}
+        return {
+            ln[6:].strip().replace("/", os.sep) for ln in f if ln.startswith("+++ b/")
+        }
 
 
 def created(patch):
     """Files the patch creates (--- /dev/null), which have no pristine copy."""
     out, prev = set(), ""
     with open(patch, encoding="utf-8") as f:
-        for l in f:
-            if l.startswith("+++ b/") and prev.startswith("--- /dev/null"):
-                out.add(l[6:].strip().replace("/", os.sep))
-            prev = l
+        for ln in f:
+            if ln.startswith("+++ b/") and prev.startswith("--- /dev/null"):
+                out.add(ln[6:].strip().replace("/", os.sep))
+            prev = ln
     return out
 
 
@@ -80,10 +84,18 @@ def expected(rel, base, patches, tmp):
         for patch in patches:
             r = subprocess.run(
                 # autocrlf off: the temp copy must keep the tree's line endings.
-                ["git", "-c", "core.autocrlf=false", "apply",
-                 "--whitespace=nowarn",
-                 "--include=" + rel.replace(os.sep, "/"), patch],
-                cwd=tmp, capture_output=True)
+                [
+                    "git",
+                    "-c",
+                    "core.autocrlf=false",
+                    "apply",
+                    "--whitespace=nowarn",
+                    "--include=" + rel.replace(os.sep, "/"),
+                    patch,
+                ],
+                cwd=tmp,
+                capture_output=True,
+            )
             if r.returncode != 0:
                 return None
         return read(work)
@@ -139,6 +151,7 @@ def main():
                 if want is not None and read(tree_file) == want:
                     continue
                 todo[rel] = (keep, tree_file)
+
         # apply.py works one patch at a time and cannot tell that a patch
         # sitting under later patches on the same lines is already in, and
         # it takes a patch whose files are only partly patched for a
@@ -149,9 +162,12 @@ def main():
         def differs(rel):
             keep = os.path.join(store, rel)
             tree_file = os.path.join(args.src, rel)
-            return (rel not in skip and os.path.exists(keep)
-                    and os.path.exists(tree_file)
-                    and read(keep) != read(tree_file))
+            return (
+                rel not in skip
+                and os.path.exists(keep)
+                and os.path.exists(tree_file)
+                and read(keep) != read(tree_file)
+            )
 
         for rel, ps in by_file.items():
             if rel in todo or len(ps) < 2 or not differs(rel):
@@ -162,14 +178,21 @@ def main():
                 f.write(read(os.path.join(args.src, rel)))
             for patch in ps:
                 r = subprocess.run(
-                    ["git", "apply", "--reverse", "--check",
-                     "--include=stack/" + rel.replace(os.sep, "/"),
-                     "--directory=stack", patch],
-                    cwd=tmp, capture_output=True)
+                    [
+                        "git",
+                        "apply",
+                        "--reverse",
+                        "--check",
+                        "--include=stack/" + rel.replace(os.sep, "/"),
+                        "--directory=stack",
+                        patch,
+                    ],
+                    cwd=tmp,
+                    capture_output=True,
+                )
                 if r.returncode != 0:
                     print("stacked, cannot tell if applied", rel)
-                    todo[rel] = (os.path.join(store, rel),
-                                 os.path.join(args.src, rel))
+                    todo[rel] = (os.path.join(store, rel), os.path.join(args.src, rel))
                     break
         grew = True
         while grew:
@@ -180,8 +203,10 @@ def main():
                     for rel in files:
                         if rel not in todo and differs(rel):
                             print("rest of a patch being redone", rel)
-                            todo[rel] = (os.path.join(store, rel),
-                                         os.path.join(args.src, rel))
+                            todo[rel] = (
+                                os.path.join(store, rel),
+                                os.path.join(args.src, rel),
+                            )
                             grew = True
         for rel, (keep, tree_file) in sorted(todo.items()):
             print("restore", rel)
@@ -196,32 +221,44 @@ def main():
         # ungoogled does change cannot be seeded; they are listed.
         dsub = set()
         root = os.path.dirname(os.path.dirname(os.path.abspath(args.src)))
-        for lst in (os.path.join(root, "domain_substitution.list"),
-                    os.path.join(root, "ungoogled-chromium",
-                                 "domain_substitution.list")):
+        for lst in (
+            os.path.join(root, "domain_substitution.list"),
+            os.path.join(root, "ungoogled-chromium", "domain_substitution.list"),
+        ):
             if os.path.exists(lst):
                 with open(lst, encoding="utf-8") as f:
-                    dsub.update(l.strip().replace("/", os.sep) for l in f)
+                    dsub.update(ln.strip().replace("/", os.sep) for ln in f)
         # Only files some boring-core branch patches, and never a file
         # ungoogled's own patches change (HEAD is not its original).
         repo = os.path.dirname(os.path.abspath(args.core))
         refs = subprocess.run(
             ["git", "for-each-ref", "--format=%(refname)", "refs/heads"],
-            cwd=repo, capture_output=True, text=True).stdout.split()
+            cwd=repo,
+            capture_output=True,
+            text=True,
+        ).stdout.split()
         ours = set()
         if refs:
             g = subprocess.run(
-                ["git", "grep", "-h", "^+++ b/"] + refs +
-                ["--", "boring-core/patches"],
-                cwd=repo, capture_output=True, text=True)
-            ours = {l.split("+++ b/", 1)[1].strip().replace("/", os.sep)
-                    for l in g.stdout.splitlines() if "+++ b/" in l}
+                ["git", "grep", "-h", "^+++ b/"] + refs + ["--", "boring-core/patches"],
+                cwd=repo,
+                capture_output=True,
+                text=True,
+            )
+            ours = {
+                ln.split("+++ b/", 1)[1].strip().replace("/", os.sep)
+                for ln in g.stdout.splitlines()
+                if "+++ b/" in ln
+            }
         # Uncommitted patches in other worktrees count too.
         # The worktrees live under the main checkout, which is not `repo`
         # when --core is a worktree's own boring-core.
         common = subprocess.run(
             ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
-            cwd=repo, capture_output=True, text=True).stdout.strip()
+            cwd=repo,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
         main_repo = os.path.dirname(common) if common else repo
         wt = os.path.join(main_repo, ".claude", "worktrees")
         if os.path.isdir(wt):
@@ -232,31 +269,46 @@ def main():
                         if pf.endswith(".patch"):
                             ours |= touched(os.path.join(proot, pf))
         theirs = set()
-        for pdir in (os.path.join(root, "patches"),
-                     os.path.join(root, "ungoogled-chromium", "patches")):
+        for pdir in (
+            os.path.join(root, "patches"),
+            os.path.join(root, "ungoogled-chromium", "patches"),
+        ):
             for proot, _d, pfiles in os.walk(pdir):
                 for pf in pfiles:
                     if pf.endswith(".patch"):
                         theirs |= touched(os.path.join(proot, pf))
-        r = subprocess.run(["git", "status", "--porcelain", "-uno"],
-                           cwd=args.src, capture_output=True, text=True)
-        modified = {line[3:].strip().replace("/", os.sep)
-                    for line in r.stdout.splitlines() if line.startswith(" M")}
+        r = subprocess.run(
+            ["git", "status", "--porcelain", "-uno"],
+            cwd=args.src,
+            capture_output=True,
+            text=True,
+        )
+        modified = {
+            line[3:].strip().replace("/", os.sep)
+            for line in r.stdout.splitlines()
+            if line.startswith(" M")
+        }
         unresolved = []
         for rel in sorted(ours):
             keep = os.path.join(store, rel)
             tree_file = os.path.join(args.src, rel)
-            if (rel in skip or os.path.exists(keep)
-                    or not os.path.exists(tree_file)):
+            if rel in skip or os.path.exists(keep) or not os.path.exists(tree_file):
                 continue
             # A change ungoogled itself makes: HEAD is not the original.
             if rel in theirs or rel in dsub:
                 unresolved.append(rel)
                 continue
             head = subprocess.run(
-                ["git", "-c", "core.autocrlf=false", "show",
-                 "HEAD:" + rel.replace(os.sep, "/")],
-                cwd=args.src, capture_output=True)
+                [
+                    "git",
+                    "-c",
+                    "core.autocrlf=false",
+                    "show",
+                    "HEAD:" + rel.replace(os.sep, "/"),
+                ],
+                cwd=args.src,
+                capture_output=True,
+            )
             if head.returncode != 0:
                 continue
             # Every patched file ends up with a store copy, so next time it
@@ -267,8 +319,11 @@ def main():
                 os.makedirs(os.path.dirname(keep), exist_ok=True)
                 with open(keep, "wb") as f:
                     f.write(head.stdout)
-            if (rel in modified and rel not in by_file
-                    and not os.path.exists(os.path.join(overlay, rel))):
+            if (
+                rel in modified
+                and rel not in by_file
+                and not os.path.exists(os.path.join(overlay, rel))
+            ):
                 print("restore from HEAD", rel)
                 restored += 1
                 if not args.dry_run:
@@ -289,21 +344,29 @@ def main():
                 if os.path.abspath(other).lower() == mine_root:
                     continue
                 for proot, _d, pfiles in os.walk(os.path.join(other, "patches")):
-                    foreign += [os.path.join(proot, pf)
-                                for pf in sorted(pfiles) if pf.endswith(".patch")]
+                    foreign += [
+                        os.path.join(proot, pf)
+                        for pf in sorted(pfiles)
+                        if pf.endswith(".patch")
+                    ]
         undone = set()
         for _pass in range(3):
             again = False
             for patch in foreign:
                 for rel in sorted(touched(patch)):
-                    if (rel not in dsub or rel in by_file
-                            or os.path.exists(os.path.join(overlay, rel))
-                            or (patch, rel) in undone):
+                    if (
+                        rel not in dsub
+                        or rel in by_file
+                        or os.path.exists(os.path.join(overlay, rel))
+                        or (patch, rel) in undone
+                    ):
                         continue
                     inc = "--include=" + rel.replace(os.sep, "/")
                     chk = subprocess.run(
                         ["git", "apply", "--reverse", "--check", inc, patch],
-                        cwd=args.src, capture_output=True)
+                        cwd=args.src,
+                        capture_output=True,
+                    )
                     if chk.returncode != 0:
                         continue
                     print("reverse foreign patch", os.path.basename(patch), rel)
@@ -312,19 +375,37 @@ def main():
                     again = True
                     if not args.dry_run:
                         r = subprocess.run(
-                            ["git", "apply", "--reverse", "--whitespace=nowarn",
-                             inc, patch],
-                            cwd=args.src, capture_output=True, text=True)
+                            [
+                                "git",
+                                "apply",
+                                "--reverse",
+                                "--whitespace=nowarn",
+                                inc,
+                                patch,
+                            ],
+                            cwd=args.src,
+                            capture_output=True,
+                            text=True,
+                        )
                         if r.returncode != 0:
-                            sys.exit("cannot reverse " + patch + " on " + rel
-                                     + ": " + r.stderr)
+                            sys.exit(
+                                "cannot reverse "
+                                + patch
+                                + " on "
+                                + rel
+                                + ": "
+                                + r.stderr
+                            )
             if not again:
                 break
         # A file this branch's patch creates: if the tree holds another
         # version, remove it so the patch can create it again.
         for patch in patches:
-            made = [rel for rel in created(patch)
-                    if os.path.exists(os.path.join(args.src, rel))]
+            made = [
+                rel
+                for rel in created(patch)
+                if os.path.exists(os.path.join(args.src, rel))
+            ]
             # Some of a patch's new files there and some not is a half
             # applied patch, stale as a whole.
             stale = ["partial"] if made and len(made) < len(created(patch)) else []
@@ -334,11 +415,24 @@ def main():
                 if os.path.exists(work):
                     os.remove(work)
                 r = subprocess.run(
-                    ["git", "-c", "core.autocrlf=false", "apply",
-                     "--whitespace=nowarn", "--directory=new",
-                     "--include=new/" + rel.replace(os.sep, "/"), patch],
-                    cwd=tmp, capture_output=True)
-                if r.returncode == 0 and os.path.exists(work)                         and read(work) == read(tree_file):
+                    [
+                        "git",
+                        "-c",
+                        "core.autocrlf=false",
+                        "apply",
+                        "--whitespace=nowarn",
+                        "--directory=new",
+                        "--include=new/" + rel.replace(os.sep, "/"),
+                        patch,
+                    ],
+                    cwd=tmp,
+                    capture_output=True,
+                )
+                if (
+                    r.returncode == 0
+                    and os.path.exists(work)
+                    and read(work) == read(tree_file)
+                ):
                     continue
                 stale.append(rel)
             # One stale file takes the rest of that patch's new files with
@@ -350,8 +444,10 @@ def main():
                     restored += 1
                     if not args.dry_run:
                         os.remove(os.path.join(args.src, rel))
-    print(f"done: {restored} restored ({unknown} could not be predicted, "
-          f"restored to pristine for apply.py to redo)")
+    print(
+        f"done: {restored} restored ({unknown} could not be predicted, "
+        f"restored to pristine for apply.py to redo)"
+    )
 
 
 if __name__ == "__main__":

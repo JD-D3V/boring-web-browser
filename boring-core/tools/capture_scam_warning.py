@@ -20,7 +20,15 @@ from pathlib import Path
 from capture_native import frame_window, grab
 from drive import CHROME, Browser
 from smoke_local import HTML, Pages, list_folder
-from smoke_scam import LISTED, SAFE_PAGE, SCAM_LIST, VARIANTS, args_for, open_url, wait_until_list_is_loaded
+from smoke_scam import (
+    LISTED,
+    SAFE_PAGE,
+    SCAM_LIST,
+    VARIANTS,
+    args_for,
+    open_url,
+    wait_until_list_is_loaded,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -36,20 +44,24 @@ def main():
     try:
         with list_folder({"scamlist.txt": SCAM_LIST}) as lists:
             for name, extra, _paper, _accent in VARIANTS:
-                with tempfile.TemporaryDirectory(prefix="scam-", dir=os.environ.get("TMP") or None) as profile:
-                    with Browser(
+                with (
+                    tempfile.TemporaryDirectory(
+                        prefix="scam-", dir=os.environ.get("TMP") or None
+                    ) as profile,
+                    Browser(
                         user_data_dir=profile,
                         args=args_for(lists, pages, extra),
                         headful=True,
-                    ) as b:
-                        wait_until_list_is_loaded(b)
-                        open_url(b, f"http://{LISTED}:{pages.port}/")
-                        time.sleep(2.0)
-                        hwnd = frame_window(CHROME, under=b.proc.pid)
-                        time.sleep(0.6)
-                        out = os.path.join(args.out, f"scam-warning-{name}.png")
-                        got = grab(hwnd, out)
-                        print(f"saved {out} {got[0]}x{got[1]}")
+                    ) as b,
+                ):
+                    wait_until_list_is_loaded(b)
+                    open_url(b, f"http://{LISTED}:{pages.port}/")
+                    time.sleep(2.0)
+                    hwnd = frame_window(CHROME, under=b.proc.pid)
+                    time.sleep(0.6)
+                    out = os.path.join(args.out, f"scam-warning-{name}.png")
+                    got = grab(hwnd, out)
+                    print(f"saved {out} {got[0]}x{got[1]}")
     finally:
         pages.close()
 

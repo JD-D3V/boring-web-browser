@@ -5,10 +5,17 @@
 # presses Publish on the Releases page.
 #
 # Start it by hand from the Actions tab and give it a version: the
-# Chromium version and our kBoringRelease, for example 153.0.8010.52.1,
-# optionally with a suffix, 153.0.8010.52.1-beta. The same number names
-# the downloads (BoringBrowser_153.0.8010.52.1_installer_x64.exe) and is
-# what the updater compares.
+# Chromium version and our kBoringRelease, for example 157.0.8103.38.1,
+# optionally with a suffix, 157.0.8103.38.1-beta. The same number names
+# the downloads (BoringBrowser_157.0.8103.38.1_installer_x64.exe) and is
+# what the updater compares. The release number (3 for 157.0.8103.38.1)
+# is typed in too, and the draft is titled "Boring Browser 3 (157.0.8103.38.1)".
+#
+# The build tree is E:\ung-157, and it may have been prepared by hand
+# (release 3's was). By default this job does not run the patch step on
+# it: apply.py then only copies boring-core's own files in, and never
+# applies or rewinds a patch. Tick apply_patches for a tree that should
+# be brought to this commit's patches.
 #
 # The update feed has to be signed with the update key, whose public
 # half is compiled into the browser. The path to the private key file on
@@ -35,8 +42,20 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to release, <chromium>.<kBoringRelease>, for example 153.0.8010.52.1"
+        description: "Version to release, <chromium>.<kBoringRelease>, for example 157.0.8103.38.1"
         required: true
+        type: string
+      release_number:
+        description: "Release number for the title, for example 3 (Boring Browser 3)"
+        required: true
+        type: string
+      apply_patches:
+        description: "Apply and rebrand patches in the build tree (leave off for a tree prepared by hand)"
+        type: boolean
+        default: false
+      notes_file:
+        description: "Optional path on the runner to a notes file used instead of the built in notes"
+        required: false
         type: string
       allow_unchanged_outputs:
         description: "Ship binaries ninja did not relink this run"
@@ -46,7 +65,7 @@ on:
 permissions:
   contents: write
 
-# Shared with build.yml, so the nightly build cannot start while a
+# Shared with build.yml, so a build cannot start while a
 # release is part way through the one build tree on this machine.
 concurrency:
   group: ung-build-tree
@@ -58,6 +77,8 @@ jobs:
     timeout-minutes: 720
     env:
       VERSION: ${{ inputs.version }}
+      RELEASE_NUMBER: ${{ inputs.release_number }}
+      NOTES_FILE: ${{ inputs.notes_file }}
       DIST: ${{ github.workspace }}\dist
       UNG: E:\ung-157
       OUT: E:\ung-157\build\src\out\Default
@@ -91,7 +112,10 @@ jobs:
         shell: pwsh
         run: |
           if ($env:VERSION -notmatch '^\d+\.\d+\.\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$') {
-            throw "Version '$env:VERSION' should look like 153.0.8010.52.1 or 153.0.8010.52.1-beta"
+            throw "Version '$env:VERSION' should look like 157.0.8103.38.1 or 157.0.8103.38.1-beta"
+          }
+          if ($env:RELEASE_NUMBER -notmatch '^[1-9]\d{0,2}$') {
+            throw "Release number '$env:RELEASE_NUMBER' should be a plain number such as 3"
           }
 
       # Before hours of building: a release without a signed feed is
@@ -131,7 +155,16 @@ jobs:
         shell: cmd
         run: python "%LOCK%" --claim --owner "%LOCK_OWNER%" --lease 43200 --wait 1800 --job "release.yml %VERSION%"
 
+      # --no-patches copies boring-core's own files in and stops before
+      # the patches and the rebrand, so a tree prepared by hand is not
+      # rewound. apply_patches runs the whole thing instead.
       - name: Put boring-core into the build tree
+        if: ${{ !inputs.apply_patches }}
+        shell: cmd
+        run: python "%LOCK%" --owner "%LOCK_OWNER%" --job apply -- python boring-core\tools\apply.py --src E:\ung-157\build\src --patch-set 157 --no-patches
+
+      - name: Put boring-core into the build tree and apply the patches
+        if: ${{ inputs.apply_patches }}
         shell: cmd
         run: python "%LOCK%" --owner "%LOCK_OWNER%" --job apply -- python boring-core\tools\apply.py --src E:\ung-157\build\src --patch-set 157
 
@@ -430,7 +463,7 @@ jobs:
             "- **UNSIGNED BUILD.** The installer has no code signing certificate, so Windows will say the publisher is unknown. Check the download against SHA256SUMS.txt. (The update feed is still signed with our update key.)"
           }
           $notes = @"
-          This is a beta.
+          Boring Browser $env:RELEASE_NUMBER, version $env:VERSION.
 
           $signing
           - Streaming services that need Widevine DRM (Netflix and similar) do not play in this build.
@@ -443,8 +476,18 @@ jobs:
 
           build-info.json has the same details in one file.
           "@
+          # Still a pre-release, as releases 1 and 2 were; the title is the
+          # release's own name, not "Beta". A notes file named on the runner
+          # replaces the built in notes (release 3 has hand written ones).
+          $notesArgs = @('--notes', $notes)
+          if ($env:NOTES_FILE) {
+            if (-not (Test-Path -LiteralPath $env:NOTES_FILE -PathType Leaf)) {
+              throw "notes_file '$env:NOTES_FILE' is not on this runner"
+            }
+            $notesArgs = @('--notes-file', $env:NOTES_FILE)
+          }
           gh release create "v$env:VERSION" --draft --prerelease `
-            --title "Beta $env:VERSION" --notes $notes `
+            --title "Boring Browser $env:RELEASE_NUMBER ($env:VERSION)" @notesArgs `
             --target $env:GITHUB_SHA `
             (Get-ChildItem $env:DIST -File).FullName
           if ($LASTEXITCODE -ne 0) { throw "gh release create failed" }

@@ -22,11 +22,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: pip install clang-format==23.1.0
-      - name: Check formatting
+      # Report only, on purpose. The C++ was written before this check
+      # existed, and reformatting it now would make every open branch that
+      # touches those files conflict. After Release 3 ships, the C++ is
+      # reformatted in one commit and this step goes back to failing the
+      # run: put --Werror back on the clang-format call and drop the
+      # "|| true" (ledger 110).
+      - name: Check formatting (report only)
         run: |
+          clang-format --version
           find boring-core/components/boring \
             \( -name '*.cc' -o -name '*.h' \) -print0 \
-            | xargs -0 clang-format --dry-run --Werror
+            | xargs -0 clang-format --dry-run > clang-format.log 2>&1 || true
+          places=$(grep -c 'code should be clang-formatted' clang-format.log || true)
+          files=$(grep 'code should be clang-formatted' clang-format.log \
+            | cut -d: -f1 | sort -u | wc -l)
+          echo "::warning title=clang-format (report only)::$places places in $files files are not clang-formatted. This does not fail the run until after Release 3."
+          {
+            echo "### clang-format (report only)"
+            echo
+            echo "$places places in $files files differ from .clang-format."
+            echo "Not a failure until the C++ is reformatted after Release 3."
+            echo
+            echo "Files (places):"
+            grep 'code should be clang-formatted' clang-format.log \
+              | cut -d: -f1 | sort | uniq -c | sed 's/^ *\([0-9]*\) \(.*\)/- \2 (\1)/'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   rust:
     name: Rust (fmt + clippy)
@@ -45,9 +66,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Pinned to the Go the linter binary was built with (v2.13.2 is built
+      # with 1.27.0). With "stable" the runner got Go 1.27.3, and a
+      # golangci-lint built with another Go cannot read that standard
+      # library: every run failed with "could not import encoding/json ...
+      # could not load export data" before checking any code. Move the two
+      # versions together.
       - uses: actions/setup-go@v5
         with:
-          go-version: stable
+          go-version: "1.27.0"
           cache-dependency-path: sync-server/go.sum
       - uses: golangci/golangci-lint-action@v7
         with:

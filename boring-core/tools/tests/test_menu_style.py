@@ -17,9 +17,26 @@ CORE = Path(__file__).resolve().parents[2]
 REPO = CORE.parent
 PATCH = CORE / "patches" / "menu-style.patch"
 WIDTH_PATCH = CORE / "patches" / "menu-width.patch"
-BUTTON = CORE / "chromium_src" / "chrome" / "browser" / "ui" / "views" / "toolbar" / "boring_protection_button.cc"
+BUTTON = (
+    CORE
+    / "chromium_src"
+    / "chrome"
+    / "browser"
+    / "ui"
+    / "views"
+    / "toolbar"
+    / "boring_protection_button.cc"
+)
 SERIES = CORE / "patches" / "series"
-MIXER = CORE / "chromium_src" / "chrome" / "browser" / "ui" / "color" / "boring_color_mixer.cc"
+MIXER = (
+    CORE
+    / "chromium_src"
+    / "chrome"
+    / "browser"
+    / "ui"
+    / "color"
+    / "boring_color_mixer.cc"
+)
 MOCK = REPO / "design" / "v7" / "icons-dotted" / "src" / "template.html"
 
 
@@ -34,8 +51,8 @@ def mock_css():
 def patch_value(name):
     text = PATCH.read_text(encoding="utf-8")
     # The value after the patch: an added line, or one the patch leaves as is.
-    m = re.search(r"^[+ ]\s*%s\s*=\s*(\d+);" % re.escape(name), text, re.M)
-    assert m, "%s not set in menu-style.patch" % name
+    m = re.search(rf"^[+ ]\s*{re.escape(name)}\s*=\s*(\d+);", text, re.M)
+    assert m, f"{name} not set in menu-style.patch"
     return int(m.group(1))
 
 
@@ -86,7 +103,9 @@ class MenuStyleTest(unittest.TestCase):
         text = WIDTH_PATCH.read_text(encoding="utf-8")
         self.assertIn("menu-width.patch", SERIES.read_text().split())
         self.assertIn("set_minimum_preferred_width(360)", text)
-        self.assertIn("max_minor_text_width_ += 2 * config.item_horizontal_padding;", text)
+        self.assertIn(
+            "max_minor_text_width_ += 2 * config.item_horizontal_padding;", text
+        )
 
     def test_protection_chip_text_is_13px_medium(self):
         src = BUTTON.read_text(encoding="utf-8")
@@ -95,18 +114,24 @@ class MenuStyleTest(unittest.TestCase):
 
     def test_menu_colours_come_from_the_palette(self):
         src = MIXER.read_text(encoding="utf-8")
-        for name, field in (("kColorMenuBackground", "paper"),
-                            ("kColorMenuBorder", "line"),
-                            ("kColorMenuItemForeground", "ink"),
-                            ("kColorMenuItemForegroundSecondary", "muted"),
-                            ("kColorMenuSeparator", "line"),
-                            ("kColorMenuIcon", "ink")):
-            self.assertRegex(src, r"mixer\[ui::%s\]\s*=\s*\{p\.%s\}" % (name, field))
+        for name, field in (
+            ("kColorMenuBackground", "paper"),
+            ("kColorMenuBorder", "line"),
+            ("kColorMenuItemForeground", "ink"),
+            ("kColorMenuItemForegroundSecondary", "muted"),
+            ("kColorMenuSeparator", "line"),
+            ("kColorMenuIcon", "ink"),
+        ):
+            self.assertRegex(src, rf"mixer\[ui::{name}\]\s*=\s*\{{p\.{field}\}}")
 
     def test_row_hover_uses_the_accent_tint(self):
         src = MIXER.read_text(encoding="utf-8")
-        self.assertRegex(src, r"mixer\[ui::kColorMenuItemBackgroundHighlighted\]\s*=\s*\{p\.tint\}")
-        self.assertRegex(src, r"mixer\[ui::kColorMenuItemBackgroundSelected\]\s*=\s*\{p\.tint\}")
+        self.assertRegex(
+            src, r"mixer\[ui::kColorMenuItemBackgroundHighlighted\]\s*=\s*\{p\.tint\}"
+        )
+        self.assertRegex(
+            src, r"mixer\[ui::kColorMenuItemBackgroundSelected\]\s*=\s*\{p\.tint\}"
+        )
 
 
 if __name__ == "__main__":

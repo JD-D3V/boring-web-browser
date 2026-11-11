@@ -47,7 +47,9 @@ class Embedding(unittest.TestCase):
     def test_the_build_file_uses_the_same_name(self):
         gn = source(PHONE / "BUILD.gn")
         self.assertIn("kPhoneScamDetectScript=", gn)
-        self.assertIn("kPhoneScamDetectScript", source(PHONE / "phone_scam_tab_helper.cc"))
+        self.assertIn(
+            "kPhoneScamDetectScript", source(PHONE / "phone_scam_tab_helper.cc")
+        )
 
 
 class Wiring(unittest.TestCase):
@@ -110,7 +112,9 @@ class NoEmDashes(unittest.TestCase):
 
 class Detector_has_no_stray_delimiter(unittest.TestCase):
     def test_raw_string_delimiter_is_absent(self):
-        self.assertIsNone(re.search(r"\)BORINGJS", source(PHONE / "phone_scam_detect.js")))
+        self.assertIsNone(
+            re.search(r"\)BORINGJS", source(PHONE / "phone_scam_detect.js"))
+        )
 
 
 if __name__ == "__main__":

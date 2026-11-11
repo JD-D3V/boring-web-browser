@@ -18,6 +18,8 @@ as plain http.
                   l.php and /url patterns, Instagram, YouTube, Reddit,
                   Slack, a chain of two, one reached by a server redirect,
                   and one typed into the address bar
+  amp             a Google AMP address (/amp/s/) lands on the canonical page,
+                  and stays on the AMP address with the switch off
   kept            javascript:, data: and file: targets, a nested file:
                   one and a target with a user name are not followed
   frames          an iframe pointed at a redirector is not rewritten
@@ -29,6 +31,7 @@ as plain http.
 
 import os
 import shutil
+import ssl
 import subprocess
 import sys
 import threading
@@ -37,9 +40,12 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, urlsplit
 
 from drive import OUT, Browser, free_port
+from smoke_lists import openssl_path
 
 TMP = r"E:\tmp\feat-debounce"
 PROFILE = os.path.join(TMP, "profile-smoke")
+CERT = os.path.join(TMP, "tls-cert.pem")
+KEY = os.path.join(TMP, "tls-key.pem")
 FILE_TARGET = os.path.join(TMP, "landed.html")
 
 # Redirector hosts, as the real rules name them.
@@ -105,10 +111,20 @@ def enc(text):
 
 
 class Run:
-    def __init__(self, port):
+    def __init__(self, port, tls_port):
         self.port = port
+        self.tls_port = tls_port
         self.start = f"http://start.localhost:{port}/start.html"
         self.target = f"http://target.localhost:{port}/landing.html?q=a%2Fb&x=1"
+        # The AMP rules always send people to https, and www.google.com is
+        # on the HSTS preload list (http would be upgraded and fail), so the
+        # AMP address and its canonical page are both served over TLS
+        # (see start_tls_server).
+        self.amp_target = f"https://target.localhost:{tls_port}/landing.html?q=a%2Fb&x=1"
+        self.amp_link = (
+            f"https://www.google.com:{tls_port}/amp/s/"
+            f"target.localhost:{tls_port}/landing.html?q=a%2Fb&x=1"
+        )
         self.failures = []
 
     def host(self, name):
@@ -138,6 +154,26 @@ class Run:
         url, title = self.follow(b, link, wait=3)
         followed = title == "landed" or url.split(":")[0] in {"data", "javascript", "file"}
         self.check(not followed, f"{name}: not followed (ended on {url[:80]})")
+
+
+def start_tls_server():
+    """The same pages over https with a throw-away certificate. The browser
+    is started with --ignore-certificate-errors, so only the address is
+    under test, not the certificate. Returns (server, port)."""
+    exe = openssl_path()
+    if not exe:
+        raise RuntimeError("openssl not found")
+    subprocess.run(
+        [exe, "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "2",
+         "-subj", "/CN=target.localhost", "-keyout", KEY, "-out", CERT],
+        check=True, capture_output=True,
+    )
+    server = ThreadingHTTPServer(("127.0.0.1", free_port()), Handler)
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(CERT, KEY)
+    server.socket = context.wrap_socket(server.socket, server_side=True)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server, server.server_address[1]
 
 
 def run_unit_test(run):
@@ -178,6 +214,24 @@ def check_skipped(run, b):
     wait_for(b, "return document.title === 'landed'")
     url = b.current_url()
     run.check(url == run.target, f"typed l.php address: landed on {url}")
+
+
+def amp_skipped(run, b, name):
+    url, title = run.follow(b, run.amp_link)
+    run.check(
+        url == run.amp_target and title == "landed",
+        f"{name}: AMP address landed on {url[:80]}",
+    )
+
+
+def amp_stays(run, b, name):
+    Handler.hits.clear()
+    url, title = run.follow(b, run.amp_link, wait=3)
+    asked = any(h == "www.google.com" and p.startswith("/amp/s/") for h, p in Handler.hits)
+    run.check(
+        urlsplit(url).hostname == "www.google.com" and title == "hopped" and asked,
+        f"{name}: AMP page stays and loads (ended on {url[:60]}, title {title})",
+    )
 
 
 def check_kept(run, b):
@@ -237,8 +291,12 @@ def main():
     port = free_port()
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    run = Run(port)
-    args = [f"--host-resolver-rules={RESOLVER_RULES}"]
+    tls_server, tls_port = start_tls_server()
+    run = Run(port, tls_port)
+    args = [
+        f"--host-resolver-rules={RESOLVER_RULES}",
+        "--ignore-certificate-errors",
+    ]
 
     try:
         print("rule tests")
@@ -257,6 +315,8 @@ def main():
 
             print("skipped")
             check_skipped(run, b)
+            print("amp")
+            amp_skipped(run, b, "switch on")
             print("kept")
             check_kept(run, b)
             print("frames and history")
@@ -270,9 +330,11 @@ def main():
                 urlsplit(url).hostname != "target.localhost",
                 f"with the switch off the redirector is asked (ended on {url[:60]})",
             )
+            amp_stays(run, b, "switch off")
             row_state(b)
             toggle(b)
             run.skipped(b, "switch turned back on", f"{run.host('l.facebook.com')}/l.php?u={enc(run.target)}")
+            amp_skipped(run, b, "switch turned back on")
             row_state(b)
             toggle(b)  # leave it off for the restart
 
@@ -285,8 +347,10 @@ def main():
                 urlsplit(url).hostname != "target.localhost",
                 f"still not skipping (ended on {url[:60]})",
             )
+            amp_stays(run, b, "after a restart")
     finally:
         server.shutdown()
+        tls_server.shutdown()
 
     print()
     if run.failures:
