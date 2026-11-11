@@ -1,0 +1,98 @@
+diff --git a/chrome/browser/metrics/chrome_feature_list_creator.cc b/chrome/browser/metrics/chrome_feature_list_creator.cc
+--- a/chrome/browser/metrics/chrome_feature_list_creator.cc
++++ b/chrome/browser/metrics/chrome_feature_list_creator.cc
+@@ -58,6 +58,86 @@
+ #include "chromeos/ash/components/dbus/dbus_thread_manager.h"
+ #endif  // BUILDFLAG(IS_CHROMEOS)
+ 
++// boring: Chromium features this build keeps off, applied to the command
++// line before the feature list is built from it.
++#include <set>
++#include <string_view>
++
++#include "base/base_switches.h"
++#include "base/containers/contains.h"
++#include "base/strings/string_split.h"
++#include "base/strings/string_util.h"
++
++namespace {
++
++// Off whatever chrome://flags or --enable-features say: the contextual tasks
++// panel loads pages without our tab protections, and with the action based
++// command path our own menu commands stay disabled.
++constexpr const char* kBoringAlwaysOffFeatures[] = {
++    "ContextualTasks",
++    "ContextualTasksSidePanel",
++    "ContextualTasksRearchitecture",
++    "UseActionsForBrowserCommands",
++    "AppMenuGlowUp",
++};
++
++// Off unless someone turns them on, as on Chromium 154: add-ons pinned to
++// the toolbar on install, the bookmarks bar shown only on the new tab page,
++// the "continue where you left off" infobar, the side tabs hover promo.
++constexpr const char* kBoringDefaultOffFeatures[] = {
++    "ExtensionsPinnedByDefault",
++    "IPH_VerticalTabsExpandOnHoverFeature",
++    "NtpSimplificationBookmarkBar",
++    "SessionRestoreInfobar",
++};
++
++// "*Name<Trial:param/value" -> "Name".
++std::string BoringFeatureName(std::string_view entry) {
++  if (!entry.empty() && entry[0] == '*') {
++    entry.remove_prefix(1);
++  }
++  return std::string(entry.substr(0, entry.find_first_of("<:")));
++}
++
++void BoringKeepFeaturesOff(base::CommandLine* command_line) {
++  std::vector<std::string> enabled = base::SplitString(
++      command_line->GetSwitchValueASCII(switches::kEnableFeatures), ",",
++      base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
++  std::vector<std::string> disabled = base::SplitString(
++      command_line->GetSwitchValueASCII(switches::kDisableFeatures), ",",
++      base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
++  std::erase_if(enabled, [](const std::string& entry) {
++    return base::Contains(kBoringAlwaysOffFeatures, BoringFeatureName(entry));
++  });
++  std::set<std::string> named;
++  for (const std::string& entry : enabled) {
++    named.insert(BoringFeatureName(entry));
++  }
++  for (const std::string& entry : disabled) {
++    named.insert(BoringFeatureName(entry));
++  }
++  for (const char* name : kBoringAlwaysOffFeatures) {
++    if (!named.contains(name)) {
++      disabled.push_back(name);
++    }
++  }
++  for (const char* name : kBoringDefaultOffFeatures) {
++    if (!named.contains(name)) {
++      disabled.push_back(name);
++    }
++  }
++  command_line->RemoveSwitch(switches::kEnableFeatures);
++  command_line->RemoveSwitch(switches::kDisableFeatures);
++  if (!enabled.empty()) {
++    command_line->AppendSwitchASCII(switches::kEnableFeatures,
++                                    base::JoinString(enabled, ","));
++  }
++  command_line->AppendSwitchASCII(switches::kDisableFeatures,
++                                  base::JoinString(disabled, ","));
++}
++
++}  // namespace
++
+ // static
+ ChromeFeatureListCreator* ChromeFeatureListCreator::GetInstance() {
+   static base::NoDestructor<ChromeFeatureListCreator> instance;
+@@ -219,6 +299,7 @@
+   about_flags::ConvertFlagsToSwitches(&flags_storage,
+                                       base::CommandLine::ForCurrentProcess(),
+                                       flags_ui::kAddSentinels);
++  BoringKeepFeaturesOff(base::CommandLine::ForCurrentProcess());
+ }
+ 
+ void ChromeFeatureListCreator::CreateNetworkTimeTracker() {
