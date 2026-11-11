@@ -30,6 +30,7 @@ under TMP.
 """
 
 import argparse
+import contextlib
 import ctypes
 import os
 import re
@@ -154,10 +155,8 @@ def launch(profile, urls, label, wait, out):
     finally:
         clean = end_browser(proc)
         print(f"    closed: {'cleanly' if clean else 'had to be ended'}", flush=True)
-        try:
+        with contextlib.suppress(subprocess.TimeoutExpired):
             proc.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            pass
 
 
 def main():
