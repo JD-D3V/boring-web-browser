@@ -12,7 +12,7 @@ defaults and a calmer UI. It is not a new engine.
   SHA-256 from the release page instead.
 - Downloads: the [release 3 page](https://github.com/JD-D3V/boring-web-browser/releases/tag/v157.0.8103.38.1),
   with the installer, the zip and `SHA256SUMS.txt`.
-- Installer SHA-256: `@@R3_SHA256_INSTALLER@@`
+- Installer SHA-256: `a778d18041af139d3120b47299296144f18f94d317452736ec25e209013b5eaf`
 
 ## On by default
 
