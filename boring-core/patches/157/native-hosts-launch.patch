@@ -1,0 +1,38 @@
+--- a/chrome/browser/extensions/api/messaging/native_messaging_launch_from_native.cc
++++ b/chrome/browser/extensions/api/messaging/native_messaging_launch_from_native.cc
+@@ -15,6 +15,7 @@
+ #include "base/task/sequenced_task_runner.h"
+ #include "base/timer/timer.h"
+ #include "chrome/browser/browser_process.h"
++#include "chrome/browser/extensions/api/messaging/chrome_messaging_delegate.h"
+ #include "chrome/browser/extensions/api/messaging/native_message_process_host.h"
+ #include "chrome/browser/extensions/api/messaging/native_process_launcher.h"
+ #include "chrome/browser/profiles/profile.h"
+@@ -234,6 +235,17 @@
+                                              "--extension-not-installed");
+     return;
+   }
++  // boring: the same allow-list as ChromeMessagingDelegate. A host the
++  // person has not switched on does not start from the native side either,
++  // and a policy that allows only system-level hosts holds here too.
++  const MessagingDelegate::PolicyPermission permission =
++      ChromeMessagingDelegate().IsNativeMessagingHostAllowed(profile, host_id);
++  if (permission == MessagingDelegate::PolicyPermission::DISALLOW) {
++    NativeMessagingHostErrorReporter::Report(extension_id, host_id,
++                                             connection_id, profile,
++                                             "--extension-not-installed");
++    return;
++  }
+   const extensions::PortId port_id(
+       base::UnguessableToken::Create(), 1 /* port_number */,
+       true /* is_opener */, extensions::mojom::SerializationFormat::kJson);
+@@ -243,7 +255,8 @@
+   auto native_message_host = NativeMessageProcessHost::CreateWithLauncher(
+       extension_id, host_id,
+       NativeProcessLauncher::CreateDefault(
+-          /* allow_user_level_hosts= */ true,
++          /* allow_user_level_hosts= */ permission ==
++              MessagingDelegate::PolicyPermission::ALLOW_ALL,
+           /* native_view= */ gfx::NativeView(), profile->GetPath(),
+           /* require_native_initiated_connections= */ true, connection_id, "",
+           profile));

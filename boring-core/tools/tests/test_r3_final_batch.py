@@ -112,5 +112,25 @@ class FolderCopyRewriteRules(unittest.TestCase):
         self.assertIn('line.rfind("!", 0) != 0', body)
 
 
+class NativeLaunchUserLevelPolicy(unittest.TestCase):
+    """Pass 2 S4 leftover. On 157 a host started from the native side gets
+    user-level hosts only when policy allows them, as the main path does."""
+
+    def test_launcher_follows_the_policy(self):
+        patch = read(PATCHES / "157" / "native-hosts-launch.patch")
+        self.assertIn(
+            "+  const MessagingDelegate::PolicyPermission permission =\n"
+            "+      ChromeMessagingDelegate().IsNativeMessagingHostAllowed(profile, host_id);\n"
+            "+  if (permission == MessagingDelegate::PolicyPermission::DISALLOW) {",
+            patch,
+        )
+        self.assertIn("-          /* allow_user_level_hosts= */ true,", patch)
+        self.assertIn(
+            "+          /* allow_user_level_hosts= */ permission ==\n"
+            "+              MessagingDelegate::PolicyPermission::ALLOW_ALL,",
+            patch,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
