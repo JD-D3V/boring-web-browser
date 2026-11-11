@@ -18,8 +18,15 @@ A page with a normal video (testdata/takeover_video.html) must go
 fullscreen, keep playing and not trip, even though it also locks the
 keyboard and adds history entries by itself.
 
-Input goes through DevTools (Input.dispatch*), never to the desktop, and the
-browser runs headless so fullscreen cannot cover a real display.
+Input goes through DevTools (Input.dispatch*), never to the desktop. By
+default the browser runs headless so fullscreen cannot cover a real
+display. With BORING_ALLOW_HEADFUL=1 (a dedicated test session, see
+drive.py) it runs in a real window instead, muted, and the checks headless
+cannot do run too: whether pointer lock is granted to the scam page and
+gone after the takeover, and whether the window really goes fullscreen
+and is out of it once the takeover is detected (leaving fullscreen is what
+drops the keyboard lock). A real window that goes fullscreen covers the
+monitor nearest to its position for the few seconds the scam page holds it.
 """
 
 import functools
@@ -30,7 +37,7 @@ from urllib.parse import parse_qs, urlsplit
 import time
 from pathlib import Path
 
-from drive import Browser, free_port
+from drive import Browser, free_port, headful_allowed
 
 DATA = Path(__file__).resolve().parent / "testdata"
 GET_ME_OUT = "chrome://boring-takeover/"
@@ -122,6 +129,17 @@ class Tab:
     def handles(self):
         return self.b._req("GET", f"/session/{self.b.sid}/window/handles")["value"]
 
+    def window_state(self):
+        """The native window's state: normal, minimized, maximized or
+        fullscreen. Asked of the browser itself through DevTools, so it
+        is the real window and not the page's idea of fullscreen."""
+        try:
+            win = self.cdp("Browser.getWindowForTarget", {})["value"]
+            bounds = self.cdp("Browser.getWindowBounds", {"windowId": win["windowId"]})
+            return bounds["value"]["bounds"]["windowState"]
+        except (RuntimeError, KeyError):
+            return None  # unknown is never read as "not fullscreen"
+
     def open_tab(self):
         h = self.b._req(
             "POST", f"/session/{self.b.sid}/window/new", {"type": "tab"}
@@ -180,7 +198,7 @@ def check_dialog_loop(t, b, base, checks):
     )
 
 
-def check_after_trip(t, b, dialogs, checks):
+def check_after_trip(t, b, dialogs, checks, real=False):
     """What the page held before it was replaced, and that it is gone."""
     loaded = time.time()
     states = [(when, v.split(",")) for when, v in reports("state")]
@@ -213,9 +231,17 @@ def check_after_trip(t, b, dialogs, checks):
         checks["pointer lock: the lock does not outlive the takeover"] = b.run(
             "return document.pointerLockElement === null"
         ) and not [w for w, v in reports("pl") if w > loaded and v == "1"]
+        if real:
+            # Said in the name of the check so a pass is read for what it
+            # measured: the page's state, not the cursor.
+            checks[
+                "pointer lock (real window): granted to the scam page, none held after"
+                " the takeover (page state, not the cursor)"
+            ] = checks["pointer lock: the lock does not outlive the takeover"]
     else:
         checks["pointer lock: the lock does not outlive the takeover"] = None
-        print("INFO pointer lock was never granted in headless (refused:",
+        where = "a real window" if real else "headless"
+        print(f"INFO pointer lock was never granted in {where} (refused:",
               [v for _, v in reports("plerr")], "), so there is no lock to release")
 
     # Keyboard lock.
@@ -227,7 +253,15 @@ def check_after_trip(t, b, dialogs, checks):
     # a keyboard lock (a new lock() is answered "locked" even outside
     # fullscreen, which was tried). The browser drops the lock when fullscreen ends; what can
     # be checked is the fullscreen state and that Esc leaves it (above).
-    checks["keyboard lock: released once the takeover is detected"] = None
+    if real:
+        state = t.window_state()
+        print("INFO window state after the takeover:", state)
+        checks[
+            "keyboard lock (real window): the window is out of fullscreen once the"
+            " takeover is detected, which drops the lock (the lock itself cannot be read)"
+        ] = state not in (None, "fullscreen") and not fullscreen(b)
+    else:
+        checks["keyboard lock: released once the takeover is detected"] = None
 
 
 def check_leave_trap(t, b, base, checks):
@@ -300,10 +334,22 @@ def main():
     checks = {}
     srv = serve()
     base = f"http://127.0.0.1:{srv.server_address[1]}"
-    # Headless: a page that goes fullscreen must never take over a real
-    # display. The browser logic under test (fullscreen, Esc, dialogs) runs
-    # the same; there is just no visible window.
-    b = Browser(args=["--headless=new", "--window-position=-32000,-32000"])
+    # Headless by default: a page that goes fullscreen must never take over
+    # a real display. The browser logic under test (fullscreen, Esc,
+    # dialogs) runs the same; there is just no visible window. In a
+    # dedicated test session (BORING_ALLOW_HEADFUL=1) the same checks run in
+    # a real window, muted so the looping alarm is not heard, and the
+    # pointer lock and keyboard lock checks headless skips can run.
+    real = headful_allowed()
+    if real:
+        print("INFO real window: the scam page will take it fullscreen, muted")
+        b = Browser(
+            args=["--window-position=-32000,-32000", "--window-size=1200,800",
+                  "--mute-audio"],
+            headful=True,
+        )
+    else:
+        b = Browser(args=["--headless=new", "--window-position=-32000,-32000"])
     try:
         t = Tab(b)
         del REPORTS[:]
@@ -329,6 +375,12 @@ def main():
         for x, y in ((220, 220), (240, 240), (260, 260)):
             t.move(x, y)
         dialogs = []
+        if real:
+            # The window really was taken fullscreen by the page, so the
+            # checks after the trip are about something that happened.
+            checks["real window: the scam page took the window fullscreen"] = wait(
+                lambda: t.window_state() == "fullscreen", timeout=5, step=0.1
+            )
 
         def tripped():
             text = t.take_alert()
@@ -354,7 +406,7 @@ def main():
                 "Your computer is fine" in text and "Close this tab" in text
             )
             checks["fullscreen is gone"] = not fullscreen(b)
-            check_after_trip(t, b, dialogs, checks)
+            check_after_trip(t, b, dialogs, checks, real)
             checks["Get me out names the host the page was on"] = b.run(
                 "var e = document.getElementById('site');"
                 " return !e.hidden && e.textContent.startsWith('The page was on ')"

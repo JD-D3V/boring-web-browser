@@ -313,6 +313,11 @@ def main() -> int:
     ap.add_argument("--all", action="store_true")
     ap.add_argument("--seconds", type=int, default=90)
     ap.add_argument(
+        "--out",
+        default=None,
+        help="folder for net-audit.json (default: artifacts/release-readiness/network)",
+    )
+    ap.add_argument(
         "--keep",
         action="store_true",
         help="keep the raw net log under E:\\tmp for a closer look",
@@ -323,7 +328,8 @@ def main() -> int:
     if not CHROME.exists():
         sys.exit(f"no browser at {CHROME}")
 
-    OUT.mkdir(parents=True, exist_ok=True)
+    out_dir = Path(args.out) if args.out else OUT
+    out_dir.mkdir(parents=True, exist_ok=True)
     if args.all:
         # Control first, so a broken capture is known before eight
         # minutes are spent collecting evidence that would not mean
@@ -343,7 +349,7 @@ def main() -> int:
         r for r in results if r.get("expect_traffic") and not r.get("capture_proven")
     ]
 
-    report = OUT / "net-audit.json"
+    report = out_dir / "net-audit.json"
     report.write_text(json.dumps(results, indent=2), encoding="utf-8")
     print("\nwrote", report)
 

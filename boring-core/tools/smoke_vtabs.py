@@ -26,7 +26,7 @@ import time
 from pathlib import Path
 
 from capture_native import frame_window, grab, user32
-from drive import OFFSCREEN, Browser
+from drive import CHROME, OFFSCREEN, Browser
 
 # (name, extra switches); Cool is the default scheme.
 SCENES = [
@@ -112,13 +112,19 @@ def run_scene(name, extra, out, size, binary, only_switch_back):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--out", required=True, help="output folder")
+    ap.add_argument(
+        "--out",
+        default=os.path.join(
+            os.environ.get("TMP") or tempfile.gettempdir(), "smoke-vtabs"
+        ),
+        help="output folder (default: smoke-vtabs under TMP, so smoke_all can run it)",
+    )
     ap.add_argument("--only", help="one scene name")
     ap.add_argument("--size", default="1404x800")
     args = ap.parse_args()
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
     size = tuple(int(v) for v in args.size.lower().split("x"))
-    binary = os.environ.get("BORING_CHROME", r"E:\ung\build\src\out\Default\chrome.exe")
+    binary = os.environ.get("BORING_CHROME", CHROME)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     bad = 0

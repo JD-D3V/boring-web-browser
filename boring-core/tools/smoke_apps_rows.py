@@ -11,6 +11,13 @@ Protection page.
     chrome://extensions (chrome.developerPrivate), not just the row.
   - Saving the local Ollama provider on chrome://boring-ai makes the AI row
     read "Ollama on this computer"; its switch sets the provider back to Off.
+  - The Remove button asks through Chromium's own uninstall dialog, a native
+    window. Headless that question cannot be answered, so only "pressing
+    Remove alone takes nothing away" is checked. With BORING_ALLOW_HEADFUL=1
+    (a dedicated test session, see drive.py) a real window is used and the
+    answers are given through UI Automation on our own window: Cancel keeps
+    the add-on and its row, Remove takes both away and leaves the other
+    add-on alone. No mouse or key input is sent anywhere.
 
 An inert add-on with Bitwarden's public key exercises password manager
 grouping and the built-in save password preference without running Bitwarden.
@@ -23,7 +30,7 @@ import sys
 import tempfile
 import time
 
-from drive import Browser
+from drive import Browser, headful_allowed
 
 URL = "chrome://boring-protection"
 TMP = os.environ.get("TMP", r"E:\tmp")
@@ -216,6 +223,112 @@ def check_live_host_access(b, host_row):
         b._req("DELETE", window)
         b._req("POST", window, {"handle": protection})
     return None
+
+
+def native_remove_answers(work, failures):
+    """The Remove question answered both ways, in a real window.
+
+    Chromium's uninstall dialog is a native window WebDriver cannot see, so
+    it is found and pressed through UI Automation on windows of the browser
+    this test started (the same helpers smoke_site_panel.py uses). Names of
+    every control seen are printed, so a dialog worded differently on a new
+    Chromium says what it said instead of just failing."""
+    from capture_native import frame_window
+    from drive import CHROME
+    from smoke_site_panel import Window, browser_windows
+
+    def find_dialog(b, frame, seconds):
+        deadline = time.monotonic() + seconds
+        seen = []
+        while time.monotonic() < deadline:
+            for hwnd in browser_windows(b.proc.pid):
+                if hwnd == frame:
+                    continue
+                try:
+                    with Window(hwnd) as w:
+                        names = w.names()
+                except OSError:
+                    continue
+                seen = names or seen
+                if "Cancel" in names and "Remove" in names:
+                    return hwnd, names
+            time.sleep(0.3)
+        return None, seen
+
+    def press(hwnd, name):
+        with Window(hwnd) as w:
+            return w.press(lambda n: n == name)
+
+    keep, gone = write_removal_addons(os.path.join(work, "native"))
+    with Browser(
+        user_data_dir=os.path.join(work, "native-profile"),
+        args=["--load-extension=" + keep + "," + gone, "--window-size=1200,850"],
+        headful=True,
+    ) as b:
+        b.get(URL)
+        if not wait_for(
+            b, "return document.querySelectorAll('#connections-apps .setting-row[id^=app-]').length === 2"
+        ):
+            failures.append("remove (real window): the two add-on rows did not appear")
+            return
+        frame = frame_window(CHROME, under=b.proc.pid)
+        apps = read_apps(b)
+        keep_row, gone_row = row_for(apps, KEEP_NAME), row_for(apps, GONE_NAME)
+        if not keep_row or not gone_row:
+            failures.append(f"remove (real window): rows missing: {apps['rows']!r}")
+            return
+
+        # Cancel: nothing is taken away.
+        b.run("document.querySelector('#%s .app-remove').click(); return 1" % keep_row["id"])
+        dialog, names = find_dialog(b, frame, 20)
+        print("remove question (Cancel):", names)
+        if not dialog:
+            failures.append(f"remove (real window): no question with Remove and Cancel appeared; saw {names!r}")
+            return
+        print("pressed Cancel through", press(dialog, "Cancel"))
+        gone_after = find_dialog(b, frame, 6)[0] is None
+        if not gone_after:
+            failures.append("remove (real window): the question stayed after Cancel")
+        time.sleep(1)
+        if not row_for(read_apps(b), KEEP_NAME):
+            failures.append("remove (real window): Cancel took the row away")
+        states = extension_states(b)
+        print("after Cancel:", states)
+        if states.get(KEEP_NAME) != "ENABLED":
+            failures.append(f"remove (real window): Cancel changed the add-on: {states}")
+        b.get(URL)
+        wait_for(b, "return !!document.getElementById('ai-assistant-row')")
+        if not row_for(read_apps(b), KEEP_NAME):
+            failures.append("remove (real window): after Cancel and a reload the row is gone")
+
+        # Remove: this add-on and its row go, the other stays.
+        apps = read_apps(b)
+        gone_row = row_for(apps, GONE_NAME)
+        if not gone_row:
+            failures.append("remove (real window): the row to remove is missing")
+            return
+        b.run("document.querySelector('#%s .app-remove').click(); return 1" % gone_row["id"])
+        dialog, names = find_dialog(b, frame, 20)
+        print("remove question (Remove):", names)
+        if not dialog:
+            failures.append(f"remove (real window): the second question did not appear; saw {names!r}")
+            return
+        print("pressed Remove through", press(dialog, "Remove"))
+        if not wait_for(
+            b, "return !document.getElementById(%s)" % json.dumps(gone_row["id"]), 20
+        ):
+            failures.append("remove (real window): the row did not go after Remove")
+        states = extension_states(b)
+        print("after Remove:", states)
+        if GONE_NAME in states:
+            failures.append(f"remove (real window): Remove left the add-on installed: {states}")
+        if states.get(KEEP_NAME) != "ENABLED":
+            failures.append(f"remove (real window): Remove touched the other add-on: {states}")
+        b.get(URL)
+        wait_for(b, "return !!document.getElementById('ai-assistant-row')")
+        apps = read_apps(b)
+        if row_for(apps, GONE_NAME) or not row_for(apps, KEEP_NAME):
+            failures.append(f"remove (real window): after Remove and a reload the rows are wrong: {apps['rows']!r}")
 
 
 def main():
@@ -426,6 +539,13 @@ def main():
                     apps = read_apps(b)
                     if row_for(apps, GONE_NAME) or not row_for(apps, KEEP_NAME):
                         failures.append(f"remove: after reloading the page the rows are wrong: {apps['rows']!r}")
+
+        # 6. The Cancel and Remove answers, in a real window only.
+        if headful_allowed():
+            native_remove_answers(work, failures)
+        else:
+            print("INFO the Cancel and Remove answers need a real window "
+                  "(BORING_ALLOW_HEADFUL=1); not run")
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
