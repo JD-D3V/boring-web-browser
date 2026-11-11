@@ -1,17 +1,17 @@
 diff --git a/chrome/browser/metrics/chrome_feature_list_creator.cc b/chrome/browser/metrics/chrome_feature_list_creator.cc
 --- a/chrome/browser/metrics/chrome_feature_list_creator.cc
 +++ b/chrome/browser/metrics/chrome_feature_list_creator.cc
-@@ -58,6 +58,86 @@
+@@ -58,6 +58,88 @@
  #include "chromeos/ash/components/dbus/dbus_thread_manager.h"
  #endif  // BUILDFLAG(IS_CHROMEOS)
  
 +// boring: Chromium features this build keeps off, applied to the command
 +// line before the feature list is built from it.
++#include <algorithm>
 +#include <set>
 +#include <string_view>
 +
 +#include "base/base_switches.h"
-+#include "base/containers/contains.h"
 +#include "base/strings/string_split.h"
 +#include "base/strings/string_util.h"
 +
@@ -54,7 +54,9 @@ diff --git a/chrome/browser/metrics/chrome_feature_list_creator.cc b/chrome/brow
 +      command_line->GetSwitchValueASCII(switches::kDisableFeatures), ",",
 +      base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
 +  std::erase_if(enabled, [](const std::string& entry) {
-+    return base::Contains(kBoringAlwaysOffFeatures, BoringFeatureName(entry));
++    const std::string name = BoringFeatureName(entry);
++    return std::ranges::any_of(kBoringAlwaysOffFeatures,
++                               [&](const char* off) { return name == off; });
 +  });
 +  std::set<std::string> named;
 +  for (const std::string& entry : enabled) {
@@ -88,7 +90,7 @@ diff --git a/chrome/browser/metrics/chrome_feature_list_creator.cc b/chrome/brow
  // static
  ChromeFeatureListCreator* ChromeFeatureListCreator::GetInstance() {
    static base::NoDestructor<ChromeFeatureListCreator> instance;
-@@ -219,6 +299,7 @@
+@@ -219,6 +301,7 @@
    about_flags::ConvertFlagsToSwitches(&flags_storage,
                                        base::CommandLine::ForCurrentProcess(),
                                        flags_ui::kAddSentinels);
