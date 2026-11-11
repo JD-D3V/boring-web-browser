@@ -25,6 +25,7 @@ grouping and the built-in save password preference without running Bitwarden.
 
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -259,6 +260,16 @@ def native_remove_answers(work, failures):
         with Window(hwnd) as w:
             return w.press(lambda n: n == name)
 
+    def frame_hints(frame):
+        """Controls of the browser frame that look like the question, for a
+        failure message: a dialog that is a child of the frame, not a window
+        of its own, would show up here and nowhere else."""
+        try:
+            with Window(frame) as w:
+                return [n for n in w.names() if re.search(r"remove|cancel|uninstall", n, re.I)][:12]
+        except OSError:
+            return []
+
     keep, gone = write_removal_addons(os.path.join(work, "native"))
     with Browser(
         user_data_dir=os.path.join(work, "native-profile"),
@@ -283,7 +294,10 @@ def native_remove_answers(work, failures):
         dialog, names = find_dialog(b, frame, 20)
         print("remove question (Cancel):", names)
         if not dialog:
-            failures.append(f"remove (real window): no question with Remove and Cancel appeared; saw {names!r}")
+            failures.append(
+                f"remove (real window): no question with Remove and Cancel appeared; "
+                f"other windows said {names!r}, the frame mentions {frame_hints(frame)!r}"
+            )
             return
         print("pressed Cancel through", press(dialog, "Cancel"))
         gone_after = find_dialog(b, frame, 6)[0] is None
@@ -311,7 +325,10 @@ def native_remove_answers(work, failures):
         dialog, names = find_dialog(b, frame, 20)
         print("remove question (Remove):", names)
         if not dialog:
-            failures.append(f"remove (real window): the second question did not appear; saw {names!r}")
+            failures.append(
+                f"remove (real window): the second question did not appear; "
+                f"other windows said {names!r}, the frame mentions {frame_hints(frame)!r}"
+            )
             return
         print("pressed Remove through", press(dialog, "Remove"))
         if not wait_for(
