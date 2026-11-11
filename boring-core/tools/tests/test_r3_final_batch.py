@@ -86,5 +86,15 @@ class NewTabEngineMenuNumbers(unittest.TestCase):
         self.assertIn('#include "base/numerics/safe_conversions.h"', src)
 
 
+class Quad9AnnotationPolicy(unittest.TestCase):
+    """The Quad9 check's traffic annotation says how policy reaches it."""
+
+    def test_policy_text_is_written(self):
+        src = read(BORING / "scam" / "quad9_block_checker.cc")
+        self.assertNotIn("Not implemented yet", src)
+        self.assertIn('"No policy of its own. It follows the secure DNS setting', src)
+        self.assertIn("DnsOverHttpsMode and DnsOverHttpsTemplates", src)
+
+
 if __name__ == "__main__":
     unittest.main()

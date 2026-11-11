@@ -77,7 +77,10 @@ std::unique_ptr<network::SimpleURLLoader> MakeLoader(const GURL& url) {
           setting:
             "Only when Secure DNS is on and set to Quad9. Turned off "
             "with Secure DNS on the Protection page."
-          policy_exception_justification: "Not implemented yet."
+          policy_exception_justification:
+            "No policy of its own. It follows the secure DNS setting, so "
+            "the DnsOverHttpsMode and DnsOverHttpsTemplates policies can "
+            "turn it off."
         })");
 
   auto request = std::make_unique<network::ResourceRequest>();
