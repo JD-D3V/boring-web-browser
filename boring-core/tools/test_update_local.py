@@ -707,11 +707,15 @@ class Harness:
 
     def non_local_http_ignored(self) -> Observation:
         o = Observation()
-        # A second server on every interface, reached by this machine's
-        # own name, which the browser must not count as localhost.
-        wide = FeedServer(host="0.0.0.0").start()
+        # A second server reached by a name that is not localhost, which the
+        # browser must not count as localhost. Normally that is this machine's
+        # own name on every interface. With --non-local-name (the Sandbox run,
+        # where a listener on every interface raises a Windows Firewall prompt)
+        # it is a name that points at 127.0.0.1 and the server binds there only.
+        alias = self.args.non_local_name
+        wide = FeedServer(host="127.0.0.1" if alias else "0.0.0.0").start()
         try:
-            host = socket.gethostname()
+            host = alias or socket.gethostname()
             version = newer_version(self.chromium, self.release)
             name, path = self.canary(version)
             wide.serve(
@@ -932,6 +936,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--outside-sandbox",
         action="store_true",
         help="run on a normal machine; WinSparkle's settings are put back after",
+    )
+    ap.add_argument(
+        "--non-local-name",
+        default=None,
+        help="for non_local_http_ignored: a host name that resolves to 127.0.0.1 "
+        "but is not localhost (hosts file entry); the server then binds "
+        "127.0.0.1 only. Default: this machine's name on every interface.",
     )
     ap.add_argument("--start-timeout", type=float, default=60)
     ap.add_argument("--feed-timeout", type=float, default=90)
