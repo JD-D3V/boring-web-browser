@@ -153,10 +153,10 @@ diff --git a/chrome/browser/resources/settings/settings_menu/settings_menu.html 
        <cr-menu-selector id="menu" selectable="a:not(#extensionsLink)"
            attr-for-selected="href" @iron-activate="${this.onIronActivate_}"
            @click="${this.onLinkClick_}" selected-attribute="selected">
-+        <!-- boring: Protection first, where people look for it. -->
++        <!-- boring: Protection first, where people look for it. Protection, Reading and Page summaries are hidden in a guest session, whose overrides leave their keys out. -->
 +        <a role="menuitem" id="protection" href="/protection"
 +            class="cr-nav-menu-item"
-+            ?hidden="${this.shouldHideMenuItem_(this.pageVisibility_?.protection)}">
++            ?hidden="${!!this.pageVisibility_ && !this.pageVisibility_.protection}">
 +          <span class="menu-label">Protection</span>
 +          <cr-ripple></cr-ripple>
 +        </a>
@@ -172,13 +172,13 @@ diff --git a/chrome/browser/resources/settings/settings_menu/settings_menu.html 
 +        </a>
 +        <a role="menuitem" id="reading" href="/reading"
 +            class="cr-nav-menu-item"
-+            ?hidden="${this.shouldHideMenuItem_(this.pageVisibility_?.reading)}">
++            ?hidden="${!!this.pageVisibility_ && !this.pageVisibility_.reading}">
 +          <span class="menu-label">Reading</span>
 +          <cr-ripple></cr-ripple>
 +        </a>
 +        <a role="menuitem" id="summaries" href="/summaries"
 +            class="cr-nav-menu-item"
-+            ?hidden="${this.shouldHideMenuItem_(this.pageVisibility_?.summaries)}">
++            ?hidden="${!!this.pageVisibility_ && !this.pageVisibility_.summaries}">
 +          <span class="menu-label">Page summaries</span>
 +          <cr-ripple></cr-ripple>
 +        </a>
