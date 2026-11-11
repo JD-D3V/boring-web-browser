@@ -24,6 +24,22 @@ def names(text, array):
     return re.findall(r'"([^"]+)"', body)
 
 
+def feature_name(entry):
+    """BoringFeatureName: "*Name<Trial:param/value" -> "Name"."""
+    return re.split(r"[<:]", entry.removeprefix("*"), maxsplit=1)[0]
+
+
+def keep_off(always, default, enabled, disabled):
+    """BoringKeepFeaturesOff, step for step, on lists of entries. The test
+    above pins the C++ lines this follows."""
+    enabled = [e for e in enabled if feature_name(e) not in always]
+    disabled = [e for e in disabled if feature_name(e) not in always]
+    named = {feature_name(e) for e in enabled + disabled}
+    disabled += list(always)
+    disabled += [n for n in default if n not in named]
+    return enabled, disabled
+
+
 class FeatureDefaultsTest(unittest.TestCase):
     def setUp(self):
         self.text = added(PATCH)
@@ -48,6 +64,48 @@ class FeatureDefaultsTest(unittest.TestCase):
         # Taken out of --enable-features, not just added to the disable list:
         # an enable on the command line wins over a disable.
         self.assertIn("std::erase_if(enabled", self.text)
+
+    def test_always_off_ignores_how_the_command_line_names_it(self):
+        # 127: "*Name" is "use the default" (on for UseActionsForBrowserCommands
+        # on 157), and "Name<Trial" or "Name:param/value" name it too. Every
+        # form leaves both lists and the plain name is disabled, with no
+        # "already named" shortcut for this list.
+        self.assertIn("std::erase_if(enabled, always_off);", self.text)
+        self.assertIn("std::erase_if(disabled, always_off);", self.text)
+        loop = re.search(
+            r"for \(const char\* name : kBoringAlwaysOffFeatures\) \{(.*?)\n  \}",
+            self.text,
+            re.S,
+        ).group(1)
+        self.assertEqual(loop.strip(), "disabled.push_back(name);")
+        always = names(self.text, "kBoringAlwaysOffFeatures")
+        default = names(self.text, "kBoringDefaultOffFeatures")
+        cases = [
+            ([], ["*UseActionsForBrowserCommands"]),
+            (["UseActionsForBrowserCommands<Trial"], []),
+            (["UseActionsForBrowserCommands:param/value"], []),
+            (["*ContextualTasks"], ["*UseActionsForBrowserCommands<Trial"]),
+            (["ContextualTasks"], []),
+        ]
+        for enable, disable in cases:
+            on, off = keep_off(always, default, enable, disable)
+            with self.subTest(enable=enable, disable=disable):
+                for name in always:
+                    self.assertEqual(off.count(name), 1)
+                    self.assertFalse([e for e in on if feature_name(e) == name])
+                    self.assertEqual(
+                        [e for e in off if feature_name(e) == name], [name]
+                    )
+
+    def test_default_off_keeps_the_already_named_rule(self):
+        default = names(self.text, "kBoringDefaultOffFeatures")
+        always = names(self.text, "kBoringAlwaysOffFeatures")
+        self.assertIn("if (!named.contains(name)) {", self.text)
+        on, off = keep_off(always, default, ["ExtensionsPinnedByDefault"], [])
+        self.assertIn("ExtensionsPinnedByDefault", on)
+        self.assertNotIn("ExtensionsPinnedByDefault", off)
+        on, off = keep_off(always, default, [], ["*SessionRestoreInfobar"])
+        self.assertEqual(off.count("SessionRestoreInfobar"), 0)
 
     def test_default_off_as_on_154(self):
         self.assertEqual(

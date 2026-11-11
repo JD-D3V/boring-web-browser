@@ -1,7 +1,7 @@
 diff --git a/chrome/browser/metrics/chrome_feature_list_creator.cc b/chrome/browser/metrics/chrome_feature_list_creator.cc
 --- a/chrome/browser/metrics/chrome_feature_list_creator.cc
 +++ b/chrome/browser/metrics/chrome_feature_list_creator.cc
-@@ -58,6 +58,88 @@
+@@ -58,6 +58,92 @@
  #include "chromeos/ash/components/dbus/dbus_thread_manager.h"
  #endif  // BUILDFLAG(IS_CHROMEOS)
  
@@ -53,11 +53,17 @@ diff --git a/chrome/browser/metrics/chrome_feature_list_creator.cc b/chrome/brow
 +  std::vector<std::string> disabled = base::SplitString(
 +      command_line->GetSwitchValueASCII(switches::kDisableFeatures), ",",
 +      base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
-+  std::erase_if(enabled, [](const std::string& entry) {
++  // Every entry for an always-off name goes, from both lists and in every
++  // form: "*Name" means "use the default", which is on for some of them,
++  // and "Name<Trial" or "Name:param/value" name it too. Then the plain name
++  // is disabled.
++  const auto always_off = [](const std::string& entry) {
 +    const std::string name = BoringFeatureName(entry);
 +    return std::ranges::any_of(kBoringAlwaysOffFeatures,
 +                               [&](const char* off) { return name == off; });
-+  });
++  };
++  std::erase_if(enabled, always_off);
++  std::erase_if(disabled, always_off);
 +  std::set<std::string> named;
 +  for (const std::string& entry : enabled) {
 +    named.insert(BoringFeatureName(entry));
@@ -66,9 +72,7 @@ diff --git a/chrome/browser/metrics/chrome_feature_list_creator.cc b/chrome/brow
 +    named.insert(BoringFeatureName(entry));
 +  }
 +  for (const char* name : kBoringAlwaysOffFeatures) {
-+    if (!named.contains(name)) {
-+      disabled.push_back(name);
-+    }
++    disabled.push_back(name);
 +  }
 +  for (const char* name : kBoringDefaultOffFeatures) {
 +    if (!named.contains(name)) {
@@ -90,7 +94,7 @@ diff --git a/chrome/browser/metrics/chrome_feature_list_creator.cc b/chrome/brow
  // static
  ChromeFeatureListCreator* ChromeFeatureListCreator::GetInstance() {
    static base::NoDestructor<ChromeFeatureListCreator> instance;
-@@ -219,6 +301,7 @@
+@@ -219,6 +305,7 @@
    about_flags::ConvertFlagsToSwitches(&flags_storage,
                                        base::CommandLine::ForCurrentProcess(),
                                        flags_ui::kAddSentinels);

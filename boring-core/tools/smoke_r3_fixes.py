@@ -87,6 +87,20 @@ def feature_list(command_line, switch):
     return out
 
 
+def raw_list(command_line, switch):
+    """The entries of every `switch=` on the command line, as written."""
+    out = []
+    for part in command_line.split():
+        part = part.strip('"')
+        if part.startswith(switch + "="):
+            out.extend(part.split("=", 1)[1].split(","))
+    return out
+
+
+def base_name(entry):
+    return entry.lstrip("*").split("<")[0].split(":")[0]
+
+
 def main():
     failures = []
 
@@ -206,6 +220,26 @@ def main():
             app = b.run("return !!document.querySelector('contextual-tasks-app')")
             check("forced on: chrome://contextual-tasks does not open",
                   not app, f"{url} {body!r}")
+
+    # --- 127: "*Name" (use the default), a trial or params, still off -------
+    with tempfile.TemporaryDirectory(prefix="r3-fixes-", dir=tmp) as profile:
+        with Browser(user_data_dir=profile,
+                     args=["--disable-features=*UseActionsForBrowserCommands,"
+                           "AppMenuGlowUp<Trial",
+                           "--enable-features=ContextualTasks,"
+                           "ContextualTasksSidePanel:param/value,"
+                           "*AppMenuGlowUp"]) as b:
+            b.get("chrome://version")
+            wait_for(b, "document.readyState === 'complete'", 10000)
+            cl = b.run(COMMAND_LINE)
+            enabled = raw_list(cl, "--enable-features")
+            disabled = raw_list(cl, "--disable-features")
+            for name in ("UseActionsForBrowserCommands", "ContextualTasks",
+                         "ContextualTasksSidePanel", "AppMenuGlowUp"):
+                check(f"any form: {name} only as a plain disable",
+                      not [e for e in enabled if base_name(e) == name]
+                      and [e for e in disabled if base_name(e) == name] == [name],
+                      cl[-400:])
 
     print("FAILED: " + ", ".join(failures) if failures else "ALL PASS")
     return 1 if failures else 0
