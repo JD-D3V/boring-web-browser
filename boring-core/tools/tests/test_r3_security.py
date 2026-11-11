@@ -94,8 +94,9 @@ class ListSignatureCheck(unittest.TestCase):
         self.assertIn('#include "crypto/sign.h"', cc)
         self.assertIn('constexpr char kSignatureAlgorithm[] = "ecdsa-p256-sha256";', cc)
         self.assertIn("crypto::keypair::PublicKey::FromSubjectPublicKeyInfo(spki);", cc)
-        # Verify CHECKs on a key of the wrong type, so the type is checked first.
-        self.assertIn("if (!key || !key->IsEc()) {\n    return false;\n  }", cc)
+        # Verify CHECKs on a key of the wrong type, so the type is checked
+        # first, and only the P-256 curve the label names is taken.
+        self.assertIn("if (!key || !key->IsEcP256()) {\n    return false;\n  }", cc)
         self.assertIn(
             "return crypto::sign::Verify(crypto::sign::ECDSA_SHA256, *key,\n"
             "                              base::as_byte_span(manifest), *signature);",

@@ -267,12 +267,12 @@ bool ManifestIsSigned(const std::string& manifest,
     return false;
   }
 
-  // A key that does not parse, has bytes after it, or is not an EC key
-  // is refused here. crypto::sign::Verify would CHECK on a key of the
+  // A key that does not parse, has bytes after it, or is not a P-256 EC
+  // key is refused here. crypto::sign::Verify would CHECK on a key of the
   // wrong type rather than return false.
   const std::optional<crypto::keypair::PublicKey> key =
       crypto::keypair::PublicKey::FromSubjectPublicKeyInfo(spki);
-  if (!key || !key->IsEc()) {
+  if (!key || !key->IsEcP256()) {
     return false;
   }
   return crypto::sign::Verify(crypto::sign::ECDSA_SHA256, *key,
