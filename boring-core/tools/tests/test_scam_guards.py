@@ -84,6 +84,14 @@ TOOL_HITS = [
     ("setup.exe", "dl.todesk.com", "ToDesk"),
     # A full path is still a file name.
     (r"C:\Users\me\Downloads\AnyDesk.exe", "", "AnyDesk"),
+    # Scripts and files Windows runs or applies on a double click.
+    ("AnyDesk.js", "", "AnyDesk"),
+    ("TeamViewer.jse", "", "TeamViewer"),
+    ("anydesk_setup.wsf", "", "AnyDesk"),
+    ("RustDesk.jar", "", "RustDesk"),
+    ("teamviewer.reg", "", "TeamViewer"),
+    ("setup.msc", "download.anydesk.com", "AnyDesk"),
+    ("panel.cpl", "dl.teamviewer.com", "TeamViewer"),
 ]
 
 TOOL_MISSES = [

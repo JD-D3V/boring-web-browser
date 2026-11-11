@@ -30,6 +30,9 @@ constexpr const char* kProgramTypes[] = {
     // Programs under another name, or a disk image that opens as a drive.
     "scr",  "com", "pif",  "bat",        "cmd",  "ps1",
     "vbs",  "hta", "lnk",  "msp",        "iso",
+    // Scripts and files Windows runs or applies on a double click.
+    "js",   "jse", "wsf",  "msc",        "cpl",  "jar",
+    "reg",
 };
 
 // Could hold one of them. Counts for a name match, but not for a host
