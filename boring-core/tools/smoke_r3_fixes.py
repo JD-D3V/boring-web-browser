@@ -149,8 +149,11 @@ def main():
             # --- 114: Settings has the 154 bookmarks bar switch -------------
             b.get("chrome://settings/appearance")
             wait_for(b, "document.readyState === 'complete'", 10000)
-            flag = b.run("return window.loadTimeData ? loadTimeData.getBoolean("
-                         "'ntpSimplificationBookmarksBarEnabled') : 'none'")
+            flag = b.run_async(
+                "const done = arguments[0];"
+                "import('chrome://resources/js/load_time_data.js').then("
+                "m => done(m.loadTimeData.getBoolean("
+                "'ntpSimplificationBookmarksBarEnabled')), e => done('error ' + e));")
             check("bookmarks bar: new-tab-only feature off, so the bar follows "
                   "bookmark_bar.show_on_all_tabs", flag is False, str(flag))
 
