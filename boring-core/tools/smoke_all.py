@@ -75,6 +75,7 @@ CHECKS = [
         "last batch (guest links, shared switches, new tab numbers)",
         "smoke_final_batch.py",
     ),
+    ("157 fixes (Protection switches, features kept off)", "smoke_r3_fixes.py"),
 ]
 
 # Every smoke_*.py that is not a check, with the reason. A new file must
