@@ -166,7 +166,8 @@ std::string Describe(const Setting& setting, const base::Value& value) {
 // New filter rules that change what a site gets. kException switches
 // blocking off: a network exception (@@) or a cosmetic or scriptlet
 // exception (#@#). kCosmetic hides parts of a page or injects a script (##,
-// ##+js, #?#, #$#). Only lines that are new count.
+// ##+js, #?#, #$#, #%#) or swaps or rewrites what a site gets ($redirect,
+// $csp, $replace). Only lines that are new count.
 enum class Added { kNothing, kException, kCosmetic };
 
 Added AddsException(const std::string& from, const std::string& to) {
@@ -193,9 +194,18 @@ Added AddsException(const std::string& from, const std::string& to) {
     if (line.rfind("@@", 0) == 0 || line.find("#@") != std::string::npos) {
       return Added::kException;
     }
+    // Network rule options come after the last $: redirect (and
+    // redirect-rule), csp and replace swap or rewrite what a site gets.
+    const size_t options = line.rfind('$');
+    const bool rewrites =
+        line.rfind("!", 0) != 0 && options != std::string::npos &&
+        (line.find("redirect", options) != std::string::npos ||
+         line.find("csp", options) != std::string::npos ||
+         line.find("replace", options) != std::string::npos);
     if (line.find("##") != std::string::npos ||
         line.find("#?#") != std::string::npos ||
-        line.find("#$#") != std::string::npos) {
+        line.find("#$#") != std::string::npos ||
+        line.find("#%#") != std::string::npos || rewrites) {
       result = Added::kCosmetic;
     }
   }

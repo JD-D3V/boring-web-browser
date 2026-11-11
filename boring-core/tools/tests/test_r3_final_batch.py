@@ -96,5 +96,21 @@ class Quad9AnnotationPolicy(unittest.TestCase):
         self.assertIn("DnsOverHttpsMode and DnsOverHttpsTemplates", src)
 
 
+class FolderCopyRewriteRules(unittest.TestCase):
+    """Pass 3 S6 leftover. New #%# lines and $redirect, $csp, $replace
+    network rules in a folder copy are flagged in the preview."""
+
+    def test_rules_are_flagged(self):
+        src = read(BORING / "folder_copy" / "folder_copy_settings.cc")
+        start = src.index("Added AddsException(")
+        body = src[start : src.index("\n}\n", start)]
+        self.assertIn('line.find("#%#") != std::string::npos || rewrites', body)
+        self.assertIn("const size_t options = line.rfind('$');", body)
+        for word in ("redirect", "csp", "replace"):
+            self.assertIn(f'line.find("{word}", options)', body)
+        # A comment line is never a rule.
+        self.assertIn('line.rfind("!", 0) != 0', body)
+
+
 if __name__ == "__main__":
     unittest.main()
