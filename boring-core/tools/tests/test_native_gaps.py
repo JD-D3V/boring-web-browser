@@ -61,6 +61,26 @@ class NativeGapsTest(unittest.TestCase):
             mixer,
         )
 
+    def test_157_toolbar_build_and_menu_commands_each_have_one_owner(self):
+        names = text("", "series").split()
+        for gone in ("forget-session.patch", "protection-menu.patch"):
+            self.assertNotIn(gone, names)
+        owners = {}
+        for name in names:
+            p = PATCHES / "157" / name
+            body = (p if p.exists() else PATCHES / name).read_text(encoding="utf-8")
+            for rel in ("chrome/browser/ui/views/toolbar/BUILD.gn",
+                        "chrome/browser/ui/browser_command_controller.cc"):
+                if "+++ b/" + rel in body:
+                    owners.setdefault(rel, []).append(name)
+        self.assertEqual(
+            owners["chrome/browser/ui/views/toolbar/BUILD.gn"], ["toolbar-build-gn.patch"]
+        )
+        self.assertEqual(
+            owners["chrome/browser/ui/browser_command_controller.cc"],
+            ["menu-commands.patch"],
+        )
+
     def test_menu_drops_profile_tab_groups_and_cast(self):
         self.assertIn("app-menu-rows.patch", text("", "series").split())
         for d in SETS:

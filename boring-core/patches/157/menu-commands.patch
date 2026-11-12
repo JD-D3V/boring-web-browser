@@ -1,0 +1,73 @@
+diff --git a/chrome/app/chrome_command_ids.h b/chrome/app/chrome_command_ids.h
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -293,6 +293,10 @@
+ #define IDC_SHOW_READING_MODE_KEYBOARD 40303
+ #define IDC_CHROME_ENTERPRISE_RELEASE_NOTES 40305
+ #define IDC_SHOW_TTC_MENU 40306
++// boring: open the page that says whether protection is working.
++#define IDC_BORING_PROTECTION 40307
++// boring: close every window and clear this session's data.
++#define IDC_BORING_FORGET_SESSION 40308
+ 
+ // Spell-check
+ #define IDC_SPELLCHECK_SUGGESTION_0     41000
+diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui/browser_command_controller.cc
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -95,6 +95,7 @@
+ #include "chrome/browser/ui/toolbar/chrome_labs/chrome_labs_utils.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
++#include "chrome/browser/ui/views/boring/boring_forget.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
+ #include "chrome/browser/ui/web_applications/web_app_dialog_utils.h"
+@@ -1326,6 +1327,13 @@ void BrowserCommandController::HandleCommandWithDisposition(
+     case IDC_OPTIONS:
+       ShowSettings(webui::GetBrowserForOpeningWebUi(browser_));
+       break;
++    case IDC_BORING_PROTECTION:
++      ShowSingletonTab(webui::GetBrowserForOpeningWebUi(browser_),
++                       GURL("chrome://boring-protection"));
++      break;
++    case IDC_BORING_FORGET_SESSION:
++      boring::ShowForgetSessionDialog(browser_);
++      break;
+     case IDC_EDIT_SEARCH_ENGINES:
+       ShowSearchEngineSettings(webui::GetBrowserForOpeningWebUi(browser_));
+       break;
+@@ -2161,6 +2169,9 @@ void BrowserCommandController::UpdateSharedCommandsForIncognitoAvailability(
+                                         !forced_incognito && !is_guest);
+   command_updater->UpdateCommandEnabled(IDC_OPTIONS,
+                                         !forced_incognito || is_guest);
++  command_updater->UpdateCommandEnabled(IDC_BORING_PROTECTION,
++                                        !forced_incognito || is_guest);
++  command_updater->UpdateCommandEnabled(IDC_BORING_FORGET_SESSION, true);
+   command_updater->UpdateCommandEnabled(IDC_PERFORMANCE,
+                                         !forced_incognito && !is_guest);
+ }
+diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/toolbar/app_menu_model.cc
+--- a/chrome/browser/ui/toolbar/app_menu_model.cc
++++ b/chrome/browser/ui/toolbar/app_menu_model.cc
+@@ -2322,6 +2322,20 @@ void AppMenuModel::Build() {
+ #endif
+ #endif
+ 
++  // boring: whether scam and ad blocking are really working, and the
++  // protection switches. Sits next to Settings so it is easy to find.
++  AddItemWithIcon(IDC_BORING_PROTECTION, u"Protection",
++                  ui::ImageModel::FromVectorIcon(
++                      vector_icons::kShieldIcon, ui::kColorMenuIcon,
++                      ui::SimpleMenuModel::kDefaultIconSize));
++
++  // boring: closes every tab and window and clears this session's
++  // history and site data, after one question.
++  AddItemWithIcon(IDC_BORING_FORGET_SESSION, u"Forget this session",
++                  ui::ImageModel::FromVectorIcon(
++                      kDeleteIcon, ui::kColorMenuIcon,
++                      ui::SimpleMenuModel::kDefaultIconSize));
++
+   AddItemWithStringIdAndVectorIcon(
+       this, IDC_OPTIONS, IDS_SETTINGS,
+       features::IsRoundedIconsEnabled() ? kSettingsIcon : kSettingsMenuOldIcon);

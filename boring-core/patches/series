@@ -14,7 +14,7 @@ reader-always-on.patch
 reader-command-id.patch
 reader-context-menu.patch
 ai-webui-config.patch
-protection-menu.patch
+menu-commands.patch
 frame-color.patch
 default-search.patch
 google-search.patch
@@ -27,6 +27,7 @@ tab-layout.patch
 omnibox-shape.patch
 settings-drop-google.patch
 webui-css-overrides.patch
+toolbar-build-gn.patch
 toolbar-buttons.patch
 layout-constants.patch
 search-engine-menu.patch
@@ -67,7 +68,6 @@ scam-guards-download.patch
 site-rules.patch
 phone-banner-tab-helper.patch
 session-restore-default.patch
-forget-session.patch
 fingerprint-uniform.patch
 native-hosts-check.patch
 native-hosts-launch.patch
