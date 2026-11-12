@@ -412,6 +412,51 @@ def args_bump(tmp_path, monkeypatch):
     return bump.Bump(root, state, ns), prev, root, ns
 
 
+NEW_FILE_PATCH = """diff --git a/ours/new.ts b/ours/new.ts
+new file mode 100644
+--- /dev/null
++++ b/ours/new.ts
+@@ -0,0 +1 @@
++ours
+"""
+
+
+@pytest.fixture
+def pristine_bump(args_bump, tmp_path, monkeypatch):
+    import apply
+
+    b, _prev, root, _ns = args_bump
+    patch = tmp_path / "new.patch"
+    patch.write_text(NEW_FILE_PATCH + PATCH.replace("f.txt", "theirs.cc"), encoding="utf-8")
+    store = tmp_path / "store"
+    store.mkdir()
+    monkeypatch.setattr(b, "patches", lambda: [("new.patch", patch)])
+    monkeypatch.setattr(b, "store", lambda: store)
+    monkeypatch.setattr(b, "call", lambda *a, **k: 0)
+    monkeypatch.setattr(apply, "seed_pristine", lambda *a, **k: [])
+    return b, root / "build" / "src", store
+
+
+def test_pristine_keeps_created_files_when_redone_after_sort(pristine_bump):
+    # After sort the series is in, so the files our patches create exist.
+    # A --redo pristine must still list them, or sort's rewind leaves them
+    # and the new-file patch cannot go on again.
+    b, src, _store = pristine_bump
+    (src / "ours").mkdir()
+    (src / "ours" / "new.ts").write_text("ours\n", encoding="utf-8")
+    b.do_pristine()
+    assert b.state["ours_new"] == ["ours/new.ts"]
+
+
+def test_pristine_never_lists_a_created_path_chromium_has(pristine_bump):
+    # A store copy means the file is Chromium's own; rewind must not delete it.
+    b, _src, store = pristine_bump
+    (store / "ours").mkdir()
+    (store / "ours" / "new.ts").write_text("chromium\n", encoding="utf-8")
+    b.do_pristine()
+    assert b.state["ours_new"] == []
+
+
 def test_do_args_stops_for_a_changed_key_and_writes_nothing(args_bump, capsys):
     b, prev, root, _ns = args_bump
     (prev / "build/src/out/Default/args.gn").write_text(PREV_ARGS, encoding="utf-8")

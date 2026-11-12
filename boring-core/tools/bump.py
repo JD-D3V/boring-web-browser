@@ -777,14 +777,16 @@ class Bump:
 
         store = self.store()
         paths = [str(p) for _n, p in self.patches()]
+        apply.seed_pristine(str(self.src), paths, str(store))
+        # The patches' new files, whether or not sort already put them in
+        # (a --redo pristine). One with a store copy is Chromium's own.
         ours_new = []
         for _n, p in self.patches():
             _changed, created = patch_files(
                 p.read_text(encoding="utf-8", errors="replace")
             )
-            ours_new += [c for c in created if not (self.src / c).exists()]
+            ours_new += [c for c in created if not (store / c).exists()]
         self.state["ours_new"] = sorted(set(ours_new))
-        apply.seed_pristine(str(self.src), paths, str(store))
         for rel in STRING_FILES:
             if (self.src / rel).exists():
                 apply.snapshot(str(self.src), rel.replace("/", os.sep), str(store))
