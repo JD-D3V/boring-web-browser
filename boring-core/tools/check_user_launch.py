@@ -20,7 +20,8 @@ PrintWindow of the frame. No mouse, no keys, no screen capture. The browser
 is always ended in a finally block, by process id and only from this build.
 
 Fails when any control name mentions "left off", "restore pages", "continue
-where" or a side tabs promo ("vertical tabs", "tabs on the side"). Also prints
+where", a side tabs promo ("vertical tabs", "tabs on the side") or the
+pin-to-taskbar infobar ("Pin Boring Browser to your taskbar"). Also prints
 whether the bookmarks bar hint was seen, as proof that the scan reads the
 browser's own controls.
 
@@ -50,7 +51,10 @@ user32 = ctypes.WinDLL("user32", use_last_error=True)
 WM_CLOSE = 0x0010
 
 BAD = re.compile(
-    r"left off|restore pages|continue where|vertical tabs|tabs on the side|side tabs",
+    r"left off|restore pages|continue where|vertical tabs|tabs on the side|side tabs"
+    # Chromium's pin-to-taskbar infobar, held off while the browser is not the
+    # default (ledger 129, Q52).
+    r"|pin boring browser|pin to taskbar|to your taskbar",
     re.IGNORECASE,
 )
 HINT = re.compile(r"bookmarks you add show here", re.IGNORECASE)
@@ -190,7 +194,7 @@ def main():
         for f in failures:
             print("FAIL", f)
         print(
-            "PASS no restore bar and no side tabs promo in either start"
+            "PASS no restore bar, no side tabs promo and no pin to taskbar bar in either start"
             if not failures
             else f"FAIL {len(failures)} control(s) found"
         )
