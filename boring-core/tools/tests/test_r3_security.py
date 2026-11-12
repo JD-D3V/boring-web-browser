@@ -270,6 +270,22 @@ class NoteFixes(unittest.TestCase):
         self.assertIn("kLookalikeAllowedSites", fn)
         self.assertIn("domains.erase(domain)", fn)
 
+    def test_s14_rest_forget_site_takes_back_the_scam_click_through(self):
+        forget = read(
+            CORE / "chromium_src" / "chrome" / "browser" / "ui" / "views" / "boring"
+            / "boring_forget.cc"
+        )
+        body = forget.split("void ForgetSite(", 1)[1].split("\n}\n", 1)[0]
+        self.assertIn("ScamService::GetInstance()->ForgetSiteForSession(profile, site)", body)
+        self.assertIn('#include "components/boring/scam/scam_service.h"', forget)
+        service = read(BORING / "scam" / "scam_service.cc")
+        fn = service.split("void ScamService::ForgetSiteForSession(", 1)[1].split("\n}\n", 1)[0]
+        # The site itself and every host under it, in this profile's list only.
+        self.assertIn("/*create=*/false", fn)
+        self.assertIn("host == site", fn)
+        self.assertIn('"." + site', fn)
+        self.assertIn("allowed->hosts", fn)
+
 
 if __name__ == "__main__":
     unittest.main()
