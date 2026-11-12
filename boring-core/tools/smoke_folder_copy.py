@@ -58,6 +58,7 @@ KNOWN = {
     "boring.fingerprint_noise",
     "boring.strip_tracking_params",
     "boring.privacy.skip_redirects",
+    "boring.global_privacy_control",
     "boring.privacy.block_cookie_banners",
     "boring.adblock.regional_lists",
     "boring.adblock.level",

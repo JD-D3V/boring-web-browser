@@ -1,12 +1,12 @@
 diff --git a/chrome/browser/metrics/chrome_feature_list_creator.cc b/chrome/browser/metrics/chrome_feature_list_creator.cc
 --- a/chrome/browser/metrics/chrome_feature_list_creator.cc
 +++ b/chrome/browser/metrics/chrome_feature_list_creator.cc
-@@ -58,6 +58,95 @@
+@@ -58,6 +58,107 @@
  #include "chromeos/ash/components/dbus/dbus_thread_manager.h"
  #endif  // BUILDFLAG(IS_CHROMEOS)
  
-+// boring: Chromium features this build keeps off, applied to the command
-+// line before the feature list is built from it.
++// boring: Chromium features this build keeps off or turns on, applied to the
++// command line before the feature list is built from it.
 +#include <algorithm>
 +#include <set>
 +#include <string_view>
@@ -39,6 +39,13 @@ diff --git a/chrome/browser/metrics/chrome_feature_list_creator.cc b/chrome/brow
 +    "NtpSimplificationBookmarkBar",
 +    "SessionRestoreInfobar",
 +    "SeparateDefaultAndPinPrompt",
++};
++
++// On unless someone turns them off. GlobalPrivacyControlApi exposes
++// navigator.globalPrivacyControl and lets Chromium send Sec-GPC; whether
++// the signal is on follows boring.global_privacy_control.
++constexpr const char* kBoringDefaultOnFeatures[] = {
++    "GlobalPrivacyControlApi",
 +};
 +
 +// "*Name<Trial:param/value" -> "Name".
@@ -82,6 +89,11 @@ diff --git a/chrome/browser/metrics/chrome_feature_list_creator.cc b/chrome/brow
 +      disabled.push_back(name);
 +    }
 +  }
++  for (const char* name : kBoringDefaultOnFeatures) {
++    if (!named.contains(name)) {
++      enabled.push_back(name);
++    }
++  }
 +  command_line->RemoveSwitch(switches::kEnableFeatures);
 +  command_line->RemoveSwitch(switches::kDisableFeatures);
 +  if (!enabled.empty()) {
@@ -97,7 +109,7 @@ diff --git a/chrome/browser/metrics/chrome_feature_list_creator.cc b/chrome/brow
  // static
  ChromeFeatureListCreator* ChromeFeatureListCreator::GetInstance() {
    static base::NoDestructor<ChromeFeatureListCreator> instance;
-@@ -219,6 +308,7 @@
+@@ -219,6 +320,7 @@
    about_flags::ConvertFlagsToSwitches(&flags_storage,
                                        base::CommandLine::ForCurrentProcess(),
                                        flags_ui::kAddSentinels);

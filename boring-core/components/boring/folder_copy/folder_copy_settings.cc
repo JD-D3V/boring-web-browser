@@ -47,6 +47,7 @@ constexpr Setting kSettings[] = {
     {prefs::kStripTrackingParams, "Remove tracking parameters",
      Kind::kSwitch},
     {prefs::kSkipRedirects, "Skip tracking redirects", Kind::kSwitch},
+    {prefs::kGlobalPrivacyControl, "Global Privacy Control", Kind::kSwitch},
     {prefs::kBoringBlockCookieBanners, "Block cookie banners", Kind::kSwitch},
     {prefs::kBoringRegionalLists, "Regional lists", Kind::kRegional},
     {prefs::kBoringBlockingLevel, "Blocking level", Kind::kLevel},

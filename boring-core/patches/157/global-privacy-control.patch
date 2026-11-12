@@ -1,0 +1,37 @@
+diff --git a/chrome/browser/renderer_preferences_util.cc b/chrome/browser/renderer_preferences_util.cc
+--- a/chrome/browser/renderer_preferences_util.cc
++++ b/chrome/browser/renderer_preferences_util.cc
+@@ -23,6 +23,7 @@
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/common/pref_names.h"
+ #include "components/autofill/core/common/autofill_prefs.h"
++#include "components/boring/core/boring_prefs.h"
+ #include "components/language/core/browser/language_prefs.h"
+ #include "components/language/core/browser/pref_names.h"
+ #include "components/prefs/pref_service.h"
+@@ -164,6 +165,10 @@
+     prefs->is_global_privacy_control_setting_enabled = pref_service->GetBoolean(
+         universal_optout::prefs::kUniversalOptOutEnabled);
+   }
++  // boring: Global Privacy Control follows the Protection page switch, on
++  // by default, not Chrome's universal opt-out pref and its features.
++  prefs->is_global_privacy_control_setting_enabled =
++      pref_service->GetBoolean(boring::prefs::kGlobalPrivacyControl);
+   prefs->enable_encrypted_media =
+       pref_service->GetBoolean(prefs::kEnableEncryptedMedia);
+ 
+diff --git a/chrome/browser/ui/prefs/pref_watcher.cc b/chrome/browser/ui/prefs/pref_watcher.cc
+--- a/chrome/browser/ui/prefs/pref_watcher.cc
++++ b/chrome/browser/ui/prefs/pref_watcher.cc
+@@ -158,6 +158,11 @@
+                                      renderer_callback);
+   profile_pref_change_registrar_.Add(
+       universal_optout::prefs::kUniversalOptOutEnabled, renderer_callback);
++  // boring: the Global Privacy Control switch, boring::prefs::
++  // kGlobalPrivacyControl (named here: this target does not depend on
++  // components/boring).
++  profile_pref_change_registrar_.Add("boring.global_privacy_control",
++                                     renderer_callback);
+   profile_pref_change_registrar_.Add(autofill::prefs::kAutofillAtMemoryShortcut,
+                                      renderer_callback);
+   profile_pref_change_registrar_.Add(

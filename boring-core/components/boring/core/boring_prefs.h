@@ -64,6 +64,13 @@ inline constexpr char kStripTrackingParams[] = "boring.strip_tracking_params";
 // rules, plus ours for Facebook, Google and similar). On by default.
 inline constexpr char kSkipRedirects[] = "boring.privacy.skip_redirects";
 
+// Global Privacy Control (https://w3c.github.io/gpc/): the Sec-GPC: 1
+// header on requests and navigator.globalPrivacyControl, asking sites not
+// to sell or share the person's data. Chromium's own GPC code does the
+// work; this pref feeds its renderer preference. Incognito windows read
+// the profile's choice, a guest session starts with it on. On by default.
+inline constexpr char kGlobalPrivacyControl[] = "boring.global_privacy_control";
+
 // Sites where the person turned ad, tracker and tab-under blocking off,
 // from the toolbar shield. A list of site keys, see GetBlockingSite().
 // Per profile and never synced: a site one person trusts on one

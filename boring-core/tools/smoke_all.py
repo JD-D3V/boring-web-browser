@@ -61,6 +61,7 @@ CHECKS = [
     ("scam tricks guards", "smoke_scam_guards.py"),
     ("phone number banner", "smoke_phone_banner.py"),
     ("redirect and AMP skipping", "smoke_debounce.py"),
+    ("Global Privacy Control", "smoke_gpc.py"),
     ("forget this site", "smoke_forget.py"),
     ("tabs survive restart", "smoke_tabs.py"),
     ("side tabs", "smoke_vtabs.py"),
