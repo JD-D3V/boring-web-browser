@@ -32,9 +32,10 @@ defaults and a calmer UI. It is not a new engine.
 - DuckDuckGo search, with a picker on the new tab page.
 - Cookie banners blocked, and answered with no where a page asks.
 - Tracking redirects and AMP copies skipped, so a link opens the real page.
-- Stop screen takeovers. A page cannot lock your keyboard, mouse or screen
+- Stop screen takeovers. A page cannot lock your keyboard or screen
   with fake alerts. Video fullscreen still works. If a page does lock up,
-  one button closes the tab.
+  one button closes the tab. Mouse lock is handled too, but that part is
+  not tested.
 - Warn about scam tricks: downloads of remote control tools such as
   AnyDesk (in more file types, such as .scr and .iso), a page that copies
   a command for you to run, and sites named like another site, including
@@ -53,11 +54,13 @@ Also there:
   pop-up blocker stays on. The Protection page lists these sites. The
   shield also shows what was blocked on the page, and has Forget this
   site, clear on close and never sleep for that site.
-- Fire button: wipe the whole session in one click.
+- Fire button: forget this session after one confirmation. It clears the
+  history, cookies, storage and cache since the browser last started.
 - Keep a copy in a folder: your bookmarks and a settings file, copied one
   way into a folder you pick. Loading from it happens only when you click,
   only adds, and no passwords are copied.
-- Split view. New profiles open where you left off.
+- Split view. New profiles open where you left off, so session cookies
+  survive closing the browser and you stay signed in to sites.
 - What the browser connects to, on the Protection page: every connection
   it makes on its own, why, and a switch for each. You can add your own
   filter lists by address (https only, weekly, 5 MB each). Programs on
@@ -111,7 +114,7 @@ Protection page.
 | --- | --- |
 | Blink, V8, the sandbox, site isolation | Chromium, untouched |
 | De-Googling | [ungoogled-chromium](https://github.com/ungoogled-software/ungoogled-chromium) |
-| `boring-core/patches/` (80 patches) | Ours. UI shape, settings, new pages, privacy defaults, packaging |
+| `boring-core/patches/` (81 patches) | Ours. UI shape, settings, new pages, privacy defaults, packaging |
 | `boring-core/components/boring/` | Ours. Blocking, per-site blocking off, Protection page, new tab, welcome, reader, summaries, tracking parameters, updater glue, Chrome and Edge import, store helper setup |
 | Store helper | [chromium-web-store](https://github.com/NeverDecaf/chromium-web-store) by NeverDecaf, bundled with its self-update address removed and its check interval set to 5 hours |
 | `boring-core/rust/` | Ours. Wraps the third-party `adblock` crate |

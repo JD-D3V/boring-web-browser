@@ -9,6 +9,7 @@
 <li>Uninstalling leaves your profile behind: bookmarks, history and settings stay in <code>%LOCALAPPDATA%\BoringBrowser\User Data</code>. Delete that folder to remove them.</li>
 </ul>
 <h2>Updates</h2><ul>
+<li>Updating from release 2 to release 3 was tested three times in Windows Sandbox, from a test feed on the same machine, and passed each time: the check, the prompt, the download and the install worked, the updated browser reports Chromium 157, and the release 2 profile kept its settings. An altered update, or one signed by another key, was refused.</li>
 <li>Updating from release 1 to release 2 was tested in Windows Sandbox with a throwaway test key, not our release key. The check, the prompt, the download, the signature check and the install all worked, and the updated browser starts and browses. An installer changed after signing, or signed by another key, was refused.</li>
 <li>If an update does not install, download the new version from the site and run it; your settings are kept.</li>
 <li>Only installed copies update. A copy run from the zip does not; install a new release yourself.</li>
@@ -21,11 +22,16 @@
 <li>A site on the scam list shows a warning page. So does a site on Quad9’s list of dangerous sites, with no way through, as long as Quad9 is the secure DNS provider. If the extra check cannot run, that site fails to open as before.</li>
 <li>Switching secure DNS away from Quad9, or turning it off, removes that protection.</li>
 <li>Secure DNS may be turned off on a managed network or when Windows uses a VPN or policy that sets its own DNS. Not tested.</li>
-<li>The browser checks about once a week for newer blocking lists, but none are published yet, so the lists are the ones it shipped with.</li>
+<li>With Keep blocking lists up to date on, the browser checks about once a week for newer blocking lists on the project's GitHub releases page and downloads them from there. Until a new lists release is published, the lists are the ones it shipped with.</li>
 <li>Turning on Hide cookie notices or a regional list takes effect on the next page you load.</li>
 <li>Regional lists update only with a browser update.</li>
 <li>Ad blocking can break parts of some sites.</li>
 <li>YouTube video ads are not fully blocked. Some are, but YouTube changes often.</li>
+</ul>
+<h2>Sessions and takeovers</h2><ul>
+<li>New profiles continue where you left off. Session cookies therefore survive closing the browser, and you stay signed in to sites. This is Chromium's own behaviour for that setting.</li>
+<li>After Forget this session, the file that holds the tabs you closed before stays on disk until the next start. Someone who has your profile folder can read the addresses in it until then. It is Chromium's own behaviour, and we plan to fix it in Release 4.</li>
+<li>Pointer lock was not tested. Stop screen takeovers also handles it, but that needs a real person to click, and in our real-window test every request was refused. Keyboard lock and fullscreen takeovers were tested in a real window.</li>
 </ul>
 <h2>Sites and media</h2><ul>
 <li>No Widevine. Netflix, Disney+, Spotify web and other DRM media will not play.</li>
@@ -43,6 +49,6 @@
 <li>A remote summary provider receives the page text. Use a local one, or none, for private pages.</li>
 </ul>
 <h2>Not yet</h2><p>A broad scam list, sync, Tor windows, code signing.</p>
-<h2>Found in testing</h2><p>@@R3_FOUND_IN_TESTING@@</p>
+<h2>Found in testing</h2><p>The tests on this build found these, and they were fixed before release: the Protection page switches showed as off while the settings were on; the Protection and Forget this session menu rows were greyed out; the connection to release-assets.githubusercontent.com was missing from the list of what the browser connects to; a new profile showed no bookmarks bar and a Web Store icon in the toolbar. Still open: the Appearance page has a Theme row with no control.</p>
 <p>Found in the clean machine test and fixed before release: the ad block engine needed the Visual C++ runtime, so on a PC without it, ad and tracker blocking was off. It now carries its own runtime, and blocking was checked on the clean install. The update prompt also showed the Chromium version without our release number, which read like a downgrade.</p>
 </main><footer class="wrap"><a href="index.html">Back to Boring Browser</a><span>Independent project by JD · Release 3</span></footer></body></html>

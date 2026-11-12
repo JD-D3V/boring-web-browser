@@ -1,12 +1,18 @@
 # Limitations, plainly
 
-What release 1 does not do, or has not proven yet.
+What this release does not do, or has not proven yet.
 
 ## What was tested
 
 Release 3 is built on Chromium 157.0.8103.38.
 
-@@R3_WHAT_WAS_TESTED@@
+The whole headless test suite passed on the final build. The steps that need a
+real window ran on the build before the last fixes, and the steps the fixes
+touched ran again on the final build. A network audit (90 seconds per
+scenario) saw nothing contacted with everything off. The installer, a first
+run, use and removal were tested on a clean Windows 11 install in Windows
+Sandbox, and the update from release 2 passed in 3 of 3 Sandbox runs. Not
+tested: pointer lock, which needs a real person to click.
 
 That clean install found a real bug: the ad block engine needed the
 Visual C++ runtime, so on a PC without it blocking was silently off.
@@ -19,11 +25,12 @@ a fixed feed at `https://jd-d3v.github.io/boring-web-browser/appcast.xml`. A new
 installs only after you agree, and only with a valid EdDSA signature from
 our key. A copy run from the zip does not update. In a Sandbox test with a
 throwaway key, the prompt, download and signature check worked, and
-tampered or wrongly signed installers were refused. But a test release on
-the same Chromium version did not replace the installed files, so updating
-from one real release to the next is not proven yet. If it fails, an
-out-of-date Chromium gets less safe every week, so check the release page
-yourself.
+tampered or wrongly signed installers were refused. Updating from release 2
+to release 3 then passed in 3 of 3 Sandbox runs: the update installed, the
+browser reports Chromium 157 and the release 2 profile kept its settings.
+The update came from a test feed on the same machine, not from our site,
+so an update over the internet is not proven. If it fails, an out-of-date
+Chromium gets less safe every week, so check the release page yourself.
 
 ## Unsigned
 
@@ -76,7 +83,7 @@ are used under their own licence terms.
 
 None of these has been tested on a built release yet.
 
-## Not in release 1
+## Not in this release
 
 - Sync. `sync-server/` is a separate Go server. The browser does not use it.
 - Tor windows.
