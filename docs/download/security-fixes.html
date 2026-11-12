@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="The security fixes in each Boring Browser release, from Chromium and in our own code."><title>Security fixes · Boring Browser</title><link rel="icon" href="brand.svg" type="image/svg+xml"><link rel="stylesheet" href="styles.css"></head>
+<body><a class="skip" href="#main">Skip to content</a><header class="wrap header"><a class="wordmark" href="./"><img src="brand.svg" width="36" height="36" alt="">boring browser</a><nav aria-label="Main navigation"><a href="index.html#download">Download</a><a href="index.html#details">Before you try it</a><a href="privacy.html">Privacy &amp; notices</a></nav></header>
+<main id="main" class="wrap prose"><p class="eyebrow">SECURITY / FIXES BY RELEASE</p><h1>Security fixes in each release.</h1><p class="notice">Each release lists the security fixes it brings, from Chromium and in our own code. We say what was wrong in plain words, without detail that would help someone use it. This list starts with Release 3.</p>
+<h2>What each entry has</h2><ul>
+<li><strong>Release, date and Chromium version.</strong></li>
+<li><strong>From Chromium.</strong> The version it moves from and to, with a link to Google's notes.</li>
+<li><strong>In our own code.</strong> What was wrong, in plain words, now fixed.</li>
+<li><strong>Not fixed yet.</strong> Known problems that are still open, and when we plan to fix them.</li>
+<li><strong>How we checked.</strong> Which reviews and tests the release had.</li>
+</ul>
+<h2 id="release-3">Release 3 · November 2026 · Chromium 157.0.8103.38</h2>
+<h3>From Chromium</h3>
+<p>Moves from Chromium 154.0.8037.57 to 157.0.8103.38. That brings the security fixes Google shipped in Chrome 155, 156 and 157, up to that version. Google lists them on the <a href="https://chromereleases.googleblog.com/">Chrome Releases blog</a>, in the stable channel updates for desktop. Fixes Google shipped after 157.0.8103.38 come with the next release.</p>
+<h3>In our own code</h3>
+<p>Found by our own reviews and fixed before release:</p><ul>
+<li>A guest or private window can no longer change secure DNS or automatic updates for the whole browser.</li>
+<li>Blocking list updates follow a redirect only to our own list server or GitHub's file servers. Lists still have to carry our signature, as before.</li>
+<li>The scam list build can no longer let one feed entry block a popular real site. An entry that is a whole domain ending, such as co.uk, is left out.</li>
+<li>Turning on No way past scam warnings also removes any "continue anyway" you clicked before.</li>
+<li>The look-alike warning also catches fake brand names on free hosting sites such as github.io.</li>
+<li>The remote control download warning covers more file types, and file names written with accented letters.</li>
+<li>Programs on this computer that talk to add-ons go through the same checks however they start.</li>
+<li>Switches meant for our tests, and the folder copy setting, are harder to misuse.</li>
+<li>A folder settings file that drops a regional list is marked as less protection before you load it.</li>
+<li>Chromium 157's new contextual tasks side panel is kept off, because pages in it would load without our protections.</li>
+<li>Features we keep off stay off, however they are asked for on the command line.</li>
+</ul>
+<h3>Not fixed yet</h3><ul>
+<li>After Forget this session, the file that holds the tabs you closed before stays on disk until the next start. Someone who has your profile folder can read the addresses in it until then. This is Chromium's own behaviour. We plan to fix it in Release 4.</li>
+<li>Locking the mouse pointer is handled by Stop screen takeovers, but was not tested in a real window.</li>
+</ul>
+<h3>How we checked</h3>
+<p>Five security reviews: three passes over the new code, one of the move to Chromium 157 and one of the last fixes. The whole automated test suite on the final build. Three updates from release 2 in a clean Windows Sandbox, all passed, on the build before the last small fixes. These were our own reviews, not an outside audit.</p>
+<h2>Found a security problem?</h2>
+<p>Please <a href="report.html">tell JD-D3V privately by email</a> before you post it anywhere public. Never send passwords, keys or browser profiles.</p>
+<p>See also: <a href="how-current.html">how current it is</a>, <a href="threat-model.html">threat model</a>, <a href="known-issues.html">known issues</a>.</p>
+</main><footer class="wrap"><a href="index.html">Back to Boring Browser</a><span>Independent project by JD-D3V · Release 3</span></footer></body></html>

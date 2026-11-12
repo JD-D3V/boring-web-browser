@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="What Boring Browser protects you from, and what it does not."><title>Threat model · Boring Browser</title><link rel="icon" href="brand.svg" type="image/svg+xml"><link rel="stylesheet" href="styles.css"></head>
+<body><a class="skip" href="#main">Skip to content</a><header class="wrap header"><a class="wordmark" href="./"><img src="brand.svg" width="36" height="36" alt="">boring browser</a><nav aria-label="Main navigation"><a href="index.html#download">Download</a><a href="index.html#details">Before you try it</a><a href="privacy.html">Privacy &amp; notices</a></nav></header>
+<main id="main" class="wrap prose"><p class="eyebrow">SECURITY / THREAT MODEL</p><h1>What it protects you from.</h1><p class="notice">Written for Release 3, November 2026. Boring Browser 3 on Chromium 157.0.8103.38, Windows x64. Every limit below is one we know of. There may be others.</p>
+<h2>Who it is for</h2>
+<p>People who want a plain Windows browser that blocks ads and trackers and makes scams harder to fall for. People who set up a computer for a parent or grandparent.</p>
+<p>It is not for anyone who needs to hide who they are. Use Tor Browser for that. It is also not a fit if you need Netflix or other DRM video, or a signed browser that your workplace manages.</p>
+<h2>What it protects against</h2><ul>
+<li><strong>Ads and trackers.</strong> Blocked from the start, the way uBlock Origin does it. Cookie banners are blocked, tracking redirects are skipped and tracking parameters are removed from links. Blocking misses some things and can break parts of some sites.</li>
+<li><strong>Scam and phishing sites.</strong> A site on the built-in scam list opens a warning page. The list comes from CERT Polska and DurableNapkin only, so it is thin outside Poland. While Quad9 is your secure DNS provider, sites Quad9 knows as dangerous get the same warning, with no way through. New or unreported sites get through.</li>
+<li><strong>Screen takeovers.</strong> A page such as a fake virus alert cannot lock your keyboard or screen, loop an alarm, or trap you with leave-page prompts or endless alerts. One button closes the tab. Video fullscreen still works. Locking the mouse pointer is handled too, but was not tested in a real window.</li>
+<li><strong>Look-alike sites.</strong> A warning when a site's name copies one of about 100 well-known brands. It misses one-letter typos, and copies that put the brand in the middle of an ordinary site's address.</li>
+<li><strong>Scam tricks.</strong> The browser asks first before you download a remote control tool such as AnyDesk, TeamViewer or Quick Assist. It stops a page from copying a command for you to paste and run.</li>
+<li><strong>Tracking by fingerprint.</strong> Noise on canvas, text and element sizes, and the same graphics card name, core count, touch points and screen size on every page. This makes you harder to tell apart from other people. It does not stop fingerprinting.</li>
+</ul>
+<h2>What it does not protect against</h2><ul>
+<li><strong>A computer that already has malware</strong>, or someone who can use your Windows account. They can read your browser profile.</li>
+<li><strong>A determined attacker who targets you.</strong> Our Chromium runs days to weeks behind Chrome, and a known hole can be used in that gap. See <a href="how-current.html">how current it is</a>.</li>
+<li><strong>The sites you sign in to.</strong> They see what you do on them. The browser keeps you signed in after you close it.</li>
+<li><strong>People watching your network.</strong> Secure DNS hides the site names you look up from your network, and Quad9 sees them instead. Your network can still see which servers you connect to. Use a VPN you trust if that matters to you.</li>
+<li><strong>Google, if you sign in to Google.</strong> Google sees what you do on its sites, like any site you sign in to.</li>
+<li><strong>Being identified.</strong> This is not an anonymity tool.</li>
+</ul>
+<h2>Keep these on</h2>
+<p>Windows Security and SmartScreen. This browser does not replace them, and it is not antivirus. Never turn them off to install or use it.</p>
+<p>See also: <a href="about.html">who makes this</a>, <a href="security-fixes.html">security fixes in each release</a>, <a href="known-issues.html">known issues</a>.</p>
+</main><footer class="wrap"><a href="index.html">Back to Boring Browser</a><span>Independent project by JD-D3V · Release 3</span></footer></body></html>

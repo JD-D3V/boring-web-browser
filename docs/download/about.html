@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="description" content="Who makes Boring Browser, why it exists, how it is paid for and why it is built on ungoogled-chromium."><title>Who makes this · Boring Browser</title><link rel="icon" href="brand.svg" type="image/svg+xml"><link rel="stylesheet" href="styles.css"></head>
+<body><a class="skip" href="#main">Skip to content</a><header class="wrap header"><a class="wordmark" href="./"><img src="brand.svg" width="36" height="36" alt="">boring browser</a><nav aria-label="Main navigation"><a href="index.html#download">Download</a><a href="index.html#details">Before you try it</a><a href="privacy.html">Privacy &amp; notices</a></nav></header>
+<main id="main" class="wrap prose"><p class="eyebrow">ABOUT THE PROJECT / WHO AND WHY</p><h1>Who makes this, and why.</h1><p class="notice">Written for Release 3, November 2026. Boring Browser 3 on Chromium 157.0.8103.38, Windows x64.</p>
+<h2>Who</h2>
+<p>One person: <a href="https://github.com/JD-D3V">JD-D3V</a> on GitHub, a solo developer. There is no company, team or investor behind it. Every release is built on JD-D3V's own PC and published from that GitHub account. The <a href="https://github.com/JD-D3V/boring-web-browser">source code</a> and <a href="https://github.com/JD-D3V/boring-web-browser/releases">every release</a> are public.</p>
+<p>Why this matters: a browser updates itself, so whoever makes it can put new code on your computer. That is why an update installs only after you agree, and only if it carries our signature. You can turn the daily check off on the Protection page.</p>
+<h2>Why it exists</h2>
+<p>A browser should be boring. It should open the page and stay out of the way. Many browsers now come with ads, sponsored tiles, shopping features, crypto wallets or AI you did not ask for. This one is meant to be private from the start and to make scam sites harder to fall for, for you and for the people you help with their computers.</p>
+<h2>How it is paid for</h2>
+<p>It is not. There is no income: no ads, no search deal, no donations, no paid version and no data to sell. JD-D3V builds it unpaid. The cost of that is speed. See <a href="how-current.html">how current it is</a>.</p>
+<h2>Why Chromium</h2><ul>
+<li>Sites are built and tested for Chromium's engine, so they work.</li>
+<li>Google's security team keeps fixing that engine. Those fixes reach this browser each time it moves to a newer Chromium.</li>
+<li>Extensions from the Chrome Web Store work.</li>
+</ul>
+<p>The cost: the engine is Google's, and we follow its pace. If you want a browser that does not use Google's engine at all, Firefox and Mullvad Browser are good choices.</p>
+<h2>Why ungoogled-chromium</h2>
+<p>ungoogled-chromium is an open source project that takes Chromium and removes Google's services and its background connections to Google. We start from it. On top sit about 80 small patches of our own: blocking, the Protection page, the scam warnings and the look.</p>
+<p>In our measurements on Release 3, the browser on its own reached only Quad9's secure DNS, and GitHub when it checked for blocking lists. With everything that contacts a server turned off, it contacted nothing. The Chromium Web Store helper talks to Google, but only if you have Chrome Web Store extensions. The <a href="privacy.html">privacy page</a> lists every connection.</p>
+<h2>What it will never do</h2><ul>
+<li>Show you ads or sponsored tiles.</li>
+<li>Sell or share your data. It sends us no usage data, so there is nothing to sell. The update check sends only the browser version.</li>
+<li>Ask you to make an account.</li>
+<li>Add crypto, wallets or coins.</li>
+<li>Turn on AI for you. Page summaries stay off until you pick a provider, and run only when you click.</li>
+<li>Install an update without asking you first.</li>
+<li>Weaken Chromium's sandbox, the wall that keeps a bad page away from the rest of your computer.</li>
+</ul>
+<h2>Who checks the work</h2>
+<p>Nobody outside, yet. Release 3 had five security reviews of our own and a full automated test run. That is not an outside audit. The source is public, so anyone can check it. See the <a href="security-fixes.html">security fixes in each release</a> and the <a href="threat-model.html">threat model</a>.</p>
+</main><footer class="wrap"><a href="index.html">Back to Boring Browser</a><span>Independent project by JD-D3V · Release 3</span></footer></body></html>
