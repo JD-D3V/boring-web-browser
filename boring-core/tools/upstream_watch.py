@@ -35,6 +35,7 @@ POSTS_URL = (
     "&max-results=50&q=%22Stable+Channel+Update+for+Desktop%22"
 )
 MARKER = "<!-- upstream-watch -->"
+BOT = "github-actions[bot]"
 CHECKED = "Last checked:"
 TAG_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)\.(\d+)-(\d+)(?:\.(\d+))?$")
 VERSION_RE = re.compile(r"\b(\d{2,4}\.\d+\.\d{3,5}\.\d+)\b")
@@ -237,9 +238,15 @@ def plan(existing, behind, title, body):
 
 
 def find_issue(issues):
-    """The open issue this watcher owns, by the marker in its body."""
+    """The open issue this watcher owns: the marker in its body AND opened
+    by the Actions bot. Anyone can paste the marker into an issue on a
+    public repo; the watcher must not rewrite or close those."""
     for i in issues:
-        if "pull_request" not in i and MARKER in (i.get("body") or ""):
+        if (
+            "pull_request" not in i
+            and MARKER in (i.get("body") or "")
+            and (i.get("user") or {}).get("login") == BOT
+        ):
             return i
     return None
 

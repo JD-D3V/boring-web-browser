@@ -151,11 +151,27 @@ def test_plan_keeps_one_issue():
     assert uw.plan(None, False, None, None) == "none"
 
 
+BOT_USER = {"login": "github-actions[bot]"}
+
+
 def test_find_issue_skips_pull_requests_and_strangers():
     issues = [
-        {"number": 1, "body": uw.MARKER, "pull_request": {}},
-        {"number": 2, "body": "something else"},
-        {"number": 3, "body": "x\n" + uw.MARKER},
+        {"number": 1, "body": uw.MARKER, "pull_request": {}, "user": BOT_USER},
+        {"number": 2, "body": "something else", "user": BOT_USER},
+        {"number": 3, "body": "x\n" + uw.MARKER, "user": BOT_USER},
     ]
     assert uw.find_issue(issues)["number"] == 3
     assert uw.find_issue(issues[:2]) is None
+
+
+def test_find_issue_ignores_a_marker_pasted_by_someone_else():
+    forged = [
+        {"number": 4, "body": uw.MARKER, "user": {"login": "someone"}},
+        {"number": 5, "body": uw.MARKER, "user": {"login": "github-actions"}},
+        {"number": 6, "body": uw.MARKER},
+        {"number": 7, "body": uw.MARKER, "user": None},
+    ]
+    assert uw.find_issue(forged) is None
+    assert uw.find_issue(forged + [{"number": 8, "body": uw.MARKER, "user": BOT_USER}])[
+        "number"
+    ] == 8
