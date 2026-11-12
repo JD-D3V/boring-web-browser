@@ -11,6 +11,9 @@
     enabled (119), Settings reports the old bookmarks bar switch (114).
   - A fresh profile pins no add-on to the toolbar (115) and its side tabs
     do not expand on hover (122).
+  - Chromium's "pin to your taskbar" infobar feature (SeparateDefaultAndPinPrompt)
+    is off, read from the effective command line (Q52). The CDP feature
+    state call only knows a short fixed list, so this is the one proof.
 
 What only a real window shows (the app menu rows enabled, the bookmarks
 bar drawn, no restore infobar) is left to the real-window pass.
@@ -178,7 +181,8 @@ def main():
             disabled = feature_list(cl, "--disable-features")
             for name in ("UseActionsForBrowserCommands", "ExtensionsPinnedByDefault",
                          "NtpSimplificationBookmarkBar", "SessionRestoreInfobar",
-                         "IPH_VerticalTabsExpandOnHoverFeature", "ContextualTasks"):
+                         "IPH_VerticalTabsExpandOnHoverFeature", "ContextualTasks",
+                         "SeparateDefaultAndPinPrompt"):
                 check(f"command line: {name} is off", name in disabled, cl[-400:])
 
         time.sleep(1.0)

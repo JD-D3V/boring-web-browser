@@ -115,8 +115,22 @@ class FeatureDefaultsTest(unittest.TestCase):
                 "IPH_VerticalTabsExpandOnHoverFeature",  # 122
                 "NtpSimplificationBookmarkBar",  # 114
                 "SessionRestoreInfobar",  # 121
+                "SeparateDefaultAndPinPrompt",  # 129, Q52
             ],
         )
+
+    def test_pin_prompt_feature_is_off_unless_named(self):
+        # Q52: Chromium's "Pin to your taskbar" infobar on a later start is
+        # offered by the separate default and pin prompt feature (on for
+        # Windows on 157) even when the browser is not the default one.
+        default = names(self.text, "kBoringDefaultOffFeatures")
+        always = names(self.text, "kBoringAlwaysOffFeatures")
+        self.assertNotIn("SeparateDefaultAndPinPrompt", always)
+        on, off = keep_off(always, default, [], [])
+        self.assertIn("SeparateDefaultAndPinPrompt", off)
+        on, off = keep_off(always, default, ["SeparateDefaultAndPinPrompt"], [])
+        self.assertIn("SeparateDefaultAndPinPrompt", on)
+        self.assertNotIn("SeparateDefaultAndPinPrompt", off)
 
     def test_runs_before_the_feature_list_is_built(self):
         self.assertIn(
