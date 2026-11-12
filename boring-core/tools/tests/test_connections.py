@@ -65,9 +65,7 @@ class ConnectionsCheck(unittest.TestCase):
             '\nconstexpr char kExtra[] = "https://tracker.example.net/ping";\n',
         )
         errors = check_connections.check(self.tmp)
-        self.assertTrue(
-            any("tracker.example.net" in e for e in errors), errors
-        )
+        self.assertTrue(any("tracker.example.net" in e for e in errors), errors)
 
     def test_user_list_code_may_fetch_but_not_name_a_host(self):
         # The user lists fetch from addresses people type, so the file is
@@ -142,6 +140,35 @@ class ConnectionsCheck(unittest.TestCase):
         names = [n.id for n in ast.walk(tree) if isinstance(n, ast.Name)]
         self.assertIn("all_off_seed", names)
         self.assertIn("all-off", check_connections.scenario_names(CORE))
+
+    def test_secure_dns_off_note_names_the_hidden_tracker_check(self):
+        # 131: the check for trackers hidden behind a site's own address
+        # (cname_uncloaker.cc) runs only in secure mode, so turning Secure DNS
+        # off stops it as well as weakening scam blocking.
+        data = json.loads((CORE / JSON_REL).read_text(encoding="utf-8"))
+        row = next(c for c in data["connections"] if c["id"] == "secure_dns")
+        note = row["off_note"]
+        self.assertIn("scam blocking gets weaker", note)
+        self.assertIn("trackers hidden behind a site's own address", note)
+        self.assertIn("also stops", note)
+        self.assertNotIn("—", note)
+        self.assertIn(
+            note, (CORE / check_connections.HEADER_REL).read_text(encoding="utf-8")
+        )
+        self.assertFalse(check_connections.check(CORE))
+
+    def test_automatic_mode_row_says_the_same(self):
+        # The row counts automatic as on (any mode but off), so the note about
+        # "this off" never shows for it; the row's detail line does.
+        ui = (CORE / "components/boring/protection/protection_ui.cc").read_text(
+            encoding="utf-8"
+        )
+        start = ui.index("GetPrivacyState(context);")
+        branch = ui[start : ui.index('} else if (*kind == "profile")', start)]
+        self.assertIn('privacy.dns_mode == "automatic"', branch)
+        self.assertIn("trackers hidden behind a", branch)
+        self.assertIn("need secure mode", branch)
+        self.assertIn('!privacy.dns_mode.empty() && privacy.dns_mode != "off"', branch)
 
 
 if __name__ == "__main__":

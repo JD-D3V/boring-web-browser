@@ -108,6 +108,8 @@ def main():
                     failures.append(f"{entry['id']}: em dash in row")
             if "scam blocking gets weaker" not in rows.get("secure_dns", {}).get("text", ""):
                 failures.append("Secure DNS row does not say scam blocking gets weaker")
+            if "hidden behind a site's own address" not in rows.get("secure_dns", {}).get("text", ""):
+                failures.append("Secure DNS row does not say the hidden tracker check stops")
             if not rows.get("secure_dns", {}).get("on"):
                 failures.append("Secure DNS is not on by default")
 

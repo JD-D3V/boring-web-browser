@@ -2306,6 +2306,13 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
         can_switch = !privacy.dns_managed;
         if (privacy.dns_managed) {
           detail = "Set by your administrator.";
+        } else if (privacy.dns_mode == "automatic") {
+          // The switch shows on, but scam blocking and the check for
+          // trackers hidden behind a site's own address run only in
+          // secure mode.
+          detail = "Secure DNS is set to automatic in Settings. Scam "
+                   "blocking and the check for trackers hidden behind a "
+                   "site's own address need secure mode.";
         }
       } else if (*kind == "profile") {
         const std::string* pref = sw->FindString("pref");

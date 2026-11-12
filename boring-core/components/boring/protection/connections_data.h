@@ -19,7 +19,7 @@ inline constexpr char kConnectionsJson[] = R"json({
       "label": "Secure DNS",
       "hosts": ["dns.quad9.net"],
       "why": "Looks up site addresses privately. Also blocks known scam sites. A site that cannot be found is asked about once more, to tell a blocked one from a typo.",
-      "off_note": "With this off, scam blocking gets weaker.",
+      "off_note": "With this off, scam blocking gets weaker. The check for trackers hidden behind a site's own address also stops.",
       "switch": {
         "kind": "local_state",
         "pref": "dns_over_https.mode",
