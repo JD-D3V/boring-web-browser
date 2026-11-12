@@ -348,6 +348,23 @@ def test_args_gn_write_text_to_another_file_is_not_args_gn(ung):
     assert not (root / "other.txt").exists()
 
 
+@pytest.mark.parametrize(
+    "name", ["smoke_all.x", "antigravity.x", "clang.cindex", "os", "", "..", "clang "]
+)
+def test_args_gn_looks_up_only_plain_allowed_modules(ung, name):
+    root, _ = ung
+    asked = []
+
+    def spy(n):
+        asked.append(n)
+        return types.SimpleNamespace(submodule_search_locations=[str(root / "site" / "clang")])
+
+    changed = BUILD_PY.replace("find_spec('clang')", f"find_spec({name!r})")
+    with pytest.raises(bump.NeedsHuman, match="looks up module"):
+        bump.args_gn_from_build_py(changed, root, False, spy)
+    assert asked == []
+
+
 def test_args_gn_has_no_way_to_reach_dunders(ung):
     root, find_spec = ung
     with pytest.raises(bump.NeedsHuman, match="build.py line"):

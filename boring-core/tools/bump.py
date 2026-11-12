@@ -240,6 +240,9 @@ WRITING_CALLS = {
     "rmdir", "touch", "chmod", "symlink_to", "hardlink_to", "link_to",
 }  # fmt: skip
 WRITING_NAMES = {"open", "exec", "eval", "compile", "__import__"}
+# The only modules build.py may ask importlib to find: plain top-level
+# names, never dotted (find_spec("a.b") imports package a).
+SPEC_NAMES = {"clang"}
 
 
 class _Logger:
@@ -280,6 +283,16 @@ def args_gn_from_build_py(text, root, tarball, find_spec=importlib.util.find_spe
     """
     root = Path(root).resolve()
     log = _Logger()
+    real_find_spec = find_spec
+
+    def find_spec(name, *_a):
+        # A dotted name imports its parent package, which runs its code.
+        if not isinstance(name, str) or name not in SPEC_NAMES:
+            raise NeedsHuman(
+                f"build.py looks up module {name!r}; bump.py only looks up "
+                f"{sorted(SPEC_NAMES)} (a dotted or unknown name could run code)"
+            )
+        return real_find_spec(name)
 
     def exit_(*_a):
         raise NeedsHuman(
