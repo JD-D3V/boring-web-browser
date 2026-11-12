@@ -122,23 +122,25 @@
  void Screen::Trace(Visitor* visitor) const {
 --- a/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
 +++ b/third_party/blink/renderer/modules/webgl/webgl_rendering_context_base.cc
-@@ -4202,6 +4202,10 @@
+@@ -4202,6 +4202,12 @@
        if (ExtensionEnabled(kWebGLDebugRendererInfoName)) {
          if (base::FeatureList::IsEnabled(blink::features::kSpoofWebGLInfo))
            return WebGLAny(script_state, String(blink::features::kSpoofWebGLRendererParam.Get()));
-+        // boring: a generic graphics card name while the fingerprint
-+        // switch is on.
++        // boring: one common graphics card name for everyone while the
++        // fingerprint switch is on. It has the shape Chrome on Windows
++        // reports: Cloudflare's check loops on made-up Google names
++        // (ungoogled-chromium issue 3226).
 +        if (RuntimeEnabledFeatures::FingerprintingClientRectsNoiseEnabled())
-+          return WebGLAny(script_state, String("ANGLE (generic)"));
++          return WebGLAny(script_state, String("ANGLE (Intel, Intel(R) Iris(R) Xe Graphics (0x00009A49) Direct3D11 vs_5_0 ps_5_0, D3D11)"));
          return WebGLAny(script_state,
                          String(ContextGL()->GetString(GL_RENDERER)));
        }
-@@ -4213,6 +4217,8 @@
+@@ -4213,6 +4219,8 @@
        if (ExtensionEnabled(kWebGLDebugRendererInfoName)) {
          if (base::FeatureList::IsEnabled(blink::features::kSpoofWebGLInfo))
            return WebGLAny(script_state, String(blink::features::kSpoofWebGLVendorParam.Get()));
 +        if (RuntimeEnabledFeatures::FingerprintingClientRectsNoiseEnabled())
-+          return WebGLAny(script_state, String("Google Inc."));
++          return WebGLAny(script_state, String("Google Inc. (Intel)"));
          return WebGLAny(script_state,
                          String(ContextGL()->GetString(GL_VENDOR)));
        }

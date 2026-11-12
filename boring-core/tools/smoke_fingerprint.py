@@ -5,8 +5,9 @@ With the switch on (the default) every page reads the same core count,
 touch points, WebGL graphics card name and one of a few common screen sizes:
   hardwareConcurrency  8, in a page and in a worker
   maxTouchPoints       0
-  WebGL                UNMASKED_VENDOR "Google Inc.", UNMASKED_RENDERER
-                       "ANGLE (generic)", for webgl and webgl2
+  WebGL                UNMASKED_VENDOR "Google Inc. (Intel)", UNMASKED_RENDERER
+                       one common Intel card in Chrome's Windows format, for
+                       webgl and webgl2
   WebGPU               adapter info vendor and architecture are "" (skipped
                        when the run has no navigator.gpu or no adapter)
   screen               the smallest common size that holds the real screen;
@@ -42,8 +43,12 @@ WORK = Path(os.environ.get("TMP", r"E:\tmp")) / "feat-fingerprint" / "smoke"
 
 CORES = 8
 TOUCH = 0
-VENDOR = "Google Inc."
-RENDERER = "ANGLE (generic)"
+# Must match the WebGL strings in patches/fingerprint-uniform.patch.
+VENDOR = "Google Inc. (Intel)"
+RENDERER = (
+    "ANGLE (Intel, Intel(R) Iris(R) Xe Graphics (0x00009A49) "
+    "Direct3D11 vs_5_0 ps_5_0, D3D11)"
+)
 # Must match kUniformScreenSizes in patches/fingerprint-uniform.patch.
 SIZES = [(1366, 768), (1536, 864), (1600, 900), (1920, 1080), (2560, 1440), (3840, 2160)]
 
