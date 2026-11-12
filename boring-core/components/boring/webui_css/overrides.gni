@@ -12,6 +12,7 @@ boring_css_overrides = [
   "chrome/browser/resources/settings/autofill_page/payments/payments_list.css",
   "chrome/browser/resources/settings/autofill_page/payments/payments_page.css",
   "chrome/browser/resources/settings/on_startup_page/startup_urls_page.css",
+  "chrome/browser/resources/settings/people_page/people_page.css",
   "chrome/browser/resources/settings/people_page/sync_controls.css",
   "chrome/browser/resources/settings/people_page/sync_page.css",
   "chrome/browser/resources/settings/performance_page/tab_discard/exception_list.css",

@@ -1,0 +1,27 @@
+/* Boring Browser: appended to upstream people_page.css at build time
+   (tools/polymer/css_to_wrapper.py hook). Later rules win. */
+#sync-setup, #google-services, #manage-google-account {
+  display: none;
+}
+#sync-not-allowed {
+  background-color: var(--google-grey-100);
+  background-image: var(--cr-row-divider-background, none);
+  background-origin: content-box;
+  background-position: top;
+  background-repeat: no-repeat;
+  background-size: 100% var(--cr-separator-height);
+  border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+}
+cr-link-row {
+  background-image: var(--cr-row-divider-background, none);
+  background-origin: content-box;
+  background-position: top;
+  background-repeat: no-repeat;
+  background-size: 100% var(--cr-separator-height);
+  border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+}
+@media (prefers-color-scheme: dark) {
+  #sync-not-allowed {
+    background-color: var(--google-grey-800);
+  }
+}
