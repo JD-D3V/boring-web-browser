@@ -182,6 +182,65 @@ def test_find_issue_ignores_a_marker_pasted_by_someone_else():
     ] == 8
 
 
+def test_a_new_day_with_the_same_news_is_not_an_edit():
+    stable = uw.stable_summary(RELEASES, "157.0.8103.38")
+    args = ("157.0.8103.38-1.1", "157.0.8103.79-1.1", 2, stable, [])
+    title, today = uw.issue_text(*args, datetime(2026, 11, 12, 6, 0, tzinfo=UTC))
+    _, tomorrow = uw.issue_text(*args, datetime(2026, 11, 13, 6, 0, tzinfo=UTC))
+    assert "8 day(s) ago" in tomorrow and "7 day(s) ago" in today
+    existing = {"title": title, "body": today, "number": 7}
+    assert uw.plan(existing, True, title, tomorrow) == "none"
+    # a changed fix count still is an edit
+    posts = uw.security_posts(FEED)
+    _, more = uw.issue_text(*args[:4], posts, datetime(2026, 11, 13, tzinfo=UTC))
+    assert uw.plan(existing, True, title, more) == "update"
+
+
+def test_the_issue_is_found_by_label_across_pages():
+    calls = []
+    others = [{"number": n, "body": "x", "user": {"login": "someone"}} for n in range(100)]
+    mine = {"number": 500, "body": uw.MARKER, "user": BOT_USER}
+
+    def call(method, path, token, payload=None):
+        calls.append(path)
+        page = int(path.rsplit("page=", 1)[1])
+        return {1: others, 2: others, 3: [mine]}[page]
+
+    found = uw.watch_issues("o/r", "tok", call)
+    assert uw.find_issue(found)["number"] == 500
+    assert len(calls) == 3
+    assert all("labels=upstream-watch" in c and "per_page=100" in c for c in calls)
+
+
+def test_main_labels_the_issue_it_opens_and_leaves_an_unchanged_one(tmp_path, monkeypatch):
+    cur = tmp_path / "UPSTREAM_VERSION"
+    cur.write_text("157.0.8103.38-1.1\n", encoding="utf-8")
+    sent = []
+    listing = []
+
+    def fake_github(method, path, token, payload=None):
+        sent.append((method, path, payload))
+        if method == "GET":
+            return listing
+        return {"html_url": "u"}
+
+    monkeypatch.setattr(uw, "github", fake_github)
+    monkeypatch.setattr(uw, "fetch_tags", lambda token=None: ["157.0.8103.50-1.1"])
+    monkeypatch.setattr(uw, "get_json", lambda url, token=None: {})
+    monkeypatch.setenv("GITHUB_TOKEN", "tok")
+    assert uw.main(["--repo", "o/r", "--current", str(cur)]) == 0
+    made = [s for s in sent if s[0] == "POST" and s[1].endswith("/issues")]
+    assert made[0][2]["labels"] == ["upstream-watch"]
+    assert any(s[1].endswith("/labels") for s in sent)
+    # the next day: the bot's issue is there with the same news, so no write
+    listing.append(
+        {"number": 9, "title": made[0][2]["title"], "body": made[0][2]["body"], "user": BOT_USER}
+    )
+    sent.clear()
+    assert uw.main(["--repo", "o/r", "--current", str(cur)]) == 0
+    assert [s[0] for s in sent] == ["GET"]
+
+
 NOW = datetime(2026, 11, 12, tzinfo=UTC)
 
 

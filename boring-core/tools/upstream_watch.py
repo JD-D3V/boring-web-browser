@@ -5,7 +5,8 @@ Run daily by .github/workflows/upstream-watch.yml. Compares the newest
 tag upstream with boring-core/UPSTREAM_VERSION, reads Chrome's stable
 channel and Google's release posts to say how far behind we are and
 whether the newer release carries security fixes, then opens or updates
-ONE issue (found by a marker in its body). When we have caught up, that
+ONE issue (found by its label and a marker in its body, opened by the
+Actions bot; an issue anyone else opened is never touched). When we have caught up, that
 issue is closed.
 
 Only public JSON endpoints; the GitHub token is sent to api.github.com
@@ -20,6 +21,7 @@ import json
 import os
 import re
 import sys
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import UTC, datetime
@@ -36,6 +38,10 @@ POSTS_URL = (
 )
 MARKER = "<!-- upstream-watch -->"
 BOT = "github-actions[bot]"
+# The label the watcher puts on its issue, so it can ask GitHub for just
+# that issue instead of paging through every open one.
+LABEL = "upstream-watch"
+AGO_RE = re.compile(r", \d+ day\(s\) ago")
 CHECKED = "Last checked:"
 TAG_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)\.(\d+)-(\d+)(?:\.(\d+))?$")
 VERSION_RE = re.compile(r"\b(\d{2,4}\.\d+\.\d{3,5}\.\d+)\b")
@@ -237,9 +243,12 @@ def issue_text(current, latest, newer_tags, stable, posts, now):
 
 
 def without_checked(body):
-    return "\n".join(
+    """The body minus what changes by itself every day: the checked line and
+    the "N day(s) ago" count. What is left is tags, versions and fix counts."""
+    kept = "\n".join(
         ln for ln in (body or "").splitlines() if not ln.startswith(CHECKED)
     )
+    return AGO_RE.sub("", kept)
 
 
 def plan(existing, behind, title, body):
@@ -282,6 +291,38 @@ def github(method, path, token, payload=None):
     )
     with urllib.request.urlopen(req, timeout=60) as resp:
         return json.load(resp)
+
+
+def watch_issues(repo, token, call=None):
+    """Open issues carrying our label, every page (the repo may have many
+    open issues; asking by label keeps ours from falling off page one)."""
+    call = call or github
+    found = []
+    for page in range(1, 11):
+        got = call(
+            "GET",
+            f"/repos/{repo}/issues?state=open&labels={LABEL}&per_page=100&page={page}",
+            token,
+        )
+        found += got
+        if len(got) < 100:
+            break
+    return found
+
+
+def ensure_label(repo, token, call=None):
+    """Make the label exist; 422 means it already does."""
+    call = call or github
+    try:
+        call(
+            "POST",
+            f"/repos/{repo}/labels",
+            token,
+            {"name": LABEL, "color": "ededed", "description": "Upstream release watcher"},
+        )
+    except urllib.error.HTTPError as err:
+        if err.code != 422:
+            raise
 
 
 def main(argv=None):
@@ -331,13 +372,16 @@ def main(argv=None):
         print(body or "")
         return 0
 
-    issues = github("GET", f"/repos/{args.repo}/issues?state=open&per_page=100", token)
-    existing = find_issue(issues)
+    existing = find_issue(watch_issues(args.repo, token))
     action = plan(existing, behind, title, body)
     print("issue:", action)
     if action == "create":
+        ensure_label(args.repo, token)
         made = github(
-            "POST", f"/repos/{args.repo}/issues", token, {"title": title, "body": body}
+            "POST",
+            f"/repos/{args.repo}/issues",
+            token,
+            {"title": title, "body": body, "labels": [LABEL]},
         )
         print("opened", made.get("html_url"))
     elif action == "update":
