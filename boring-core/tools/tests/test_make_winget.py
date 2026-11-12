@@ -114,6 +114,11 @@ class MakeWingetTest(unittest.TestCase):
         self.assertNotEqual(self.run_tool(), 0)
         self.assertFalse((self.package / NEW).exists())
 
+    def test_refuses_when_sha256sums_is_missing(self):
+        (self.release / "SHA256SUMS.txt").unlink()
+        self.assertNotEqual(self.run_tool(), 0)
+        self.assertFalse((self.package / NEW).exists())
+
     def test_refuses_two_installers(self):
         other = "BoringBrowser_158.0.8200.11.1_installer_x64.exe"
         (self.release / other).write_bytes(b"x")

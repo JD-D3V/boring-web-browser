@@ -6,7 +6,7 @@
 The release folder is what rename_release.py made: one
 <ID>_<chromium>.<release>_installer_x64.exe and SHA256SUMS.txt. The
 version comes from the installer's name, the hash from its bytes (and
-must agree with SHA256SUMS.txt when that is there).
+must agree with SHA256SUMS.txt, which has to be there).
 
 The three manifest files are copied from the newest version folder under
 packaging/winget/manifests/j/JD-D3V/BoringBrowser (or from --template)
@@ -76,16 +76,17 @@ def find_installer(release_dir):
 def checked_sha256(installer):
     sha = hashlib.sha256(installer.read_bytes()).hexdigest()
     sums = installer.parent / "SHA256SUMS.txt"
-    if sums.exists():
-        listed = [
-            line.split()[0].lower()
-            for line in sums.read_text(encoding="utf-8").splitlines()
-            if line.split()[1:] and line.split()[-1].lstrip("*") == installer.name
-        ]
-        if listed != [sha]:
-            raise ValueError(
-                f"SHA256SUMS.txt says {listed} for {installer.name}, the file is {sha}"
-            )
+    if not sums.exists():
+        raise ValueError(f"no SHA256SUMS.txt next to {installer.name}")
+    listed = [
+        line.split()[0].lower()
+        for line in sums.read_text(encoding="utf-8").splitlines()
+        if line.split()[1:] and line.split()[-1].lstrip("*") == installer.name
+    ]
+    if listed != [sha]:
+        raise ValueError(
+            f"SHA256SUMS.txt says {listed} for {installer.name}, the file is {sha}"
+        )
     return sha.upper()
 
 
