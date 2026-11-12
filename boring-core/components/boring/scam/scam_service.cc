@@ -247,4 +247,18 @@ void ScamService::AllowHostForSession(content::BrowserContext* context,
   }
 }
 
+void ScamService::ForgetSiteForSession(content::BrowserContext* context,
+                                       const std::string& site) {
+  AllowedHosts* allowed = GetAllowedHosts(context, /*create=*/false);
+  if (!allowed || site.empty()) {
+    return;
+  }
+  const std::string under = "." + site;
+  std::erase_if(allowed->hosts, [&](const std::string& host) {
+    return host == site || (host.size() > under.size() &&
+                            host.compare(host.size() - under.size(),
+                                         under.size(), under) == 0);
+  });
+}
+
 }  // namespace boring

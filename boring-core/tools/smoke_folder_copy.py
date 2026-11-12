@@ -23,6 +23,8 @@ The folder picker cannot be driven, so the test folder is set with
     rule, or a network rule with $redirect, $csp or $replace (no @@ line)
     is flagged as changing how some sites look or act,
     and one that adds only an ordinary blocking rule is not.
+  - One that takes a regional list away is flagged "(less protection)";
+    one that only adds regional lists is not.
 """
 
 import http.server
@@ -328,6 +330,52 @@ def run_d(folder, profile):
                 check("My filter rules" in row["preview"] and "look or act" not in row["preview"]
                       and "less protection" not in row["preview"],
                       "D: an ordinary blocking rule carries no warning")
+        run_regional(b, folder)
+
+
+def set_folder_settings(folder, settings):
+    """The folder's settings file, with only these settings in it."""
+    path = os.path.join(folder, SETTINGS)
+    data = json.loads(read(path) or "{}")
+    data["settings"] = settings
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f)
+
+
+def load_preview(b, needle, seconds=20):
+    """Click Load from folder; the preview row once it holds needle."""
+    b.run("document.getElementById('folder-load').click(); return 1")
+    return wait_until(
+        lambda: (lambda r: r if r and needle in r["preview"] else None)(folder_row(b)),
+        seconds)
+
+
+def run_regional(b, folder):
+    """S6 part: a settings file that takes regional lists away is flagged
+    as less protection; one that adds lists is not."""
+    regional = "boring.adblock.regional_lists"
+    set_folder_settings(folder, {regional: ["de", "fr"]})
+    row = load_preview(b, "Regional lists: 0 lists to 2 lists")
+    check(bool(row), "D: a settings file that adds regional lists is listed")
+    check(bool(row) and "less protection" not in row["preview"],
+          "D: adding regional lists carries no warning")
+    b.run("document.getElementById('folder-apply').click(); return 1")
+    wait_until(lambda: (lambda r: r if r and not r["preview"] else None)(folder_row(b)), 15)
+    # The folder follows the browser once applied; let that write land
+    # before the next file is put there.
+    wait_file(os.path.join(folder, SETTINGS), '"fr"', 25)
+    time.sleep(1)
+    set_folder_settings(folder, {regional: ["de"]})
+    row = load_preview(b, "Regional lists: 2 lists to 1 list")
+    check(bool(row), "D: a settings file that drops a regional list is listed")
+    check(bool(row) and "Regional lists: 2 lists to 1 list (less protection)" in row["preview"],
+          "D: dropping a regional list is flagged as less protection")
+    if row:
+        print("   preview:", row["preview"].replace(chr(10), " / "))
+    set_folder_settings(folder, {regional: ["de", "fr", "it"]})
+    row = load_preview(b, "Regional lists: 2 lists to 3 lists")
+    check(bool(row) and "less protection" not in row["preview"],
+          "D: a file with every list it has plus another carries no warning")
 
 
 def run_b(folder, profile):

@@ -88,6 +88,11 @@ class ScamService {
   void AllowHostForSession(content::BrowserContext* context,
                            const std::string& host);
 
+  // Takes back every "continue anyway" this profile made for a site: the
+  // site itself and the hosts under it. For "Forget this site". Main thread.
+  void ForgetSiteForSession(content::BrowserContext* context,
+                            const std::string& site);
+
  private:
   friend class base::NoDestructor<ScamService>;
 
