@@ -79,11 +79,29 @@ class SaveAllTabsPatchTest(unittest.TestCase):
         ctl = hunks_for(self.patch, "chrome/browser/ui/browser_command_controller.cc")
         self.assertIn("case IDC_BORING_SAVE_ALL_TABS:", ctl)
         self.assertIn("boring::SaveAllTabs(browser_);", ctl)
-        self.assertIn(
-            "UpdateCommandEnabled(IDC_BORING_SAVE_ALL_TABS,\n"
-            "                                         CanBookmarkCurrentTab(browser_));",
-            ctl,
+        self.assertIn("UpdateCommandEnabled(\n      IDC_BORING_SAVE_ALL_TABS,", ctl)
+        self.assertIn("CanBookmarkCurrentTab(browser_)", ctl)
+
+    def test_not_offered_in_incognito_or_guest(self):
+        # Security review R2: an incognito window shares the normal profile's
+        # bookmark model, so the command is off there (and so hidden from the
+        # tab menu, which only adds the row for an enabled command) ...
+        ctl = hunks_for(self.patch, "chrome/browser/ui/browser_command_controller.cc")
+        enable = ctl[ctl.index("UpdateCommandEnabled(\n      IDC_BORING_SAVE_ALL_TABS") :]
+        self.assertIn("CanBookmarkCurrentTab(browser_) && !profile()->IsOffTheRecord()", enable)
+        self.assertIn("!profile()->IsGuestSession()", enable)
+        tab = hunks_for(
+            self.patch, "chrome/browser/ui/views/tabs/tab/tab_context_menu_controller.cc"
         )
+        self.assertIn("chrome::IsCommandEnabled(window, IDC_BORING_SAVE_ALL_TABS)", tab)
+        # ... and the function itself refuses before it looks at any bookmark
+        # model or window.
+        s = self.source
+        guard = s.index("profile->IsOffTheRecord() || profile->IsGuestSession()")
+        self.assertLess(s.index("Profile* profile = browser->GetProfile();"), guard)
+        self.assertLess(guard, s.index("BookmarkModelFactory::GetForBrowserContext"))
+        self.assertLess(guard, s.index("GlobalBrowserCollection::GetInstance()"))
+        self.assertIn("return;", s[guard : guard + 120])
 
     def test_tab_menu_row_goes_to_the_browser(self):
         tab = hunks_for(

@@ -17,7 +17,8 @@ namespace boring {
 // and time, with one folder per window when there is more than one. New
 // tab pages and blank tabs are left out. Then a small dialog says where
 // they went, with a button that opens the folder on the bookmarks page.
-// Nothing is saved, and nothing is shown, when no tab has a page.
+// Nothing is saved, and nothing is shown, when no tab has a page or
+// when `browser` is an incognito or guest window.
 void SaveAllTabs(BrowserWindowInterface* browser);
 
 // The new folder's name: "Tabs " and the short local date and time.

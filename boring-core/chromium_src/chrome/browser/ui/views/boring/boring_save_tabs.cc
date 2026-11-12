@@ -90,14 +90,19 @@ std::u16string SavedTabsFolderName(base::Time when) {
 
 void SaveAllTabs(BrowserWindowInterface* browser) {
   Profile* profile = browser->GetProfile();
+  // An incognito or guest window shares the normal profile's bookmarks,
+  // so saving from one would keep what the person chose not to keep.
+  // The command is disabled there; this is the second lock.
+  if (profile->IsOffTheRecord() || profile->IsGuestSession()) {
+    return;
+  }
   bookmarks::BookmarkModel* model =
       BookmarkModelFactory::GetForBrowserContext(profile);
   if (!model || !model->loaded()) {
     return;
   }
 
-  // Every ordinary window of this profile: from an incognito window, its
-  // own incognito windows, never the other way round.
+  // Every ordinary window of this profile.
   std::vector<std::vector<Page>> windows;
   GlobalBrowserCollection::GetInstance()->ForEach(
       [&](BrowserWindowInterface* window) {

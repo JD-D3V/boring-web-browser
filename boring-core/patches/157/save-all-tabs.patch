@@ -31,14 +31,17 @@ diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui
      case IDC_EDIT_SEARCH_ENGINES:
        ShowSearchEngineSettings(webui::GetBrowserForOpeningWebUi(browser_));
        break;
-@@ -2374,6 +2378,10 @@ void BrowserCommandController::UpdateCommandsForBookmarkEditing() {
+@@ -2374,6 +2378,13 @@ void BrowserCommandController::UpdateCommandsForBookmarkEditing() {
                                           CanBookmarkCurrentTab(browser_));
    command_updater_->UpdateCommandEnabled(IDC_BOOKMARK_ALL_TABS,
                                           CanBookmarkAllTabs(browser_));
 +  // boring: Save all tabs can save one tab too; it needs what bookmarking
-+  // the current tab needs.
-+  command_updater_->UpdateCommandEnabled(IDC_BORING_SAVE_ALL_TABS,
-+                                         CanBookmarkCurrentTab(browser_));
++  // the current tab needs. Never in incognito or guest: the bookmark model
++  // there is the normal profile's, so a click would write into it.
++  command_updater_->UpdateCommandEnabled(
++      IDC_BORING_SAVE_ALL_TABS,
++      CanBookmarkCurrentTab(browser_) && !profile()->IsOffTheRecord() &&
++          !profile()->IsGuestSession());
  }
  
  void BrowserCommandController::UpdateCommandsForBookmarkBar() {
