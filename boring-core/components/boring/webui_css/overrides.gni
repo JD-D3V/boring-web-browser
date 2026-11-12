@@ -18,6 +18,7 @@ boring_css_overrides = [
   "chrome/browser/resources/settings/search_page/search_engines_list.css",
   "chrome/browser/resources/settings/search_page/search_engines_page.css",
   "chrome/browser/resources/settings/settings_columned_section_lit.css",
+  "chrome/browser/resources/settings/settings_menu/settings_menu.css",
   "chrome/browser/resources/settings/settings_page/settings_section.css",
   "chrome/browser/resources/settings/settings_page/settings_subpage.css",
   "chrome/browser/resources/settings/settings_shared_lit.css",
