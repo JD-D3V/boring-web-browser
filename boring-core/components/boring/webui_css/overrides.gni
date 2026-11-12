@@ -1,0 +1,6 @@
+# Upstream WebUI CSS files that get our same-named file in this folder
+# appended when css_to_wrapper wraps them (webui-css-overrides.patch).
+# Paths are relative to the source root. Keep in sync with the folder
+# (tools/tests/test_webui_css_overrides.py checks).
+boring_css_overrides = [
+]

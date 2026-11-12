@@ -1,0 +1,75 @@
+diff --git a/tools/polymer/css_to_wrapper.gni b/tools/polymer/css_to_wrapper.gni
+index e91bae8..4877bf1 100644
+--- a/tools/polymer/css_to_wrapper.gni
++++ b/tools/polymer/css_to_wrapper.gni
+@@ -2,6 +2,8 @@
+ # Use of this source code is governed by a BSD-style license that can be
+ # found in the LICENSE file.
+ 
++import("//components/boring/webui_css/overrides.gni")
++
+ template("css_to_wrapper") {
+   action(target_name) {
+     script = "//tools/polymer/css_to_wrapper.py"
+@@ -14,6 +16,7 @@ template("css_to_wrapper") {
+ 
+     inputs = []
+     outputs = []
++    boring_append = []
+ 
+     wrapper_extension = ".ts"
+ 
+@@ -39,6 +42,13 @@ template("css_to_wrapper") {
+                      get_path_info(css_file, "file") + wrapper_extension
+       inputs += [ "$in_folder/" + css_file ]
+       outputs += [ "$out_folder/" + wrapper_file ]
++      _boring_key = rebase_path(".", "//") + "/" + css_file
++      if (filter_include(boring_css_overrides, [ _boring_key ]) != []) {
++        _boring_css = "//components/boring/webui_css/" + _boring_key
++        inputs += [ _boring_css ]
++        boring_append +=
++            [ css_file + "=" + rebase_path(_boring_css, root_build_dir) ]
++      }
+     }
+ 
+     args = [
+@@ -49,6 +59,10 @@ template("css_to_wrapper") {
+              "--in_files",
+            ] + invoker.in_files
+ 
++    if (boring_append != []) {
++      args += [ "--boring_append" ] + boring_append
++    }
++
+     if (is_ios) {
+       args += [ "--is_ios" ]
+     }
+diff --git a/tools/polymer/css_to_wrapper.py b/tools/polymer/css_to_wrapper.py
+index 99e7f62..28dee91 100644
+--- a/tools/polymer/css_to_wrapper.py
++++ b/tools/polymer/css_to_wrapper.py
+@@ -205,6 +205,8 @@ def main(argv):
+   parser.add_argument('--minify', action='store_true')
+   parser.add_argument('--use_js', action='store_true')
+   parser.add_argument('--is_ios', action='store_true')
++  # Boring: in_file=path pairs, our CSS appended after upstream's.
++  parser.add_argument('--boring_append', nargs='*', default=[])
+   args = parser.parse_args(argv)
+ 
+   in_folder = path.normpath(path.join(_CWD, args.in_folder))
+@@ -286,6 +288,15 @@ def main(argv):
+         path.join(wrapper_in_folder, in_file), metadata, args.minify
+       )
+ 
++    # Boring: append our rules (components/boring/webui_css) to this file's.
++    used_file = (lit_in_file if metadata['type'] == 'style'
++                 and lit_in_file in args.in_files else in_file)
++    for pair in args.boring_append:
++      boring_file, boring_css = pair.split('=', 1)
++      if boring_file == used_file:
++        with io.open(path.join(_CWD, boring_css), encoding='utf-8') as boring_f:
++          content += '\n' + boring_f.read()
++
+     if not content:
+       assert metadata['type'] == 'style-lit' and metadata['include'], (
+         'Unexpected empty CSS file found: ' + in_file
