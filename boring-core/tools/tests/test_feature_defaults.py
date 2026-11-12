@@ -2,6 +2,7 @@
 build keeps off (ledger 113, 114, 115, 119, 121, 122). The patch text is
 what is checked; the smoke smoke_feature_defaults.py checks the browser."""
 
+import os
 import re
 import unittest
 from pathlib import Path
@@ -9,6 +10,9 @@ from pathlib import Path
 CORE = Path(__file__).resolve().parents[2]
 PATCHES = CORE / "patches"
 PATCH = PATCHES / "157" / "feature-defaults.patch"
+# The Chromium 157 tree, for the one check that reads about_flags.cc.
+SRC = Path(os.environ.get("BORING_SRC_157", r"E:\ung-157\build\src"))
+ABOUT_FLAGS = SRC / "chrome" / "browser" / "about_flags.cc"
 
 
 def added(path):
@@ -131,6 +135,27 @@ class FeatureDefaultsTest(unittest.TestCase):
         on, off = keep_off(always, default, ["SeparateDefaultAndPinPrompt"], [])
         self.assertIn("SeparateDefaultAndPinPrompt", on)
         self.assertNotIn("SeparateDefaultAndPinPrompt", off)
+
+    @unittest.skipUnless(ABOUT_FLAGS.exists(), "no Chromium 157 tree (BORING_SRC_157)")
+    def test_always_off_flags_stay_plain_feature_value_type(self):
+        # F3: for a FEATURE_WITH_PARAMS_VALUE_TYPE entry chrome://flags
+        # registers its override before the command line is read, and the
+        # first override wins, so our disable would be ignored. The always-off
+        # features must stay plain FEATURE_VALUE_TYPE entries (or have none);
+        # a port that gives one params fails here.
+        flags = ABOUT_FLAGS.read_text(encoding="utf-8")
+        entries = re.findall(r"\b(FEATURE_\w*TYPE)\(\s*([\w:]+)", flags)
+        self.assertTrue(entries, "about_flags.cc has no FEATURE_*TYPE entries")
+        always = names(self.text, "kBoringAlwaysOffFeatures")
+        found = 0
+        for macro, feature in entries:
+            constant = feature.rsplit("::", 1)[-1]
+            for name in always:
+                if constant == "k" + name:
+                    found += 1
+                    with self.subTest(feature=name):
+                        self.assertEqual(macro, "FEATURE_VALUE_TYPE")
+        self.assertGreater(found, 0, "no about_flags entry found for any name")
 
     def test_runs_before_the_feature_list_is_built(self):
         self.assertIn(
