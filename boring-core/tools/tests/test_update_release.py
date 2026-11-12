@@ -528,6 +528,23 @@ class HarnessVerdictTest(unittest.TestCase):
         self.assertFalse(v(self.Obs(browser_alive=False)).passed)
         self.assertFalse(v(self.Obs(browser_alive=True, dialog_seen=True)).passed)
 
+    def test_feed_server_never_binds_wide_once_a_name_is_given(self):
+        self.assertEqual(harness.feed_bind_host(None), "0.0.0.0")
+        for name in ("alias.test", "x", " ", ""):
+            self.assertEqual(harness.feed_bind_host(name), "127.0.0.1", repr(name))
+
+    def test_blank_non_local_name_is_refused(self):
+        ap = harness.build_parser()
+        self.assertEqual(
+            ap.parse_args(["--non-local-name", " alias.test "]).non_local_name,
+            "alias.test",
+        )
+        for blank in ("", "  "):
+            with contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit):
+                    ap.parse_args(["--non-local-name", blank])
+        self.assertIsNone(ap.parse_args([]).non_local_name)
+
     def test_non_local_http_ignored(self):
         v = harness.verdict_non_local_http_ignored
         self.assertTrue(v(self.Obs(browser_alive=True)).passed)

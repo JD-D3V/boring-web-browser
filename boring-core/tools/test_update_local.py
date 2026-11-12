@@ -247,6 +247,21 @@ class Request:
     complete: bool
 
 
+def feed_bind_host(alias: str | None) -> str:
+    """Where the non-local feed server listens. Once --non-local-name is
+    given, in any form, it is loopback only; every interface is the
+    default for no name at all."""
+    return "0.0.0.0" if alias is None else "127.0.0.1"
+
+
+def host_name(value: str) -> str:
+    """argparse type for --non-local-name: a blank name is refused rather
+    than treated as not given, which would open every interface."""
+    if not value.strip():
+        raise argparse.ArgumentTypeError("needs a host name, not an empty value")
+    return value.strip()
+
+
 class FeedServer:
     """Serves a few files from memory and writes down every request."""
 
@@ -713,7 +728,7 @@ class Harness:
         # where a listener on every interface raises a Windows Firewall prompt)
         # it is a name that points at 127.0.0.1 and the server binds there only.
         alias = self.args.non_local_name
-        wide = FeedServer(host="127.0.0.1" if alias else "0.0.0.0").start()
+        wide = FeedServer(host=feed_bind_host(alias)).start()
         try:
             host = alias or socket.gethostname()
             version = newer_version(self.chromium, self.release)
@@ -939,6 +954,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ap.add_argument(
         "--non-local-name",
+        type=host_name,
         default=None,
         help="for non_local_http_ignored: a host name that resolves to 127.0.0.1 "
         "but is not localhost (hosts file entry); the server then binds "
