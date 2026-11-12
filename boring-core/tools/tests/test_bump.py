@@ -284,6 +284,78 @@ def test_args_gn_refuses_to_read_outside_the_tree(ung, tmp_path_factory):
         bump.args_gn_from_build_py(changed, root, False, find_spec)
 
 
+def with_line(line):
+    """BUILD_PY with one more statement in the args.gn block."""
+    marker = "        clang_spec = importlib.util.find_spec('clang')\n"
+    assert marker in BUILD_PY
+    return BUILD_PY.replace(marker, f"        {line}\n" + marker)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "(_ROOT_DIR / 'victim.txt').replace(Path(str(_ROOT_DIR / 'moved.txt')))",
+        "(_ROOT_DIR / 'victim.txt').rename(_ROOT_DIR / 'moved.txt')",
+        "(_ROOT_DIR / 'victim.txt').unlink()",
+        "(_ROOT_DIR / 'victim.txt').write_text('x')",
+        "(_ROOT_DIR / 'victim.txt').write_bytes(b'x')",
+        "(_ROOT_DIR / 'new.txt').touch()",
+        "(_ROOT_DIR / 'victim.txt').chmod(0)",
+        "(_ROOT_DIR / 'victim.txt').symlink_to(_ROOT_DIR / 'moved.txt')",
+        "(_ROOT_DIR / 'newdir').rmdir()",
+        "x = (_ROOT_DIR / 'newdir').mkdir()",
+        "x = (_ROOT_DIR / 'victim.txt').open('w')",
+        "x = open(str(_ROOT_DIR / 'moved.txt'), 'w')",
+        "Path.replace(_ROOT_DIR / 'victim.txt', _ROOT_DIR / 'moved.txt')",
+    ],
+)
+def test_args_gn_never_writes_or_moves_a_file(ung, line):
+    root, find_spec = ung
+    (root / "victim.txt").write_text("keep", encoding="utf-8")
+    before = sorted(p.name for p in root.iterdir())
+    with pytest.raises(bump.NeedsHuman, match="build.py line"):
+        bump.args_gn_from_build_py(with_line(line), root, False, find_spec)
+    assert sorted(p.name for p in root.iterdir()) == before
+    assert (root / "victim.txt").read_text(encoding="utf-8") == "keep"
+
+
+def test_args_gn_names_the_write_in_its_stop(ung):
+    root, find_spec = ung
+    line = "(_ROOT_DIR / 'victim.txt').replace(_ROOT_DIR / 'moved.txt')"
+    with pytest.raises(bump.NeedsHuman, match=r"writes, moves or runs.*replace"):
+        bump.args_gn_from_build_py(with_line(line), root, False, find_spec)
+
+
+def test_args_gn_still_allows_replace_on_a_string(ung):
+    root, find_spec = ung
+    line = "gn_flags = gn_flags.replace('official', 'official')"
+    out = bump.args_gn_from_build_py(with_line(line), root, False, find_spec)
+    assert out.startswith("is_official_build=true\n")
+
+
+def test_args_gn_mkdir_statement_creates_nothing(ung):
+    root, find_spec = ung
+    out = bump.args_gn_from_build_py(BUILD_PY, root, False, find_spec)
+    assert out
+    assert not (root / "build").exists()  # build.py's own mkdir line was skipped
+
+
+def test_args_gn_write_text_to_another_file_is_not_args_gn(ung):
+    root, find_spec = ung
+    other = "(_ROOT_DIR / 'other.txt').write_text(gn_flags, encoding=ENCODING)"
+    with pytest.raises(bump.NeedsHuman, match="build.py line"):
+        bump.args_gn_from_build_py(with_line(other), root, False, find_spec)
+    assert not (root / "other.txt").exists()
+
+
+def test_args_gn_has_no_way_to_reach_dunders(ung):
+    root, find_spec = ung
+    with pytest.raises(bump.NeedsHuman, match="build.py line"):
+        bump.args_gn_from_build_py(
+            with_line("x = args.__class__"), root, False, find_spec
+        )
+
+
 def test_build_steps_know_build_pys_calls_and_flag_new_ones():
     kinds = [k for k, _ in bump.build_steps(BUILD_PY)]
     assert kinds == ["bootstrap", "gen", "bindgen", "ninja"]

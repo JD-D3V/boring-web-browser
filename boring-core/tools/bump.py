@@ -228,6 +228,19 @@ def sort_series(names, rebase_one, read_patch):
 
 # --------------------------------------------------------- args.gn
 
+# What the args.gn interpreter lets build.py do to a value. Reading only:
+# a Path gets pure path operations and a read under the tree, a str gets
+# replace (which on a str only returns a new str). Anything that writes,
+# moves or deletes (Path.replace, rename, unlink, write_text, open, mkdir
+# in an expression, ...) is not in these sets and stops the bump.
+PATH_READS = {"resolve", "as_posix", "parent"}
+STR_METHODS = {"replace"}
+WRITING_CALLS = {
+    "replace", "rename", "unlink", "write_text", "write_bytes", "open", "mkdir",
+    "rmdir", "touch", "chmod", "symlink_to", "hardlink_to", "link_to",
+}  # fmt: skip
+WRITING_NAMES = {"open", "exec", "eval", "compile", "__import__"}
+
 
 class _Logger:
     def __init__(self):
@@ -292,9 +305,20 @@ def args_gn_from_build_py(text, root, tarball, find_spec=importlib.util.find_spe
         "Path": Path,
         "list": list,
     }
-    methods = {"resolve", "as_posix", "replace", "parent"}
 
     def unsupported(node):
+        writes = sorted(
+            {n.attr for n in ast.walk(node) if isinstance(n, ast.Attribute)}
+            & WRITING_CALLS
+            | {n.id for n in ast.walk(node) if isinstance(n, ast.Name)} & WRITING_NAMES
+        )
+        if writes:
+            return NeedsHuman(
+                f"build.py line {node.lineno} writes, moves or runs something "
+                f"({', '.join(writes)}): {ast.unparse(node)[:120]}; bump.py only reads "
+                "files, so it stops here. Read that line, then write args.gn by hand "
+                "and run again with --redo layer"
+            )
         return NeedsHuman(
             f"build.py line {node.lineno} is new to bump.py: {ast.unparse(node)[:120]}; "
             "write args.gn by hand and run again with --redo layer"
@@ -325,11 +349,17 @@ def args_gn_from_build_py(text, root, tarball, find_spec=importlib.util.find_spe
             raise unsupported(node)
         if isinstance(node, ast.Attribute):
             base = ev(node.value)
-            if isinstance(base, str | Path):
-                if node.attr == "read_text" and isinstance(base, Path):
+            if isinstance(base, Path):
+                if node.attr == "read_text":
                     return functools.partial(read_text, base)
-                if node.attr in methods:
+                if node.attr in PATH_READS:
                     return getattr(base, node.attr)
+                raise unsupported(node)
+            if isinstance(base, str):
+                if node.attr in STR_METHODS:
+                    return getattr(base, node.attr)
+                raise unsupported(node)
+            if node.attr.startswith("_"):
                 raise unsupported(node)
             if isinstance(base, types.SimpleNamespace | _Logger) or node.attr in (
                 "submodule_search_locations",
@@ -382,9 +412,14 @@ def args_gn_from_build_py(text, root, tarball, find_spec=importlib.util.find_spe
                     return result
             elif isinstance(s, ast.Expr) and isinstance(s.value, ast.Call):
                 func = s.value.func
+                # Never executed: the folder and the file are bump.py's to write.
                 if isinstance(func, ast.Attribute) and func.attr == "mkdir":
                     continue
-                if isinstance(func, ast.Attribute) and func.attr == "write_text":
+                if (
+                    isinstance(func, ast.Attribute)
+                    and func.attr == "write_text"
+                    and "args.gn" in ast.unparse(func.value)
+                ):
                     return ev(s.value.args[0])
                 ev(s.value)
             else:
