@@ -7,9 +7,13 @@ Usage: python -m pytest boring-core/tools/tests/test_challenge_check.py
 """
 
 import sys
+import tempfile
+import types
 import unittest
+import urllib.error
 import urllib.parse
 from pathlib import Path
+from unittest import mock
 
 TOOLS = Path(__file__).resolve().parents[1]
 PATCHES = TOOLS.parent / "patches"
@@ -189,6 +193,147 @@ class Setup(unittest.TestCase):
                        "keybd_event", "mouse_event", ".click(", ".submit(",
                        "/element/", "ImageGrab"):
             self.assertNotIn(banned, src)
+
+
+class FakeResponse:
+    def __init__(self, status, body=""):
+        self.status = status
+        self._body = body.encode()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def read(self):
+        return self._body
+
+
+def fetch_giving(outcome):
+    def fetch(req, timeout=None):
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome
+    return fetch
+
+
+def http_error(code):
+    return urllib.error.HTTPError("https://x.test/robots.txt", code, "x", {}, None)
+
+
+class RobotsFailsClosed(unittest.TestCase):
+    """Only a readable robots.txt that allows it, or none at all (404, 410),
+    lets a visit go ahead."""
+
+    def decide(self, outcome, url="https://x.test/page"):
+        return cc.robots_decision(url, fetch=fetch_giving(outcome))
+
+    def test_allowed_and_disallowed(self):
+        ok = self.decide(FakeResponse(200, "User-agent: *\nDisallow: /private\n"))
+        self.assertTrue(ok[0])
+        no = self.decide(FakeResponse(200, "User-agent: *\nDisallow: /page\n"))
+        self.assertFalse(no[0])
+
+    def test_no_robots_txt_is_allowed(self):
+        for code in (404, 410):
+            self.assertTrue(self.decide(http_error(code))[0], code)
+
+    def test_cannot_read_it_skips_the_page_and_says_why(self):
+        for outcome, word in (
+            (http_error(403), "403"),
+            (http_error(500), "500"),
+            (http_error(503), "503"),
+            (http_error(429), "429"),
+            (TimeoutError("timed out"), "TimeoutError"),
+            (urllib.error.URLError("refused"), "URLError"),
+            (FakeResponse(204), "204"),
+        ):
+            go, why = self.decide(outcome)
+            self.assertFalse(go, word)
+            self.assertIn(word, why)
+
+
+class FakeBrowser:
+    launches = []
+
+    def __init__(self, user_data_dir=None, args=None, keep_switches=None, *, headful=False):
+        self.profile = Path(user_data_dir)
+        self.args = list(args or ())
+        self.existed = self.profile.is_dir()
+        self.quit_called = False
+        FakeBrowser.launches.append(self)
+
+    def get(self, url):
+        self.url = url
+
+    def run(self, js):
+        if js is cc.PROBE_JS:
+            return {"probe": True}
+        return {"title": "t", "url": self.url, "origin": "1", "cf": False,
+                "token": False, "text": "", "counts": {}}
+
+    def screenshot(self, path):
+        pass
+
+    def quit(self):
+        self.quit_called = True
+
+
+class FreshProfiles(unittest.TestCase):
+    def setUp(self):
+        FakeBrowser.launches = []
+        self.fake_drive = types.SimpleNamespace(Browser=FakeBrowser)
+        self.out = Path(tempfile.mkdtemp(prefix="cc-test-"))
+        self.addCleanup(cc.shutil.rmtree, self.out, True)
+
+    def visit(self, probe=False, arm="on", seconds=0):
+        page = {"url": "https://x.test/", "name": "x", "group": "ordinary",
+                "kind": "interstitial"}
+        drive = {"drive": self.fake_drive}
+        with mock.patch.dict(sys.modules, drive), mock.patch.object(cc.time, "sleep"):
+            return cc.visit_webdriver(page, arm, self.out, "chrome.exe", seconds,
+                                      False, probe)
+
+    def test_each_profile_is_new_and_outside_out(self):
+        a = cc._new_profile("on")
+        b = cc._new_profile("on")
+        self.addCleanup(cc._drop_profile, a)
+        self.addCleanup(cc._drop_profile, b)
+        self.assertNotEqual(a, b)
+        self.assertTrue((a / "Default").is_dir())
+        self.assertNotIn(self.out, a.parents)
+
+    def test_an_old_profile_folder_under_out_is_never_reused(self):
+        old = self.out / "r0" / "x" / "on" / "profile" / "Default"
+        old.mkdir(parents=True)
+        (old / "Cookies").write_text("cf_clearance")
+        self.visit()
+        used = FakeBrowser.launches[0].profile
+        self.assertFalse((used / "Default" / "Cookies").exists())
+        self.assertTrue((old / "Cookies").exists())  # not ours to touch
+
+    def test_profile_is_deleted_after_the_visit(self):
+        self.visit(probe=True)
+        self.assertEqual(len(FakeBrowser.launches), 2)
+        for b in FakeBrowser.launches:
+            self.assertTrue(b.existed)
+            self.assertTrue(b.quit_called)
+            self.assertFalse(b.profile.exists())
+
+    def test_profile_is_deleted_when_the_visit_fails(self):
+        with mock.patch.object(FakeBrowser, "get", side_effect=RuntimeError("x")):
+            with self.assertRaises(RuntimeError):
+                self.visit()
+        self.assertFalse(FakeBrowser.launches[0].profile.exists())
+
+    def test_swiftshader_only_on_the_local_probe(self):
+        self.visit(probe=True)
+        probe, public = FakeBrowser.launches
+        self.assertIn("--enable-unsafe-swiftshader", probe.args)
+        self.assertEqual(probe.url, "about:blank")
+        self.assertNotIn("--enable-unsafe-swiftshader", public.args)
+        self.assertEqual(public.url, "https://x.test/")
 
 
 class WebGlName(unittest.TestCase):

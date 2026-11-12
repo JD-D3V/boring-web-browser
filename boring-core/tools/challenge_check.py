@@ -2,7 +2,8 @@
 r"""Does "Fingerprint noise" make challenge pages loop? Measure it.
 
 Visits public pages that show a bot challenge or a bot verdict, each in a
-fresh profile, once per arm:
+fresh temporary profile (made for the visit, deleted after it), once per
+arm:
 
   on        the default: boring.fingerprint_noise on
   off       the same build with the switch off (the baseline: plain Chromium)
@@ -18,9 +19,11 @@ it come back (a loop) or stay, the page's own verdict where it shows one,
 a local consistency probe, and a picture of our own window.
 
 Modes:
-  headless  chromedriver, headless (default). WebGL is SwiftShader here, so
-            WebGL answers differ from a real run; use it for the probe and
-            the detector pages, not for the final word on loops.
+  headless  chromedriver, headless (default). Public pages load without
+            software GL (--enable-unsafe-swiftshader widens the GPU process
+            attack surface), so WebGL may be missing on them; only the
+            local probe on about:blank gets SwiftShader. Use window mode
+            for pages that need WebGL.
   window    chromedriver with a real window. Needs BORING_ALLOW_HEADFUL=1.
   plain     chrome.exe started directly, no chromedriver and no automation
             switches, the way a person starts it. Reads only the window
@@ -33,23 +36,28 @@ into, or solves a captcha, never submits a form, and sends no input to the
 desktop. Pictures are PrintWindow of our own window or WebDriver page
 shots, never screen grabs. Every browser is quit in a finally block.
 Pages in the "ordinary" group are skipped when their robots.txt disallows
-the path.
+the path, and also when it cannot be read: only a 200 answer or a 404/410
+(no robots.txt) lets a visit go ahead. A 403, a 5xx or a timeout skips the
+page; the reason goes to skips.jsonl under --out.
 
     python challenge_check.py --chrome E:\ung-157\build\src\out\Default\chrome.exe
     set BORING_ALLOW_HEADFUL=1
     python challenge_check.py --chrome ... --mode plain --reps 5 --groups challenge,ordinary
 
-Writes visits.jsonl, summary.json and pictures under --out.
+Writes visits.jsonl, skips.jsonl, summary.json and pictures under --out.
 """
 
 import argparse
 import json
 import os
 import re
+import shutil
 import statistics
 import subprocess
 import sys
+import tempfile
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import urllib.robotparser
@@ -333,38 +341,84 @@ return r;
 """
 
 
-def _new_profile(root, arm):
-    profile = root / "profile"
-    (profile / "Default").mkdir(parents=True, exist_ok=True)
+def _new_profile(arm):
+    """A new, empty profile folder for one visit. mkdtemp never hands out
+    a folder that exists, so no earlier visit's cookies or storage (such as
+    cf_clearance) can be in it, whatever --out already holds. The caller
+    deletes it with _drop_profile."""
+    profile = Path(tempfile.mkdtemp(prefix="cc-profile-"))
+    (profile / "Default").mkdir()
     prefs = profile_prefs(arm)
     if prefs is not None:
         (profile / "Default" / "Preferences").write_text(json.dumps(prefs))
     return profile
 
 
-def _robots_ok(url):
+def _drop_profile(profile):
+    shutil.rmtree(profile, ignore_errors=True)
+    if profile.exists():  # a process may still hold a file for a moment
+        time.sleep(2)
+        shutil.rmtree(profile, ignore_errors=True)
+
+
+def robots_decision(url, fetch=urllib.request.urlopen):
+    """(visit, why): fails closed. Only a robots.txt that answers 200 and
+    allows the path, or answers 404 or 410 (there is none), lets a visit
+    go ahead. A 403 (Cloudflare often refuses a script), a 5xx, a timeout
+    or any other error means the rules could not be read, so skip."""
     parts = urllib.parse.urlsplit(url)
     robots = f"{parts.scheme}://{parts.netloc}/robots.txt"
     try:
         req = urllib.request.Request(robots, headers={"User-Agent": "challenge-check"})
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            return robots_allows(resp.read().decode("utf-8", "replace"), url)
-    except Exception:
-        return True  # no robots.txt: no rule against a single visit
+        with fetch(req, timeout=15) as resp:
+            if resp.status != 200:
+                return False, f"robots.txt answered {resp.status}"
+            if robots_allows(resp.read().decode("utf-8", "replace"), url):
+                return True, "robots.txt allows it"
+            return False, "robots.txt disallows it"
+    except urllib.error.HTTPError as exc:
+        if exc.code in (404, 410):
+            return True, f"no robots.txt ({exc.code})"
+        return False, f"robots.txt answered {exc.code}"
+    except Exception as exc:
+        return False, f"robots.txt could not be read ({type(exc).__name__})"
 
 
-def visit_webdriver(page, arm, root, chrome, seconds, headful, probe):
+def run_probe(arm, headful):
+    """The local consistency probe, on about:blank in a browser of its own.
+    This is the only launch that gets --enable-unsafe-swiftshader (headless
+    has no WebGL without it, and the probe reads WebGL names): software GL
+    widens the GPU process attack surface, and no public page is loaded
+    here, so nothing from the web can reach it."""
     from drive import Browser  # BORING_OUT is set by main before this import
     args = arm_switches(arm)
     if not headful:
         args.append("--enable-unsafe-swiftshader")
-    profile = _new_profile(root, arm)
-    b = Browser(user_data_dir=str(profile), args=args, headful=headful)
-    result = {"samples": []}
+    profile = _new_profile(arm)
     try:
-        if probe:
+        b = Browser(user_data_dir=str(profile), args=args, headful=headful)
+        try:
             b.get("about:blank")
-            result["probe"] = b.run(PROBE_JS)
+            return b.run(PROBE_JS)
+        finally:
+            b.quit()
+    finally:
+        _drop_profile(profile)
+
+
+def visit_webdriver(page, arm, root, chrome, seconds, headful, probe):
+    from drive import Browser  # BORING_OUT is set by main before this import
+    args = arm_switches(arm)  # no SwiftShader: public pages load here
+    result = {"samples": []}
+    if probe:
+        result["probe"] = run_probe(arm, headful)
+    profile = _new_profile(arm)
+    try:
+        b = Browser(user_data_dir=str(profile), args=args, headful=headful)
+    except BaseException:
+        _drop_profile(profile)
+        raise
+    try:
         b.get(page["url"])
         end = time.time() + seconds
         while time.time() < end:
@@ -391,6 +445,7 @@ def visit_webdriver(page, arm, root, chrome, seconds, headful, probe):
         result["picture"] = str(pic)
     finally:
         b.quit()
+        _drop_profile(profile)
     return result
 
 
@@ -400,13 +455,17 @@ def visit_plain(page, arm, root, chrome, seconds):
     from capture_native import grab, user32, windows_of
     import ctypes
     require_headful()
-    profile = _new_profile(root, arm)
+    profile = _new_profile(arm)
     cmd = [chrome, "--user-data-dir=" + str(profile), "--no-first-run",
            "--disable-fre", "--disable-backgrounding-occluded-windows",
            "--disable-features=CalculateNativeWinOcclusion",
            "--window-position=" + os.environ.get("BORING_WINDOW_POSITION", OFFSCREEN),
            *arm_switches(arm), page["url"]]
-    proc = subprocess.Popen(cmd)
+    try:
+        proc = subprocess.Popen(cmd)
+    except BaseException:
+        _drop_profile(profile)
+        raise
     result = {"samples": []}
     try:
         end = time.time() + seconds
@@ -432,6 +491,7 @@ def visit_plain(page, arm, root, chrome, seconds):
             proc.wait(timeout=15)
         except subprocess.TimeoutExpired:
             proc.kill()
+        _drop_profile(profile)
     return result
 
 
@@ -473,9 +533,14 @@ def main(argv=None):
     log = out / "visits.jsonl"
     for rep in range(a.reps):
         for page in pages:
-            if page["group"] == "ordinary" and not _robots_ok(page["url"]):
-                print(f"skip {page['name']}: robots.txt disallows it")
-                continue
+            if page["group"] == "ordinary":
+                go, why = robots_decision(page["url"])
+                if not go:
+                    print(f"skip {page['name']}: {why}")
+                    with (out / "skips.jsonl").open("a", encoding="utf-8") as fh:
+                        fh.write(json.dumps({"rep": rep, "page": page["name"],
+                                             "why": why}) + "\n")
+                    continue
             for i, arm in enumerate(arm_order(rep, arms)):
                 root = out / f"r{rep}" / page["name"] / arm
                 root.mkdir(parents=True, exist_ok=True)
