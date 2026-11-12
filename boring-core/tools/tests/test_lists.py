@@ -887,6 +887,157 @@ class PublishPath(unittest.TestCase):
     os.path.isfile(publish_lists.DEFAULT_CHECKER),
     "check_lists is not built (cargo build --release --bin check_lists)",
 )
+class TrustedScriptletReview(unittest.TestCase):
+    """A trusted list may only hold trusted or generic scriptlets somebody read."""
+
+    TRUSTED_RULE = "example.org##+js(trusted-set-cookie, a, b)"
+    GENERIC_RULE = "##+js(set-constant, x, true)"
+
+    def setUp(self):
+        self.work = tempfile.mkdtemp(prefix="boring-list-test-")
+        self.addCleanup(shutil.rmtree, self.work, ignore_errors=True)
+        self.out = os.path.join(self.work, "dist")
+        os.makedirs(self.out)
+        self.allow = os.path.join(self.work, "allow.txt")
+        self.allow_rules([])
+
+    def allow_rules(self, rules):
+        with open(self.allow, "w", encoding="utf-8", newline="\n") as f:
+            f.write("! reviewed\n\n")
+            for rule in rules:
+                f.write(rule + "\n")
+
+    def publish(self, answers):
+        fetch = stub_fetch(answers)
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = publish_lists.main(
+                [
+                    "--out",
+                    self.out,
+                    "--unsigned",
+                    "--version",
+                    "500",
+                    "--trusted-allowlist",
+                    self.allow,
+                ],
+                fetch_filters=fetch,
+                fetch_scam=fetch,
+                check_parse=stub_check,
+            )
+        return code, out.getvalue() + err.getvalue()
+
+    def answers_with(self, output, *lines):
+        """Healthy answers, with extra lines at the end of one output's first source."""
+        answers = healthy_answers()
+        url = output.sources[0].url
+        answers[url] = answers[url] + ("\n".join(lines) + "\n").encode("utf-8")
+        return answers
+
+    def test_the_rules_that_are_watched(self):
+        watched = publish_lists.watched_scriptlet_rules
+        text = "\n".join(
+            [
+                "! a.com##+js(trusted-set-cookie, a, b)",
+                self.TRUSTED_RULE,
+                "a.com,b.com##+js(TRUSTED-click-element, #x)",
+                "a.com##+js(trusted-set-cookie.js, a, b)",
+                "a.com#%#//scriptlet('trusted-set-cookie', 'a', 'b')",
+                self.GENERIC_RULE,
+                "*##+js(nowoif)",
+                "~a.com##+js(nowoif)",
+                "*,~edu##+js(nowoif)",
+                "a.com#@#+js(trusted-set-cookie, a, b)",
+                "a.com##+js(set-constant, x, true)",
+                "google.*##+js(nowoif)",
+                "a.com##.banner",
+                "||trusted-set.example^$script",
+            ]
+        )
+        self.assertEqual(
+            watched(text),
+            [
+                self.TRUSTED_RULE,
+                "a.com,b.com##+js(TRUSTED-click-element, #x)",
+                "a.com##+js(trusted-set-cookie.js, a, b)",
+                "a.com#%#//scriptlet('trusted-set-cookie', 'a', 'b')",
+                self.GENERIC_RULE,
+                "*##+js(nowoif)",
+                "~a.com##+js(nowoif)",
+                "*,~edu##+js(nowoif)",
+            ],
+        )
+
+    def test_the_committed_list_is_well_formed(self):
+        allowed = publish_lists.read_allowlist(publish_lists.TRUSTED_ALLOWLIST)
+        self.assertGreater(len(allowed), 100)
+        # Every entry is itself a watched rule, so nothing in it is dead
+        # text, and none starts with "!" and reads back as a comment.
+        for rule in allowed:
+            self.assertEqual(
+                publish_lists.watched_scriptlet_rules(rule), [rule], rule[:80]
+            )
+
+    def test_a_list_without_such_rules_publishes(self):
+        code, _ = self.publish(healthy_answers())
+        self.assertEqual(code, 0)
+
+    def test_a_new_trusted_rule_in_the_aggressive_list_stops_the_run(self):
+        answers = self.answers_with(publish_lists.AGGRESSIVE[0], self.TRUSTED_RULE)
+        code, log = self.publish(answers)
+        self.assertEqual(code, 1)
+        self.assertIn(self.TRUSTED_RULE, log)
+        self.assertIn("aggressive-ubo.txt", log)
+        self.assertIn("not in", log)
+        self.assertEqual(os.listdir(self.out), [])
+
+    def test_a_new_trusted_rule_in_ubo_stops_the_run(self):
+        answers = self.answers_with(publish_lists.UBO, self.TRUSTED_RULE)
+        code, log = self.publish(answers)
+        self.assertEqual(code, 1)
+        self.assertIn("ubo.txt", log)
+        self.assertEqual(os.listdir(self.out), [])
+
+    def test_a_generic_rule_stops_the_run(self):
+        answers = self.answers_with(publish_lists.UBO, self.GENERIC_RULE)
+        code, log = self.publish(answers)
+        self.assertEqual(code, 1)
+        self.assertIn(self.GENERIC_RULE, log)
+
+    def test_a_reviewed_rule_publishes(self):
+        self.allow_rules([self.TRUSTED_RULE, self.GENERIC_RULE])
+        answers = self.answers_with(
+            publish_lists.AGGRESSIVE[0], self.TRUSTED_RULE, self.GENERIC_RULE
+        )
+        code, _ = self.publish(answers)
+        self.assertEqual(code, 0)
+
+    def test_a_changed_argument_is_a_new_rule(self):
+        self.allow_rules([self.TRUSTED_RULE])
+        answers = self.answers_with(
+            publish_lists.UBO, "example.org##+js(trusted-set-cookie, a, c)"
+        )
+        code, log = self.publish(answers)
+        self.assertEqual(code, 1)
+        self.assertIn("a, c", log)
+
+    def test_lists_that_are_not_trusted_are_not_checked(self):
+        answers = self.answers_with(
+            publish_lists.ANNOYANCES, self.TRUSTED_RULE, self.GENERIC_RULE
+        )
+        answers.update(
+            self.answers_with(publish_lists.COOKIES, self.TRUSTED_RULE)
+        )
+        code, _ = self.publish(answers)
+        self.assertEqual(code, 0)
+
+    def test_an_unreadable_allow_list_refuses(self):
+        os.remove(self.allow)
+        code, log = self.publish(healthy_answers())
+        self.assertEqual(code, 1)
+        self.assertIn("not readable", log)
+
+
 class RealChecker(unittest.TestCase):
     """The same checks through the real engine code, when it is built."""
 

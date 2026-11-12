@@ -79,6 +79,7 @@ import datetime
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -261,6 +262,76 @@ REGIONAL_INDEX_NAME = "regional-index.json"
 # Lists used with every scriptlet permission. The check parses them the
 # same way, so a trusted-only rule in them counts as fine.
 TRUSTED_NAMES = frozenset({UBO.path, AGGRESSIVE[0].path})
+
+# A trusted list may run uBO's trusted scriptlets (set a cookie, rewrite
+# a script or a fetch response, press a button), and a generic scriptlet
+# rule runs on every site. Whoever controls uAssets could sign such a
+# rule into our bundle, so every one in a trusted list has to be in this
+# file, reviewed by a person. A rule that is not stops the publication.
+TRUSTED_ALLOWLIST = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "data", "trusted-scriptlets.txt"
+)
+
+# domains#[@]#+js(name, ...) in uBO syntax, domains#[@]%#//scriptlet('name'
+# in AdGuard syntax. Both are read, since an engine may take either.
+SCRIPTLET_RULE_RE = re.compile(
+    r"^(?P<domains>[^#]*)#(?P<exception>@?)(?:#\+js|%#//scriptlet)"
+    r"\(\s*['\"]?(?P<name>[^,)'\"\s]+)"
+)
+
+
+def watched_scriptlet_rules(text: str) -> list[str]:
+    """Rules in a list's text that a trusted list may only have once reviewed.
+
+    A scriptlet whose name starts with "trusted-", or one with no site
+    of its own (no domain, "*", or only excluded domains). Comments and
+    exceptions (#@#, which only switch a rule off) are not watched.
+    """
+    found = []
+    for line in text.splitlines():
+        rule = line.strip()
+        match = SCRIPTLET_RULE_RE.match(rule)
+        if rule.startswith("!") or not match or match.group("exception"):
+            continue
+        sites = [d for d in match.group("domains").split(",") if d]
+        generic = "*" in sites or not any(not d.startswith("~") for d in sites)
+        if generic or match.group("name").lower().startswith("trusted-"):
+            found.append(rule)
+    return found
+
+
+def read_allowlist(path: str) -> set[str]:
+    """The reviewed rules, one per line; blank lines and ! comments skipped."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            lines = [line.strip() for line in f]
+    except OSError as e:
+        raise RefusedError(f"the reviewed scriptlet list is not readable: {e}") from e
+    return {line for line in lines if line and not line.startswith("!")}
+
+
+def check_trusted_rules(texts: dict[str, str], allowlist_path: str) -> None:
+    """RefusedError for a watched rule in a trusted list that nobody reviewed.
+
+    texts maps a bundle name to the list's text; only the trusted ones
+    are looked at.
+    """
+    allowed = read_allowlist(allowlist_path)
+    unreviewed = []
+    for name in sorted(TRUSTED_NAMES):
+        for rule in dict.fromkeys(watched_scriptlet_rules(texts.get(name, ""))):
+            if rule not in allowed:
+                unreviewed.append(f"{name}: {rule}")
+    if not unreviewed:
+        return
+    shown = "\n".join(f"  {row}" for row in unreviewed[:20])
+    more = len(unreviewed) - 20
+    raise RefusedError(
+        f"{len(unreviewed)} trusted scriptlet rule(s) in a trusted list are not "
+        f"in {allowlist_path}, so nobody has reviewed them:\n{shown}"
+        + (f"\n  ... and {more} more" if more > 0 else "")
+        + "\nRead each rule. If it is fine, add it to that file and run again."
+    )
 
 
 def bundle_name(output: OutputList) -> str:
@@ -670,6 +741,10 @@ def build_bundle(args, fetch_filters, fetch_scam=None) -> int:
     )
 
     builds = build_outputs(fetch_filters, previous, previous_dir)
+    check_trusted_rules(
+        {bundle_name(b.output): b.result.text for b in builds},
+        args.trusted_allowlist,
+    )
     texts = licence_texts(builds, fetch_filters)
     regional_builds = [b for b in builds if b.output.regional_id]
     index_text = (
@@ -866,6 +941,11 @@ def parse_args(argv: list[str] | None = None):
         "--checker",
         default=os.environ.get(CHECKER_ENV, DEFAULT_CHECKER),
         help="the check_lists binary from boring-core/rust",
+    )
+    ap.add_argument(
+        "--trusted-allowlist",
+        default=TRUSTED_ALLOWLIST,
+        help="the reviewed trusted scriptlet rules; tests point it elsewhere",
     )
     ap.add_argument(
         "--unsigned",
