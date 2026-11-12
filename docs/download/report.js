@@ -1,4 +1,5 @@
 const form = document.querySelector('#report-form');
+const REPO = 'https://github.com/JD-D3V/boring-web-browser';
 
 form.addEventListener('submit', (event) => {
   event.preventDefault();
@@ -12,18 +13,26 @@ form.addEventListener('submit', (event) => {
     field.addEventListener('input', () => field.setCustomValidity(''), { once: true });
     return;
   }
-  const subject = `[Boring Browser] ${values.get('category')}: ${summary}`;
+  const category = values.get('category');
+  const privateReport = category === 'Security problem';
+  const title = `[Boring Browser] ${category}: ${summary}`;
   const body = [
     `Summary: ${summary}`,
-    `Type: ${values.get('category')}`,
+    `Type: ${category}`,
     `Browser version: ${values.get('version').trim() || 'Not provided'}`,
     `Windows version: ${values.get('windows').trim() || 'Not provided'}`,
     '',
     steps,
   ].join('\n');
-  document.querySelector('#draft').value = `To: jmill004@mtroyal.ca\nSubject: ${subject}\n\n${body}`;
-  document.querySelector('#open-email').href = `mailto:jmill004@mtroyal.ca?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-  document.querySelector('#email-preview').hidden = false;
-  document.querySelector('#report-status').textContent = 'Draft prepared—not sent. Review it, then open your email app to send.';
+  document.querySelector('#draft').value = `Title: ${title}\n\n${body}`;
+  // GitHub fills in a new issue from these two parameters. Its private
+  // security form takes no prefill, so that one is copy and paste.
+  document.querySelector('#open-issue').href = privateReport
+    ? `${REPO}/security/advisories/new`
+    : `${REPO}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
+  document.querySelector('#issue-preview').hidden = false;
+  document.querySelector('#report-status').textContent = privateReport
+    ? 'Draft prepared, not sent. Copy it into GitHub’s private security form; only JD can read it there.'
+    : 'Draft prepared, not sent. Review it, then open GitHub to post it as a public issue.';
   document.querySelector('#draft').focus();
 });
