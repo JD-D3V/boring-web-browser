@@ -39,6 +39,14 @@ BOT = "github-actions[bot]"
 CHECKED = "Last checked:"
 TAG_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)\.(\d+)-(\d+)(?:\.(\d+))?$")
 VERSION_RE = re.compile(r"\b(\d{2,4}\.\d+\.\d{3,5}\.\d+)\b")
+POST_URL_RE = re.compile(r"^https://chromereleases\.googleblog\.com/[A-Za-z0-9._~/%?=&-]*$")
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+MD_SPECIAL_RE = re.compile(r"([\\`*_{}\[\]()#+!|<>@~&])")
+
+
+def md_escape(text):
+    """Backslash-escape what Markdown or an @mention would act on."""
+    return MD_SPECIAL_RE.sub(r"\\\1", str(text))
 
 
 def parse_tag(tag):
@@ -137,9 +145,13 @@ def security_posts(feed):
             (x.get("href") for x in e.get("link", []) if x.get("rel") == "alternate"),
             "",
         )
+        # The feed is not ours: keep a link only if it is a plain page of
+        # the Chrome Releases blog, and a date only if it is a date.
+        date = _text(e, "published")[:10]
+        link = link if POST_URL_RE.match(link or "") else ""
         out.append(
             {
-                "date": _text(e, "published")[:10],
+                "date": date if DATE_RE.match(date) else "",
                 "version": version.group(1) if version else None,
                 "fixes": int(fixes.group(1)) if fixes else None,
                 "cves": len(set(re.findall(r"CVE-\d{4}-\d+", body))),
@@ -177,13 +189,16 @@ def issue_text(current, latest, newer_tags, stable, posts, now):
             line += f" ({stable['newest']} rolling out)"
         line += "."
         if stable.get("first_newer_start"):
-            started = datetime.fromisoformat(
-                stable["first_newer_start"].replace("Z", "+00:00")
-            )
-            line += (
-                f" The first Chrome newer than ours went out {started:%Y-%m-%d}, "
-                f"{(now - started).days} day(s) ago."
-            )
+            try:
+                started = datetime.fromisoformat(
+                    stable["first_newer_start"].replace("Z", "+00:00")
+                )
+                line += (
+                    f" The first Chrome newer than ours went out {started:%Y-%m-%d}, "
+                    f"{(now - started).days} day(s) ago."
+                )
+            except (ValueError, TypeError, AttributeError):
+                pass  # a start time we cannot read is left out, not a crash
         lines.append(line)
     else:
         lines.append("Chrome stable for Windows: could not be read today.")
@@ -200,9 +215,11 @@ def issue_text(current, latest, newer_tags, stable, posts, now):
             fixes = "an unstated number of" if p["fixes"] is None else str(p["fixes"])
             total += p["fixes"] or 0
             wild = " One is exploited in the wild." if p["in_the_wild"] else ""
+            when = f" ({md_escape(p['date'])})" if p["date"] else ""
+            url = f" <{p['url']}>" if p["url"] else ""  # checked in security_posts
             lines.append(
-                f"- {p['version']} ({p['date']}): {fixes} security fixes, "
-                f"{p['cves']} CVEs.{wild} {p['url']}".rstrip()
+                f"- {md_escape(p['version'])}{when}: {fixes} security fixes, "
+                f"{p['cves']} CVEs.{wild}{url}"
             )
         lines.append(f"Total stated: {total} security fixes.")
     lines += [

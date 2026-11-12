@@ -67,7 +67,12 @@ def post(title, body, date="2026-11-09"):
         "title": {"$t": title},
         "published": {"$t": date + "T12:00:00.000-08:00"},
         "content": {"$t": body},
-        "link": [{"rel": "alternate", "href": f"https://example.invalid/{date}"}],
+        "link": [
+            {
+                "rel": "alternate",
+                "href": f"https://chromereleases.googleblog.com/{date}/stable.html",
+            }
+        ],
     }
 
 
@@ -175,3 +180,73 @@ def test_find_issue_ignores_a_marker_pasted_by_someone_else():
     assert uw.find_issue(forged + [{"number": 8, "body": uw.MARKER, "user": BOT_USER}])[
         "number"
     ] == 8
+
+
+NOW = datetime(2026, 11, 12, tzinfo=UTC)
+
+
+def hostile_feed(href, published):
+    entry = post(
+        "Stable Channel Update for Desktop",
+        "updated to 157.0.8103.50. includes 9 security fixes.",
+    )
+    entry["link"] = [{"rel": "alternate", "href": href}]
+    entry["published"] = {"$t": published}
+    return {"feed": {"entry": [entry]}}
+
+
+def body_for(posts, stable=None):
+    return uw.issue_text(
+        "157.0.8103.38-1.1", "157.0.8103.50-1.1", 1, stable or {}, posts, NOW
+    )[1]
+
+
+@pytest.mark.parametrize(
+    "href",
+    [
+        "https://evil.example/x",
+        "http://chromereleases.googleblog.com/x",
+        "https://chromereleases.googleblog.com.evil.example/x",
+        "https://chromereleases.googleblog.com@evil.example/x",
+        "https://chromereleases.googleblog.com/x) @everyone [y](http://evil.example",
+        "https://chromereleases.googleblog.com/x y",
+        "javascript:alert(1)",
+        "",
+    ],
+)
+def test_feed_links_are_kept_only_for_the_chrome_releases_blog(href):
+    posts = uw.security_posts(hostile_feed(href, "2026-11-09T12:00:00.000-08:00"))
+    assert posts[0]["url"] == ""
+    body = body_for(posts)
+    assert "evil" not in body and "@everyone" not in body
+
+
+def test_feed_link_and_date_from_the_blog_reach_the_issue():
+    good = "https://chromereleases.googleblog.com/2026/11/stable-channel-update.html"
+    posts = uw.security_posts(hostile_feed(good, "2026-11-09T12:00:00.000-08:00"))
+    assert posts[0]["url"] == good and posts[0]["date"] == "2026-11-09"
+    assert f"(2026-11-09): 9 security fixes, 0 CVEs. <{good}>" in body_for(posts)
+
+
+@pytest.mark.parametrize(
+    "published", ["@everyone [x](http://evil.example)", "soon", "2026-1-9xx", ""]
+)
+def test_feed_date_must_be_a_date(published):
+    posts = uw.security_posts(hostile_feed("", published))
+    assert posts[0]["date"] == ""
+    body = body_for(posts)
+    assert "evil" not in body and "everyone" not in body
+
+
+def test_markdown_in_text_is_escaped():
+    assert (
+        uw.md_escape("a*b_c [d](e) @f <g> `h`")
+        == r"a\*b\_c \[d\]\(e\) \@f \<g\> \`h\`"
+    )
+
+
+def test_a_bad_stable_start_time_does_not_stop_the_issue():
+    stable = {"newest": "158.0.8127.18", "first_newer_start": "not a time"}
+    body = body_for([], stable)
+    assert "Chrome stable for Windows is at 158.0.8127.18" in body
+    assert "day(s) ago" not in body
