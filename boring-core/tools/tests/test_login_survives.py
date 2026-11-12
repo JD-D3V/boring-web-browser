@@ -8,10 +8,13 @@ changes it fails here instead of logging people out."""
 
 import ast
 import base64
+import contextlib
+import io
 import json
 import os
 import re
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -125,6 +128,79 @@ class SandboxStagesTest(unittest.TestCase):
         self.assertLess(names.index("login_stages.login_before_update"), names.index("update_test"))
         self.assertLess(names.index("tabs_after_update"), names.index("login_stages.login_after_update"))
         self.assertLess(names.index("login_stages.login_after_update"), names.index("uninstall"))
+
+    def test_it_refuses_to_run_outside_windows_sandbox(self):
+        # Security review R4: run.py kills browsers, edits the hosts file and
+        # force-uninstalls the first matching browser, so on a real machine
+        # it must stop before doing or even reading anything.
+        for env in ({"USERNAME": "JD"}, {"USERNAME": "wdagutilityaccount2"}, {}):
+            with self.subTest(env=env):
+                run_env = {k: v for k, v in os.environ.items() if k != "USERNAME"}
+                run_env.update(env)
+                done = subprocess.run(
+                    [sys.executable, "-I", str(TOOLS / "sbx" / "run.py")],
+                    env=run_env,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                    cwd=tempfile.gettempdir(),
+                )
+                self.assertEqual(done.returncode, 2, done.stderr)
+                self.assertIn("only inside Windows Sandbox", done.stderr)
+                self.assertIn("Nothing was done", done.stderr)
+                # No traceback: nothing after the check ran.
+                self.assertNotIn("Traceback", done.stderr)
+
+    def test_the_check_comes_before_any_other_statement(self):
+        tree = ast.parse((TOOLS / "sbx" / "run.py").read_text(encoding="utf-8"))
+        body = [
+            n
+            for n in tree.body
+            if not isinstance(n, (ast.Import, ast.ImportFrom))
+            and not (isinstance(n, ast.Expr) and isinstance(n.value, ast.Constant))
+        ]
+        names = [ast.unparse(n).splitlines()[0] for n in body[:3]]
+        self.assertEqual(
+            names,
+            [
+                "SANDBOX_USER = 'WDAGUtilityAccount'",
+                "def require_sandbox():",
+                "require_sandbox()",
+            ],
+        )
+        # And every import that follows it is not run first: the only imports
+        # before the call are the standard library's.
+        call_line = body[2].lineno
+        for n in tree.body:
+            if isinstance(n, (ast.Import, ast.ImportFrom)) and n.lineno < call_line:
+                module = getattr(n, "module", None) or n.names[0].name
+                self.assertNotIn(module.split(".")[0], {"login_stages", "login_site"})
+
+    def test_the_sandbox_account_passes_the_check(self):
+        tree = ast.parse((TOOLS / "sbx" / "run.py").read_text(encoding="utf-8"))
+        keep = [
+            n
+            for n in tree.body
+            if (isinstance(n, ast.FunctionDef) and n.name == "require_sandbox")
+            or (isinstance(n, ast.Assign) and ast.unparse(n.targets[0]) == "SANDBOX_USER")
+        ]
+        scope = {"os": os, "sys": sys}
+        exec(compile(ast.Module(body=keep, type_ignores=[]), "run.py", "exec"), scope)
+        saved = os.environ.get("USERNAME")
+        os.environ["USERNAME"] = "WDAGUtilityAccount"
+        try:
+            self.assertIsNone(scope["require_sandbox"]())
+            os.environ["USERNAME"] = "JD"
+            with self.assertRaises(SystemExit) as caught, contextlib.redirect_stderr(
+                io.StringIO()
+            ):
+                scope["require_sandbox"]()
+            self.assertEqual(caught.exception.code, 2)
+        finally:
+            if saved is None:
+                os.environ.pop("USERNAME", None)
+            else:
+                os.environ["USERNAME"] = saved
 
     def test_stages_use_only_what_the_harness_has(self):
         text = (TOOLS / "sbx" / "login_stages.py").read_text(encoding="utf-8")

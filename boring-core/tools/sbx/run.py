@@ -41,6 +41,32 @@ import urllib.request
 import winreg
 from pathlib import Path
 
+SANDBOX_USER = "WDAGUtilityAccount"
+
+
+def require_sandbox():
+    """Stops at once anywhere but inside Windows Sandbox.
+
+    This harness kills every browser process, edits the hosts file and
+    force-uninstalls the first matching browser it finds. On a real
+    machine that is the person's own browser. Windows Sandbox always runs
+    as WDAGUtilityAccount. Nothing else in this file runs before this
+    check has passed, other than its standard library imports.
+    """
+    user = os.environ.get("USERNAME", "")
+    if user != SANDBOX_USER:
+        print(
+            "run.py runs only inside Windows Sandbox: it closes browsers, "
+            "edits the hosts file and uninstalls the browser. "
+            f"This account is {user or '(no name)'}, not {SANDBOX_USER}. "
+            "Nothing was done.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+
+require_sandbox()
+
 IN = Path(r"C:\in")
 OUT = Path(r"C:\out")
 BC = Path(r"C:\bc")
