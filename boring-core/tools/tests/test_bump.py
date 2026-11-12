@@ -566,7 +566,8 @@ def record_bump(tmp_path, monkeypatch):
     core = tmp_path / "core"
     core.mkdir()
     (core / "UPSTREAM_VERSION").write_text(
-        "# comment\n157.0.8103.38-1.1\n# commit " + SHA_B + "\n", encoding="utf-8"
+        "# comment\n157.0.8103.38-1.1\n# commit " + SHA_B + "\n# tree E:\\ung-157\n",
+        encoding="utf-8",
     )
     monkeypatch.setattr(bump, "CORE", core)
     monkeypatch.setattr(bump, "REPO", tmp_path)  # git grep finds nothing here
@@ -592,8 +593,9 @@ def test_record_writes_the_tag_and_its_commit(record_bump):
     b, path, _heads = record_bump
     b.do_record()
     assert path.read_text(encoding="utf-8") == (
-        f"# comment\n160.0.1.2-1.1\n# commit {SHA_A}\n"
+        f"# comment\n160.0.1.2-1.1\n# commit {SHA_A}\n# tree {b.root}\n"
     )
+    assert bump.recorded_trees(path) == [b.root.resolve()]
     assert upstream_watch.read_current(path) == "160.0.1.2-1.1"
 
 
@@ -607,6 +609,55 @@ def test_record_refuses_a_tag_that_moved_and_writes_nothing(record_bump):
     with pytest.raises(bump.NeedsHuman, match="changed under us"):
         b.do_record()
     assert path.read_text(encoding="utf-8") == before
+
+
+# ------------------------------------------------------- live trees
+
+
+@pytest.fixture
+def pre(tmp_path, monkeypatch):
+    core = tmp_path / "core"
+    core.mkdir()
+    monkeypatch.setattr(bump, "CORE", core)
+    prev = tmp_path / "ung-157"
+    (prev / "build" / "src").mkdir(parents=True)
+    (prev / "build" / "src" / "BUILD.gn").write_text("")
+    args = types.SimpleNamespace(prev=str(prev), branch="b", live_tree=None)
+    return args, tmp_path, core
+
+
+def test_preflight_refuses_a_folder_inside_a_tree_that_builds_today(pre):
+    args, tmp, core = pre
+    with pytest.raises(SystemExit, match="is the previous tree"):
+        bump.preflight(args, (tmp / "ung-157").resolve(), None)
+    with pytest.raises(SystemExit, match="inside .*ung-157"):
+        bump.preflight(args, (tmp / "ung-157" / "sub").resolve(), None)
+    # a tree named by an argument, and one recorded by the last bump
+    args.live_tree = [str(tmp / "other")]
+    with pytest.raises(SystemExit, match="inside .*other"):
+        bump.preflight(args, (tmp / "other" / "x").resolve(), None)
+    (core / "UPSTREAM_VERSION").write_text(
+        f"157.0.8103.38-1.1\n# tree {tmp / 'ung-154'}\n", encoding="utf-8"
+    )
+    with pytest.raises(SystemExit, match="inside .*ung-154"):
+        bump.preflight(args, (tmp / "ung-154").resolve(), None)
+
+
+def test_preflight_refuses_any_folder_holding_a_built_browser(pre):
+    args, tmp, _core = pre
+    built = tmp / "somewhere" / "ung-x"
+    exe = built / "build" / "src" / "out" / "Default" / "chrome.exe"
+    exe.parent.mkdir(parents=True)
+    exe.write_bytes(b"MZ")
+    with pytest.raises(SystemExit, match="holds a built browser"):
+        bump.preflight(args, built.resolve(), None)
+    with pytest.raises(SystemExit, match="holds a built browser"):
+        bump.preflight(args, (built / "inner").resolve(), None)
+    # no fixed path: an ordinary new folder gets past these refusals
+    with pytest.raises(SystemExit) as later:
+        bump.preflight(args, (tmp / "ung-160").resolve(), None)
+    assert "builds today" not in str(later.value)
+    assert "built browser" not in str(later.value)
 
 
 def test_build_steps_know_build_pys_calls_and_flag_new_ones():

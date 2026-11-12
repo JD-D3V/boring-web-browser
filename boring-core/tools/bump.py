@@ -45,7 +45,6 @@ sys.path.insert(0, str(TOOLS))
 
 from upstream_watch import fetch_tags, parse_tag, pick_latest  # noqa: E402
 
-LIVE_TREE = Path(r"E:\ung")
 VCVARS = Path(
     r"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
 )
@@ -504,6 +503,20 @@ def build_steps(text):
 # The line under the tag in UPSTREAM_VERSION. A comment, so the watcher
 # still reads the tag as the first line that is not one.
 COMMIT_PREFIX = "# commit "
+# And the tree it was built in, so the next bump never writes there.
+TREE_PREFIX = "# tree "
+
+
+def recorded_trees(path):
+    """The tree folders named on '# tree' lines of UPSTREAM_VERSION."""
+    path = Path(path)
+    if not path.exists():
+        return []
+    return [
+        Path(ln[len(TREE_PREFIX) :].strip()).resolve()
+        for ln in path.read_text(encoding="utf-8").splitlines()
+        if ln.startswith(TREE_PREFIX) and ln[len(TREE_PREFIX) :].strip()
+    ]
 
 
 def check_tag_pin(tag, pinned, local, remote):
@@ -1173,9 +1186,11 @@ class Bump:
         head = [
             ln
             for ln in text.splitlines()
-            if ln.startswith("#") and not ln.startswith(COMMIT_PREFIX)
+            if ln.startswith("#") and not ln.startswith((COMMIT_PREFIX, TREE_PREFIX))
         ]
-        tail = [f"{COMMIT_PREFIX}{sha}"] if sha else []
+        tail = ([f"{COMMIT_PREFIX}{sha}"] if sha else []) + [
+            f"{TREE_PREFIX}{self.root}"
+        ]
         path.write_text(
             "\n".join(head + [self.state["tag"]] + tail) + "\n", encoding="utf-8"
         )
@@ -1386,11 +1401,21 @@ def write_port(bump, name):
 
 def preflight(args, root, state):
     """Refusals that come before anything is written."""
-    if root == LIVE_TREE or LIVE_TREE in root.parents:
-        sys.exit("refusing: that is the tree that builds today")
+    import stage_upstream
+
     prev = Path(state["prev"] if state else args.prev).resolve()
     if root == prev:
         sys.exit("refusing: --dir is the previous tree; give a new folder")
+    # The trees that build today: the one we move on from, the one the last
+    # bump recorded in UPSTREAM_VERSION, and any given with --live-tree.
+    live = [prev, *recorded_trees(CORE / "UPSTREAM_VERSION")]
+    live += [Path(p).resolve() for p in getattr(args, "live_tree", None) or []]
+    for tree in live:
+        if root == tree or tree in root.parents:
+            sys.exit(f"refusing: {root} is inside {tree}, a tree that builds today")
+    built = stage_upstream.built_tree_at(root) if state is None else None
+    if built:
+        sys.exit(f"refusing: {built} holds a built browser; give a new folder")
     if not (prev / "build" / "src" / "BUILD.gn").exists():
         sys.exit(f"--prev {prev} is not a built ungoogled tree")
     branch = subprocess.run(
@@ -1444,6 +1469,12 @@ def main(argv=None):
     ap.add_argument("--redo", choices=NAMES)
     ap.add_argument("--accept-scan", action="store_true")
     ap.add_argument("--accept-args", action="store_true")
+    ap.add_argument(
+        "--live-tree",
+        action="append",
+        metavar="DIR",
+        help="another tree that builds today, never to be written (repeatable)",
+    )
     ap.add_argument("--write-port", metavar="PATCH")
     args = ap.parse_args(argv)
 

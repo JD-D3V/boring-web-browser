@@ -42,8 +42,17 @@ from pathlib import Path
 REPO = "https://github.com/ungoogled-software/ungoogled-chromium-windows"
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
-# The tree that builds today. Never written to by this script.
-LIVE_TREE = Path(r"E:\ung")
+def built_tree_at(path: Path) -> Path | None:
+    """The folder, path or one of its parents, that holds a built browser.
+
+    Staging is only ever for a new folder; one with a built chrome.exe is
+    a tree someone builds from. No fixed path to keep up to date.
+    """
+    path = Path(path).resolve()
+    for folder in (path, *path.parents):
+        if (folder / "build" / "src" / "out" / "Default" / "chrome.exe").exists():
+            return folder
+    return None
 
 
 def run(args, **kwargs):
@@ -493,7 +502,7 @@ def prepare(
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--tag", required=True, help="ungoogled-chromium-windows tag")
-    ap.add_argument("--dir", required=True, help="where to stage it, not E:\\ung")
+    ap.add_argument("--dir", required=True, help="where to stage it: a new folder")
     ap.add_argument("--clone-only", action="store_true")
     ap.add_argument(
         "--expect-sha", help="refuse unless the tag's checkout is on this commit"
@@ -509,8 +518,9 @@ def main() -> None:
     args = ap.parse_args()
 
     dest = Path(args.dir).resolve()
-    if dest == LIVE_TREE or LIVE_TREE in dest.parents:
-        sys.exit("refusing to stage inside the tree that builds today")
+    built = built_tree_at(dest)
+    if built:
+        sys.exit(f"refusing to stage inside {built}: it holds a built browser")
 
     os.environ.setdefault("TMP", r"E:\tmp")
     os.environ.setdefault("TEMP", r"E:\tmp")

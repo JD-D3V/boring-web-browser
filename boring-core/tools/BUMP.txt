@@ -101,7 +101,9 @@ What it never does
 It writes only into the new tree and into this checkout (patches/<major>/,
 the pristine store, UPSTREAM_VERSION, the adblock build). It never commits,
 never switches branch, never deletes a tree, and refuses to start in a folder
-that is not empty or whose build lock someone else holds.
+that is not empty, that holds a built browser, that is or lies inside --prev,
+a tree recorded on a "# tree" line of UPSTREAM_VERSION or one given with
+--live-tree, or whose build lock someone else holds.
 
 
 Left for people after it finishes

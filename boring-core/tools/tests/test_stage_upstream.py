@@ -17,6 +17,7 @@ from stage_upstream import (  # noqa: E402
     GENERATED_HEADERS,
     NODE_MODULES_DEP,
     _gcs_pin,
+    built_tree_at,
     clone,
     fix_header_guards,
     head_sha,
@@ -133,6 +134,15 @@ class TagPinTest(unittest.TestCase):
             with self.assertRaises(SystemExit) as stop:
                 clone("t", repo, "0" * 40)
             self.assertIn("pinned at", str(stop.exception))
+
+    def test_a_folder_with_a_built_browser_is_not_staged_into(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            exe = Path(tmp) / "ung" / "build/src/out/Default/chrome.exe"
+            exe.parent.mkdir(parents=True)
+            exe.write_bytes(b"MZ")
+            self.assertEqual(built_tree_at(Path(tmp) / "ung"), (Path(tmp) / "ung").resolve())
+            self.assertIsNotNone(built_tree_at(Path(tmp) / "ung" / "inner"))
+            self.assertIsNone(built_tree_at(Path(tmp) / "fresh"))
 
     def test_head_sha_of_a_folder_that_is_no_repo_is_none(self):
         with tempfile.TemporaryDirectory() as tmp:
