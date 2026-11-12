@@ -41,6 +41,11 @@ TOOL_HITS = [
     ("\u0410nyDesk.exe", "", "AnyDesk"),
     ("TeamV\u0456ewer_Setup.exe", "", "TeamViewer"),
     ("\uff21ny\uff24esk.exe", "", "AnyDesk"),
+    # T3 rest: letters with marks fold to their base letter.
+    ("\u00c1nyDesk.exe", "", "AnyDesk"),
+    ("\u00e0nyD\u00e8sk.exe", "", "AnyDesk"),
+    ("\u0100ny\u0110esk.exe", "", "AnyDesk"),
+    ("T\u00e9amViewer_Setup.exe", "", "TeamViewer"),
     ("AnyDesk.exe", "", "AnyDesk"),
     ("AnyDesk (1).exe", "", "AnyDesk"),
     ("ANYDESK.EXE", "", "AnyDesk"),

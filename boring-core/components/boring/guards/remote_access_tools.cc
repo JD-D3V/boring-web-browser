@@ -48,11 +48,50 @@ bool IsAlnum(char c) {
   return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9');
 }
 
+// Latin letters with marks as their base letter ('-' for none): U+00C0 to
+// U+00FF, then U+0100 to U+017F. A name written with the marks as separate
+// code points already folds, the marks are dropped below.
+constexpr char kLatin1Base[] =
+    "aaaaaaaceeeeiiiidnooooo-ouuuuy--"
+    "aaaaaaaceeeeiiiidnooooo-ouuuuy-y";
+constexpr char kLatinExtendedABase[] =
+    "aaaaaa"            // 0100
+    "cccccccc"          // 0106
+    "dddd"              // 010E
+    "eeeeeeeeee"        // 0112
+    "gggggggg"          // 011C
+    "hhhh"              // 0124
+    "iiiiiiiiii"        // 0128
+    "--"                // 0132
+    "jj"                // 0134
+    "kkk"               // 0136
+    "llllllllll"        // 0139
+    "nnnnnnnnn"         // 0143
+    "oooooooo"          // 014C, and the ligature OE
+    "rrrrrr"            // 0154
+    "ssssssss"          // 015A
+    "tttttt"            // 0162
+    "uuuuuuuuuuuu"      // 0168
+    "ww"                // 0174
+    "yyy"               // 0176
+    "zzzzzz"            // 0179
+    "s";                // 017F
+static_assert(sizeof(kLatin1Base) - 1 == 64);
+static_assert(sizeof(kLatinExtendedABase) - 1 == 128);
+
 // Letters of other alphabets that read as a Latin letter, as lower case
 // ASCII, or 0 for any other code point. Enough for a Cyrillic A in AnyDesk to
-// be seen as "anydesk": Cyrillic and Greek capitals and small letters, and
-// full width Latin.
+// be seen as "anydesk": Latin letters with marks, Cyrillic and Greek capitals
+// and small letters, and full width Latin.
 char Confusable(uint32_t cp) {
+  if (cp >= 0xC0 && cp <= 0xFF) {
+    const char c = kLatin1Base[cp - 0xC0];
+    return c == '-' ? 0 : c;
+  }
+  if (cp >= 0x100 && cp <= 0x17F) {
+    const char c = kLatinExtendedABase[cp - 0x100];
+    return c == '-' ? 0 : c;
+  }
   static constexpr struct {
     uint32_t cp;
     char to;
