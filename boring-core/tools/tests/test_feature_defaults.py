@@ -120,6 +120,7 @@ class FeatureDefaultsTest(unittest.TestCase):
                 "NtpSimplificationBookmarkBar",  # 114
                 "SessionRestoreInfobar",  # 121
                 "SeparateDefaultAndPinPrompt",  # 129, Q52
+                "PdfInfoBar",  # 131, Q56
             ],
         )
 
@@ -135,6 +136,19 @@ class FeatureDefaultsTest(unittest.TestCase):
         on, off = keep_off(always, default, ["SeparateDefaultAndPinPrompt"], [])
         self.assertIn("SeparateDefaultAndPinPrompt", on)
         self.assertNotIn("SeparateDefaultAndPinPrompt", off)
+
+    def test_pdf_default_bar_is_off_unless_named(self):
+        # Q56: with the default browser and pin bars held off, the "Set as
+        # default PDF viewer" infobar that is chained after them (infobar_utils.cc)
+        # would be the one bar left on a later start.
+        default = names(self.text, "kBoringDefaultOffFeatures")
+        always = names(self.text, "kBoringAlwaysOffFeatures")
+        self.assertNotIn("PdfInfoBar", always)
+        on, off = keep_off(always, default, [], [])
+        self.assertIn("PdfInfoBar", off)
+        on, off = keep_off(always, default, ["PdfInfoBar"], [])
+        self.assertIn("PdfInfoBar", on)
+        self.assertNotIn("PdfInfoBar", off)
 
     @unittest.skipUnless(ABOUT_FLAGS.exists(), "no Chromium 157 tree (BORING_SRC_157)")
     def test_always_off_flags_stay_plain_feature_value_type(self):

@@ -59,9 +59,11 @@ BAD = re.compile(
     r"|pin boring browser|pin to taskbar|to your taskbar"
     # Chromium's default browser infobar, alone or combined with the pin
     # offer: "Set Boring Browser as your default browser ...", button "Set as
-    # default" (ledger 131, Q56). The Welcome page's own link says "your
+    # default" (ledger 131, Q56), and the "Set Boring Browser as your default
+    # PDF viewer" bar that follows it. The Welcome page's own link says "your
     # default browser" without "as", so it does not match.
-    r"|as your default browser|set as default|set default|make default",
+    r"|as your default browser|as your default pdf|default pdf viewer"
+    r"|set as default|set default|make default",
     re.IGNORECASE,
 )
 HINT = re.compile(r"bookmarks you add show here", re.IGNORECASE)

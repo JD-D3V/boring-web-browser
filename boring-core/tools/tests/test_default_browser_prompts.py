@@ -112,6 +112,11 @@ class LaunchCheckTest(unittest.TestCase):
         self.assertTrue(self.bad.search("Set as default"))
         self.assertTrue(self.bad.search("Make default"))
 
+    def test_pdf_viewer_bar(self):
+        self.assertTrue(
+            self.bad.search("Set Boring Browser as your default PDF viewer")
+        )
+
     def test_pin_bar(self):
         self.assertTrue(self.bad.search("Pin Boring Browser to your taskbar"))
 

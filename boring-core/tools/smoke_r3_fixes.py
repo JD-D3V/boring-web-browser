@@ -14,6 +14,8 @@
   - Chromium's "pin to your taskbar" infobar feature (SeparateDefaultAndPinPrompt)
     is off, read from the effective command line (Q52). The CDP feature
     state call only knows a short fixed list, so this is the one proof.
+  - So is the "Set as default PDF viewer" infobar feature (PdfInfoBar),
+    which follows the default browser bar on a later start (Q56).
 
 What only a real window shows (the app menu rows enabled, the bookmarks
 bar drawn, no restore infobar) is left to the real-window pass.
@@ -182,7 +184,7 @@ def main():
             for name in ("UseActionsForBrowserCommands", "ExtensionsPinnedByDefault",
                          "NtpSimplificationBookmarkBar", "SessionRestoreInfobar",
                          "IPH_VerticalTabsExpandOnHoverFeature", "ContextualTasks",
-                         "SeparateDefaultAndPinPrompt"):
+                         "SeparateDefaultAndPinPrompt", "PdfInfoBar"):
                 check(f"command line: {name} is off", name in disabled, cl[-400:])
 
         time.sleep(1.0)

@@ -1,7 +1,7 @@
 diff --git a/chrome/browser/metrics/chrome_feature_list_creator.cc b/chrome/browser/metrics/chrome_feature_list_creator.cc
 --- a/chrome/browser/metrics/chrome_feature_list_creator.cc
 +++ b/chrome/browser/metrics/chrome_feature_list_creator.cc
-@@ -58,6 +58,95 @@
+@@ -58,6 +58,97 @@
  #include "chromeos/ash/components/dbus/dbus_thread_manager.h"
  #endif  // BUILDFLAG(IS_CHROMEOS)
  
@@ -32,13 +32,15 @@ diff --git a/chrome/browser/metrics/chrome_feature_list_creator.cc b/chrome/brow
 +// the toolbar on install, the bookmarks bar shown only on the new tab page,
 +// the "continue where you left off" infobar, the side tabs hover promo, the
 +// "pin to your taskbar" infobar on a later start (it shows without the browser
-+// being the default one only while this feature is on).
++// being the default one only while this feature is on), the "Set as default
++// PDF viewer" infobar that follows the default browser one on a later start.
 +constexpr const char* kBoringDefaultOffFeatures[] = {
 +    "ExtensionsPinnedByDefault",
 +    "IPH_VerticalTabsExpandOnHoverFeature",
 +    "NtpSimplificationBookmarkBar",
 +    "SessionRestoreInfobar",
 +    "SeparateDefaultAndPinPrompt",
++    "PdfInfoBar",
 +};
 +
 +// "*Name<Trial:param/value" -> "Name".
@@ -97,7 +99,7 @@ diff --git a/chrome/browser/metrics/chrome_feature_list_creator.cc b/chrome/brow
  // static
  ChromeFeatureListCreator* ChromeFeatureListCreator::GetInstance() {
    static base::NoDestructor<ChromeFeatureListCreator> instance;
-@@ -219,6 +308,7 @@
+@@ -219,6 +310,7 @@
    about_flags::ConvertFlagsToSwitches(&flags_storage,
                                        base::CommandLine::ForCurrentProcess(),
                                        flags_ui::kAddSentinels);
