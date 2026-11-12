@@ -97,9 +97,9 @@ class LoginSite:
                         out[name] = value
                 return out
 
-            def reply(self, body, kind, extra=()):
+            def reply(self, body, kind, extra=(), status=200):
                 data = body.encode()
-                self.send_response(200)
+                self.send_response(status)
                 self.send_header("Content-Type", kind)
                 self.send_header("Cache-Control", "no-store")
                 for name, value in extra:
@@ -108,7 +108,18 @@ class LoginSite:
                 self.end_headers()
                 self.wfile.write(data)
 
+            def host_ok(self):
+                """Only the names this site is reached by. A page in another
+                browser that rebinds its own name to 127.0.0.1 sends that
+                name as Host, and gets a 403."""
+                if self.headers.get("Host") in site.allowed_hosts:
+                    return True
+                self.reply("wrong host", "text/plain", status=403)
+                return False
+
             def do_GET(self):  # noqa: N802
+                if not self.host_ok():
+                    return
                 path = self.path.split("?")[0]
                 if path == "/whoami":
                     c = self.cookies()
@@ -122,6 +133,8 @@ class LoginSite:
                     self.reply(PAGE, "text/html; charset=utf-8")
 
             def do_POST(self):  # noqa: N802
+                if not self.host_ok():
+                    return
                 length = int(self.headers.get("Content-Length") or 0)
                 body = self.rfile.read(length).decode("utf-8", "replace")
                 user = dict(
@@ -148,7 +161,9 @@ class LoginSite:
                 pass
 
         self.server = ThreadingHTTPServer((bind, port), Handler)
-        self.url = f"http://{HOST}:{self.server.server_port}/home"
+        port = self.server.server_port
+        self.allowed_hosts = {f"{h}:{port}" for h in (HOST, "127.0.0.1", "localhost")}
+        self.url = f"http://{HOST}:{port}/home"
 
     def start(self):
         threading.Thread(target=self.server.serve_forever, daemon=True).start()

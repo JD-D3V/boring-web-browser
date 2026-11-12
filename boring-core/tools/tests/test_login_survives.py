@@ -13,6 +13,7 @@ import io
 import json
 import os
 import re
+import socket
 import sqlite3
 import subprocess
 import sys
@@ -65,6 +66,54 @@ class LoginSiteTest(unittest.TestCase):
 
     def test_url_uses_a_localhost_name(self):
         self.assertTrue(self.site.url.startswith("http://login.localhost:"))
+
+
+class LoginSiteRequestsTest(unittest.TestCase):
+    """What the server answers to requests that are not from our own pages."""
+
+    def setUp(self):
+        self.site = login_site.LoginSite().start()
+        self.port = self.site.server.server_port
+
+    def tearDown(self):
+        self.site.stop()
+
+    def raw(self, method, path, host, extra="", body=b""):
+        """The status code for a hand-written request, so the Host and
+        Content-Length headers are exactly what the test says."""
+        head = f"{method} {path} HTTP/1.0\r\n"
+        if host is not None:
+            head += f"Host: {host}\r\n"
+        head += extra + "\r\n"
+        with socket.create_connection(("127.0.0.1", self.port), timeout=5) as s:
+            s.sendall(head.encode() + body)
+            data = b""
+            while chunk := s.recv(4096):
+                data += chunk
+        return int(data.split(b" ", 2)[1])
+
+    def test_other_host_names_get_403(self):
+        for path in ("/whoami", "/home"):
+            self.assertEqual(self.raw("GET", path, f"evil.example:{self.port}"), 403)
+            self.assertEqual(self.raw("GET", path, "login.localhost"), 403)
+            self.assertEqual(self.raw("GET", path, f"login.localhost:{self.port + 1}"), 403)
+            self.assertEqual(self.raw("GET", path, None), 403)
+        # A rebinding page cannot sign in either.
+        self.assertEqual(
+            self.raw("POST", "/login", f"evil.example:{self.port}",
+                     "Content-Length: 11\r\n", b"user=tester"),
+            403,
+        )
+        self.assertEqual(self.site.sessions, {})
+
+    def test_our_own_host_names_work(self):
+        for host in ("login.localhost", "127.0.0.1", "localhost"):
+            self.assertEqual(self.raw("GET", "/whoami", f"{host}:{self.port}"), 200, host)
+        self.assertEqual(
+            self.raw("POST", "/login", f"login.localhost:{self.port}",
+                     "Content-Length: 11\r\n", b"user=tester"),
+            200,
+        )
 
 
 class LoginChecksTest(unittest.TestCase):
