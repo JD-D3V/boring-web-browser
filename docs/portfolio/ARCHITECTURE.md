@@ -8,8 +8,8 @@ which is itself a patch set over stock Chromium that strips Google's
 services, telemetry and background calls. Chromium's Blink engine, V8, the
 sandbox and site isolation are all upstream and untouched.
 
-Release 3 base: **Chromium 157.0.8103.38** (ungoogled-chromium tag
-`157.0.8103.38-1.1`). See [LIMITATIONS.md](LIMITATIONS.md).
+Release 3 base: **Chromium 157.0.8103.50** (ungoogled-chromium tag
+`157.0.8103.50-1.1`). See [LIMITATIONS.md](LIMITATIONS.md).
 
 ## The layers
 
@@ -46,8 +46,8 @@ a new upstream version.
   (balanced), Quad9 secure DNS (which refuses known malware and phishing
   domains), and ungoogled-chromium's fingerprint noise on canvas, text and
   element sizes, plus a generic graphics card name (WebGPU too), core count, touch points and
-  screen size values. WebRTC is kept to proxied routes, which ungoogled already
-  does.
+  screen size values for scripts (CSS media queries still see the real
+  size). WebRTC is kept to proxied routes, which ungoogled already does.
 - **Tracking parameter removal**, a navigation throttle in
   `components/boring/privacy` that strips known tracking parameters from
   cross-site navigations. The list is adapted from Brave (MPL-2.0).
@@ -68,9 +68,10 @@ a new upstream version.
 - **Import from Chrome and Edge**, `components/boring/importer`: bookmarks,
   history and added search engines, one entry per profile. Never
   passwords or cookies.
-- **List refresh**, `components/boring/lists/list_updater.*`, which would
-  fetch newer blocking lists and verify a signed manifest first. Off in
-  release 1, because the list signing key does not exist yet.
+- **List refresh**, `components/boring/lists/list_updater.*`, which
+  fetches newer blocking lists about once a week and verifies a signed
+  manifest first. Until a newer lists release is published, the browser
+  keeps the lists it shipped with.
 - **UI shape changes**: toolbar, tab shape, omnibox shape, settings page
   layout, all applied as patches against Chromium's own UI code rather
   than a bolted-on overlay.

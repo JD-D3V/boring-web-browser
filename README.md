@@ -6,13 +6,13 @@ defaults and a calmer UI. It is not a new engine.
 
 ## Release 3
 
-- Chromium 157.0.8103.38, via ungoogled-chromium 157.0.8103.38-1.1.
+- Chromium 157.0.8103.50, via ungoogled-chromium 157.0.8103.50-1.1.
 - Windows x64 only.
 - Not code signed. SmartScreen will warn. Do not turn it off; check the
   SHA-256 from the release page instead.
-- Downloads: the [release 3 page](https://github.com/JD-D3V/boring-web-browser/releases/tag/v157.0.8103.38.1),
+- Downloads: the [release 3 page](https://github.com/JD-D3V/boring-web-browser/releases/tag/v157.0.8103.50.1),
   with the installer, the zip and `SHA256SUMS.txt`.
-- Installer SHA-256: `12a07f0e9890eb72c0670eabf622c48eba8a30b3a046091fc65305ea08930244`
+- Installer SHA-256: `@@R3_SHA256_INSTALLER@@`
 
 ## On by default
 
@@ -26,7 +26,8 @@ defaults and a calmer UI. It is not a new engine.
 - WebRTC kept to proxied routes.
 - Fingerprint noise on canvas, text measurement and element sizes. Every
   page also reads the same graphics card name (WebGPU too), a core count
-  of 8, no touch points and a common screen size.
+  of 8, no touch points and a common screen size in scripts. CSS
+  media queries can still read the real screen size.
 - Tracking parameters removed from links to other sites. The list comes
   from Brave; `utm_` tags are kept.
 - DuckDuckGo search, with a picker on the new tab page.
@@ -95,7 +96,6 @@ Protection page.
 - Sync. `sync-server/` is a separate Go server the browser does not use.
 - Tor windows.
 - Code signing.
-- Blocking list updates. The lists are the ones built in.
 
 ## Honest limits
 
@@ -132,7 +132,7 @@ Windows only. Needs Visual Studio 2022 with C++, ATL and MFC, the Windows
 about 100 GB free on an SSD.
 
 1. Build [ungoogled-chromium-windows](https://github.com/ungoogled-software/ungoogled-chromium-windows)
-   at tag `157.0.8103.38-1.1` with its own `build.py`.
+   at tag `157.0.8103.50-1.1` with its own `build.py`.
    `--patch-set 157` below picks our patches rebased for Chromium 157.
 2. Fetch the updater DLL, then apply our layer:
 

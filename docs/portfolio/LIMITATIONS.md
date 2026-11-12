@@ -4,15 +4,11 @@ What this release does not do, or has not proven yet.
 
 ## What was tested
 
-Release 3 is built on Chromium 157.0.8103.38.
+Release 3 is built on Chromium 157.0.8103.50.
 
-The whole headless test suite passed on the final build. The steps that need a
-real window ran on the build before the last fixes, and the steps the fixes
-touched ran again on the final build. A network audit (90 seconds per
-scenario) saw nothing contacted with everything off. The installer, a first
-run, use and removal were tested on a clean Windows 11 install in Windows
-Sandbox, and the update from release 2 passed in 3 of 3 Sandbox runs. Not
-tested: pointer lock, which needs a real person to click.
+@@R3_WHAT_WAS_TESTED@@
+
+Not tested: pointer lock, which needs a real person to click.
 
 That clean install found a real bug: the ad block engine needed the
 Visual C++ runtime, so on a PC without it blocking was silently off.
@@ -36,7 +32,7 @@ Chromium gets less safe every week, so check the release page yourself.
 
 There is no code-signing certificate. SmartScreen will warn when you run
 the installer. Do not turn SmartScreen or Defender off. Signing is planned
-after release 1. A signature identifies the publisher; it does not prove
+for a later release. A signature identifies the publisher; it does not prove
 the software is safe.
 
 ## The scam list is thin
@@ -61,12 +57,13 @@ removes that part.
 Widevine needs a licence from Google. Netflix and other DRM video will not
 play.
 
-## Blocking lists do not update
+## Blocking lists update rarely
 
-The ad and tracker lists are fixed at build time. List updates need a
-separate list signing key that does not exist yet, so the browser keeps the lists it
-shipped with. A newer release brings newer lists. EasyList and EasyPrivacy
-are used under their own licence terms.
+The ad and tracker lists can update between releases: about once a week
+the browser looks for a newer lists release on the project's GitHub page,
+and uses it only if its signature checks out. The project publishes
+lists releases from time to time, so they can be weeks apart. Until one
+is published the browser keeps the lists it shipped with. EasyList and EasyPrivacy are used under their own licence terms.
 
 ## Extensions, spelling and import are new
 
@@ -94,6 +91,9 @@ ungoogled-chromium removes Google's background calls, and this project adds
 no telemetry. The browser still contacts some services on its own, such as
 Quad9 for DNS. Each release lists what a network audit saw on that build.
 That audit covers the paths it exercised, not every code path.
+
+The common screen size reaches scripts only. A page that uses CSS media
+queries such as device-width can still read the real screen size.
 
 Page summaries are off until you pick a provider. A remote provider
 receives the page text.

@@ -34,7 +34,7 @@ From a "Developer Command Prompt for VS 2022":
 ```
 git clone --recurse-submodules https://github.com/ungoogled-software/ungoogled-chromium-windows.git ung
 cd ung
-git checkout --recurse-submodules 157.0.8103.38-1.1
+git checkout --recurse-submodules 157.0.8103.50-1.1
 python3 build.py
 ```
 
