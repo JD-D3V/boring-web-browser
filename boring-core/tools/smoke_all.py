@@ -77,6 +77,8 @@ CHECKS = [
     ),
     ("157 fixes (Protection switches, features kept off)", "smoke_r3_fixes.py"),
     ("deleted sessions gone from the encrypted copies", "smoke_session_copies.py"),
+    ("save all tabs as bookmarks", "smoke_save_tabs.py"),
+    ("signed in after a restart", "smoke_login_restart.py"),
 ]
 
 # Every smoke_*.py that is not a check, with the reason. A new file must
@@ -95,6 +97,7 @@ NATIVE_CHECKS = {
     "smoke_forget.py",
     "smoke_tabs.py",
     "smoke_vtabs.py",
+    "smoke_save_tabs.py",
 }
 
 

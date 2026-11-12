@@ -1,0 +1,189 @@
+diff --git a/chrome/app/chrome_command_ids.h b/chrome/app/chrome_command_ids.h
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -297,6 +297,8 @@
+ #define IDC_BORING_PROTECTION 40307
+ // boring: close every window and clear this session's data.
+ #define IDC_BORING_FORGET_SESSION 40308
++// boring: save every open tab as a dated bookmarks folder.
++#define IDC_BORING_SAVE_ALL_TABS 40309
+ 
+ // Spell-check
+ #define IDC_SPELLCHECK_SUGGESTION_0     41000
+diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui/browser_command_controller.cc
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -96,6 +96,7 @@
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
+ #include "chrome/browser/ui/views/boring/boring_forget.h"
++#include "chrome/browser/ui/views/boring/boring_save_tabs.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
+ #include "chrome/browser/ui/web_applications/web_app_dialog_utils.h"
+@@ -1334,6 +1335,9 @@ void BrowserCommandController::HandleCommandWithDisposition(
+     case IDC_BORING_FORGET_SESSION:
+       boring::ShowForgetSessionDialog(browser_);
+       break;
++    case IDC_BORING_SAVE_ALL_TABS:
++      boring::SaveAllTabs(browser_);
++      break;
+     case IDC_EDIT_SEARCH_ENGINES:
+       ShowSearchEngineSettings(webui::GetBrowserForOpeningWebUi(browser_));
+       break;
+@@ -2374,6 +2378,10 @@ void BrowserCommandController::UpdateCommandsForBookmarkEditing() {
+                                          CanBookmarkCurrentTab(browser_));
+   command_updater_->UpdateCommandEnabled(IDC_BOOKMARK_ALL_TABS,
+                                          CanBookmarkAllTabs(browser_));
++  // boring: Save all tabs can save one tab too; it needs what bookmarking
++  // the current tab needs.
++  command_updater_->UpdateCommandEnabled(IDC_BORING_SAVE_ALL_TABS,
++                                         CanBookmarkCurrentTab(browser_));
+ }
+ 
+ void BrowserCommandController::UpdateCommandsForBookmarkBar() {
+diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/toolbar/app_menu_model.cc
+--- a/chrome/browser/ui/toolbar/app_menu_model.cc
++++ b/chrome/browser/ui/toolbar/app_menu_model.cc
+@@ -2078,6 +2078,12 @@ void AppMenuModel::Build() {
+     SetElementIdentifierAt(
+         GetIndexOfCommandId(kBookmarksMenuPlaceholder).value(),
+         kBookmarksMenuItem);
++
++    // boring: one click saves every open tab as a dated bookmarks folder.
++    AddItemWithIcon(IDC_BORING_SAVE_ALL_TABS, u"Save all tabs",
++                    ui::ImageModel::FromVectorIcon(
++                        kHotelClassIcon, ui::kColorMenuIcon,
++                        ui::SimpleMenuModel::kDefaultIconSize));
+   }
+ 
+   // Extensions and Skills sub menu.
+diff --git a/chrome/browser/ui/views/tabs/tab/BUILD.gn b/chrome/browser/ui/views/tabs/tab/BUILD.gn
+--- a/chrome/browser/ui/views/tabs/tab/BUILD.gn
++++ b/chrome/browser/ui/views/tabs/tab/BUILD.gn
+@@ -49,11 +49,13 @@ source_set("impl") {
+ 
+   deps = [
+     ":tab",
++    "//chrome/app:command_ids",
+     "//chrome/app/vector_icons",
+     "//chrome/browser:browser_process",
+     "//chrome/browser:primitives",
+     "//chrome/browser/actor/resources:grit",
+     "//chrome/browser/favicon",
++    "//chrome/browser/ui:browser_commands",
+     "//chrome/browser/ui:browser_element_identifiers",
+     "//chrome/browser/ui:ui_features",
+     "//chrome/browser/ui/interaction",
+diff --git a/chrome/browser/ui/views/tabs/tab/tab_context_menu_controller.cc b/chrome/browser/ui/views/tabs/tab/tab_context_menu_controller.cc
+--- a/chrome/browser/ui/views/tabs/tab/tab_context_menu_controller.cc
++++ b/chrome/browser/ui/views/tabs/tab/tab_context_menu_controller.cc
+@@ -4,8 +4,11 @@
+ 
+ #include "chrome/browser/ui/views/tabs/tab/tab_context_menu_controller.h"
+ 
++#include "chrome/app/chrome_command_ids.h"
++#include "chrome/browser/ui/browser_commands.h"
+ #include "chrome/browser/ui/tabs/tab_menu_model.h"
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
++#include "components/tabs/public/tab_interface.h"
+ #include "extensions/buildflags/buildflags.h"
+ #include "ui/gfx/geometry/rect.h"
+ #include "ui/views/controls/menu/menu_runner.h"
+@@ -15,6 +18,22 @@
+ #include "content/public/browser/context_menu_params.h"
+ #endif
+ 
++namespace {
++
++// boring: "Save all tabs" is a browser command, not a tab strip one, so it
++// goes to the tab's window before any id is read as a tab strip command.
++BrowserWindowInterface* WindowOf(tabs::TabHandle handle) {
++  tabs::TabInterface* tab = handle.Get();
++  return tab ? tab->GetBrowserWindowInterface() : nullptr;
++}
++
++bool CanSaveAllTabs(tabs::TabHandle handle) {
++  BrowserWindowInterface* window = WindowOf(handle);
++  return window && chrome::IsCommandEnabled(window, IDC_BORING_SAVE_ALL_TABS);
++}
++
++}  // namespace
++
+ TabContextMenuController::TabContextMenuController(tabs::TabHandle tab_handle,
+                                                    Delegate* delegate)
+     : tab_handle_(tab_handle), delegate_(delegate) {}
+@@ -32,6 +51,12 @@ void TabContextMenuController::LoadModel(
+     tab_menu_model_ = tab_menu_model;
+   }
+ 
++  // boring: last in the menu of a tab in an ordinary window.
++  if (tab_menu_model_ && CanSaveAllTabs(tab_handle_)) {
++    tab_menu_model_->AddSeparator(ui::NORMAL_SEPARATOR);
++    tab_menu_model_->AddItem(IDC_BORING_SAVE_ALL_TABS, u"Save all tabs");
++  }
++
+   const int run_flags =
+       views::MenuRunner::HAS_MNEMONICS | views::MenuRunner::CONTEXT_MENU;
+ 
+@@ -53,6 +78,9 @@ void TabContextMenuController::CloseMenu() {
+ }
+ 
+ bool TabContextMenuController::IsCommandIdChecked(int command_id) const {
++  if (command_id == IDC_BORING_SAVE_ALL_TABS) {
++    return false;
++  }
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+   if (extensions::ContextMenuMatcher::IsExtensionsCustomCommandId(command_id)) {
+     if (tab_menu_model_ && tab_menu_model_->extension_items()) {
+@@ -66,6 +94,9 @@ bool TabContextMenuController::IsCommandIdChecked(int command_id) const {
+ }
+ 
+ bool TabContextMenuController::IsCommandIdEnabled(int command_id) const {
++  if (command_id == IDC_BORING_SAVE_ALL_TABS) {
++    return CanSaveAllTabs(tab_handle_);
++  }
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+   if (extensions::ContextMenuMatcher::IsExtensionsCustomCommandId(command_id)) {
+     if (tab_menu_model_ && tab_menu_model_->extension_items()) {
+@@ -94,11 +125,20 @@ bool TabContextMenuController::IsCommandIdVisible(int command_id) const {
+ }
+ 
+ bool TabContextMenuController::IsCommandIdAlerted(int command_id) const {
++  if (command_id == IDC_BORING_SAVE_ALL_TABS) {
++    return false;
++  }
+   return delegate_->IsContextMenuCommandAlerted(
+       static_cast<TabStripModel::ContextMenuCommand>(command_id));
+ }
+ 
+ void TabContextMenuController::ExecuteCommand(int command_id, int event_flags) {
++  if (command_id == IDC_BORING_SAVE_ALL_TABS) {
++    if (BrowserWindowInterface* window = WindowOf(tab_handle_)) {
++      chrome::ExecuteCommand(window, IDC_BORING_SAVE_ALL_TABS);
++    }
++    return;
++  }
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+   if (extensions::ContextMenuMatcher::IsExtensionsCustomCommandId(command_id)) {
+     if (tab_menu_model_ && tab_menu_model_->extension_items()) {
+diff --git a/chrome/browser/ui/views/toolbar/BUILD.gn b/chrome/browser/ui/views/toolbar/BUILD.gn
+--- a/chrome/browser/ui/views/toolbar/BUILD.gn
++++ b/chrome/browser/ui/views/toolbar/BUILD.gn
+@@ -173,6 +173,8 @@ source_set("impl") {
+     "../boring/boring_forget.h",
+     "../boring/boring_memory_saver_bridge.cc",
+     "../boring/boring_popup.h",
++    "../boring/boring_save_tabs.cc",
++    "../boring/boring_save_tabs.h",
+     "ai_overlay_toolbar_button.cc",
+     "app_menu.cc",
+     "avatar_toolbar_button_interface.cc",
+@@ -355,6 +357,7 @@ source_set("impl") {
+     "//chrome/common:buildflags",
+     "//chrome/common:chrome_features",
+     "//chrome/common:constants",
++    "//chrome/common:url_constants",
+     "//components/autofill/core/common:features",
+     "//components/boring/adblock:browser",
+     "//components/boring/core",

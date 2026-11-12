@@ -65,6 +65,7 @@ ARGPARSE_TOOLS = {
     "smoke_forget.py",
     "smoke_tabs.py",
     "smoke_vtabs.py",
+    "smoke_save_tabs.py",
     "test_update_local.py",
     "probe_focus.py",
 }
@@ -165,6 +166,14 @@ def build_steps(out, net_seconds):
             [tool("smoke_vtabs.py", "--out", str(shots / "side-tabs"))],
             1200,
             "four short browser launches, off screen",
+            smoke_lines,
+        ),
+        Step(
+            "1h-save-tabs",
+            "save all tabs, app menu and tab menu",
+            [tool("smoke_save_tabs.py", "--shots", str(shots / "smoke" / "save-tabs"))],
+            900,
+            "two browser windows off screen; menus opened through UI Automation",
             smoke_lines,
         ),
         Step(
