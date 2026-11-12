@@ -40,18 +40,6 @@ diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.cc b/chrome/browser/ui
      const std::string sab_value = base::CommandLine::ForCurrentProcess()->
                                    GetSwitchValueASCII("show-avatar-button");
      if (sab_value == "always")
-@@ -1817,9 +1836,10 @@ void ToolbarView::LayoutCommon() {
-   GetAppMenuControl()->SetIsMaximizedOrFullscreen(
-       ShouldAppMenuApplyFittsLaw(is_maximized_or_fullscreen));
- 
-+  // boring: no divider ahead of the extensions; the mock has none.
-   if (toolbar_divider_ && extensions_container_) {
-     views::ManualLayoutUtil(layout_manager_)
--        .SetViewHidden(toolbar_divider_, !extensions_container_->GetVisible());
-+        .SetViewHidden(toolbar_divider_, true);
-   }
-   // Cast button visibility is controlled externally.
- }
 diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.h b/chrome/browser/ui/views/toolbar/toolbar_view.h
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.h
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.h
@@ -130,22 +118,3 @@ diff --git a/chrome/browser/ui/views/toolbar/BUILD.gn b/chrome/browser/ui/views/
      "//components/send_tab_to_self",
      "//components/sessions",
      "//components/signin/public/base:signin_buildflags",
-diff --git a/chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.cc b/chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.cc
---- a/chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.cc
-+++ b/chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.cc
-@@ -172,6 +172,15 @@ PinnedToolbarActionsContainer::PinnedToolbarActionsContainer(
-               GetLayoutConstant(LayoutConstant::kToolbarIconDefaultMargin),
-           0, GetLayoutConstant(LayoutConstant::kToolbarDividerSpacing)));
-   toolbar_divider_ = AddChildView(std::move(toolbar_divider));
-+  // boring: no divider between the pinned actions (the downloads button,
-+  // by default) and whatever comes after them. It is purely decorative:
-+  // ReorderChildView() below only keeps it positioned at the tail of the
-+  // pinned buttons as they change, which is harmless on an invisible
-+  // view, and it is not a drop target for reordering pinned actions.
-+  // IsChildIncludedInLayout() (see PinnedToolbarActionsContainerLayout)
-+  // skips invisible children entirely, so this also reclaims its space
-+  // rather than leaving a gap.
-+  toolbar_divider_->SetVisible(false);
- 
-   // Initialize the pinned action buttons.
-   action_view_controller_ = std::make_unique<views::ActionViewController>();

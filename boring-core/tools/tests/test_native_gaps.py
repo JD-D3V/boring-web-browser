@@ -47,6 +47,20 @@ class NativeGapsTest(unittest.TestCase):
         ):
             self.assertIn(want, header)
 
+    def test_157_toolbar_dividers_are_hidden_by_colour_not_views_code(self):
+        t = text("157", "toolbar-buttons.patch")
+        changed = [ln for ln in t.splitlines() if ln[:1] in "+-"]
+        self.assertFalse([ln for ln in changed if "toolbar_divider_" in ln])
+        self.assertNotIn("pinned_toolbar_actions_container.cc", t)
+        mixer = (
+            CORE / "chromium_src" / "chrome" / "browser" / "ui" / "color"
+            / "boring_color_mixer.cc"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            "mixer[kColorToolbarExtensionSeparatorEnabled] = {SK_ColorTRANSPARENT};",
+            mixer,
+        )
+
     def test_menu_drops_profile_tab_groups_and_cast(self):
         self.assertIn("app-menu-rows.patch", text("", "series").split())
         for d in SETS:

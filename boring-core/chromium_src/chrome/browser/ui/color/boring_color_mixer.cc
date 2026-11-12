@@ -204,6 +204,9 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   mixer[kColorToolbarInkDropRipple] = {
       SkColorSetA(p.accent, dark ? 0x38 : 0x29)};
   mixer[kColorToolbarSeparator] = {p.line};
+  // The mock has no dividers in the toolbar: the one ahead of the
+  // extensions and the one after the pinned buttons draw nothing.
+  mixer[kColorToolbarExtensionSeparatorEnabled] = {SK_ColorTRANSPARENT};
   mixer[kColorNewTabButtonForegroundFrameActive] = {p.ink};
   mixer[kColorNewTabButtonForegroundFrameInactive] = {p.muted};
 
