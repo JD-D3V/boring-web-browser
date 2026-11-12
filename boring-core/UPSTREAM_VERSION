@@ -1,0 +1,4 @@
+# The ungoogled-chromium-windows tag this branch builds on.
+# tools/bump.py writes it when a move to a newer tag compiles;
+# .github/workflows/upstream-watch.yml compares newer tags against it.
+157.0.8103.38-1.1

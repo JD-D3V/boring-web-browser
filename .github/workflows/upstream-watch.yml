@@ -1,0 +1,39 @@
+# Notices when ungoogled-chromium-windows tags a newer release than the one
+# we build on (boring-core/UPSTREAM_VERSION), and keeps ONE issue saying how
+# far behind we are and whether the newer release carries security fixes.
+# The issue is updated when the news changes and closed once we catch up.
+#
+# Reads only public JSON: GitHub's tag list, Chrome's version history and the
+# Chrome Releases feed. No secrets; the job token can only write issues.
+# The script is boring-core/tools/upstream_watch.py (try it with --dry-run).
+
+name: upstream-watch
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+concurrency:
+  group: upstream-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - name: Compare with upstream and update the issue
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: python boring-core/tools/upstream_watch.py --repo "$REPO" --current boring-core/UPSTREAM_VERSION

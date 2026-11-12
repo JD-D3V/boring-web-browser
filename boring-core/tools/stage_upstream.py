@@ -128,6 +128,38 @@ def assemble_rust_toolchain(source_tree: Path) -> None:
     print("rust toolchain at", dst)
 
 
+def add_rustc_dev(source_tree: Path) -> None:
+    """build.py's "Add rustc-dev" step, which Crubit needs.
+
+    From 157 the download list carries rust-toolchain-x64-dev, the
+    rustc_private crates, and build.py copies its lib folders into the
+    merged toolchain. Missing them, Crubit stops on "can't find crate
+    rustc_middle". Same copy as build.py; a marker keeps a rerun cheap.
+    """
+    dev = source_tree / "third_party" / "rust-toolchain-x64-dev"
+    lib = source_tree / "third_party" / "rust-toolchain" / "lib"
+    marker = lib.parent / ".boring-rustc-dev"
+    if marker.exists() or not dev.is_dir():
+        return
+    for item in dev.glob("*/lib/*"):
+        shutil.copytree(item, lib / item.name, dirs_exist_ok=True)
+    marker.write_text("rustc-dev copied\n", encoding="utf-8")
+    print("rustc-dev crates added to", lib)
+
+
+def write_minibranch(source_tree: Path) -> None:
+    """build/util/MINIBRANCH, which ninja wants and clone.py never writes.
+
+    build.py runs the 'minibranch' DEPS hook by hand after a clone; a
+    tree without the file stops on the first ninja step.
+    """
+    out = source_tree / "build" / "util" / "MINIBRANCH"
+    lastchange = source_tree / "build" / "util" / "lastchange.py"
+    if out.exists() or not lastchange.exists():
+        return
+    run([sys.executable, str(lastchange), "--minibranch-out", str(out)])
+
+
 # clone.py writes the output folder into .gclient with str(path), which
 # on Windows is E:\ung-154\build\src. gclient reads .gclient as
 # Python, where "\u" starts a unicode escape, so the sync stops with a
@@ -332,6 +364,8 @@ def prepare(
     if patched.exists():
         print("already pruned, patched and substituted:", source_tree)
         assemble_rust_toolchain(source_tree)
+        add_rustc_dev(source_tree)
+        write_minibranch(source_tree)
         return
 
     if pruned.exists():
@@ -396,6 +430,8 @@ def prepare(
     patched.write_text("patched and substituted\n", encoding="utf-8")
 
     assemble_rust_toolchain(source_tree)
+    add_rustc_dev(source_tree)
+    write_minibranch(source_tree)
 
     version = (source_tree / "chrome" / "VERSION").read_text(encoding=ENCODING)
     print("\nstaged source is ready at", source_tree)

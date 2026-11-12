@@ -1,0 +1,105 @@
+Moving to a newer Chromium with bump.py
+=======================================
+
+bump.py takes the browser from the ungoogled-chromium-windows tag it is on
+(boring-core/UPSTREAM_VERSION) to a newer one in a new source tree. It runs
+the steps of the 154 to 157 port in order and stops at the first one that
+needs a person, saying what is left. Run the same command again to carry on;
+it keeps its place in <new tree>\boring-bump\state.json.
+
+The upstream-watch workflow opens an issue when a newer tag appears.
+
+
+Before you start
+----------------
+- A checkout of this repo on the branch the bump should write to, for
+  example: git checkout -b r4/chromium-160 origin/main
+- boring-core/third_party/winsparkle present (tools/get_winsparkle.py).
+- The previous tree, built (for example E:\ung-157). bump.py only reads it.
+- Free disk: about 80 GB on the drive of the new tree. bump.py checks.
+- From 157 on, build.py needs the Python clang bindings: pip install clang.
+  bump.py stops and says so if they are missing.
+
+
+Start
+-----
+From a normal prompt (bump.py sets up the Visual Studio environment itself):
+
+  python boring-core\tools\bump.py --tag latest --dir E:\ung-160 --prev E:\ung-157 --branch r4/chromium-160
+
+--tag takes a tag such as 160.0.8200.10-1.1 or "latest". --dir must be a
+new or empty folder. Add --source clone when Google never published the
+source tarball for the tag (staging fails and says so).
+
+
+Stages
+------
+  stage      clone the tag, download, prune, patch, domain substitution,
+             rust toolchain incl. rustc-dev, MINIBRANCH (stage_upstream.py)
+  patchset   patches/<major>/ seeded from the newest older set
+  pristine   untouched copies of every file we patch, then our components
+             and chromium_src copies into the tree (apply.py --no-patches)
+  sort       every patch in series order: applies, refreshed by context only
+             (rewritten into patches/<major>/), or real conflict. Report in
+             boring-bump\sort.txt. STOPS on a real conflict.
+  scan       store copies plus the series in a scratch dir: patches that fail,
+             hunks with more than one possible place, files where the result
+             is not the tree, and hunks whose added lines now sit in another
+             function than on the previous tree (the 157 adblock throttle
+             bug). Report in scan.txt. STOPS on findings until --accept-scan.
+  flips      feature defaults that changed between the previous and the new
+             tree, where they touch files we patch or UI code, and names our
+             feature-defaults.patch forces off that no longer exist. flips.txt.
+  args       out\Default\args.gn as the tag's own build.py writes it (read
+             from build.py, not copied). STOPS if build.py changed in a way
+             bump.py does not understand, or gained a build step.
+  layer      apply.py --patch-set <major>: components, patches, rebrand,
+             adblock DLL (cargo; --no-rust to skip), scam list stand-in.
+  toolchain  gn bootstrap, bindgen, Crubit, and a copy of gn.exe for V8's
+             metagen, which looks for gn on PATH.
+  gn         gn gen, then gn check //components/boring/*. STOPS on errors.
+  compile    ninja chrome chromedriver in the background at below normal
+             priority, under the tree's build lock. Log boring-bump\compile.log
+             ends with DONE RC=n. Run bump.py again to see progress; it STOPS
+             on a failure and says whether it is in our code.
+  record     writes the new tag into boring-core/UPSTREAM_VERSION and lists
+             repo files that still name the previous tree.
+
+  python boring-core\tools\bump.py --dir E:\ung-160 --status
+
+
+When it stops
+-------------
+Real conflict (sort): edit the tree files by hand. The patches before it are
+already in the tree. Then write the port as a patch and run again:
+
+  python boring-core\tools\bump.py --dir E:\ung-160 --branch r4/chromium-160 --write-port tab-shape.patch
+  python boring-core\tools\bump.py --dir E:\ung-160 --branch r4/chromium-160
+
+The rerun puts every patched file back to its untouched copy and sorts the
+whole series again, so save each port with --write-port before rerunning.
+
+Placement findings (scan): read each line of scan.txt. Fix wrong ones with
+--write-port and --redo sort; then run with --accept-scan.
+
+Compile error: fix the file in the tree, save it with --write-port if it is a
+patched file (or edit boring-core/components and rerun --redo layer), then
+--redo compile. ninja carries on where it stopped.
+
+--redo <stage> runs that stage and everything after it again. Do not redo gn
+on a tree that has compiled: gn gen makes the next build close to a full one.
+
+
+What it never does
+------------------
+It writes only into the new tree and into this checkout (patches/<major>/,
+the pristine store, UPSTREAM_VERSION, the adblock build). It never commits,
+never switches branch, never deletes a tree, and refuses to start in a folder
+that is not empty or whose build lock someone else holds.
+
+
+Left for people after it finishes
+---------------------------------
+Commit patches/<major>/ and UPSTREAM_VERSION; smoke_all.py; packaging and
+check_package.py; the sandbox update test; the real-window pass; moving the
+workflows and tool defaults to the new tree (record lists them).
