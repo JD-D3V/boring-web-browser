@@ -183,6 +183,9 @@ def already_patched(src, rel, stack):
     either way, so it is the original.
     """
     include = "--include=" + rel.replace(os.sep, "/")
+    # git apply in the tree writes some files with CRLF; the patches are LF.
+    with open(os.path.join(src, rel), "rb") as f:
+        current = f.read().replace(b"\r\n", b"\n")
     for k in range(1, len(stack) + 1):
         work = tempfile.mkdtemp()
         # A repo above the scratch dir would make git read paths from its top.
@@ -190,7 +193,8 @@ def already_patched(src, rel, stack):
         try:
             copy = os.path.join(work, rel)
             os.makedirs(os.path.dirname(copy), exist_ok=True)
-            shutil.copy2(os.path.join(src, rel), copy)
+            with open(copy, "wb") as f:
+                f.write(current)
             reversed_ok = all(
                 subprocess.run(
                     ["git", "-c", "core.autocrlf=false", "apply", "--reverse",
@@ -204,8 +208,7 @@ def already_patched(src, rel, stack):
             )
             # Reversing a patch that created the file deletes it: a change.
             if reversed_ok and not (
-                os.path.exists(copy)
-                and filecmp.cmp(copy, os.path.join(src, rel), shallow=False)
+                os.path.exists(copy) and open(copy, "rb").read() == current
             ):
                 return True
         finally:

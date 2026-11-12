@@ -174,6 +174,12 @@ class SeedPristine(unittest.TestCase):
         self.write(os.path.join(self.src, "a", "new.cc"), "new\n")
         self.assertEqual(apply.seed_pristine(self.src, [patch], self.store), [])
 
+    def test_a_patched_file_with_crlf_line_ends_is_not_taken_for_the_original(self):
+        # git apply in the tree writes some files (settings .ts) with CRLF.
+        self.write(self.file, ORIGINAL.replace("two", "TWO").replace("\n", "\r\n"))
+        self.assertEqual(apply.seed_pristine(self.src, [self.patch], self.store), [])
+        self.assertFalse(os.path.exists(os.path.join(self.store, self.rel)))
+
     def test_a_file_with_the_whole_stack_in_is_not_taken_for_the_original(self):
         patches = self.stacked_pair()
         self.write(self.file, STACK_ORIGINAL.replace("f\n", "F\n"))
