@@ -33,6 +33,40 @@ PATCH = (
     " three\n"
 )
 
+STACK_ORIGINAL = "a\nb\nc\nd\ne\nf\ng\n"
+STACK_FIRST = (
+    "--- a/a/f.cc\n"
+    "+++ b/a/f.cc\n"
+    "@@ -1,3 +1,3 @@\n"
+    " a\n"
+    "-b\n"
+    "+B\n"
+    " c\n"
+    "@@ -5,3 +5,3 @@\n"
+    " e\n"
+    "-f\n"
+    "+F\n"
+    " g\n"
+)
+PATCH_B = (
+    "--- a/a/f.cc\n"
+    "+++ b/a/f.cc\n"
+    "@@ -1,3 +1,3 @@\n"
+    " a\n"
+    "-b\n"
+    "+B\n"
+    " c\n"
+)
+STACK_LATER = (
+    "--- a/a/f.cc\n"
+    "+++ b/a/f.cc\n"
+    "@@ -1,3 +1,3 @@\n"
+    " a\n"
+    "-B\n"
+    "+b\n"
+    " c\n"
+)
+
 
 def git(cwd, *args):
     subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True)
@@ -95,6 +129,45 @@ class SeedPristine(unittest.TestCase):
         self.write(self.file, ORIGINAL.replace("two", "TWO"))
         self.assertEqual(apply.seed_pristine(self.src, [self.patch], self.store), [])
         self.assertFalse(os.path.exists(os.path.join(self.store, self.rel)))
+
+    def stacked_pair(self):
+        # The first patch changes b and f; a later one puts b back as it
+        # came (tab-chrome-sizes.patch over tab-shape.patch on 157). The
+        # later patch alone reverses cleanly on the untouched file.
+        self.write(self.file, STACK_ORIGINAL)
+        first = os.path.join(self.tmp, "first.patch")
+        later = os.path.join(self.tmp, "later.patch")
+        self.write(first, STACK_FIRST)
+        self.write(later, STACK_LATER)
+        return [first, later]
+
+    def test_a_later_patch_undoing_an_earlier_one_does_not_hide_the_original(self):
+        seeded = apply.seed_pristine(self.src, self.stacked_pair(), self.store)
+        self.assertEqual(seeded, [self.rel])
+        self.assertEqual(self.read(os.path.join(self.store, self.rel)), STACK_ORIGINAL)
+
+    def test_a_stack_that_cancels_out_still_saves_the_file(self):
+        # tab_style.cc on 157: the later patches put back every line the
+        # first one changes, so the whole stack reverses on the untouched
+        # file and leaves it as it was.
+        self.write(self.file, STACK_ORIGINAL)
+        first = os.path.join(self.tmp, "first.patch")
+        later = os.path.join(self.tmp, "later.patch")
+        self.write(first, PATCH_B)
+        self.write(later, STACK_LATER)
+        seeded = apply.seed_pristine(self.src, [first, later], self.store)
+        self.assertEqual(seeded, [self.rel])
+        self.assertEqual(self.read(os.path.join(self.store, self.rel)), STACK_ORIGINAL)
+
+    def test_a_file_with_the_whole_stack_in_is_not_taken_for_the_original(self):
+        patches = self.stacked_pair()
+        self.write(self.file, STACK_ORIGINAL.replace("f\n", "F\n"))
+        self.assertEqual(apply.seed_pristine(self.src, patches, self.store), [])
+
+    def test_a_file_with_part_of_the_stack_in_is_not_taken_for_the_original(self):
+        patches = self.stacked_pair()
+        self.write(self.file, STACK_ORIGINAL.replace("b\n", "B\n").replace("f\n", "F\n"))
+        self.assertEqual(apply.seed_pristine(self.src, patches, self.store), [])
 
     def test_a_header_path_outside_the_tree_is_skipped(self):
         outside = os.path.join(os.path.dirname(self.store), "escaped.txt")

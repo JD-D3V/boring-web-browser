@@ -19,6 +19,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 
 import get_scamlist
 import pristine
@@ -171,6 +172,45 @@ def rewind(src, patch, pristine=PRISTINE):
     return restored
 
 
+def already_patched(src, rel, stack):
+    """True when the first k patches of the stack are in, for some k >= 1.
+
+    One patch reversing on its own is not proof: a later patch that puts
+    an earlier one's lines back as they came reverses cleanly on the
+    untouched file. So each prefix of the stack is taken off, last patch
+    first, on a scratch copy of the file, and counts only if that changes
+    the file. A stack whose patches cancel out leaves the file as it came
+    either way, so it is the original.
+    """
+    include = "--include=" + rel.replace(os.sep, "/")
+    for k in range(1, len(stack) + 1):
+        work = tempfile.mkdtemp()
+        # A repo above the scratch dir would make git read paths from its top.
+        env = dict(os.environ, GIT_CEILING_DIRECTORIES=os.path.dirname(work))
+        try:
+            copy = os.path.join(work, rel)
+            os.makedirs(os.path.dirname(copy), exist_ok=True)
+            shutil.copy2(os.path.join(src, rel), copy)
+            reversed_ok = all(
+                subprocess.run(
+                    ["git", "-c", "core.autocrlf=false", "apply", "--reverse",
+                     include, os.path.abspath(patch)],
+                    cwd=work,
+                    env=env,
+                    capture_output=True,
+                ).returncode
+                == 0
+                for patch in reversed(stack[:k])
+            )
+            if reversed_ok and not filecmp.cmp(
+                copy, os.path.join(src, rel), shallow=False
+            ):
+                return True
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+    return False
+
+
 def seed_pristine(src, patches, pristine=PRISTINE):
     """Save the original of every file the patches change, before the first.
 
@@ -198,17 +238,7 @@ def seed_pristine(src, patches, pristine=PRISTINE):
             continue
         if not os.path.exists(os.path.join(src, rel)):
             continue
-        include = "--include=" + rel.replace(os.sep, "/")
-        if any(
-            subprocess.run(
-                ["git", "apply", "--reverse", "--check", include, patch],
-                cwd=src,
-                capture_output=True,
-            ).returncode
-            == 0
-            for patch in patches
-            if rel in patched_files(patch)
-        ):
+        if already_patched(src, rel, [p for p in patches if rel in patched_files(p)]):
             print("no pristine copy, already patched", rel)
             continue
         snapshot(src, rel, pristine)
