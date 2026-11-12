@@ -27,7 +27,6 @@ tab-shape.patch
 omnibox-shape.patch
 settings-drop-google.patch
 webui-css-overrides.patch
-webui-palette.patch
 toolbar-buttons.patch
 search-engine-menu.patch
 tab-sleep-dim.patch

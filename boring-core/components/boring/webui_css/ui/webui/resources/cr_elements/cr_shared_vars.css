@@ -1,0 +1,35 @@
+/* Boring Browser: appended to upstream cr_shared_vars.css at build time
+   (tools/polymer/css_to_wrapper.py hook). Later rules win. */
+html {
+  --cr-fallback-color-primary: rgb(23, 107, 91);
+  --cr-fallback-color-primary-container: rgb(215, 236, 228);
+  --cr-fallback-color-on-primary-container: rgb(9, 43, 37);
+  --cr-fallback-color-secondary-container: rgb(206, 232, 223);
+  --cr-fallback-color-on-secondary-container: rgb(9, 43, 37);
+  --cr-fallback-color-surface1: rgb(250, 249, 246);
+  --cr-fallback-color-surface2: rgb(247, 246, 242);
+  --cr-fallback-color-surface3: rgb(244, 243, 238);
+  --cr-fallback-color-surface4: rgb(242, 241, 236);
+  --cr-fallback-color-surface5: rgb(239, 238, 233);
+  --cr-fallback-color-inverse-primary: rgb(146, 212, 187);
+  --cr-fallback-color-tonal-container: rgb(215, 236, 228);
+  --cr-fallback-color-on-tonal-container: rgb(9, 43, 37);
+  --cr-fallback-color-tonal-outline: rgb(168, 205, 193);
+  --cr-fallback-color-divider: rgb(216, 221, 215);
+  --cr-fallback-color-state-ripple-primary-rgb_: 106, 178, 158;
+  --cr-fallback-color-base-container: rgb(240, 239, 234);
+}
+@media (prefers-color-scheme: dark) {
+  html {
+    --cr-fallback-color-primary: rgb(146, 212, 187);
+    --cr-fallback-color-on-primary: rgb(9, 43, 37);
+    --cr-fallback-color-primary-container: rgb(21, 74, 63);
+    --cr-fallback-color-on-primary-container: rgb(215, 236, 228);
+    --cr-fallback-color-secondary-container: rgb(26, 66, 58);
+    --cr-fallback-color-on-secondary-container: rgb(206, 232, 223);
+    --cr-fallback-color-inverse-primary: rgb(23, 107, 91);
+    --cr-fallback-color-tonal-container: rgb(26, 66, 58);
+    --cr-fallback-color-on-tonal-container: rgb(206, 232, 223);
+    --cr-fallback-color-state-ripple-primary-rgb_: 74, 150, 130;
+  }
+}

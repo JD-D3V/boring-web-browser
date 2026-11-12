@@ -27,6 +27,7 @@ boring_css_overrides = [
   "chrome/browser/resources/settings/settings_vars.css",
   "ui/webui/resources/cr_elements/cr_button/cr_button.css",
   "ui/webui/resources/cr_elements/cr_shared_style_lit.css",
+  "ui/webui/resources/cr_elements/cr_shared_vars.css",
   "ui/webui/resources/cr_elements/cr_toggle/cr_toggle.css",
   "ui/webui/resources/cr_elements/cr_toolbar/cr_toolbar.css",
   "ui/webui/resources/cr_elements/cr_toolbar/cr_toolbar_search_field.css",
