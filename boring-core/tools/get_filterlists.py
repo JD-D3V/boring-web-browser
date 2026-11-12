@@ -420,10 +420,13 @@ class ListSource:
     # hosts send a Content-Length, and a body shorter than that is an
     # error in the fetch, so they are not left unchecked.
     newline_terminated: bool = True
-    # Words an included file's name must not hold. The annoyance lists
-    # refuse "cookie": cookie notices have their own list and switch, and
-    # an include of one would hide them past that switch.
-    refuse_includes: tuple[str, ...] = ()
+    # The only files the list may include, as paths from the folder the
+    # list is in; None checks nothing. The annoyance lists name theirs:
+    # cookie notices have their own list and switch, and an include of
+    # one (or any file we have not read) would put its rules past that
+    # switch. Any other include is a failed source until a person has
+    # looked at the file and added it here.
+    allowed_includes: tuple[str, ...] | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -716,7 +719,7 @@ AGGRESSIVE = (
                 UASSETS_LICENCE_LINE,
                 min_rules=1200,
                 # Used by page annoyances too, on by default; see below.
-                refuse_includes=("cookie",),
+                allowed_includes=("annoyances-others.txt",),
             ),
         ),
         licence=GPL3_UASSETS,
@@ -783,7 +786,7 @@ ANNOYANCES = OutputList(
             FANBOY + "fanboy-newsletter.txt",
             FANBOY_LICENCE_LINE,
             min_rules=2000,
-            refuse_includes=("cookie",),
+            allowed_includes=("fanboy_newsletter_specific_uBO.txt",),
         ),
     ),
     licence=CC_BY_3,
@@ -1008,12 +1011,18 @@ def build_output_list(output: OutputList, fetch=fetch_url) -> ListBuild:
             if source.newline_terminated and not raw.endswith("\n"):
                 raise FeedError("does not end with a newline, looks truncated")
             lines = resolve_list(source.url, raw, record, {source.url}, skipped)
-            for line in lines:
-                name = line.removeprefix("! >>>>>>>> ").rsplit("/", 1)[-1]
-                if line.startswith("! >>>>>>>> ") and any(
-                    word in name.lower() for word in source.refuse_includes
-                ):
-                    raise FeedError(f"now includes {name}, which it must not")
+            if source.allowed_includes is not None:
+                folder = source.url[: source.url.rfind("/") + 1]
+                for line in lines:
+                    if not line.startswith("! >>>>>>>> "):
+                        continue
+                    included = line.removeprefix("! >>>>>>>> ")
+                    relative = included.removeprefix(folder)
+                    if (
+                        not included.startswith(folder)
+                        or relative not in source.allowed_includes
+                    ):
+                        raise FeedError(f"now includes {relative}, which it must not")
             text = "\n".join(lines) + "\n"
             status.entries = count_rules(text, source.min_rules)
         except FeedError as e:

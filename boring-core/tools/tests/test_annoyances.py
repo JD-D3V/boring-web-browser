@@ -66,7 +66,17 @@ class TheList(unittest.TestCase):
                 self.assertNotIn("annoyance.txt", src.url)  # Fanboy's Annoyance List
                 self.assertNotIn("social", src.url)
                 self.assertNotIn("cookie", src.url)
-                self.assertIn("cookie", src.refuse_includes)
+                self.assertIsNotNone(src.allowed_includes)
+
+    def test_the_include_names_are_exactly_these(self):
+        self.assertEqual(
+            gf.ANNOYANCES.sources[0].allowed_includes,
+            ("fanboy_newsletter_specific_uBO.txt",),
+        )
+        self.assertEqual(
+            gf.AGGRESSIVE[0].sources[0].allowed_includes,
+            ("annoyances-others.txt",),
+        )
 
     def test_it_is_built_and_bundled(self):
         self.assertIn(gf.ANNOYANCES, publish_lists.BUNDLED_OUTPUTS)
@@ -83,6 +93,59 @@ class TheList(unittest.TestCase):
         build = gf.build_output_list(gf.ANNOYANCES, fetch)
         self.assertFalse(build.complete)
         self.assertIn("easylist_cookie_specific_uBO.txt", build.result.sources[0].reason)
+
+    def test_any_include_that_is_not_expected_stops_the_build(self):
+        for name in (
+            "annoyances-consent.txt",
+            "fanboy_social_specific_uBO.txt",
+            "sub/fanboy_newsletter_specific_uBO.txt",
+            "fanboy_newsletter_specific_uBO.txt.txt",
+        ):
+            with self.subTest(name=name):
+                fetch = fake_fetch(
+                    {
+                        NEWSLETTER: newsletter(name),
+                        gf.FANBOY + name: "##.x\n",
+                    }
+                )
+                build = gf.build_output_list(gf.ANNOYANCES, fetch)
+                self.assertFalse(build.complete)
+                self.assertIn(name, build.result.sources[0].reason)
+
+    def test_a_second_include_beside_the_expected_one_stops_the_build(self):
+        top = newsletter("fanboy_newsletter_specific_uBO.txt").replace(
+            "!#include fanboy_newsletter_specific_uBO.txt\n",
+            "!#include fanboy_newsletter_specific_uBO.txt\n!#include extra.txt\n",
+        )
+        fetch = fake_fetch(
+            {
+                NEWSLETTER: top,
+                gf.FANBOY + "fanboy_newsletter_specific_uBO.txt": "a.com##.nl\n",
+                gf.FANBOY + "extra.txt": "b.com##.nl\n",
+            }
+        )
+        build = gf.build_output_list(gf.ANNOYANCES, fetch)
+        self.assertFalse(build.complete)
+        self.assertIn("extra.txt", build.result.sources[0].reason)
+
+    def test_the_ubo_annoyances_list_takes_only_its_own_include(self):
+        (source,) = gf.AGGRESSIVE[0].sources
+        head = f"! Title: uBO Annoyances\n{gf.UASSETS_LICENCE_LINE}\n"
+        rules = "".join(f"##.a-{i}\n" for i in range(1300))
+        for name, builds in (
+            ("annoyances-others.txt", True),
+            ("annoyances-consent.txt", False),
+            ("annoyances-cookies.txt", False),
+        ):
+            with self.subTest(name=name):
+                fetch = fake_fetch(
+                    {
+                        source.url: head + f"!#include {name}\n",
+                        gf.UASSETS + name: rules,
+                    }
+                )
+                build = gf.build_output_list(gf.AGGRESSIVE[0], fetch)
+                self.assertEqual(build.complete, builds)
 
     def test_an_ordinary_include_still_builds(self):
         fetch = fake_fetch(
