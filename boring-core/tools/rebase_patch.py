@@ -28,7 +28,7 @@ place at all it leaves alone and says so.
 Usage:
   python rebase_patch.py --src E:\ung-153-47\build\src --set 153
   python rebase_patch.py --src ... --set 153 --dry-run
-  python rebase_patch.py --src ... --set 153 tab-shape.patch
+  python rebase_patch.py --src ... --set 153 tab-layout.patch
 """
 
 import argparse

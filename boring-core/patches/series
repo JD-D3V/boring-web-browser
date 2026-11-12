@@ -23,17 +23,13 @@ welcome-first-run.patch
 settings-menu-links.patch
 settings-boring-pages.patch
 package-boring-files.patch
-tab-shape.patch
+tab-layout.patch
 omnibox-shape.patch
 settings-drop-google.patch
 webui-css-overrides.patch
 toolbar-buttons.patch
 search-engine-menu.patch
 tab-sleep-dim.patch
-tab-underline.patch
-tab-mock-metrics.patch
-tab-connected.patch
-tab-center-content.patch
 colour-picker-schemes.patch
 bookmark-bar.patch
 bookmark-bar-hint.patch
@@ -61,8 +57,6 @@ location-bar-focus-glow.patch
 location-bar-test-hook.patch
 menu-icon-hover.patch
 toolbar-press-scale.patch
-tab-separator-pinned.patch
-tab-chrome-sizes.patch
 takeover-keyboard-lock.patch
 takeover-dialogs.patch
 takeover-tab-helper.patch

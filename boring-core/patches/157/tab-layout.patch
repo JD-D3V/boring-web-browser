@@ -1,9 +1,10 @@
---- a/chrome/browser/ui/views/tabs/horizontal_tab_style_views.cc
-+++ b/chrome/browser/ui/views/tabs/horizontal_tab_style_views.cc
-@@ -406,6 +406,13 @@
-   // anyway, so this asymmetry is inert there either way.
-   base_style_insets.set_left(12);
-   base_style_insets.set_right(30);
+diff --git a/chrome/browser/ui/views/tabs/common/horizontal_tab_style_views.cc b/chrome/browser/ui/views/tabs/common/horizontal_tab_style_views.cc
+--- a/chrome/browser/ui/views/tabs/common/horizontal_tab_style_views.cc
++++ b/chrome/browser/ui/views/tabs/common/horizontal_tab_style_views.cc
+@@ -407,6 +407,13 @@ void HorizontalTabStyleViews::PaintTabBackgroundWithImages(
+ 
+ gfx::Insets HorizontalTabStyleViews::GetContentsInsets() const {
+   gfx::Insets base_style_insets = tab_style()->GetContentsInsets();
 +  // boring: Chromium's insets put the content area a few DIP above the
 +  // middle of the visible tab. The overlap with the toolbar is added by
 +  // the caller, so the bottom inset is only the vertical padding; the
@@ -14,9 +15,19 @@
    gfx::Insets split_insets = gfx::Insets(0);
  
    // For split tabs, remove insets equal to the total separator width between
+diff --git a/chrome/browser/ui/views/tabs/tab.cc b/chrome/browser/ui/views/tabs/tab.cc
 --- a/chrome/browser/ui/views/tabs/tab.cc
 +++ b/chrome/browser/ui/views/tabs/tab.cc
-@@ -522,6 +522,11 @@
+@@ -76,6 +76,8 @@
+ #include "ui/gfx/animation/tween.h"
+ #include "ui/gfx/canvas.h"
+ #include "ui/gfx/favicon_size.h"
++#include "ui/gfx/font.h"
++#include "ui/gfx/font_list.h"
+ #include "ui/gfx/geometry/rect_conversions.h"
+ #include "ui/gfx/geometry/skia_conversions.h"
+ #include "ui/gfx/paint_vector_icon.h"
+@@ -527,6 +529,11 @@ void Tab::Layout(PassKey) {
      // Add space for insets outside the favicon bounds.
      favicon_bounds.Inset(-icon_->GetInsets());
      favicon_bounds.set_size(icon_->GetPreferredSize());
@@ -28,7 +39,7 @@
    }
    icon_->SetBoundsRect(favicon_bounds);
    icon_->SetVisible(showing_icon_);
-@@ -620,8 +625,10 @@
+@@ -625,8 +632,10 @@ void Tab::Layout(PassKey) {
      const int title_width = std::max(title_right - title_left, 0);
      // The Label will automatically center the font's cap height within the
      // provided vertical space.
@@ -41,3 +52,16 @@
      show_title = title_width > 0;
  
      if (title_bounds != target_title_bounds_) {
+@@ -1494,6 +1503,12 @@ int Tab::GetWidthOfLargestSelectableRegion() const {
+ void Tab::UpdateForegroundColors() {
+   TabStyle::TabColors colors = tab_style_views()->CalculateTargetColors();
+   title_->SetEnabledColor(colors.foreground_color);
++  // boring: the active tab's title is semibold, not just a different
++  // colour, matching the reference. DeriveWithWeight is absolute (it
++  // replaces whatever weight was there, it does not compound), so
++  // calling this on every colour update is harmless.
++  title_->SetFontList(title_->font_list().DeriveWithWeight(
++      IsActive() ? gfx::Font::Weight::SEMIBOLD : gfx::Font::Weight::NORMAL));
+   close_button_->SetColors(colors);
+   alert_indicator_button_->OnParentTabButtonColorChanged();
+   // There may be no focus ring when the tab is closing.

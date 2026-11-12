@@ -9,8 +9,8 @@ OS as input. Windows are placed off screen (drive.py).
           at is in .workflow/scratch/port-157-progress.md, "Settings
           patches"), Settings under 800 px wide, the Protection page,
           Welcome, new tab and the screen takeover page
-  tabs    the tab strip in the states the four tab patches style (tab-shape,
-          tab-underline, tab-mock-metrics, tab-separator-pinned): plain tabs,
+  tabs    the tab strip in the states tab-layout.patch and the toolbar
+          patches style: plain tabs,
           pinned tabs beside plain ones with a plain tab active, and with a
           pinned tab active; and the toolbar with the address bar focused
   quad9   the warning for a site Quad9 blocks, set up as in
