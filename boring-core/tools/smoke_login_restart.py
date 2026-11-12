@@ -23,6 +23,7 @@ Usage: python smoke_login_restart.py
 import base64
 import json
 import os
+import shutil
 import sys
 import tempfile
 import time
@@ -83,8 +84,16 @@ def restore_pref(cdp):
 
 
 def main():
-    check = Checks()
     work = Path(tempfile.mkdtemp(prefix="boring-login-", dir=os.environ.get("TMP")))
+    try:
+        run(work)
+    finally:
+        # The profile holds the test site's cookies; nothing keeps it.
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def run(work):
+    check = Checks()
     profile = work / "profile"
     extension = work / "driver"
     extension.mkdir()

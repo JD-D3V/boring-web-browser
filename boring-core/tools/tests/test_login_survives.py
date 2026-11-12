@@ -134,6 +134,42 @@ class LoginSiteRequestsTest(unittest.TestCase):
         self.assertEqual(self.raw("POST", "/login", host), 200)
 
 
+class RestartSmokeCleanupTest(unittest.TestCase):
+    """smoke_login_restart.py deletes its temporary profile, pass or fail."""
+
+    def test_work_folder_is_deleted_when_the_run_fails(self):
+        import smoke_login_restart
+        from unittest import mock
+
+        seen = []
+
+        def boom(work):
+            seen.append(work)
+            (work / "profile").mkdir()
+            raise RuntimeError("browser would not start")
+
+        with mock.patch.object(smoke_login_restart, "run", boom):
+            with self.assertRaises(RuntimeError):
+                smoke_login_restart.main()
+        self.assertEqual(len(seen), 1)
+        self.assertFalse(seen[0].exists())
+
+    def test_work_folder_is_deleted_when_the_run_exits(self):
+        import smoke_login_restart
+        from unittest import mock
+
+        seen = []
+
+        def done(work):
+            seen.append(work)
+            sys.exit(0)
+
+        with mock.patch.object(smoke_login_restart, "run", done):
+            with self.assertRaises(SystemExit):
+                smoke_login_restart.main()
+        self.assertFalse(seen[0].exists())
+
+
 class LoginChecksTest(unittest.TestCase):
     def test_signed_in_checks(self):
         good = {
