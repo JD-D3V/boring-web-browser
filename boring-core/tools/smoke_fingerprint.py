@@ -8,8 +8,9 @@ touch points, WebGL graphics card name and one of a few common screen sizes:
   WebGL                UNMASKED_VENDOR "Google Inc. (Intel)", UNMASKED_RENDERER
                        one common Intel card in Chrome's Windows format, for
                        webgl and webgl2
-  WebGPU               adapter info vendor and architecture are "" (skipped
-                       when the run has no navigator.gpu or no adapter)
+  WebGPU               adapter info vendor "intel" and architecture "gen-12lp",
+                       the card the WebGL name says (skipped when the run has
+                       no navigator.gpu or no adapter)
   screen               the smallest common size that holds the real screen;
                        availWidth/availHeight match width/height
 
@@ -43,6 +44,10 @@ WORK = Path(os.environ.get("TMP", r"E:\tmp")) / "feat-fingerprint" / "smoke"
 
 CORES = 8
 TOUCH = 0
+# Must match the WebGPU strings in patches/fingerprint-uniform.patch, which
+# name the same Intel card as the WebGL strings below.
+GPU_VENDOR = "intel"
+GPU_ARCHITECTURE = "gen-12lp"
 # Must match the WebGL strings in patches/fingerprint-uniform.patch.
 VENDOR = "Google Inc. (Intel)"
 RENDERER = (
@@ -202,9 +207,9 @@ def generic_checks(s, checks):
     gpu = s.b.run_async(GPU)
     print("webgpu:", json.dumps(gpu))
     if gpu != "none":
-        checks["webgpu: vendor and architecture are blank"] = gpu == {
-            "vendor": "",
-            "architecture": "",
+        checks["webgpu: vendor and architecture agree with webgl"] = gpu == {
+            "vendor": GPU_VENDOR,
+            "architecture": GPU_ARCHITECTURE,
         }
     want = expected_screen(p["rw"], p["rh"])
     checks[f"screen is {want[0]}x{want[1]} for a real {p['rw']}x{p['rh']}"] = (

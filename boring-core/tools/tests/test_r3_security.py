@@ -30,17 +30,26 @@ def read(p):
 class WebGpuAdapterInfo(unittest.TestCase):
     """Item 54. smoke_fingerprint.py reads navigator.gpu in the build."""
 
-    def test_patch_blanks_vendor_and_architecture(self):
+    def test_patch_agrees_with_the_webgl_name(self):
+        # Security review R7: WebGL says Intel, so WebGPU must not say
+        # nothing. One value for everyone, still no real value.
         patch = read(PATCHES / "fingerprint-uniform.patch")
         self.assertIn("modules/webgpu/gpu_adapter.cc", patch)
-        self.assertIn("generic ? g_empty_string : vendor_", patch)
-        self.assertIn("generic ? g_empty_string : architecture_", patch)
+        self.assertIn('generic ? String("intel") : vendor_', patch)
+        self.assertIn('generic ? String("gen-12lp") : architecture_', patch)
+        self.assertNotIn("g_empty_string", patch)
+        # The WebGL strings name the same maker and a gen-12 card.
+        self.assertIn('String("Google Inc. (Intel)")', patch)
+        self.assertIn("Iris(R) Xe Graphics", patch)
         self.assertIn("FingerprintingClientRectsNoiseEnabled", patch)
 
     def test_smoke_checks_the_adapter_info(self):
         smoke = read(TOOLS / "smoke_fingerprint.py")
         self.assertIn("navigator.gpu", smoke)
-        self.assertIn("webgpu: vendor and architecture are blank", smoke)
+        self.assertIn("webgpu: vendor and architecture agree with webgl", smoke)
+        import smoke_fingerprint
+        self.assertEqual(smoke_fingerprint.GPU_VENDOR, "intel")
+        self.assertEqual(smoke_fingerprint.GPU_ARCHITECTURE, "gen-12lp")
 
 
 class GuardTestHooks(unittest.TestCase):

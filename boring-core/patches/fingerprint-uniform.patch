@@ -146,17 +146,19 @@
        }
 --- a/third_party/blink/renderer/modules/webgpu/gpu_adapter.cc
 +++ b/third_party/blink/renderer/modules/webgpu/gpu_adapter.cc
-@@ -144,9 +144,14 @@
+@@ -144,9 +144,16 @@
        info->AppendMemoryHeapInfo(MakeGarbageCollected<GPUMemoryHeapInfo>(m));
      }
    } else {
-+    // boring: no GPU maker or family while the fingerprint switch is on.
++    // boring: one common GPU maker and family while the fingerprint switch
++    // is on, the card the WebGL name says (Intel Iris Xe, family gen-12lp),
++    // so the two APIs do not contradict each other.
 +    const bool generic =
 +        RuntimeEnabledFeatures::FingerprintingClientRectsNoiseEnabled();
      info = MakeGarbageCollected<GPUAdapterInfo>(
 -        vendor_, architecture_, subgroup_min_size_, subgroup_max_size_,
-+        generic ? g_empty_string : vendor_,
-+        generic ? g_empty_string : architecture_,
++        generic ? String("intel") : vendor_,
++        generic ? String("gen-12lp") : architecture_,
 +        subgroup_min_size_, subgroup_max_size_,
          is_fallback_adapter);
    }
