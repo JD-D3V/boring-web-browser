@@ -149,6 +149,7 @@ class Setup(unittest.TestCase):
         self.assertEqual(parts[0::2], ["vendor", "renderer"])
         self.assertEqual([urllib.parse.unquote(p) for p in parts[1::2]],
                          ["A, B", "C/D (E)"])
+        self.assertNotIn("%20", value)
 
     def test_arm_switches(self):
         self.assertEqual(cc.arm_switches("on"), [])

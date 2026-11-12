@@ -140,9 +140,13 @@ def spoof_feature(vendor, renderer):
     """--enable-features value for ungoogled's SpoofWebGLInfo.
 
     Commas end a feature in --enable-features and slashes split the
-    params, so every value is percent-escaped; Chromium unescapes them.
+    params, so those two (and the percent sign) are escaped. Spaces and
+    brackets stay as they are: this build decodes %2C but leaves %20 in
+    the value, so a fully percent-escaped name came out as "Google%20Inc."
+    (measured on the 157 build).
     """
-    q = lambda v: urllib.parse.quote(v, safe="")
+    q = lambda v: "".join(
+        {"%": "%25", ",": "%2C", "/": "%2F"}.get(c, c) for c in v)
     return f"SpoofWebGLInfo:vendor/{q(vendor)}/renderer/{q(renderer)}"
 
 
