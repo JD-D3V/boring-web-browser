@@ -1,0 +1,28 @@
+diff --git a/chrome/browser/ui/layout_constants.cc b/chrome/browser/ui/layout_constants.cc
+--- a/chrome/browser/ui/layout_constants.cc
++++ b/chrome/browser/ui/layout_constants.cc
+@@ -17,8 +17,14 @@
+ #include "chromeos/constants/chromeos_features.h"
+ #endif
+ 
++// boring: our sizes come first; see boring_layout_constants.h.
++#include "chrome/browser/ui/boring_layout_constants.h"
++
+ int GetLayoutConstant(LayoutConstant constant) {
+   const bool touch_ui = ui::TouchUiController::Get()->touch_ui();
++  if (const auto boring = boring::LayoutConstantOverride(constant, touch_ui)) {
++    return *boring;
++  }
+   switch (constant) {
+     case LayoutConstant::kAppMenuProfileRowAvatarIconSize:
+       return 24;
+@@ -197,6 +203,9 @@
+ 
+ gfx::Insets GetLayoutInsets(LayoutInset inset) {
+   const bool touch_ui = ui::TouchUiController::Get()->touch_ui();
++  if (const auto boring = boring::LayoutInsetsOverride(inset, touch_ui)) {
++    return *boring;
++  }
+   switch (inset) {
+     case DOWNLOAD_ICON:
+       return gfx::Insets(4);

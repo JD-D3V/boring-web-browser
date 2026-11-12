@@ -30,6 +30,23 @@ class NativeGapsTest(unittest.TestCase):
             self.assertIn("gfx::Insets(touch_ui ? 12 : 6)", t)
             self.assertIn(".SetViewHidden(toolbar_divider_, true);", t)
 
+    def test_157_sizes_live_in_one_header_behind_one_hook(self):
+        self.assertIn("layout-constants.patch", text("", "series").split())
+        hook = text("157", "layout-constants.patch")
+        self.assertIn("boring::LayoutConstantOverride(constant, touch_ui)", hook)
+        self.assertIn("boring::LayoutInsetsOverride(inset, touch_ui)", hook)
+        self.assertNotIn("layout_constants.cc", text("157", "toolbar-buttons.patch"))
+        header = (
+            CORE / "chromium_src" / "chrome" / "browser" / "ui"
+            / "boring_layout_constants.h"
+        ).read_text(encoding="utf-8")
+        for want in (
+            "LayoutConstant::kToolbarButtonHeight) {\n    return 32;",
+            "LayoutConstant::kLocationBarMargin) {\n    return 10;",
+            "TOOLBAR_BUTTON) {\n    return gfx::Insets(6);",
+        ):
+            self.assertIn(want, header)
+
     def test_menu_drops_profile_tab_groups_and_cast(self):
         self.assertIn("app-menu-rows.patch", text("", "series").split())
         for d in SETS:

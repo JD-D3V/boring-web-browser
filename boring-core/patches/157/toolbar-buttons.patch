@@ -40,14 +40,6 @@ diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.cc b/chrome/browser/ui
      const std::string sab_value = base::CommandLine::ForCurrentProcess()->
                                    GetSwitchValueASCII("show-avatar-button");
      if (sab_value == "always")
-@@ -1227,6 +1245,7 @@ void ToolbarView::Update(WebContents* tab) {
-     reload_control->SetDevToolsStatus(
-         chrome::IsDebuggerAttachedToCurrentTab(browser_));
-   }
-+
- }
- 
- bool ToolbarView::UpdateSecurityState() {
 @@ -1817,9 +1836,10 @@ void ToolbarView::LayoutCommon() {
    GetAppMenuControl()->SetIsMaximizedOrFullscreen(
        ShouldAppMenuApplyFittsLaw(is_maximized_or_fullscreen));
@@ -138,42 +130,6 @@ diff --git a/chrome/browser/ui/views/toolbar/BUILD.gn b/chrome/browser/ui/views/
      "//components/send_tab_to_self",
      "//components/sessions",
      "//components/signin/public/base:signin_buildflags",
-diff --git a/chrome/browser/ui/layout_constants.cc b/chrome/browser/ui/layout_constants.cc
---- a/chrome/browser/ui/layout_constants.cc
-+++ b/chrome/browser/ui/layout_constants.cc
-@@ -136,7 +136,8 @@ int GetLayoutConstant(LayoutConstant constant) {
-     case LayoutConstant::kTabstripToolbarOverlap:
-       return 1;
-     case LayoutConstant::kToolbarButtonHeight:
--      return touch_ui ? 48 : 34;
-+      // boring: 32 DIP, the round buttons of the approved mock.
-+      return touch_ui ? 48 : 32;
-     case LayoutConstant::kToolbarButtonIconSize:
-       return touch_ui ? kDefaultTouchableIconSize
-                       : kDefaultIconSizeChromeRefresh;
-@@ -155,7 +156,9 @@ int GetLayoutConstant(LayoutConstant constant) {
-     case LayoutConstant::kToolbarButtonRefreshExpandedMargin:
-       return 5;
-     case LayoutConstant::kLocationBarMargin:
--      return touch_ui ? 12 : 9;
-+      // boring: 10 DIP either side of the address field, matching the
-+      // reference's toolbar.
-+      return touch_ui ? 12 : 10;
-     case LayoutConstant::kSidePanelInset:
-       return 8;
-     case LayoutConstant::kPageInfoIconSize:
-@@ -230,7 +233,10 @@ gfx::Insets GetLayoutInsets(LayoutInset inset) {
-     }
- 
-     case TOOLBAR_BUTTON:
--      return gfx::Insets(touch_ui ? 12 : 7);
-+      // boring: 6 DIP of padding around the 20 DIP glyph, so the button
-+      // itself lands on 32 DIP square (see kToolbarButtonHeight above,
-+      // which ToolbarButton::GetTargetSize() derives from this).
-+      return gfx::Insets(touch_ui ? 12 : 6);
- 
-     case BROWSER_APP_MENU_CHIP_PADDING:
-       if (touch_ui) {
 diff --git a/chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.cc b/chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.cc
 --- a/chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.cc
 +++ b/chrome/browser/ui/views/toolbar/pinned_toolbar_actions_container.cc

@@ -28,6 +28,7 @@ omnibox-shape.patch
 settings-drop-google.patch
 webui-css-overrides.patch
 toolbar-buttons.patch
+layout-constants.patch
 search-engine-menu.patch
 tab-sleep-dim.patch
 colour-picker-schemes.patch
