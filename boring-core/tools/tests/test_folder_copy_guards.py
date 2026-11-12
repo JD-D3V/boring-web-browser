@@ -102,6 +102,15 @@ class ExceptionRulesAreFlagged(unittest.TestCase):
         self.assertIn("some change how certain sites look or act", self.cc)
         self.assertIn("old_lines.count(line)", adds)
 
+    def test_dropping_a_regional_list_weakens(self):
+        # S6 part: a file that takes a regional list away turns blocking down.
+        weakens = function_body(self.cc, "bool Weakens(")
+        self.assertIn("Kind::kRegional", weakens)
+        self.assertIn("from.GetList()", weakens)
+        self.assertIn("std::ranges::find(to.GetList(), id)", weakens)
+        smoke = read(TOOLS, "smoke_folder_copy.py")
+        self.assertIn("Regional lists: 2 lists to 1 list (less protection)", smoke)
+
     def test_preview_says_so_in_plain_words(self):
         self.assertIn("turn blocking off for certain sites", self.cc)
         self.assertNotIn("—", self.cc)

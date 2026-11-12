@@ -225,6 +225,15 @@ bool Weakens(const Setting& setting,
     return AddsException(from.GetString(), to.GetString()) !=
            Added::kNothing;
   }
+  if (setting.kind == Kind::kRegional) {
+    // A regional list that is on now and not in the folder's file: less is
+    // blocked for that region.
+    for (const base::Value& id : from.GetList()) {
+      if (std::ranges::find(to.GetList(), id) == to.GetList().end()) {
+        return true;
+      }
+    }
+  }
   return false;
 }
 
