@@ -1,0 +1,30 @@
+diff --git a/chrome/browser/ui/startup/default_browser_prompt/default_browser_prompt.cc b/chrome/browser/ui/startup/default_browser_prompt/default_browser_prompt.cc
+--- a/chrome/browser/ui/startup/default_browser_prompt/default_browser_prompt.cc
++++ b/chrome/browser/ui/startup/default_browser_prompt/default_browser_prompt.cc
+@@ -74,8 +74,11 @@
+ }  // namespace
+ 
+ void RegisterDefaultBrowserPromptPrefs(PrefRegistrySimple* registry) {
++  // boring: the prompt to make this the default browser is off for the
++  // version that is running, the way an installer's initial preferences
++  // switch it off. Settings still sets the default.
+   registry->RegisterStringPref(prefs::kBrowserSuppressDefaultBrowserPrompt,
+-                               std::string());
++                               std::string(version_info::GetVersionNumber()));
+ }
+ 
+ void ShowDefaultBrowserPrompt(Profile* profile,
+diff --git a/chrome/browser/ui/startup/default_browser_prompt/pin_infobar/pin_infobar_prefs.cc b/chrome/browser/ui/startup/default_browser_prompt/pin_infobar/pin_infobar_prefs.cc
+--- a/chrome/browser/ui/startup/default_browser_prompt/pin_infobar/pin_infobar_prefs.cc
++++ b/chrome/browser/ui/startup/default_browser_prompt/pin_infobar/pin_infobar_prefs.cc
+@@ -35,6 +35,10 @@
+   }
+ #endif
+ 
++  // boring: no pin to taskbar infobar on any start, whatever the counts in an
++  // older profile say: shown "at the maximum number of times" from the start.
++  max_prompt_count = 0;
++
+   if (last_shown + base::Days(reprompt_days) > base::Time::Now()) {
+     return true;
+   }

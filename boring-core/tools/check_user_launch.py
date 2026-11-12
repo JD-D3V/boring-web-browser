@@ -20,8 +20,10 @@ PrintWindow of the frame. No mouse, no keys, no screen capture. The browser
 is always ended in a finally block, by process id and only from this build.
 
 Fails when any control name mentions "left off", "restore pages", "continue
-where", a side tabs promo ("vertical tabs", "tabs on the side") or the
-pin-to-taskbar infobar ("Pin Boring Browser to your taskbar"). Also prints
+where", a side tabs promo ("vertical tabs", "tabs on the side"), the
+pin-to-taskbar infobar ("Pin Boring Browser to your taskbar") or the default
+browser infobar ("Set Boring Browser as your default browser", button "Set as
+default"), alone or combined, on either launch. Also prints
 whether the bookmarks bar hint was seen, as proof that the scan reads the
 browser's own controls.
 
@@ -54,7 +56,12 @@ BAD = re.compile(
     r"left off|restore pages|continue where|vertical tabs|tabs on the side|side tabs"
     # Chromium's pin-to-taskbar infobar, held off while the browser is not the
     # default (ledger 129, Q52).
-    r"|pin boring browser|pin to taskbar|to your taskbar",
+    r"|pin boring browser|pin to taskbar|to your taskbar"
+    # Chromium's default browser infobar, alone or combined with the pin
+    # offer: "Set Boring Browser as your default browser ...", button "Set as
+    # default" (ledger 131, Q56). The Welcome page's own link says "your
+    # default browser" without "as", so it does not match.
+    r"|as your default browser|set as default|set default|make default",
     re.IGNORECASE,
 )
 HINT = re.compile(r"bookmarks you add show here", re.IGNORECASE)
