@@ -65,8 +65,11 @@ Stages
              priority, under the tree's build lock. Log boring-bump\compile.log
              ends with DONE RC=n. Run bump.py again to see progress; it STOPS
              on a failure and says whether it is in our code.
-  record     writes the new tag into boring-core/UPSTREAM_VERSION and lists
-             repo files that still name the previous tree.
+  record     writes the new tag into boring-core/UPSTREAM_VERSION, with the
+             commit it pointed at when staging began on a "# commit" line,
+             and lists repo files that still name the previous tree. STOPS
+             if GitHub's tag now points at another commit (tags can be
+             moved), or the clone is not on the pinned commit.
 
   python boring-core\tools\bump.py --dir E:\ung-160 --status
 

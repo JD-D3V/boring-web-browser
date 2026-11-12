@@ -40,6 +40,7 @@ import urllib.request
 from pathlib import Path
 
 REPO = "https://github.com/ungoogled-software/ungoogled-chromium-windows"
+SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 # The tree that builds today. Never written to by this script.
 LIVE_TREE = Path(r"E:\ung")
@@ -53,15 +54,66 @@ def run(args, **kwargs):
     return result
 
 
-def clone(tag: str, dest: Path) -> None:
+def head_sha(repo: Path) -> str | None:
+    """The commit a checkout is on, or None if git cannot say."""
+    r = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"], capture_output=True, text=True
+    )
+    sha = r.stdout.strip()
+    return sha if r.returncode == 0 and SHA_RE.match(sha) else None
+
+
+def pick_tag_sha(ls_remote: str, tag: str) -> str | None:
+    """The commit a tag names, from `git ls-remote` lines. An annotated tag
+    lists its own object first and the commit it points at as tag^{}."""
+    direct = peeled = None
+    for line in ls_remote.splitlines():
+        sha, _, ref = line.partition("\t")
+        if not SHA_RE.match(sha):
+            continue
+        if ref == f"refs/tags/{tag}^{{}}":
+            peeled = sha
+        elif ref == f"refs/tags/{tag}":
+            direct = sha
+    return peeled or direct
+
+
+def remote_tag_sha(tag: str) -> str | None:
+    """The commit the tag points at on GitHub right now, or None if unreadable."""
+    try:
+        r = subprocess.run(
+            ["git", "ls-remote", REPO, f"refs/tags/{tag}", f"refs/tags/{tag}^{{}}"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return pick_tag_sha(r.stdout, tag) if r.returncode == 0 else None
+
+
+def clone(tag: str, dest: Path, expect_sha: str | None = None) -> str | None:
     """Checks out the ungoogled-chromium-windows repo at one tag.
 
     Shallow, and with its submodule, because the only thing wanted here
-    is that tag's patches and download list.
+    is that tag's patches and download list. Tags can be moved, so the
+    commit it lands on is returned, and refused if it is not expect_sha.
     """
-    if (dest / "build.py").exists():
+    if not (dest / "build.py").exists():
+        _clone(tag, dest)
+    else:
         print("already cloned:", dest)
-        return
+    sha = head_sha(dest)
+    if expect_sha and sha != expect_sha:
+        sys.exit(
+            f"refusing: {dest} is at commit {sha}, but tag {tag} was pinned at "
+            f"{expect_sha} when this bump began. The tag was moved or the clone changed."
+        )
+    print("tag commit:", sha)
+    return sha
+
+
+def _clone(tag: str, dest: Path) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     run(
         [
@@ -444,6 +496,9 @@ def main() -> None:
     ap.add_argument("--dir", required=True, help="where to stage it, not E:\\ung")
     ap.add_argument("--clone-only", action="store_true")
     ap.add_argument(
+        "--expect-sha", help="refuse unless the tag's checkout is on this commit"
+    )
+    ap.add_argument(
         "--source",
         choices=("tarball", "clone"),
         default="tarball",
@@ -461,7 +516,7 @@ def main() -> None:
     os.environ.setdefault("TEMP", r"E:\tmp")
     Path(os.environ["TMP"]).mkdir(parents=True, exist_ok=True)
 
-    clone(args.tag, dest)
+    clone(args.tag, dest, args.expect_sha)
     if args.clone_only:
         return
     prepare(dest, args.disable_ssl_verification, args.source)

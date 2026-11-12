@@ -5,6 +5,7 @@ Offline. Run with: python -m unittest discover -s boring-core/tools/tests
 """
 
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -16,7 +17,10 @@ from stage_upstream import (  # noqa: E402
     GENERATED_HEADERS,
     NODE_MODULES_DEP,
     _gcs_pin,
+    clone,
     fix_header_guards,
+    head_sha,
+    pick_tag_sha,
 )
 
 # Shaped like Chromium 154's DEPS: the pinned entry sits between two
@@ -106,6 +110,41 @@ class HeaderGuardTest(unittest.TestCase):
             self.assertIn('#define SKIA_COMMIT_HASH "abc"', text)
             dawn = (src / "gpu/webgpu/dawn_commit_hash.h").read_text()
             self.assertIn("#ifndef GOOD_H_", dawn)
+
+
+class TagPinTest(unittest.TestCase):
+    def make_clone(self, tmp):
+        repo = Path(tmp) / "clone"
+        repo.mkdir()
+        (repo / "build.py").write_text("print('x')\n")
+        git = ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t.invalid"]
+        subprocess.run([*git, "init", "-q"], check=True)
+        subprocess.run([*git, "add", "."], check=True)
+        subprocess.run([*git, "commit", "-q", "-m", "x"], check=True)
+        return repo
+
+    def test_clone_returns_the_commit_and_refuses_a_different_one(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = self.make_clone(tmp)
+            sha = head_sha(repo)
+            self.assertRegex(sha, r"^[0-9a-f]{40}$")
+            self.assertEqual(clone("t", repo), sha)
+            self.assertEqual(clone("t", repo, sha), sha)
+            with self.assertRaises(SystemExit) as stop:
+                clone("t", repo, "0" * 40)
+            self.assertIn("pinned at", str(stop.exception))
+
+    def test_head_sha_of_a_folder_that_is_no_repo_is_none(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertIsNone(head_sha(Path(tmp) / "nowhere"))
+
+    def test_tag_sha_prefers_the_commit_an_annotated_tag_points_at(self):
+        a, b, c = "a" * 40, "b" * 40, "c" * 40
+        lines = f"{a}\trefs/tags/t\n{b}\trefs/tags/t^{{}}\n{c}\trefs/tags/t2\n"
+        self.assertEqual(pick_tag_sha(lines, "t"), b)
+        self.assertEqual(pick_tag_sha(f"{c}\trefs/tags/t2\n", "t2"), c)
+        self.assertIsNone(pick_tag_sha(lines, "other"))
+        self.assertIsNone(pick_tag_sha("not a sha\trefs/tags/t\n", "t"))
 
 
 if __name__ == "__main__":

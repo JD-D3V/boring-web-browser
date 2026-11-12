@@ -444,6 +444,70 @@ def test_do_args_stops_when_there_is_no_previous_args_to_compare(args_bump):
     assert not (root / "build/src/out/Default/args.gn").exists()
 
 
+SHA_A, SHA_B = "a" * 40, "b" * 40
+
+
+def test_tag_pin_checks_the_clone_and_github():
+    bump.check_tag_pin("t", SHA_A, SHA_A, SHA_A)
+    with pytest.raises(bump.NeedsHuman, match="source changed under us"):
+        bump.check_tag_pin("t", SHA_A, SHA_B, SHA_A)
+    with pytest.raises(bump.NeedsHuman, match="moved tag t"):
+        bump.check_tag_pin("t", SHA_A, SHA_A, SHA_B)
+    with pytest.raises(bump.NeedsHuman, match="could not ask GitHub"):
+        bump.check_tag_pin("t", SHA_A, SHA_A, None)
+
+
+@pytest.fixture
+def record_bump(tmp_path, monkeypatch):
+    import stage_upstream
+
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", "")
+    core = tmp_path / "core"
+    core.mkdir()
+    (core / "UPSTREAM_VERSION").write_text(
+        "# comment\n157.0.8103.38-1.1\n# commit " + SHA_B + "\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(bump, "CORE", core)
+    monkeypatch.setattr(bump, "REPO", tmp_path)  # git grep finds nothing here
+    root = tmp_path / "ung-160"
+    root.mkdir()
+    state = {
+        "major": 160,
+        "prev": str(tmp_path / "ung-157"),
+        "source": "tarball",
+        "tag": "160.0.1.2-1.1",
+        "tag_sha": SHA_A,
+    }
+    heads = {"local": SHA_A, "remote": SHA_A}
+    monkeypatch.setattr(stage_upstream, "head_sha", lambda _r: heads["local"])
+    monkeypatch.setattr(stage_upstream, "remote_tag_sha", lambda _t: heads["remote"])
+    b = bump.Bump(root, state, types.SimpleNamespace())
+    return b, core / "UPSTREAM_VERSION", heads
+
+
+def test_record_writes_the_tag_and_its_commit(record_bump):
+    import upstream_watch
+
+    b, path, _heads = record_bump
+    b.do_record()
+    assert path.read_text(encoding="utf-8") == (
+        f"# comment\n160.0.1.2-1.1\n# commit {SHA_A}\n"
+    )
+    assert upstream_watch.read_current(path) == "160.0.1.2-1.1"
+
+
+def test_record_refuses_a_tag_that_moved_and_writes_nothing(record_bump):
+    b, path, heads = record_bump
+    before = path.read_text(encoding="utf-8")
+    heads["remote"] = SHA_B
+    with pytest.raises(bump.NeedsHuman, match="moved tag"):
+        b.do_record()
+    heads["remote"], heads["local"] = SHA_A, SHA_B
+    with pytest.raises(bump.NeedsHuman, match="changed under us"):
+        b.do_record()
+    assert path.read_text(encoding="utf-8") == before
+
+
 def test_build_steps_know_build_pys_calls_and_flag_new_ones():
     kinds = [k for k, _ in bump.build_steps(BUILD_PY)]
     assert kinds == ["bootstrap", "gen", "bindgen", "ninja"]

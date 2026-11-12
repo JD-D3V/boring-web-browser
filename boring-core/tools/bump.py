@@ -498,6 +498,36 @@ def build_steps(text):
     return sorted(steps, key=lambda s: s[1])
 
 
+# ------------------------------------------------------ the tag's commit
+
+# The line under the tag in UPSTREAM_VERSION. A comment, so the watcher
+# still reads the tag as the first line that is not one.
+COMMIT_PREFIX = "# commit "
+
+
+def check_tag_pin(tag, pinned, local, remote):
+    """Stop unless the clone and GitHub's tag are still on the pinned commit.
+
+    pinned is the commit the tag named when staging began; local is the
+    clone's HEAD now; remote is what GitHub says the tag points at now
+    (None if it could not be asked).
+    """
+    if local != pinned:
+        raise NeedsHuman(
+            f"the clone is on {local}, but tag {tag} was pinned at {pinned} when the "
+            "bump began; the source changed under us. Start again in a new folder."
+        )
+    if remote is None:
+        raise NeedsHuman(
+            f"could not ask GitHub where tag {tag} points now; run again when online"
+        )
+    if remote != pinned:
+        raise NeedsHuman(
+            f"upstream moved tag {tag} from {pinned} to {remote} since staging; "
+            "read what changed before trusting it, and start again in a new folder."
+        )
+
+
 # ----------------------------------------------------- patch helpers
 
 
@@ -692,6 +722,8 @@ class Bump:
     def do_stage(self):
         cmd = [sys.executable, TOOLS / "stage_upstream.py", "--tag", self.state["tag"]]
         cmd += ["--dir", self.root, "--source", self.state["source"]]
+        if self.state.get("tag_sha"):
+            cmd += ["--expect-sha", self.state["tag_sha"]]
         if self.call(cmd, self.log("stage")):
             raise NeedsHuman(
                 f"staging failed, see {self.log('stage')}. If Google never published the "
@@ -1116,10 +1148,27 @@ class Bump:
         return "started"
 
     def do_record(self):
+        import stage_upstream
+
+        sha = self.state.get("tag_sha")
+        if sha:
+            check_tag_pin(
+                self.state["tag"],
+                sha,
+                stage_upstream.head_sha(self.root),
+                stage_upstream.remote_tag_sha(self.state["tag"]),
+            )
         path = CORE / "UPSTREAM_VERSION"
         text = path.read_text(encoding="utf-8") if path.exists() else ""
-        head = [ln for ln in text.splitlines() if ln.startswith("#")]
-        path.write_text("\n".join(head + [self.state["tag"]]) + "\n", encoding="utf-8")
+        head = [
+            ln
+            for ln in text.splitlines()
+            if ln.startswith("#") and not ln.startswith(COMMIT_PREFIX)
+        ]
+        tail = [f"{COMMIT_PREFIX}{sha}"] if sha else []
+        path.write_text(
+            "\n".join(head + [self.state["tag"]] + tail) + "\n", encoding="utf-8"
+        )
         old = str(Path(self.state["prev"]))
         r = subprocess.run(
             ["git", "-C", str(REPO), "grep", "-l", "-F", old],
@@ -1388,6 +1437,12 @@ def main(argv=None):
         cmd = [sys.executable, TOOLS / "stage_upstream.py", "--tag", tag, "--dir", root]
         if subprocess.call([str(c) for c in cmd + ["--clone-only"]]):
             sys.exit("cloning the tag failed")
+        # Tags can be moved. From here on this commit is the tag.
+        import stage_upstream
+
+        state["tag_sha"] = stage_upstream.head_sha(root)
+        if not state["tag_sha"]:
+            sys.exit("cannot read the commit of the cloned tag")
         (root / STATE_DIR).mkdir(exist_ok=True)
         save_state(state_path, state)
 
