@@ -26,6 +26,7 @@ CHECKS = [
     ("scriptlets", "smoke_scriptlet.py"),
     ("redirect stubs", "smoke_redirect.py"),
     ("cookie notices", "smoke_cookies.py"),
+    ("page annoyances", "smoke_annoyances.py"),
     ("aggressive blocking level", "smoke_aggressive.py"),
     ("my filters (custom rules)", "smoke_custom_rules.py"),
     ("block this element", "smoke_picker.py"),

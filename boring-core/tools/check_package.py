@@ -86,6 +86,9 @@ REQUIRED_PROTECTION = [
     # The Aggressive level's lists (uBO Annoyances, Fanboy).
     "boring/aggressive-ubo.txt",
     "boring/aggressive-fanboy.txt",
+    # Page annoyances' own list (Fanboy's Newsletter List); it also uses
+    # aggressive-ubo.txt.
+    "boring/annoyances.txt",
     "boring/sources.json",
     "boring/regional/index.json",
     # The scam and phishing blocklist. Without it scam blocking has
@@ -126,6 +129,8 @@ REQUIRED_NOTICES = [
     "NOTICES-easylist-cookie.txt",
     "NOTICES-aggressive-ubo.txt",
     "NOTICES-aggressive-fanboy.txt",
+    # Fanboy's Newsletter List (CC BY 3.0), for page annoyances.
+    "NOTICES-annoyances.txt",
     # The scam blocklist's feeds: DurableNapkin's MIT notice has to
     # travel with the list. Written by tools/get_scamlist.py.
     "NOTICES-scam-blocklist.txt",

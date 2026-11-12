@@ -260,6 +260,7 @@ scoped_refptr<ProfileLists> ProfileLists::ForContext(
     }
     lists.aggressive =
         prefs->GetInteger(prefs::kBoringBlockingLevel) == kAggressiveLevel;
+    lists.annoyances = prefs->GetBoolean(prefs::kBoringBlockAnnoyances);
   }
   AdblockService* service = AdblockService::GetInstance();
   service->WantLists(lists);
@@ -388,11 +389,13 @@ void AdblockService::LoadOnBackgroundThread() {
 
   bool cookies_wanted;
   bool aggressive_wanted;
+  bool annoyances_wanted;
   std::set<std::string> regional_wanted;
   {
     base::AutoLock lock(lock_);
     cookies_wanted = cookies_wanted_;
     aggressive_wanted = aggressive_wanted_;
+    annoyances_wanted = annoyances_wanted_;
     regional_wanted = regional_wanted_;
   }
   if (cookies_wanted) {
@@ -403,6 +406,9 @@ void AdblockService::LoadOnBackgroundThread() {
   }
   if (aggressive_wanted) {
     LoadAggressive();
+  }
+  if (annoyances_wanted) {
+    LoadAnnoyances();
   }
 }
 
@@ -457,6 +463,9 @@ void AdblockService::LoadResources() {
     }
     if (aggressive_) {
       engines.push_back(aggressive_);
+    }
+    if (annoyances_) {
+      engines.push_back(annoyances_);
     }
   }
   for (const auto& engine : engines) {
@@ -649,6 +658,36 @@ void AdblockService::LoadAggressive() {
   aggressive_sources_ = std::move(read);
 }
 
+void AdblockService::LoadAnnoyances() {
+  // uBO's Annoyances list is trusted like the rest of uBO's lists;
+  // Fanboy's Newsletter List is not.
+  const std::vector<std::pair<base::FilePath, bool>> lists = {
+      {GetListPath(ListKind::kAggressiveUbo), true},
+      {GetListPath(ListKind::kAnnoyances), false},
+  };
+  Sources now;
+  for (const auto& [path, trusted] : lists) {
+    if (const int64_t mtime_us = WrittenAtUs(path)) {
+      now[path] = mtime_us;
+    }
+  }
+  {
+    base::AutoLock lock(lock_);
+    if (now.empty() || (annoyances_ && now == annoyances_sources_)) {
+      return;
+    }
+  }
+  Sources read;
+  scoped_refptr<AdblockEngine> built = Build(lists, &read, "annoyances");
+  if (!built) {
+    LOG(WARNING) << "boring adblock: the page annoyance lists did not build";
+    return;
+  }
+  base::AutoLock lock(lock_);
+  annoyances_ = std::move(built);
+  annoyances_sources_ = std::move(read);
+}
+
 void AdblockService::BuildCustomRules(scoped_refptr<ProfileLists> lists,
                                       std::string key,
                                       std::string text,
@@ -722,6 +761,11 @@ void AdblockService::WantLists(const EnabledLists& lists) {
       aggressive_wanted_ = true;
       need_load = true;
     }
+    if (lists.annoyances && !lists.aggressive && !annoyances_ &&
+        !annoyances_wanted_) {
+      annoyances_wanted_ = true;
+      need_load = true;
+    }
     for (const std::string& id : lists.regional) {
       if (!regional_.contains(id) && IsPlainId(id) &&
           regional_wanted_.insert(id).second) {
@@ -773,6 +817,15 @@ std::vector<scoped_refptr<AdblockEngine>> AdblockService::EnginesFor(
         engines.push_back(aggressive_);
       } else if (!aggressive_wanted_) {
         aggressive_wanted_ = true;
+        need_load = true;
+      }
+    } else if (lists.annoyances) {
+      // The Aggressive engine holds these rules already, and a scriptlet
+      // must not run twice, so only one of the two is ever asked.
+      if (annoyances_) {
+        engines.push_back(annoyances_);
+      } else if (!annoyances_wanted_) {
+        annoyances_wanted_ = true;
         need_load = true;
       }
     }

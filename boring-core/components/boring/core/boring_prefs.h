@@ -78,6 +78,14 @@ inline constexpr char kBlockingOffSites[] = "boring.blocking_off_sites";
 inline constexpr char kBoringBlockCookieBanners[] =
     "boring.privacy.block_cookie_banners";
 
+// Block page annoyances: newsletter and sign-up pop-ups, nag overlays,
+// ad blocker warnings and the scroll they lock, with uBO's Annoyances
+// list (boring\aggressive-ubo.txt) and Fanboy's Newsletter List
+// (boring\annoyances.txt). On by default. Per profile, and a site with
+// blocking turned off is left alone too. The Aggressive level uses
+// these lists whatever this says.
+inline constexpr char kBoringBlockAnnoyances[] = "boring.block_annoyances";
+
 // Regional lists to block with as well, by id from
 // boring\regional\index.json (see IsValidRegionalListId()). Empty by
 // default. Per profile and never synced.

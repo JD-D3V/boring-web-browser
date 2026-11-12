@@ -523,6 +523,7 @@ class PublishPath(unittest.TestCase):
                 "cookies.txt",
                 "aggressive-ubo.txt",
                 "aggressive-fanboy.txt",
+                "annoyances.txt",
                 "regional-de.txt",
                 "regional-fr.txt",
                 "regional-it.txt",
@@ -542,9 +543,9 @@ class PublishPath(unittest.TestCase):
             self.assertEqual(hashlib.sha256(data).hexdigest(), entry["sha256"])
 
         # EasyList, EasyPrivacy, the four uAssets lists, the cookie list,
-        # uBO Annoyances, three Fanboy lists, seven regional lists and
-        # the two scam feeds.
-        self.assertEqual(len(manifest["sources"]), 20)
+        # uBO Annoyances, three Fanboy lists, Fanboy's Newsletter List again
+        # for page annoyances, seven regional lists and the two scam feeds.
+        self.assertEqual(len(manifest["sources"]), 21)
         self.assertTrue(all(s["ok"] for s in manifest["sources"]))
         self.assertIn("without a signature", log)
 

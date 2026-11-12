@@ -23,18 +23,20 @@ enum class ListKind {
   kResources,  // resources.json: scriptlets and $redirect stubs. Only
                // ever the shipped copy; list downloads never carry it.
   // aggressive-ubo.txt: uBlock filters, Annoyances. Trusted like ubo.txt.
-  // Used only on the Aggressive blocking level.
+  // Used on the Aggressive blocking level, and for page annoyances.
   kAggressiveUbo,
   // aggressive-fanboy.txt: Fanboy's Social, Newsletter and Notifications
   // lists. Used only on the Aggressive blocking level.
   kAggressiveFanboy,
+  // annoyances.txt: Fanboy's Newsletter List, for page annoyances.
+  kAnnoyances,
 };
 
 // Every kind, for code that has to go through them all.
 inline constexpr ListKind kAllListKinds[] = {
     ListKind::kFilters,          ListKind::kScam,      ListKind::kUbo,
     ListKind::kCookies,          ListKind::kResources, ListKind::kAggressiveUbo,
-    ListKind::kAggressiveFanboy,
+    ListKind::kAggressiveFanboy, ListKind::kAnnoyances,
 };
 
 // The file a list is kept in. The same name wherever it lives, and the

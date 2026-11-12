@@ -40,6 +40,7 @@ constexpr char kCookiesFile[] = "cookies.txt";
 constexpr char kResourcesFile[] = "resources.json";
 constexpr char kAggressiveUboFile[] = "aggressive-ubo.txt";
 constexpr char kAggressiveFanboyFile[] = "aggressive-fanboy.txt";
+constexpr char kAnnoyancesFile[] = "annoyances.txt";
 constexpr char kRegionalIndexFile[] = "index.json";
 
 // How regional files are named in a list update manifest.
@@ -102,6 +103,8 @@ const char* ListFileName(ListKind kind) {
       return kAggressiveUboFile;
     case ListKind::kAggressiveFanboy:
       return kAggressiveFanboyFile;
+    case ListKind::kAnnoyances:
+      return kAnnoyancesFile;
   }
   NOTREACHED();
 }

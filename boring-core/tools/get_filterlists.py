@@ -8,6 +8,7 @@ folder called boring. Run again any time to refresh the lists.
   boring\\ubo.txt          uBlock filters, Quick fixes, Privacy, Unbreak
   boring\\cookies.txt      Easylist Cookie List
   boring\\aggressive-*.txt extra lists for the Aggressive blocking level
+  boring\\annoyances.txt   Fanboy's Newsletter List, for page annoyances
   boring\\regional\\*.txt   optional regional lists, with index.json
   boring\\sources.json     what was fetched, when, and its SHA-256
 
@@ -419,6 +420,10 @@ class ListSource:
     # hosts send a Content-Length, and a body shorter than that is an
     # error in the fetch, so they are not left unchecked.
     newline_terminated: bool = True
+    # Words an included file's name must not hold. The annoyance lists
+    # refuse "cookie": cookie notices have their own list and switch, and
+    # an include of one would hide them past that switch.
+    refuse_includes: tuple[str, ...] = ()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -710,6 +715,8 @@ AGGRESSIVE = (
                 UASSETS + "annoyances.txt",
                 UASSETS_LICENCE_LINE,
                 min_rules=1200,
+                # Used by page annoyances too, on by default; see below.
+                refuse_includes=("cookie",),
             ),
         ),
         licence=GPL3_UASSETS,
@@ -749,6 +756,39 @@ AGGRESSIVE = (
         attribution="Fanboy and the EasyList authors (https://easylist.to/)",
         notice="NOTICES-aggressive-fanboy.txt",
     ),
+)
+
+# Page annoyances (prefs::kBoringBlockAnnoyances, on by default) block
+# with uBO's Annoyances list, the aggressive-ubo.txt above, plus this
+# one. Checked at the source on 2026-11-11 (notes and counts in the
+# release 4 research, annoyances\INDEX.md):
+#
+#   Fanboy's Newsletter List, the same secure.fanboy.co.nz copy and the
+#   same CC BY 3.0 header as in aggressive-fanboy.txt. Newsletter and
+#   sign-up pop-ups and the scroll they lock, nothing else; one rule in
+#   common with the Easylist Cookie List.
+#
+# Not used for it: Fanboy's Annoyance List (includes the Easylist Cookie
+# List and the Social list), the Social list (share, comment and login
+# widgets, by design), the Notifications list (push prompts, not what
+# this is for) and EasyList's Adblock Warning Removal List (its header
+# points at easylist.to's licence page, which does not name it).
+ANNOYANCES = OutputList(
+    path="annoyances.txt",
+    title="Fanboy's Newsletter List",
+    sources=(
+        ListSource(
+            "fanboy-newsletter",
+            "Fanboy's Newsletter List",
+            FANBOY + "fanboy-newsletter.txt",
+            FANBOY_LICENCE_LINE,
+            min_rules=2000,
+            refuse_includes=("cookie",),
+        ),
+    ),
+    licence=CC_BY_3,
+    attribution="Fanboy and the EasyList authors (https://easylist.to/)",
+    notice="NOTICES-annoyances.txt",
 )
 
 
@@ -968,6 +1008,12 @@ def build_output_list(output: OutputList, fetch=fetch_url) -> ListBuild:
             if source.newline_terminated and not raw.endswith("\n"):
                 raise FeedError("does not end with a newline, looks truncated")
             lines = resolve_list(source.url, raw, record, {source.url}, skipped)
+            for line in lines:
+                name = line.removeprefix("! >>>>>>>> ").rsplit("/", 1)[-1]
+                if line.startswith("! >>>>>>>> ") and any(
+                    word in name.lower() for word in source.refuse_includes
+                ):
+                    raise FeedError(f"now includes {name}, which it must not")
             text = "\n".join(lines) + "\n"
             status.entries = count_rules(text, source.min_rules)
         except FeedError as e:
@@ -1118,7 +1164,7 @@ def manifest_entry(build: ListBuild, sha256: str, fetched_at: str) -> dict:
 
 def build_all(fetch=fetch_url, regional: bool = True) -> list[ListBuild]:
     """Every list but easylist.txt, in the order they are written."""
-    outputs = [UBO, COOKIES, *AGGRESSIVE, *(REGIONAL if regional else ())]
+    outputs = [UBO, COOKIES, *AGGRESSIVE, ANNOYANCES, *(REGIONAL if regional else ())]
     return [build_output_list(output, fetch) for output in outputs]
 
 

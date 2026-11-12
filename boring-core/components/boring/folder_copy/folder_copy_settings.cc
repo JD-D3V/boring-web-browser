@@ -48,6 +48,7 @@ constexpr Setting kSettings[] = {
      Kind::kSwitch},
     {prefs::kSkipRedirects, "Skip tracking redirects", Kind::kSwitch},
     {prefs::kBoringBlockCookieBanners, "Block cookie banners", Kind::kSwitch},
+    {prefs::kBoringBlockAnnoyances, "Block page annoyances", Kind::kSwitch},
     {prefs::kBoringRegionalLists, "Regional lists", Kind::kRegional},
     {prefs::kBoringBlockingLevel, "Blocking level", Kind::kLevel},
     {prefs::kBoringCustomRules, "My filter rules", Kind::kText},

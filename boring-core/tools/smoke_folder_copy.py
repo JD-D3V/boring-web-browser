@@ -59,6 +59,7 @@ KNOWN = {
     "boring.strip_tracking_params",
     "boring.privacy.skip_redirects",
     "boring.privacy.block_cookie_banners",
+    "boring.block_annoyances",
     "boring.adblock.regional_lists",
     "boring.adblock.level",
     "boring.adblock.custom_rules",

@@ -11,6 +11,7 @@ into a folder, ready to be uploaded to the release host:
     cookies.txt            Easylist Cookie List
     aggressive-ubo.txt     uBlock filters - Annoyances
     aggressive-fanboy.txt  Fanboy's Social, Newsletter, Notifications
+    annoyances.txt         Fanboy's Newsletter List, for page annoyances
     regional-<id>.txt      each regional list (saved as regional/<id>.txt)
     regional-index.json    the regional index (saved as regional/index.json)
     NOTICES-*.txt          the licence notices, beside the lists; not in
@@ -85,6 +86,7 @@ import tempfile
 
 from get_filterlists import (
     AGGRESSIVE,
+    ANNOYANCES,
     COOKIES,
     REGIONAL,
     UBO,
@@ -220,8 +222,8 @@ def version_for(day: datetime.date) -> int:
 #
 # Shrink limits, as a share of the rules the published bundle held:
 #
-#   ubo.txt, cookies.txt, aggressive-*.txt   80 per cent (refuse a drop
-#       of more than 20). Curated by hand like EasyList; uAssets and the
+#   ubo.txt, cookies.txt, aggressive-*.txt,   80 per cent (refuse a drop
+#   annoyances.txt                            of more than 20). Curated by hand like EasyList; uAssets and the
 #       Fanboy lists moved by under 2 per cent a week in September 2026.
 #   regional-*.txt                            75 per cent (more than 25).
 #       Smaller lists, where one cleanup of a few hundred dead rules is
@@ -277,7 +279,7 @@ def policy_for(output: OutputList) -> Policy:
 
 
 # Every list in the bundle but easylist.txt, in the order they appear.
-BUNDLED_OUTPUTS = (UBO, COOKIES, *AGGRESSIVE, *REGIONAL)
+BUNDLED_OUTPUTS = (UBO, COOKIES, *AGGRESSIVE, ANNOYANCES, *REGIONAL)
 
 
 def entries_in(name: str, text: str) -> int:

@@ -62,6 +62,7 @@ struct EnabledLists {
   bool cookie_notices = false;        // prefs::kBoringBlockCookieBanners
   std::vector<std::string> regional;  // prefs::kBoringRegionalLists
   bool aggressive = false;            // prefs::kBoringBlockingLevel is 1
+  bool annoyances = false;            // prefs::kBoringBlockAnnoyances
   // The profile's own rules (prefs::kBoringCustomRules), built into an
   // engine of their own. Null when there are none, or while they are
   // being built.
@@ -123,6 +124,9 @@ class ProfileLists : public base::RefCountedThreadSafe<ProfileLists> {
 //   regional    one engine per regional\<id>.txt, only where chosen
 //   aggressive  aggressive-ubo.txt (trusted) + aggressive-fanboy.txt
 //               (standard), only for profiles on the Aggressive level
+//   annoyances  aggressive-ubo.txt (trusted) + annoyances.txt (standard),
+//               for profiles blocking page annoyances, unless on the
+//               Aggressive level, whose engine has the same rules
 //   custom      a profile's own rules, standard permissions, one engine
 //               per profile, checked last so its exceptions win
 // Optional engines are built the first time a profile asks for them.
@@ -246,6 +250,7 @@ class AdblockService {
   void LoadCookies();
   void LoadRegional(const std::string& id);
   void LoadAggressive();
+  void LoadAnnoyances();
   void BuildCustomOnBackgroundThread(scoped_refptr<ProfileLists> lists,
                                      std::string key,
                                      std::string text,
@@ -290,10 +295,13 @@ class AdblockService {
   std::map<std::string, Sources> regional_sources_ GUARDED_BY(lock_);
   scoped_refptr<AdblockEngine> aggressive_ GUARDED_BY(lock_);
   Sources aggressive_sources_ GUARDED_BY(lock_);
+  scoped_refptr<AdblockEngine> annoyances_ GUARDED_BY(lock_);
+  Sources annoyances_sources_ GUARDED_BY(lock_);
   // Optional engines some profile has asked for. Kept once asked, so a
   // list that is missing now is picked up when it appears.
   bool cookies_wanted_ GUARDED_BY(lock_) = false;
   bool aggressive_wanted_ GUARDED_BY(lock_) = false;
+  bool annoyances_wanted_ GUARDED_BY(lock_) = false;
   std::set<std::string> regional_wanted_ GUARDED_BY(lock_);
   // Newest write time of the main lists in use.
   int64_t loaded_mtime_us_ GUARDED_BY(lock_) = 0;

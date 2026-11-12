@@ -15,6 +15,8 @@ hide an annoyance and block a social widget script. Checked:
 Usage: python smoke_aggressive.py
 """
 
+import json
+import os
 import sys
 import tempfile
 
@@ -92,6 +94,14 @@ def main():
             tempfile.TemporaryDirectory(prefix="aggressive-") as profile,
         ):
             args = browser_args(lists)
+            # Page annoyances (on by default) use aggressive-ubo.txt too;
+            # off here so only the level is under test. smoke_annoyances.py
+            # checks them.
+            os.makedirs(os.path.join(profile, "Default"))
+            with open(
+                os.path.join(profile, "Default", "Preferences"), "w", encoding="utf-8"
+            ) as f:
+                json.dump({"boring": {"block_annoyances": False}}, f)
             with Browser(user_data_dir=profile, args=args) as b:
                 b.get(page)
                 check("the engine is running", engine_running(b))

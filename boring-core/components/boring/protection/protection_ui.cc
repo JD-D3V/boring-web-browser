@@ -313,6 +313,13 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
     <input class="switch" type="checkbox" id="hide-cookies">
   </label>
 
+  <label class="setting-row" for="hide-annoyances">
+    <span><strong>Block page annoyances</strong>
+      <p>Hides newsletter pop-ups, sign-up nags and ad blocker warnings,
+      and lets pages scroll again.</p></span>
+    <input class="switch" type="checkbox" id="hide-annoyances">
+  </label>
+
   <fieldset class="regional" id="regional" hidden>
     <legend>Regional lists</legend>
     <div id="regional-lists"></div>
@@ -1168,6 +1175,7 @@ function load(s) {
   showApps(s.apps, s.ai, s.passwords);
   showFolder(s.folder);
   el('hide-cookies').checked = s.hideCookies;
+  el('hide-annoyances').checked = s.hideAnnoyances;
   el('fingerprint').checked = s.fingerprint;
   el('strip-params').checked = s.stripParams;
   el('skip-redirects').checked = s.skipRedirects;
@@ -1271,6 +1279,12 @@ el('check-update').addEventListener('click', function() {
 el('hide-cookies').addEventListener('change', function(e) {
   chrome.send('setHideCookieNotices', [e.target.checked]);
   say(e.target.checked ? 'Cookie banners blocked.' : 'Cookie banners allowed.');
+});
+
+el('hide-annoyances').addEventListener('change', function(e) {
+  chrome.send('setBlockAnnoyances', [e.target.checked]);
+  say(e.target.checked ? 'Page annoyances blocked.' :
+      'Page annoyances allowed.');
 });
 
 document.querySelectorAll('input[name="level"]').forEach(function(radio) {
@@ -1462,6 +1476,11 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
         "setHideCookieNotices",
         base::BindRepeating(&ProtectionMessageHandler::HandleSetHideCookies,
                             base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "setBlockAnnoyances",
+        base::BindRepeating(
+            &ProtectionMessageHandler::HandleSetBlockAnnoyances,
+            base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
         "setRegionalList",
         base::BindRepeating(&ProtectionMessageHandler::HandleSetRegionalList,
@@ -2419,6 +2438,8 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
             prefs && prefs->GetBoolean(prefs::kFingerprintNoise));
     out.Set("hideCookies",
             prefs && prefs->GetBoolean(prefs::kBoringBlockCookieBanners));
+    out.Set("hideAnnoyances",
+            prefs && prefs->GetBoolean(prefs::kBoringBlockAnnoyances));
     out.Set("update", UpdateStateName(BrowserUpdater::GetState()));
     out.Set("updateAuto", BrowserUpdater::IsAutomatic());
     out.Set("version", BrowserUpdater::BuildVersion());
@@ -2514,6 +2535,14 @@ class ProtectionMessageHandler : public content::WebUIMessageHandler,
     PrefService* prefs = GetPrefs();
     if (prefs && !args.empty() && args[0].is_bool()) {
       prefs->SetBoolean(prefs::kBoringBlockCookieBanners, args[0].GetBool());
+    }
+    HandleGet(args);
+  }
+
+  void HandleSetBlockAnnoyances(const base::ListValue& args) {
+    PrefService* prefs = GetPrefs();
+    if (prefs && !args.empty() && args[0].is_bool()) {
+      prefs->SetBoolean(prefs::kBoringBlockAnnoyances, args[0].GetBool());
     }
     HandleGet(args);
   }
