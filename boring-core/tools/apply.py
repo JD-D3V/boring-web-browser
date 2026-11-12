@@ -202,8 +202,10 @@ def already_patched(src, rel, stack):
                 == 0
                 for patch in reversed(stack[:k])
             )
-            if reversed_ok and not filecmp.cmp(
-                copy, os.path.join(src, rel), shallow=False
+            # Reversing a patch that created the file deletes it: a change.
+            if reversed_ok and not (
+                os.path.exists(copy)
+                and filecmp.cmp(copy, os.path.join(src, rel), shallow=False)
             ):
                 return True
         finally:

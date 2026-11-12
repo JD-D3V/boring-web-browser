@@ -159,6 +159,21 @@ class SeedPristine(unittest.TestCase):
         self.assertEqual(seeded, [self.rel])
         self.assertEqual(self.read(os.path.join(self.store, self.rel)), STACK_ORIGINAL)
 
+    def test_a_file_a_patch_created_is_not_taken_for_the_original(self):
+        # Reversing the patch deletes the file, which is a change too.
+        patch = os.path.join(self.tmp, "new.patch")
+        self.write(
+            patch,
+            "diff --git a/a/new.cc b/a/new.cc\n"
+            "new file mode 100644\n"
+            "--- /dev/null\n"
+            "+++ b/a/new.cc\n"
+            "@@ -0,0 +1 @@\n"
+            "+new\n",
+        )
+        self.write(os.path.join(self.src, "a", "new.cc"), "new\n")
+        self.assertEqual(apply.seed_pristine(self.src, [patch], self.store), [])
+
     def test_a_file_with_the_whole_stack_in_is_not_taken_for_the_original(self):
         patches = self.stacked_pair()
         self.write(self.file, STACK_ORIGINAL.replace("f\n", "F\n"))
