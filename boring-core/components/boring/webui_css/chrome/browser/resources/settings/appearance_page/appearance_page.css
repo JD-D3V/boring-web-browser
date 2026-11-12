@@ -1,0 +1,10 @@
+/* Boring Browser: appended to upstream appearance_page.css at build time
+   (tools/polymer/css_to_wrapper.py hook). Later rules win. */
+#toolbarRow {
+  background-image: var(--cr-row-divider-background, none);
+  background-origin: content-box;
+  background-position: top center;
+  background-repeat: no-repeat;
+  background-size: calc(100% - 2 * var(--cr-section-padding)) var(--cr-separator-height);
+  border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+}

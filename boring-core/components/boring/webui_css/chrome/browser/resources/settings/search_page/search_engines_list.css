@@ -1,0 +1,10 @@
+/* Boring Browser: appended to upstream search_engines_list.css at build time
+   (tools/polymer/css_to_wrapper.py hook). Later rules win. */
+settings-search-engine-entry {
+  background-image: var(--cr-row-divider-background, none);
+  background-origin: content-box;
+  background-position: top;
+  background-repeat: no-repeat;
+  background-size: 100% var(--cr-separator-height);
+  border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+}

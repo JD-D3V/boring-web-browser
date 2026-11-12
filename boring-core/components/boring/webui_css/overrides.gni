@@ -3,4 +3,17 @@
 # Paths are relative to the source root. Keep in sync with the folder
 # (tools/tests/test_webui_css_overrides.py checks).
 boring_css_overrides = [
+  "chrome/browser/resources/settings/ai_page/offer_writing_help_page.css",
+  "chrome/browser/resources/settings/appearance_page/appearance_page.css",
+  "chrome/browser/resources/settings/autofill_page/account_card.css",
+  "chrome/browser/resources/settings/autofill_page/autofill_shared_lit.css",
+  "chrome/browser/resources/settings/autofill_page/collapsible_autofill_settings_card.css",
+  "chrome/browser/resources/settings/autofill_page/payments/payments_list.css",
+  "chrome/browser/resources/settings/autofill_page/payments/payments_page.css",
+  "chrome/browser/resources/settings/on_startup_page/startup_urls_page.css",
+  "chrome/browser/resources/settings/people_page/sync_controls.css",
+  "chrome/browser/resources/settings/people_page/sync_page.css",
+  "chrome/browser/resources/settings/performance_page/tab_discard/exception_list.css",
+  "chrome/browser/resources/settings/search_page/search_engines_list.css",
+  "chrome/browser/resources/settings/search_page/search_engines_page.css",
 ]
