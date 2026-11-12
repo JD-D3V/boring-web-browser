@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.28.0.schema.json
+
+PackageIdentifier: JD-D3V.BoringBrowser
+PackageVersion: 157.0.8103.38.1
+InstallerType: exe
+# Per-user install to %LOCALAPPDATA%\BoringBrowser, no admin rights.
+Scope: user
+# Chromium's installer has no window of its own: it always installs
+# quietly. The switch only stops it opening the browser at the end.
+InstallModes:
+- silent
+- silentWithProgress
+InstallerSwitches:
+  Silent: --do-not-launch-chrome
+  SilentWithProgress: --do-not-launch-chrome
+# setup.exe exit codes, chrome/installer/util/util_constants.h.
+ExpectedReturnCodes:
+- InstallerReturnCode: 3
+  ReturnResponse: alreadyInstalled
+- InstallerReturnCode: 4
+  ReturnResponse: downgrade
+- InstallerReturnCode: 9
+  ReturnResponse: systemNotSupported
+UpgradeBehavior: install
+# The uninstall key: HKCU\Software\Microsoft\Windows\CurrentVersion\
+# Uninstall\BoringBrowser.
+ProductCode: BoringBrowser
+AppsAndFeaturesEntries:
+- DisplayName: Boring Browser
+  Publisher: JD
+  # The uninstall entry carries Chromium's version, without our release
+  # number.
+  DisplayVersion: 157.0.8103.38
+  ProductCode: BoringBrowser
+Installers:
+- Architecture: x64
+  InstallerUrl: https://github.com/JD-D3V/boring-web-browser/releases/download/v157.0.8103.38.1/BoringBrowser_157.0.8103.38.1_installer_x64.exe
+  # Hash of the installer as uploaded (Release 3, build 3). If the
+  # release is rebuilt, refill it with boring-core/tools/make_winget.py.
+  InstallerSha256: 6BA3BA0ABFACDF1CEC3E9C98ABE8F14BD20CF6B4F8E2483449A74243CE5C7D12
+ManifestType: installer
+ManifestVersion: 1.28.0
