@@ -200,6 +200,38 @@ class JobLock:
         os.close(self._fd)
         self._fd = None
 
+    def hand_over(self, owner: str, job: str, lease: float) -> None:
+        """Pass the tree to a command about to start with --owner OWNER.
+
+        The holder note names OWNER with a short lease BEFORE the operating
+        system lock is dropped, so there is no moment when the tree looks
+        free: anyone else who gets the lock sees a live lease that is not
+        theirs and is refused, while the command, which passes as OWNER,
+        walks straight in. If it never starts, the lease runs out.
+        """
+        if self._fd is None:
+            raise RuntimeError("hand_over without holding the lock")
+        expires = time.time() + float(lease)
+        _holder_path(self.path).write_text(
+            json.dumps(
+                {
+                    "owner": owner,
+                    "job": job,
+                    "pid": os.getpid(),
+                    "host": socket.gethostname(),
+                    "started": datetime.now(UTC).isoformat(timespec="seconds"),
+                    "expires": _iso(expires),
+                    "expires_epoch": expires,
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        _drop(self._fd)
+        os.close(self._fd)
+        self._fd = None
+
     def _wait_for_lock(self, fd: int) -> None:
         deadline = time.monotonic() + self.wait
         while not _take(fd):

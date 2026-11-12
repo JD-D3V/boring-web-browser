@@ -32,6 +32,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import types
 from datetime import UTC, datetime
 from pathlib import Path
@@ -1128,14 +1129,22 @@ class Bump:
             "--lock-file",
             self.root / LOCK_NAME,
         ]
+        compile_owner = f"bump-{self.set}-compile"
         cmd += [
             "--owner",
-            f"bump-{self.set}-compile",
+            compile_owner,
             "--job",
             f"bump compile {self.state['tag']}",
         ]
         cmd += ["--", "cmd", "/c", bat]
-        self.release_lock()
+        # No gap: name the compile job as the holder (short lease), THEN let
+        # go of the operating system lock. Another job that grabs the tree in
+        # between sees a lease that is not its own and is refused.
+        lock = getattr(self, "lock", None)
+        if lock is None:
+            raise NeedsHuman("bump.py does not hold the build lock to hand to ninja")
+        lock.hand_over(compile_owner, f"bump compile {self.state['tag']}", HANDOVER_LEASE)
+        self.lock = None
         with open(self.dir / "compile-launch.log", "a", encoding="utf-8") as out:
             proc = subprocess.Popen(
                 [str(c) for c in cmd],
@@ -1144,6 +1153,7 @@ class Bump:
                 creationflags=BELOW_NORMAL | DETACHED if os.name == "nt" else 0,
                 close_fds=True,
             )
+        confirm_handover(self.root / LOCK_NAME, compile_owner, proc)
         self.state["compile"] = {"pid": proc.pid, "log": str(log), "started": now()}
         return "started"
 
@@ -1207,6 +1217,44 @@ class Bump:
 
 
 # ---------------------------------------------------------- compile
+
+# How long the compile job's claim on the tree stands before joblock.py has
+# started and taken the lock itself.
+HANDOVER_LEASE = 120.0
+
+
+def confirm_handover(lock_path, owner, proc, wait=60.0, poll=0.5, clock=None):
+    """Stop unless joblock.py (proc) really took the tree as owner.
+
+    Its holder note shows the owner and the pid of proc once it has the
+    operating system lock. If it exits first (75 means the tree was busy)
+    the compile did not start.
+    """
+    import joblock
+
+    clock = clock or time.monotonic
+    deadline = clock() + wait
+    while True:
+        holder = joblock.read_holder(Path(lock_path)) or {}
+        if holder.get("owner") == owner and holder.get("pid") == proc.pid:
+            return
+        code = proc.poll()
+        if code is not None:
+            why = (
+                "someone else has the tree"
+                if code == joblock.BUSY_EXIT
+                else f"it exited with {code}"
+            )
+            raise NeedsHuman(
+                f"the compile job did not start: {why}. See compile-launch.log; "
+                "run again when the tree is free."
+            )
+        if clock() >= deadline:
+            raise NeedsHuman(
+                f"the compile job has not taken the build lock after {wait:.0f} s; "
+                "check compile-launch.log and boring-build.lock.holder.json"
+            )
+        time.sleep(poll)
 
 
 def compile_status(log_text):

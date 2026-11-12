@@ -444,6 +444,107 @@ def test_do_args_stops_when_there_is_no_previous_args_to_compare(args_bump):
     assert not (root / "build/src/out/Default/args.gn").exists()
 
 
+# ------------------------------------------------------ compile lock handover
+
+
+def test_handover_leaves_no_moment_when_the_tree_looks_free(tmp_path):
+    import joblock
+
+    path = tmp_path / "boring-build.lock"
+    ours = joblock.JobLock("bump", path=path, owner="bump-160")
+    ours.acquire()
+    ours.hand_over("bump-160-compile", "bump compile", 60)
+    # the operating system lock is free, but the tree is claimed
+    other = joblock.JobLock("intruder", path=path, owner="other")
+    with pytest.raises(joblock.TreeBusy) as busy:
+        other.acquire()
+    assert "bump compile" in str(busy.value)
+    # the compile job, passing as the named owner, walks straight in
+    compile_job = joblock.JobLock("bump compile", path=path, owner="bump-160-compile")
+    compile_job.acquire()
+    holder = joblock.read_holder(path)
+    assert holder["owner"] == "bump-160-compile" and joblock.lease_is_live(holder)
+    compile_job.release()
+
+
+def test_a_handover_that_never_starts_runs_out(tmp_path):
+    import joblock
+
+    path = tmp_path / "boring-build.lock"
+    ours = joblock.JobLock("bump", path=path, owner="bump-160")
+    ours.acquire()
+    ours.hand_over("bump-160-compile", "bump compile", -1)
+    joblock.JobLock("next", path=path, owner="other").acquire()  # no TreeBusy
+    with pytest.raises(RuntimeError):
+        ours.hand_over("x", "y", 1)  # nothing held any more
+
+
+class FakeProc:
+    def __init__(self, pid=4242, code=None):
+        self.pid, self.code = pid, code
+
+    def poll(self):
+        return self.code
+
+
+def write_holder(path, **fields):
+    import json
+
+    import joblock
+
+    joblock._holder_path(path).write_text(json.dumps(fields), encoding="utf-8")
+
+
+def test_confirm_handover_waits_for_the_compile_job_itself(tmp_path):
+    path = tmp_path / "boring-build.lock"
+    write_holder(path, owner="o", pid=4242)
+    bump.confirm_handover(path, "o", FakeProc(4242))
+    write_holder(path, owner="o", pid=1)  # the note bump.py left, not the job's
+    ticks = iter(range(100))
+    with pytest.raises(bump.NeedsHuman, match="has not taken the build lock"):
+        bump.confirm_handover(
+            path, "o", FakeProc(4242), wait=3, poll=0, clock=lambda: next(ticks)
+        )
+
+
+def test_confirm_handover_stops_when_the_job_lost_the_tree(tmp_path):
+    import joblock
+
+    path = tmp_path / "boring-build.lock"
+    write_holder(path, owner="other", pid=7)
+    with pytest.raises(bump.NeedsHuman, match="someone else has the tree"):
+        bump.confirm_handover(path, "o", FakeProc(code=joblock.BUSY_EXIT))
+    with pytest.raises(bump.NeedsHuman, match="exited with 1"):
+        bump.confirm_handover(path, "o", FakeProc(code=1))
+
+
+def test_do_compile_hands_the_lock_over_before_the_job_launches(tmp_path, monkeypatch):
+    import joblock
+
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", "")
+    root = tmp_path / "ung-160"
+    (root / "boring-bump").mkdir(parents=True)
+    state = {"major": 160, "prev": str(tmp_path / "p"), "source": "tarball", "tag": "160.0.1.2-1.1"}
+    b = bump.Bump(root, state, types.SimpleNamespace(vcvars="vcvars64.bat"))
+    b.take_lock()
+    seen = {}
+
+    def fake_popen(cmd, **_kw):
+        # the moment between "bump.py lets go" and "joblock.py starts"
+        intruder = joblock.JobLock("intruder", path=root / bump.LOCK_NAME, owner="x")
+        with pytest.raises(joblock.TreeBusy):
+            intruder.acquire()
+        seen["cmd"] = [str(c) for c in cmd]
+        write_holder(root / bump.LOCK_NAME, owner="bump-160-compile", pid=555)
+        return FakeProc(555)
+
+    monkeypatch.setattr(bump.subprocess, "Popen", fake_popen)
+    assert b.do_compile() == "started"
+    assert b.lock is None
+    assert "bump-160-compile" in seen["cmd"] and "joblock.py" in " ".join(seen["cmd"])
+    b.release_lock()  # nothing left to release, and no error
+
+
 SHA_A, SHA_B = "a" * 40, "b" * 40
 
 
