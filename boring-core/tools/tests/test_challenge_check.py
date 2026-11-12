@@ -186,7 +186,7 @@ class Setup(unittest.TestCase):
         self.assertEqual(len(names), len(set(names)))
         for p in cc.PAGES:
             self.assertTrue(p["url"].startswith("https://"), p["name"])
-            self.assertIn(p["group"], ("challenge", "detector", "ordinary"))
+            self.assertIn(p["group"], ("challenge", "detector", "ordinary", "needs-click"))
 
     def test_tool_never_sends_input(self):
         src = (TOOLS / "challenge_check.py").read_text(encoding="utf-8")

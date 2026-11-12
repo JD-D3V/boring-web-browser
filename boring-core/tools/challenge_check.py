@@ -85,6 +85,8 @@ ONE_SWITCH = {
 }
 
 # group: challenge  a Cloudflare interstitial or widget we wait on
+#        needs-click  a widget that only issues a token after a click; never
+#                   run by default, since this tool never clicks
 #        detector   a page that prints a bot or consistency verdict
 #        ordinary   an everyday site behind Cloudflare (robots.txt checked)
 PAGES = [
@@ -94,14 +96,14 @@ PAGES = [
      "url": "https://nowsecure.nl/"},
     {"name": "recaptcha-v3", "group": "detector", "kind": "recaptcha",
      "url": "https://recaptcha-demo.appspot.com/recaptcha-v3-request-scores.php"},
-    {"name": "hcaptcha-demo", "group": "challenge", "kind": "widget-hcaptcha",
+    {"name": "hcaptcha-demo", "group": "needs-click", "kind": "widget-hcaptcha",
      "url": "https://accounts.hcaptcha.com/demo"},
     {"name": "creepjs", "group": "detector", "kind": "creepjs",
      "url": "https://abrahamjuliot.github.io/creepjs/"},
     {"name": "sannysoft", "group": "detector", "kind": "sannysoft",
      "url": "https://bot.sannysoft.com/"},
     {"name": "botd", "group": "detector", "kind": "botd",
-     "url": "https://fingerprintjs.github.io/BotD/main/"},
+     "url": "https://fingerprint.com/products/bot-detection/"},
     {"name": "browserleaks-webgl", "group": "detector", "kind": "browserleaks",
      "url": "https://browserleaks.com/webgl"},
     {"name": "browserleaks-canvas", "group": "detector", "kind": "browserleaks",
@@ -213,8 +215,12 @@ def parse_verdict(kind, text, counts=None):
     if kind == "recaptcha":
         return {"score": _num(r'"score"\s*:\s*([0-9.]+)', text)}
     if kind == "botd":
-        m = re.search(r'"bot"\s*:\s*(true|false)', text, re.I)
-        bot = None if not m else m.group(1).lower() == "true"
+        m = re.search(r'"bot"\s*:\s*"?(true|false|not_detected|good|bad)"?', text, re.I)
+        bot = None if not m else m.group(1).lower() not in ("false", "not_detected")
+        # fingerprint.com prints a sample answer (timestamp "loading") until
+        # its demo call returns; that sample says nothing about this browser.
+        if bot is not None and re.search(r'"timestamp"\s*:\s*"loading"', text):
+            return {"bot": None, "sample_only": True}
         if bot is None and re.search(r"\bnot a bot\b", text, re.I):
             bot = False
         elif bot is None and re.search(r"\byou are a bot\b|\bbot detected\b", text, re.I):
@@ -224,7 +230,9 @@ def parse_verdict(kind, text, counts=None):
         counts = counts or {}
         return {"failed": counts.get("failed"), "passed": counts.get("passed")}
     if kind == "browserleaks":
-        m = re.search(r"Unmasked Renderer\s*[:\t ]*([^\n]+)", text)
+        m = re.search(r"Unmasked Renderer[:\t ]*\n(?:!\n)?([^\n]+)", text)
+        if not m:
+            m = re.search(r"Unmasked Renderer[:\t ]+([^\n!][^\n]*)", text)
         u = re.search(r"Uniqueness\s*[:\t ]*([^\n]+)", text)
         return {"renderer": m.group(1).strip() if m else None,
                 "uniqueness": u.group(1).strip() if u else None}
