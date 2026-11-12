@@ -31,6 +31,7 @@ HOST = "login.localhost"  # Chromium resolves *.localhost to loopback itself
 USER = "tester"
 STORED = "kept-" + USER
 REMEMBER_SECONDS = 30 * 24 * 3600
+MAX_BODY = 4096  # the sign-in body is "user=tester"
 
 SIGN_IN_JS = """(async () => {
   const r = await fetch('/login', {method: 'POST', body: 'user=%s',
@@ -135,7 +136,12 @@ class LoginSite:
             def do_POST(self):  # noqa: N802
                 if not self.host_ok():
                     return
-                length = int(self.headers.get("Content-Length") or 0)
+                raw = (self.headers.get("Content-Length") or "0").strip()
+                if not (raw.isascii() and raw.isdigit()):
+                    return self.reply("bad length", "text/plain", status=400)
+                length = int(raw)
+                if length > MAX_BODY:
+                    return self.reply("too big", "text/plain", status=413)
                 body = self.rfile.read(length).decode("utf-8", "replace")
                 user = dict(
                     p.partition("=")[::2] for p in body.split("&") if p

@@ -115,6 +115,24 @@ class LoginSiteRequestsTest(unittest.TestCase):
             200,
         )
 
+    def test_content_length_is_checked_and_capped(self):
+        host = f"127.0.0.1:{self.port}"
+
+        def post(length):
+            # A body as long as it claims, when that is small enough to send.
+            size = length if isinstance(length, int) and 5 <= length <= 5000 else 11
+            body = b"user=" + b"a" * (size - 5)
+            return self.raw("POST", "/login", host, f"Content-Length: {length}\r\n", body)
+
+        self.assertEqual(post(11), 200)
+        self.assertEqual(post(login_site.MAX_BODY), 200)
+        self.assertEqual(post(login_site.MAX_BODY + 1), 413)
+        self.assertEqual(post(10**12), 413)
+        for bad in ("-1", "abc", "1.5", "0x10", "+5"):
+            self.assertEqual(post(bad), 400, bad)
+        # No Content-Length at all is an empty body, not a hang.
+        self.assertEqual(self.raw("POST", "/login", host), 200)
+
 
 class LoginChecksTest(unittest.TestCase):
     def test_signed_in_checks(self):
