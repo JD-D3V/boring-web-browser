@@ -373,6 +373,77 @@ def test_args_gn_has_no_way_to_reach_dunders(ung):
         )
 
 
+PREV_ARGS = (
+    "chrome_pgo_phase=2\nis_official_build=true\nchrome_pgo_phase=0\n"
+    'v8_metagen_libclang_so="E:/ung-157/x/libclang.dll"\n'
+)
+
+
+def test_args_diff_ignores_only_the_machine_paths():
+    new = (
+        "is_official_build=true\nchrome_pgo_phase=0\n"
+        'v8_metagen_libclang_so="E:/ung-160/y/libclang.dll"\n'
+        "v8_metagen_libclang_bindings_dir=\"C:/site\"\n"
+    )
+    assert bump.args_gn_diff(PREV_ARGS, new) == []
+    flipped = new.replace("is_official_build=true", "is_official_build=false")
+    flipped += "dcheck_always_on=true\n"
+    assert bump.args_gn_diff(PREV_ARGS, flipped) == [
+        "ADDED   dcheck_always_on=true",
+        "CHANGED is_official_build: true -> false",
+    ]
+    removed = "chrome_pgo_phase=0\n"
+    assert bump.args_gn_diff(PREV_ARGS, removed) == ["REMOVED is_official_build=true"]
+
+
+@pytest.fixture
+def args_bump(tmp_path, monkeypatch):
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", "")
+    root, prev = tmp_path / "ung-160", tmp_path / "ung-157"
+    (root / "build" / "src").mkdir(parents=True)
+    (root / "boring-bump").mkdir()
+    (root / "build.py").write_text(BUILD_PY, encoding="utf-8")
+    (prev / "build" / "src" / "out" / "Default").mkdir(parents=True)
+    state = {"major": 160, "prev": str(prev), "source": "tarball"}
+    ns = types.SimpleNamespace(accept_args=False)
+    monkeypatch.setattr(
+        bump, "args_gn_from_build_py", lambda *a, **k: "is_official_build=false\n"
+    )
+    return bump.Bump(root, state, ns), prev, root, ns
+
+
+def test_do_args_stops_for_a_changed_key_and_writes_nothing(args_bump, capsys):
+    b, prev, root, _ns = args_bump
+    (prev / "build/src/out/Default/args.gn").write_text(PREV_ARGS, encoding="utf-8")
+    with pytest.raises(bump.NeedsHuman, match="--accept-args"):
+        b.do_args()
+    assert "CHANGED is_official_build: true -> false" in capsys.readouterr().out
+    assert not (root / "build/src/out/Default/args.gn").exists()
+    assert "CHANGED is_official_build" in (root / "boring-bump/args-diff.txt").read_text()
+
+
+def test_do_args_goes_on_when_accepted_or_unchanged(args_bump):
+    b, prev, root, ns = args_bump
+    (prev / "build/src/out/Default/args.gn").write_text(PREV_ARGS, encoding="utf-8")
+    ns.accept_args = True
+    b.do_args()
+    assert (root / "build/src/out/Default/args.gn").read_text() == (
+        "is_official_build=false\n"
+    )
+    ns.accept_args = False
+    (prev / "build/src/out/Default/args.gn").write_text(
+        "is_official_build=false\n", encoding="utf-8"
+    )
+    b.do_args()  # nothing differs
+
+
+def test_do_args_stops_when_there_is_no_previous_args_to_compare(args_bump):
+    b, _prev, root, _ns = args_bump
+    with pytest.raises(bump.NeedsHuman, match="no args.gn in the previous tree"):
+        b.do_args()
+    assert not (root / "build/src/out/Default/args.gn").exists()
+
+
 def test_build_steps_know_build_pys_calls_and_flag_new_ones():
     kinds = [k for k, _ in bump.build_steps(BUILD_PY)]
     assert kinds == ["bootstrap", "gen", "bindgen", "ninja"]

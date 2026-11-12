@@ -11,6 +11,7 @@ which stages are done. See BUMP.txt next to this file.
   python bump.py --dir E:\ung-160 --status
   python bump.py --dir E:\ung-160 --branch ... --redo sort
   python bump.py --dir E:\ung-160 --branch ... --accept-scan
+  python bump.py --dir E:\ung-160 --branch ... --accept-args
   python bump.py --dir E:\ung-160 --branch ... --write-port tab-shape.patch
 
 It writes only into the new tree (--dir) and into this checkout, which
@@ -442,6 +443,38 @@ def args_gn_from_build_py(text, root, tarball, find_spec=importlib.util.find_spe
     out = run(_args_block(ast.parse(text)))
     if not isinstance(out, str):
         raise NeedsHuman("could not work out what build.py writes to args.gn")
+    return out
+
+
+# Keys whose value follows the tree or the machine, not a decision upstream
+# made: where libclang and the Python clang bindings are.
+VERSION_KEYS = {"v8_metagen_libclang_so", "v8_metagen_libclang_bindings_dir"}
+
+
+def args_gn_values(text):
+    """{key: value} of an args.gn; a key set twice keeps its last value, as gn does."""
+    values = {}
+    for line in text.splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, _, value = line.partition("=")
+            values[key.strip()] = value.strip()
+    return values
+
+
+def args_gn_diff(old_text, new_text):
+    """Lines saying which args.gn keys differ, leaving out VERSION_KEYS."""
+    old, new = args_gn_values(old_text), args_gn_values(new_text)
+    out = []
+    for key in sorted(set(old) | set(new)):
+        if key in VERSION_KEYS or old.get(key) == new.get(key):
+            continue
+        if key not in old:
+            out.append(f"ADDED   {key}={new[key]}")
+        elif key not in new:
+            out.append(f"REMOVED {key}={old[key]}")
+        else:
+            out.append(f"CHANGED {key}: {old[key]} -> {new[key]}")
     return out
 
 
@@ -943,6 +976,24 @@ class Bump:
         content = args_gn_from_build_py(
             text, self.root, self.state["source"] == "tarball"
         )
+        # A flag upstream added or flipped (official build, dcheck, symbols,
+        # sandbox, API keys) must not slip into our build unseen.
+        prev_args = self.prev_src / "out" / "Default" / "args.gn"
+        if prev_args.is_file():
+            diff = args_gn_diff(prev_args.read_text(encoding="utf-8"), content)
+        else:
+            diff = [f"no args.gn in the previous tree at {prev_args} to compare with"]
+        (self.dir / "args-diff.txt").write_text(
+            "\n".join(diff) + "\n" if diff else "", encoding="utf-8"
+        )
+        if diff and not self.args.accept_args:
+            for line in diff:
+                print(" ", line)
+            raise NeedsHuman(
+                f"args.gn differs from the previous tree ({diff[0]}; {len(diff)} line(s), "
+                f"listed above and in {self.dir / 'args-diff.txt'}). Read each (a changed default can "
+                "undo a privacy or safety setting), then run again with --accept-args."
+            )
         out = self.src / "out" / "Default"
         out.mkdir(parents=True, exist_ok=True)
         (out / "args.gn").write_text(content, encoding="utf-8")
@@ -1295,6 +1346,7 @@ def main(argv=None):
     ap.add_argument("--status", action="store_true")
     ap.add_argument("--redo", choices=NAMES)
     ap.add_argument("--accept-scan", action="store_true")
+    ap.add_argument("--accept-args", action="store_true")
     ap.add_argument("--write-port", metavar="PATCH")
     args = ap.parse_args(argv)
 

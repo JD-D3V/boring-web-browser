@@ -52,7 +52,10 @@ Stages
              feature-defaults.patch forces off that no longer exist. flips.txt.
   args       out\Default\args.gn as the tag's own build.py writes it (read
              from build.py, not copied). STOPS if build.py changed in a way
-             bump.py does not understand, or gained a build step.
+             bump.py does not understand, or gained a build step. Also
+             STOPS on any key that differs from the previous tree's args.gn
+             (the two libclang paths excepted); read args-diff.txt, then
+             --accept-args.
   layer      apply.py --patch-set <major>: components, patches, rebrand,
              adblock DLL (cargo; --no-rust to skip), scam list stand-in.
   toolchain  gn bootstrap, bindgen, Crubit, and a copy of gn.exe for V8's
