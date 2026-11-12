@@ -1,0 +1,22 @@
+/* Boring Browser: appended to upstream cr_toggle.css at build time
+   (tools/polymer/css_to_wrapper.py hook). Later rules win. */
+:host {
+  --cr-toggle-bar-border-color: var(--cr-toggle-track-border-color, var(--cr-toggle-unchecked-button-color));
+  --cr-toggle-bar-width: var(--cr-toggle-track-width, 26px);
+  --cr-toggle-knob-diameter: var(--cr-toggle-knob-size, 8px);
+}
+:host(:active) {
+  --cr-toggle-knob-diameter: var(--cr-toggle-knob-size-active, 10px);
+}
+:host([checked]) {
+  --cr-toggle-knob-diameter: var(--cr-toggle-knob-size-checked, 12px);
+}
+:host([checked]:active) {
+  --cr-toggle-knob-diameter: var(--cr-toggle-knob-size-checked-active, 14px);
+}
+#bar {
+  height: var(--cr-toggle-track-height, 16px);
+}
+#knob {
+  --cr-toggle-knob-center-edge-distance_: var(--cr-toggle-knob-inset, 8px);
+}

@@ -1,0 +1,39 @@
+/* Boring Browser: appended to upstream settings_shared_lit.css at build time
+   (tools/polymer/css_to_wrapper.py hook). Later rules win. */
+h2 {
+  color: var(--cr-primary-text-color);
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+a[href] {
+  font-weight: 600;
+}
+.settings-box {
+  background-image: var(--cr-row-divider-background, none);
+  background-origin: content-box;
+  background-position: top;
+  background-repeat: no-repeat;
+  background-size: 100% var(--cr-separator-height);
+  border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+}
+.settings-box.first, .settings-box.continuation {
+  background-image: none;
+}
+.secondary {
+  font-size: 12px;
+  margin-top: 5px;
+  max-width: 430px;
+}
+.cr-padded-text, .settings-box-text {
+  color: var(--cr-primary-text-color);
+  font-size: var(--cr-row-title-font-size, 14px);
+  font-weight: var(--cr-row-title-font-weight, 600);
+}
+.cr-row:not(:has(> *)) {
+  font-size: var(--cr-row-title-font-size, inherit);
+  font-weight: var(--cr-row-title-font-weight, inherit);
+}
+.settings-box .middle {
+  padding-inline-start: 20px;
+}

@@ -1,0 +1,24 @@
+/* Boring Browser: appended to upstream cr_toolbar.css at build time
+   (tools/polymer/css_to_wrapper.py hook). Later rules win. */
+:host {
+  background: var(--cr-toolbar-background-color, transparent);
+  border-bottom: var(--cr-toolbar-border-bottom, none);
+  color: var(--cr-toolbar-foreground-color, var(--google-grey-900));
+}
+@media (prefers-color-scheme: dark) {
+  :host {
+    color: var(--cr-toolbar-foreground-color, var(--cr-secondary-text-color));
+  }
+}
+h1 {
+  display: var(--cr-toolbar-header-display, block);
+}
+#centeredContent {
+  justify-content: var(--cr-toolbar-center-justify, center);
+}
+:host(:not([narrow])) #leftContent {
+  flex: var(--cr-toolbar-left-content-flex, 1 1 var(--cr-toolbar-field-margin, 0));
+}
+:host([always-show-logo]) picture, :host(:not([narrow])) picture {
+  display: var(--cr-toolbar-logo-display, initial);
+}

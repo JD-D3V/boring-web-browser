@@ -1,0 +1,16 @@
+/* Boring Browser: appended to upstream settings_subpage.css at build time
+   (tools/polymer/css_to_wrapper.py hook). Later rules win. */
+:host {
+  --cr-row-divider-border: none;
+  --cr-row-divider-background: linear-gradient( var(--cr-separator-color), var(--cr-separator-color));
+}
+:host-context([settings-refresh-2026]) {
+  --cr-icon-button-margin-start: -12px;
+  --cr-icon-button-margin-end: 8px;
+}
+.cr-title-text {
+  font-size: 24px;
+  font-weight: 550;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}

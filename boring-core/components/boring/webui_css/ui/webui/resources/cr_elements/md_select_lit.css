@@ -1,0 +1,8 @@
+/* Boring Browser: appended to upstream md_select_lit.css at build time
+   (tools/polymer/css_to_wrapper.py hook). Later rules win. */
+.md-select {
+  --md-select-bg-color: var(--cr-md-select-background-color, transparent);
+  border-radius: var(--cr-md-select-border-radius, 8px);
+  font-size: var(--cr-md-select-font-size, 12px);
+  max-width: var(--cr-md-select-max-width, 100%);
+}

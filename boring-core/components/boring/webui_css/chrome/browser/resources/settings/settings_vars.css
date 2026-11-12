@@ -1,0 +1,34 @@
+/* Boring Browser: appended to upstream settings_vars.css at build time
+   (tools/polymer/css_to_wrapper.py hook). Later rules win. */
+html {
+  --boring-chrome: #eeede8;
+  --boring-surface: var(--color-location-bar-background, #faf9f6);
+  --boring-paper: var(--color-dialog-background, #fff);
+  --boring-ink: var(--color-dialog-foreground, #242e2d);
+  --boring-muted: var(--color-label-foreground-secondary, #5d6966);
+  --boring-line: var(--color-bubble-border, #d8ddd7);
+  --boring-field: color-mix(in srgb, var(--boring-ink) 52%, var(--boring-surface, #7d8985));
+  --boring-accent: var(--color-sys-primary, #176b5b);
+  --boring-accent-on: var(--color-sys-on-primary, #faf9f6);
+  --boring-soft: var(--color-sys-primary-container, #e5f1eb);
+  --boring-warning: #9e3e24;
+  --boring-warning-soft: #fbebe4;
+  --settings-error-color: var(--boring-warning);
+}
+@media (prefers-color-scheme: dark) {
+  html {
+    --boring-chrome: #171f1d;
+    --boring-surface: var(--color-location-bar-background, #1c2422);
+    --boring-paper: var(--color-dialog-background, #252e2b);
+    --boring-ink: var(--color-dialog-foreground, #e8ede7);
+    --boring-muted: var(--color-label-foreground-secondary, #adb9b2);
+    --boring-line: var(--color-bubble-border, #414e47);
+    --boring-field: color-mix(in srgb, var(--boring-ink) 52%, var(--boring-surface, #8b9891));
+    --boring-accent: var(--color-sys-primary, #92d4bb);
+    --boring-accent-on: var(--color-sys-on-primary, #092b25);
+    --boring-soft: var(--color-sys-primary-container, #273f35);
+    --boring-warning: #ffb69c;
+    --boring-warning-soft: #412f28;
+    --settings-error-color: var(--boring-warning);
+  }
+}

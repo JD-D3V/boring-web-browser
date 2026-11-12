@@ -1,0 +1,7 @@
+/* Boring Browser: appended to upstream cr_button.css at build time
+   (tools/polymer/css_to_wrapper.py hook). Later rules win. */
+:host {
+  --cr-button-background-color: var(--cr-button-default-background-color, transparent);
+  border-radius: var(--cr-button-border-radius, 100px);
+  font-weight: var(--cr-button-font-weight, 500);
+}

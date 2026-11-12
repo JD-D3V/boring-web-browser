@@ -1,0 +1,29 @@
+/* Boring Browser: appended to upstream cr_shared_style_lit.css at build time
+   (tools/polymer/css_to_wrapper.py hook). Later rules win. */
+.hr {
+  background-image: var(--cr-row-divider-background, none);
+  background-origin: content-box;
+  background-position: top;
+  background-repeat: no-repeat;
+  background-size: 100% var(--cr-separator-height);
+  border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+}
+.cr-row {
+  background-image: var(--cr-row-divider-background, none);
+  background-origin: content-box;
+  background-position: top;
+  background-repeat: no-repeat;
+  background-size: 100% var(--cr-separator-height);
+  border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+  gap: var(--cr-row-gap, 0);
+}
+.cr-row.first, .cr-row.continuation {
+  background-image: none;
+}
+.cr-title-text {
+  font-weight: var(--cr-title-text-font-weight, 500);
+}
+#labelWrapper > #label, #labelWrapper > .label:not(.cr-secondary-text) {
+  font-size: var(--cr-row-title-font-size, inherit);
+  font-weight: var(--cr-row-title-font-weight, inherit);
+}

@@ -1,0 +1,14 @@
+/* Boring Browser: appended to upstream settings_columned_section_lit.css at build time
+   (tools/polymer/css_to_wrapper.py hook). Later rules win. */
+.settings-columned-section .description-header {
+  color: var(--boring-accent);
+}
+@media (prefers-color-scheme: dark) {
+  .settings-columned-section .description-header {
+    color: var(--boring-accent);
+  }
+}
+:host-context([settings-refresh-2026]) {
+  gap: 10px;
+  gap: 10px;
+}

@@ -1,0 +1,30 @@
+/* Boring Browser: appended to upstream settings_section.css at build time
+   (tools/polymer/css_to_wrapper.py hook). Later rules win. */
+:host {
+  --cr-row-divider-border: none;
+  --cr-row-divider-background: linear-gradient( var(--cr-separator-color), var(--cr-separator-color));
+}
+#header {
+  align-items: center;
+  padding-inline: var(--cr-section-padding);
+}
+#header .title {
+  font-size: 32px;
+  font-weight: 550;
+  letter-spacing: -0.045em;
+  line-height: 1.1;
+  margin-top: 0;
+  padding-bottom: 0;
+  padding-top: 0;
+}
+:host(:not(:first-of-type)) #header .title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  margin-bottom: 12px;
+  margin-top: 28px;
+}
+#feedback {
+  margin-top: 0;
+}

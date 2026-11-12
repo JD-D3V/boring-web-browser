@@ -1,0 +1,14 @@
+/* Boring Browser: appended to upstream cr_toolbar_search_field.css at build time
+   (tools/polymer/css_to_wrapper.py hook). Later rules win. */
+#searchTerm {
+  font-size: var(--cr-toolbar-search-field-font-size, 12px);
+}
+input {
+  font-size: var(--cr-toolbar-search-field-font-size, 12px);
+}
+:host(:not([narrow])) {
+  border: var(--cr-toolbar-search-field-border, none);
+  box-sizing: border-box;
+  height: var(--cr-toolbar-search-field-height, 36px);
+  --cr-toolbar-search-field-border-radius: var( --cr-toolbar-search-field-shape, 100px);
+}

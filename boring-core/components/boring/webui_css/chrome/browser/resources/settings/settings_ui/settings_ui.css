@@ -1,0 +1,135 @@
+/* Boring Browser: appended to upstream settings_ui.css at build time
+   (tools/polymer/css_to_wrapper.py hook). Later rules win. */
+:host {
+  --settings-menu-width: 224px;
+  --settings-menu-content-width-estimate: 225px;
+  background: var(--boring-surface);
+  color: var(--boring-ink);
+  --cr-card-background-color: transparent;
+  --cr-card-shadow: none;
+  --cr-card-border-radius: 0;
+  --cr-primary-text-color: var(--boring-ink);
+  --cr-secondary-text-color: var(--boring-muted);
+  --cr-title-text-color: var(--boring-ink);
+  --cr-link-color: var(--boring-accent);
+  --cr-row-title-font-size: 14px;
+  --cr-row-title-font-weight: 600;
+  --cr-title-text-font-weight: 600;
+  --cr-separator-color: var(--boring-line);
+  --cr-section-padding: 20px;
+  --cr-section-vertical-padding: 18px;
+  --cr-section-min-height: 40px;
+  --cr-row-gap: 20px;
+  --cr-centered-card-max-width: none;
+  --cr-centered-card-width-percentage: 1;
+  --cr-hover-background-color: var(--boring-soft);
+  --cr-hover-on-subtle-background-color: var(--boring-soft);
+  --cr-focus-outline-color: var(--boring-accent);
+  --cr-checked-color: var(--boring-accent);
+  --color-toggle-button-track-on: var(--boring-accent);
+  --color-toggle-button-track-off: var(--boring-field);
+  --color-toggle-button-thumb-on: var(--boring-surface);
+  --color-toggle-button-thumb-off: var(--boring-paper);
+  --color-toggle-button-thumb-on-hover: var(--boring-soft);
+  --cr-toggle-track-width: 40px;
+  --cr-toggle-track-height: 24px;
+  --cr-toggle-track-border-color: var(--boring-field);
+  --cr-toggle-knob-inset: 12px;
+  --cr-toggle-knob-size: 16px;
+  --cr-toggle-knob-size-active: 16px;
+  --cr-toggle-knob-size-checked: 16px;
+  --cr-toggle-knob-size-checked-active: 16px;
+  --cr-button-height: 40px;
+  --cr-button-border-radius: 7px;
+  --cr-button-font-weight: 600;
+  --cr-button-default-background-color: var(--boring-paper);
+  --color-button-border: var(--boring-line);
+  --color-button-foreground: var(--boring-ink);
+  --color-button-background-prominent: var(--boring-accent);
+  --color-button-foreground-prominent: var(--boring-accent-on);
+  --cr-md-select-background-color: var(--boring-paper);
+  --cr-md-select-border-radius: 6px;
+  --cr-md-select-max-width: 170px;
+  --md-select-width: auto;
+  --color-combobox-container-outline: var(--boring-field);
+  --color-textfield-filled-underline: var(--boring-field);
+  --cr-toolbar-background-color: var(--boring-surface);
+  --cr-toolbar-border-bottom: 1px solid var(--boring-line);
+  --cr-toolbar-foreground-color: var(--boring-ink);
+  --cr-toolbar-header-display: none;
+  --cr-toolbar-logo-display: none;
+  --cr-toolbar-left-content-flex: 0 0 calc( var(--settings-menu-content-width-estimate) + 1px + 48px);
+  --cr-toolbar-center-justify: flex-start;
+  --cr-toolbar-field-width: 480px;
+  --cr-toolbar-search-field-background: var(--boring-paper);
+  --cr-toolbar-search-field-border: 1px solid var(--boring-field);
+  --cr-toolbar-search-field-shape: 8px;
+  --cr-toolbar-search-field-height: 38px;
+  --cr-toolbar-search-field-font-size: 13px;
+  --cr-toolbar-search-field-input-text-color: var(--boring-ink);
+  --cr-toolbar-search-field-prompt-color: var(--boring-muted);
+  --cr-toolbar-search-field-icon-color: var(--boring-muted);
+  --settings-main-basis: 780px;
+}
+#left {
+  border-inline-end: 1px solid var(--boring-line);
+  box-sizing: border-box;
+  flex: none;
+  min-width: var(--settings-menu-width);
+  padding: 36px 20px;
+  width: var(--settings-menu-width);
+}
+#sidebarHeading {
+  color: var(--boring-ink);
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 12px 24px;
+}
+#left settings-menu {
+  display: block;
+  scrollbar-color: var(--boring-line) transparent;
+  scrollbar-width: thin;
+  width: 100%;
+}
+#main {
+  box-sizing: border-box;
+  flex: 0 1 780px;
+  max-width: 780px;
+  min-width: 0;
+  padding: 40px 28px;
+}
+#right {
+  display: none;
+}
+@media (max-width: 800px) {
+  #main {
+    min-width: auto;
+    padding: 30px 4px;
+  }
+}
+@media (max-width: 800px) {
+  #container {
+    flex-direction: column;
+  }
+}
+@media (max-width: 800px) {
+  #left {
+    border-bottom: 1px solid var(--boring-line);
+    border-inline-end: none;
+    height: auto;
+    min-width: 0;
+    padding: 12px;
+    position: static;
+    width: 100%;
+  }
+}
+@media (max-width: 800px) {
+  #sidebarHeading {
+    display: none;
+  }
+}
+@media (prefers-color-scheme: light) {
+  cr-toolbar {
+    --iron-icon-fill-color: inherit;
+  }
+}
