@@ -1,0 +1,21 @@
+/* Boring Browser: appended to upstream autofill_page.css at build time
+   (tools/polymer/css_to_wrapper.py hook). Later rules win. */
+#title {
+  text-align: unset;
+  font-size: 32px;
+  font-weight: 550;
+  letter-spacing: -0.045em;
+  line-height: 1.1;
+  margin-bottom: 12px;
+  margin-top: 0;
+  padding-inline-start: var(--cr-section-padding);
+}
+#subtitle {
+  font-size: unset;
+  line-height: unset;
+  margin: unset;
+  max-width: unset;
+  text-align: unset;
+  margin-bottom: 20px;
+  padding-inline-start: var(--cr-section-padding);
+}
