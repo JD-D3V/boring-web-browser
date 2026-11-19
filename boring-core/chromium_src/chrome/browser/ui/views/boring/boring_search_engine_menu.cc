@@ -710,48 +710,6 @@ base::WeakPtr<content::WebContents>& TestTab() {
 
 }  // namespace
 
-bool OpenColourPickerForPage(content::WebContents* page) {
-  BrowserWindowInterface* window =
-      page ? GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(page)
-           : nullptr;
-  BrowserView* view =
-      window ? BrowserView::GetBrowserViewForBrowser(window) : nullptr;
-  if (!view) {
-    return false;
-  }
-  chrome::ExecuteCommand(view->browser(), IDC_CUSTOMIZE_CHROME);
-  return true;
-}
-
-bool ShowSearchEngineMenuForPage(
-    content::WebContents* page,
-    const gfx::Rect& anchor_in_page,
-    base::RepeatingCallback<void(const std::string&)> on_pick,
-    base::RepeatingClosure on_default_changed,
-    base::OnceClosure on_closed) {
-  LocationBarView* bar = BarForPage(page);
-  content::RenderWidgetHostView* view =
-      page ? page->GetRenderWidgetHostView() : nullptr;
-  if (!bar || !view) {
-    return false;
-  }
-  // CSS pixels to screen DIP: the page's zoom, then where it sits.
-  const double zoom =
-      blink::ZoomLevelToZoomFactor(content::HostZoomMap::GetZoomLevel(page));
-  gfx::Rect anchor = gfx::ToEnclosingRect(
-      gfx::ScaleRect(gfx::RectF(anchor_in_page), static_cast<float>(zoom)));
-  anchor.Offset(view->GetViewBounds().OffsetFromOrigin());
-  return BoringSearchEngineMenu::Show(
-      bar, /*anchor_view=*/nullptr, anchor,
-      base::BindRepeating(
-          [](const base::RepeatingCallback<void(const std::string&)>& pick,
-             const std::u16string& keyword) {
-            pick.Run(base::UTF16ToUTF8(keyword));
-          },
-          std::move(on_pick)),
-      std::move(on_default_changed), std::move(on_closed));
-}
-
 void GetRecentPagesForPage(
     content::WebContents* page,
     size_t max,

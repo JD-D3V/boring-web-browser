@@ -405,6 +405,7 @@ window.loadShortcuts = function(list, added, rejected) {
   } else if (added) {
     closeForm();
   }
+};
 window.loadProtection = showProtection;
 // Test only, see kSearchMenuTestSwitch.
 window.searchMenuTestResult = function(result) {
