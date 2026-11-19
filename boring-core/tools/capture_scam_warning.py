@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Photograph the scam warning page: Cool and Green, light and dark.
+"""Photograph the scam warning page, light and dark.
 
 Same setup as smoke_scam.py (a temporary list, a local name mapped to
 127.0.0.1), and the same way of photographing as capture_native.py: a
 PrintWindow of our own browser window, never the screen.
 
 Usage: python capture_scam_warning.py [--out DIR]
-Writes DIR/scam-warning-<cool|green>-<light|dark>.png, by default into
+Writes DIR/scam-warning-<light|dark>.png, by default into
 artifacts/scam-warning/ at the repository root.
 """
 

@@ -12,7 +12,15 @@ diff --git a/chrome/browser/ui/views/location_bar/BUILD.gn b/chrome/browser/ui/v
        "content_setting_image_view.cc",
        "custom_tab_bar_view.cc",
        "lens_overlay_homework_page_action_controller.cc",
-@@ -151,6 +155,7 @@ source_set("impl") {
+@@ -120,6 +124,7 @@ source_set("impl") {
+       "//chrome/browser/extensions",
+       "//chrome/browser/extensions/api/omnibox",
+       "//chrome/browser/glic",
++      "//chrome/browser/history",
+       "//chrome/browser/history_embeddings",
+       "//chrome/browser/page_info",
+       "//chrome/browser/resources/omnibox_popup:resources_grit",
+@@ -151,6 +156,7 @@ source_set("impl") {
        "//chrome/browser/ui/views:bubble_anchor_util_views",
        "//chrome/browser/ui/views:content_setting_bubble_contents",
        "//chrome/browser/ui/views:layout_provider",
@@ -20,7 +28,7 @@ diff --git a/chrome/browser/ui/views/location_bar/BUILD.gn b/chrome/browser/ui/v
        "//chrome/browser/ui/views/frame:toolbar_button_provider",
        "//chrome/browser/ui/views/interaction",
        "//chrome/browser/ui/views/page_action",
-@@ -169,6 +174,8 @@ source_set("impl") {
+@@ -169,6 +175,8 @@ source_set("impl") {
        "//chrome/browser/web_applications",
        "//chrome/browser/web_applications:features",
        "//components/autofill/core/common:features",
@@ -29,7 +37,15 @@ diff --git a/chrome/browser/ui/views/location_bar/BUILD.gn b/chrome/browser/ui/v
        "//components/commerce/core:feature_list",
        "//components/contextual_search:public",
        "//components/contextual_tasks/public:feature_list",
-@@ -186,18 +193,21 @@ source_set("impl") {
+@@ -175,6 +183,7 @@ source_set("impl") {
+       "//components/dom_distiller/core",
+       "//components/favicon/content",
+       "//components/feature_engagement/public:feature_constants",
++      "//components/history/core/browser",
+       "//components/history_embeddings/content",
+       "//components/history_embeddings/core",
+       "//components/lens",
+@@ -186,18 +195,21 @@ source_set("impl") {
        "//components/record_replay/core/common",
        "//components/safe_browsing/core/common:features",
        "//components/search",

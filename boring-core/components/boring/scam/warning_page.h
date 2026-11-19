@@ -11,6 +11,12 @@ class WebContents;
 
 namespace boring {
 
+// Where "Report a mistake" goes: the project's issue list, opened in a new
+// tab when the link is pressed. Nothing about the blocked site is added to
+// it, and nothing is sent before the press.
+inline constexpr char kReportMistakeUrl[] =
+    "https://github.com/JD-D3V/boring-web-browser/issues";
+
 // The words on one warning page. Plain text: the page escapes it. Keep it
 // short and calm: what happened, what to do, and one main button.
 struct WarningText {
@@ -30,7 +36,9 @@ struct WarningText {
 // the browser. "Continue anyway" is left out when `may_continue` is false.
 //
 // The buttons call the interstitial controller: the main button is
-// CMD_DONT_PROCEED and "Continue anyway" is CMD_PROCEED.
+// CMD_DONT_PROCEED, "Continue anyway" is CMD_PROCEED and "Report a
+// mistake" is CMD_OPEN_HELP_CENTER (the page's blocking class opens
+// kReportMistakeUrl for it).
 std::string BuildWarningPage(content::WebContents* web_contents,
                              const WarningText& text,
                              bool may_continue);

@@ -9,7 +9,6 @@
 #include "base/functional/callback.h"
 #include "base/time/time.h"
 #include "base/values.h"
-#include "ui/gfx/geometry/rect.h"
 #include "url/gurl.h"
 
 namespace base {
@@ -32,22 +31,6 @@ inline constexpr char kSearchMenuTestSwitch[] = "boring-search-menu-test";
 // built into chrome/browser/ui (the menu is a browser window's native
 // menu, which components/boring cannot reach). The same split as
 // components/boring/search/search_engines.h.
-
-// Shows the browser's search engine menu under `anchor_in_page`, a
-// rectangle in `page`'s own CSS pixels. `on_pick` gets the keyword of an
-// engine chosen to search with once; `on_default_changed` runs after
-// "Make default"; `on_closed` when the menu has rolled up. False when
-// `page` is not in a browser window with an address bar.
-bool ShowSearchEngineMenuForPage(
-    content::WebContents* page,
-    const gfx::Rect& anchor_in_page,
-    base::RepeatingCallback<void(const std::string&)> on_pick,
-    base::RepeatingClosure on_default_changed,
-    base::OnceClosure on_closed);
-
-// Opens the browser's colour picker (Customize Chrome) for the window that
-// holds `page`. False when `page` is not in a browser window.
-bool OpenColourPickerForPage(content::WebContents* page);
 
 // Runs one test command, see kSearchMenuTestSwitch. Returns none
 // without the switch.

@@ -17,7 +17,7 @@ Checked:
     turned on through the Protection page's own switch);
   a listed host's subdomains are blocked and its parent is not (CERT
     Polska's rule);
-  the page follows the window's colours: Cool and Green, light and dark;
+  the page is painted in the design's light and dark colours;
   the Protection page names the scam row as on;
   a list of fewer than 10 hosts is refused: the row reads Unavailable and a
     host on the list opens (ledger 93), while a list of exactly 10 works.
@@ -102,18 +102,13 @@ def check_list_size(pages, check):
                         check(f"{label}: a host on it is not blocked", opened and not warned)
 
 
-# What each colour choice must paint, from boring_color_mixer.cc: the
-# page background and the main button.
+# What the warning page paints, light and dark: the page background and the
+# main button, the TOKENS rows of the compiled design (the page does not
+# follow the Cool or Green choice any more; smoke_warning_page.py checks
+# the rest of its look).
 VARIANTS = [
-    ("cool-light", [], "rgb(255, 255, 255)", "rgb(79, 70, 229)"),
-    ("cool-dark", ["--force-dark-mode"], "rgb(29, 30, 40)", "rgb(157, 154, 255)"),
-    ("green-light", ["--boring-scheme=green"], "rgb(255, 255, 255)", "rgb(23, 107, 91)"),
-    (
-        "green-dark",
-        ["--force-dark-mode", "--boring-scheme=green"],
-        "rgb(29, 30, 40)",
-        "rgb(79, 201, 174)",
-    ),
+    ("light", [], "rgb(248, 247, 244)", "rgb(26, 28, 34)"),
+    ("dark", ["--force-dark-mode"], "rgb(21, 21, 20)", "rgb(232, 233, 237)"),
 ]
 
 GO_BACK = "[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Go back to safety')"
