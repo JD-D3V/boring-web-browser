@@ -1,0 +1,285 @@
+diff --git a/chrome/browser/ui/views/tabs/tab_group_underline.h b/chrome/browser/ui/views/tabs/tab_group_underline.h
+--- a/chrome/browser/ui/views/tabs/tab_group_underline.h
++++ b/chrome/browser/ui/views/tabs/tab_group_underline.h
+@@ -25,8 +25,10 @@
+   METADATA_HEADER(TabGroupUnderline, views::View)
+ 
+  public:
+-  static constexpr int kStrokeThickness =
+-      views::FocusRing::kDefaultHaloThickness;
++  // boring: the line under a group is 3 DIP, as in the compiled design,
++  // not the 2 DIP focus halo. The outline Chromium draws round the open
++  // tab of a group shares it, so the two stay joined.
++  static constexpr int kStrokeThickness = 3;
+ 
+   static int GetStrokeInset();
+ 
+diff --git a/chrome/browser/ui/views/tabs/common/tab_group_view_layout.cc b/chrome/browser/ui/views/tabs/common/tab_group_view_layout.cc
+--- a/chrome/browser/ui/views/tabs/common/tab_group_view_layout.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_group_view_layout.cc
+@@ -26,7 +26,8 @@
+ 
+ namespace {
+ constexpr int kTabVerticalPadding = 2;
+-constexpr int kGroupLineWidth = 2;
++// boring: 3 DIP, the same line as under a group of top tabs.
++constexpr int kGroupLineWidth = 3;
+ constexpr int kGroupLineCollapsedLeadingPadding = 6;
+ constexpr int kGroupHeaderHeight = 26;
+ constexpr int kGroupHeaderVerticalMargin = 4;
+diff --git a/chrome/browser/ui/views/tabs/common/tab_group_style.h b/chrome/browser/ui/views/tabs/common/tab_group_style.h
+--- a/chrome/browser/ui/views/tabs/common/tab_group_style.h
++++ b/chrome/browser/ui/views/tabs/common/tab_group_style.h
+@@ -8,6 +8,7 @@
+ #include <optional>
+ 
+ #include "chrome/browser/ui/views/tabs/shared/tab_strip_types.h"
++#include "third_party/skia/include/core/SkColor.h"
+ #include "ui/gfx/geometry/insets.h"
+ #include "ui/gfx/geometry/point.h"
+ 
+@@ -33,6 +34,18 @@
+   // Returns the leading padding for a tab group header when it is the first
+   // item in the tab strip.
+   static int GetLeadingGroupHeaderPadding();
++
++  // boring: the wash of a group's colour behind its label and its tabs,
++  // with the group's line along its bottom (compiled design, screens 1
++  // and 9). Its colour on a tab strip of the given colour.
++  static SkColor GetTabTint(SkColor group_color, SkColor strip_color);
++  // How far into a group header the wash and the line start: a little
++  // before the label chip.
++  static int GetTabTintHeaderInset();
++  // How far in from each edge of a top tab the wash and the line reach:
++  // the tab's painted edge less half the gap to its neighbour, so the
++  // washes of neighbouring tabs meet.
++  static int GetTabTintTabInset();
+ };
+ 
+ #endif  // CHROME_BROWSER_UI_VIEWS_TABS_COMMON_TAB_GROUP_STYLE_H_
+diff --git a/chrome/browser/ui/views/tabs/common/tab_group_style.cc b/chrome/browser/ui/views/tabs/common/tab_group_style.cc
+--- a/chrome/browser/ui/views/tabs/common/tab_group_style.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_group_style.cc
+@@ -9,6 +9,7 @@
+ #include "chrome/browser/ui/layout_constants.h"
+ #include "chrome/browser/ui/tabs/tab_style.h"
+ #include "chrome/browser/ui/views/tabs/shared/tab_strip_types.h"
++#include "ui/gfx/color_utils.h"
+ #include "ui/gfx/geometry/insets.h"
+ #include "ui/gfx/geometry/point.h"
+ 
+@@ -86,3 +87,31 @@
+ int TabGroupStyle::GetLeadingGroupHeaderPadding() {
+   return TabStyle::Get()->GetTabOverlap() - GetTabGroupOverlapAdjustment();
+ }
++
++// boring: the compiled design's group wash, 15% of the group colour over
++// white on a light strip and 22% over black on a dark one. The tab titles
++// on it keep their own colour, so it stays light in light and dark in dark.
++// static
++SkColor TabGroupStyle::GetTabTint(SkColor group_color, SkColor strip_color) {
++  const bool dark = color_utils::IsDark(strip_color);
++  return color_utils::AlphaBlend(group_color,
++                                 dark ? SK_ColorBLACK : SK_ColorWHITE,
++                                 dark ? 0.22f : 0.15f);
++}
++
++// boring: 6 DIP before the label chip, as drawn.
++// static
++int TabGroupStyle::GetTabTintHeaderInset() {
++  return GetLeadingGroupHeaderPadding() - 6;
++}
++
++// boring: a top tab paints its shape inset by the bottom corner radius,
++// and neighbours sit a separator's width plus its margins apart.
++// static
++int TabGroupStyle::GetTabTintTabInset() {
++  const TabStyle* const style = TabStyle::Get();
++  return style->GetBottomCornerRadius() -
++         (style->GetSeparatorMargins().width() +
++          style->GetSeparatorSize().width()) /
++             2;
++}
+diff --git a/chrome/browser/ui/views/tabs/common/horizontal_tab_style_views.cc b/chrome/browser/ui/views/tabs/common/horizontal_tab_style_views.cc
+--- a/chrome/browser/ui/views/tabs/common/horizontal_tab_style_views.cc
++++ b/chrome/browser/ui/views/tabs/common/horizontal_tab_style_views.cc
+@@ -22,6 +22,7 @@
+ #include "chrome/browser/ui/views/frame/browser_frame_view.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/frame/themed_background.h"
++#include "chrome/browser/ui/views/tabs/common/tab_group_style.h"
+ #include "chrome/browser/ui/views/tabs/tab.h"
+ #include "chrome/browser/ui/views/tabs/tab/glow_hover_controller.h"
+ #include "chrome/browser/ui/views/tabs/tab_group_underline.h"
+@@ -554,7 +555,11 @@
+         return delegate->IsActive() || delegate->IsSelected() ||
+                delegate->IsHovering() ||
+                (delegate->IsPinned() &&
+-                tabs::IsNewHorizontalPinnedTabStylingEnabled());
++                tabs::IsNewHorizontalPinnedTabStylingEnabled()) ||
++               // boring: a tab on its group's wash (see
++               // PaintTabBackgroundFill()) needs no separator.
++               (delegate->GetGroup().has_value() &&
++                !delegate->IsInFocusedGroup());
+       };
+ 
+   // These tab states all have visible backgrounds. Separators must not
+@@ -797,9 +802,52 @@
+   gfx::ScopedCanvas scoped_canvas(canvas);
+   const float scale = canvas->UndoDeviceScaleFactor();
+ 
++  // boring: a tab in a group, other than the open or a picked one, sits on
++  // a wash of the group's colour. The wash fills the gap to the tabs beside
++  // it, so the group reads as one band from its label to its last tab, with
++  // the group's line along the bottom; the band's far end is rounded like a
++  // tab (compiled design, screen 1).
++  const std::optional<SkColor> group_color = delegate_->GetGroupColor();
++  const bool paint_group_tint =
++      group_color.has_value() && !delegate_->IsInFocusedGroup() &&
++      selection_state == TabStyle::TabSelectionState::kInactive &&
++      !fill_id.has_value();
++  if (paint_group_tint) {
++    const int inset = TabGroupStyle::GetTabTintTabInset();
++    const SkRect band = SkRect::MakeLTRB(
++        inset * scale,
++        GetLayoutConstant(LayoutConstant::kTabStripPadding) * scale,
++        (delegate_->GetView()->width() - inset) * scale,
++        (GetLayoutConstant(LayoutConstant::kTabHeight) -
++         GetLayoutConstant(LayoutConstant::kTabstripToolbarOverlap)) *
++            scale);
++    const TabStyleViewDelegate* const next_tab =
++        delegate_->GetAdjacentTab(/*leading=*/false);
++    const float end_radius =
++        (!next_tab || next_tab->GetGroup() != delegate_->GetGroup())
++            ? tab_style()->GetTopCornerRadius() * scale
++            : 0.0f;
++    const bool rtl = base::i18n::IsRTL();
++    // Radii are clockwise from top left.
++    const SkVector band_radii[4] = {
++        SkVector(rtl ? end_radius : 0.0f, rtl ? end_radius : 0.0f),
++        SkVector(rtl ? 0.0f : end_radius, rtl ? 0.0f : end_radius),
++        SkVector(0.0f, 0.0f), SkVector(0.0f, 0.0f)};
++    SkRRect band_rrect;
++    band_rrect.setRectRadii(band, band_radii);
++    cc::PaintFlags tint_flags;
++    tint_flags.setAntiAlias(true);
++    tint_flags.setColor(TabGroupStyle::GetTabTint(
++        group_color.value(),
++        GetCurrentTabBackgroundColor(selection_state, /*hovered=*/false)));
++    canvas->sk_canvas()->drawRRect(band_rrect, tint_flags);
++  }
++
+   canvas->ClipPath(fill_path, true);
+ 
+-  if (ShouldPaintTabBackgroundColor(selection_state, fill_id.has_value())) {
++  // boring: not over the group's wash.
++  if (!paint_group_tint &&
++      ShouldPaintTabBackgroundColor(selection_state, fill_id.has_value())) {
+     cc::PaintFlags flags;
+     flags.setAntiAlias(true);
+ 
+diff --git a/chrome/browser/ui/views/tabs/common/vertical_tab_style_views.cc b/chrome/browser/ui/views/tabs/common/vertical_tab_style_views.cc
+--- a/chrome/browser/ui/views/tabs/common/vertical_tab_style_views.cc
++++ b/chrome/browser/ui/views/tabs/common/vertical_tab_style_views.cc
+@@ -11,6 +11,7 @@
+ #include "chrome/browser/ui/layout_constants.h"
+ #include "chrome/browser/ui/views/frame/browser_frame_view.h"
+ #include "chrome/browser/ui/views/tabs/common/tab_collection_node.h"
++#include "chrome/browser/ui/views/tabs/common/tab_group_style.h"
+ #include "chrome/browser/ui/views/tabs/common/tab_strip_collection_controller.h"
+ #include "chrome/browser/ui/views/tabs/common/tab_view.h"
+ #include "chrome/browser/ui/views/tabs/tab.h"
+@@ -150,7 +151,27 @@
+ 
+   canvas->ClipPath(fill_path, true);
+ 
+-  if (ShouldPaintTabBackgroundColor(selection_state, fill_id.has_value(),
++  // boring: a side tab in a group, other than the open or a picked one,
++  // sits on a wash of the group's colour beside the group's line
++  // (compiled design, screen 9). Hovering it still shows the hover colour.
++  const std::optional<SkColor> group_color = delegate_->GetGroupColor();
++  const bool paint_group_tint =
++      group_color.has_value() &&
++      selection_state == TabStyle::TabSelectionState::kInactive &&
++      !fill_id.has_value();
++  if (paint_group_tint) {
++    cc::PaintFlags tint_flags;
++    tint_flags.setAntiAlias(true);
++    tint_flags.setColor(TabGroupStyle::GetTabTint(
++        group_color.value(),
++        GetCurrentTabBackgroundColor(TabStyle::TabSelectionState::kInactive)));
++    canvas->DrawRect(gfx::ScaleToEnclosingRect(
++                         delegate_->GetView()->GetLocalBounds(), scale),
++                     tint_flags);
++  }
++
++  if ((!paint_group_tint || hovered) &&
++      ShouldPaintTabBackgroundColor(selection_state, fill_id.has_value(),
+                                     hovered)) {
+     cc::PaintFlags flags;
+     flags.setAntiAlias(true);
+diff --git a/chrome/browser/ui/views/tabs/tab_group_header.cc b/chrome/browser/ui/views/tabs/tab_group_header.cc
+--- a/chrome/browser/ui/views/tabs/tab_group_header.cc
++++ b/chrome/browser/ui/views/tabs/tab_group_header.cc
+@@ -567,6 +567,32 @@
+   clip_bounds.Outset(1);
+   title_chip_->SetClipPath(SkPath::Rect(gfx::RectToSkRect(clip_bounds)));
+ 
++  // boring: the group's wash runs behind its label too, from a little
++  // before the chip to the first tab's wash, and stops on top of the
++  // group's line (compiled design, screen 1). A folded group is only its
++  // label. The background is painted unmirrored, so in right-to-left the
++  // insets and the rounded corner swap sides.
++  if (GetColorProvider() && !is_collapsed_) {
++    const bool frame_active = GetWidget() && GetWidget()->ShouldPaintAsActive();
++    const SkColor strip_color = tab_style_->GetTabBackgroundColor(
++        TabStyle::TabSelectionState::kInactive, /*hovered=*/false,
++        frame_active, GetColorProvider());
++    const bool rtl = base::i18n::IsRTL();
++    const int lead = TabGroupStyle::GetTabTintHeaderInset();
++    const float radius = tab_style_->GetTopCornerRadius();
++    const int top = GetLayoutConstant(LayoutConstant::kTabStripPadding);
++    const int bottom =
++        GetLayoutConstant(LayoutConstant::kTabstripToolbarOverlap) +
++        TabGroupUnderline::kStrokeThickness;
++    SetBackground(views::CreateRoundedRectBackground(
++        TabGroupStyle::GetTabTint(color_, strip_color),
++        gfx::RoundedCornersF(rtl ? 0.0f : radius, rtl ? radius : 0.0f, 0.0f,
++                             0.0f),
++        gfx::Insets::TLBR(top, rtl ? 0 : lead, bottom, rtl ? lead : 0)));
++  } else {
++    SetBackground(nullptr);
++  }
++
+   if (views::FocusRing::Get(this)) {
+     views::FocusRing::Get(this)->DeprecatedLayoutImmediately();
+   }
+diff --git a/chrome/browser/ui/views/tabs/tab_group_underline.cc b/chrome/browser/ui/views/tabs/tab_group_underline.cc
+--- a/chrome/browser/ui/views/tabs/tab_group_underline.cc
++++ b/chrome/browser/ui/views/tabs/tab_group_underline.cc
+@@ -76,7 +76,9 @@
+   const TabGroupHeader* const header =
+       views::AsViewClass<TabGroupHeader>(sibling_view);
+   if (header) {
+-    return gfx::Insets::TLBR(0, TabGroupUnderline::GetStrokeInset(), 0,
++    // boring: start where the group's wash starts, a little before the
++    // label chip (see TabGroupHeader::VisualsChanged()).
++    return gfx::Insets::TLBR(0, TabGroupStyle::GetTabTintHeaderInset(), 0,
+                              TabGroupUnderline::GetStrokeInset());
+   }
+ 
+@@ -88,9 +90,11 @@
+     return gfx::Insets::TLBR(0, -kStrokeThickness, 0, -kStrokeThickness);
+   }
+ 
+-  // Inactive tabs are inset like group headers.
+-  const int left_inset = TabGroupUnderline::GetStrokeInset();
+-  const int right_inset = TabGroupUnderline::GetStrokeInset();
++  // boring: inactive tabs are inset to the edge of the group's wash
++  // behind them (see HorizontalTabStyleViews::PaintTabBackgroundFill()),
++  // so the line runs the wash's full width.
++  const int left_inset = TabGroupStyle::GetTabTintTabInset();
++  const int right_inset = TabGroupStyle::GetTabTintTabInset();
+ 
+   return gfx::Insets::TLBR(0, left_inset, 0, right_inset);
+ }
