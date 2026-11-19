@@ -79,6 +79,8 @@ CHECKS = [
     ),
     ("157 fixes (Protection switches, features kept off)", "smoke_r3_fixes.py"),
     ("deleted sessions gone from the encrypted copies", "smoke_session_copies.py"),
+    # boring: cui-tabgroups
+    ("tab groups: label, wash and line, top and side", "smoke_tabgroups.py"),
 ]
 
 # Every smoke_*.py that is not a check, with the reason. A new file must
@@ -99,6 +101,7 @@ NATIVE_CHECKS = {
     "smoke_tabs.py",
     "smoke_vtabs.py",
     "smoke_quick_buttons.py",
+    "smoke_tabgroups.py",  # boring: cui-tabgroups
 }
 
 
