@@ -67,6 +67,7 @@ ARGPARSE_TOOLS = {
     "smoke_tabs.py",
     "smoke_vtabs.py",
     "smoke_quick_buttons.py",
+    "smoke_tabgroups.py",  # boring: cui-tabgroups
     "test_update_local.py",
     "probe_focus.py",
 }
@@ -183,6 +184,15 @@ def build_steps(out, net_seconds):
             [tool("smoke_quick_buttons.py", "--out", str(shots / "quick-buttons"))],
             900,
             "six short browser launches, off screen",
+            smoke_lines,
+        ),
+        # boring: cui-tabgroups
+        Step(
+            "1i-tabgroups",
+            "tab groups: label, wash and line, top and side (smoke and pictures)",
+            [tool("smoke_tabgroups.py", "--out", str(shots / "tab-groups"))],
+            900,
+            "two short browser launches, off screen, with a test extension",
             smoke_lines,
         ),
         Step(

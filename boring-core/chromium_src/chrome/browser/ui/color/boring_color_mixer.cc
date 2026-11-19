@@ -459,6 +459,51 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   // boring: cui-icons
   // boring: end cui-icons
   // boring: cui-tabgroups
+  // The nine group colours, quieter than Chromium's Google tones. Each is
+  // the solid label, the line under the group and, washed out, the band
+  // behind its tabs (TabGroupStyle::GetTabTint). Light ones are dark enough
+  // for white label text and dark ones light enough for Chromium's
+  // near-black label text, both at least 5.3 to 1; the tab titles on the
+  // wash stay above 5.3 to 1 too. Cyan is the compiled design's teal.
+  struct GroupColour {
+    ui::ColorId active;
+    ui::ColorId inactive;
+    SkColor light;
+    SkColor dark;
+  };
+  const GroupColour group_colours[] = {
+      {kColorTabGroupTabStripFrameActiveGrey,
+       kColorTabGroupTabStripFrameInactiveGrey, SkColorSetRGB(0x5c, 0x5f, 0x66),
+       SkColorSetRGB(0xb9, 0xbc, 0xc2)},
+      {kColorTabGroupTabStripFrameActiveBlue,
+       kColorTabGroupTabStripFrameInactiveBlue, SkColorSetRGB(0x2f, 0x5f, 0xb3),
+       SkColorSetRGB(0x8a, 0xb4, 0xf8)},
+      {kColorTabGroupTabStripFrameActiveRed,
+       kColorTabGroupTabStripFrameInactiveRed, SkColorSetRGB(0xb3, 0x26, 0x1e),
+       SkColorSetRGB(0xf2, 0x8b, 0x82)},
+      {kColorTabGroupTabStripFrameActiveYellow,
+       kColorTabGroupTabStripFrameInactiveYellow,
+       SkColorSetRGB(0x83, 0x5c, 0x00), SkColorSetRGB(0xf2, 0xc3, 0x5b)},
+      {kColorTabGroupTabStripFrameActiveGreen,
+       kColorTabGroupTabStripFrameInactiveGreen,
+       SkColorSetRGB(0x1e, 0x7a, 0x3c), SkColorSetRGB(0x7f, 0xcf, 0x96)},
+      {kColorTabGroupTabStripFrameActivePink,
+       kColorTabGroupTabStripFrameInactivePink, SkColorSetRGB(0xad, 0x2f, 0x69),
+       SkColorSetRGB(0xf4, 0x8f, 0xb9)},
+      {kColorTabGroupTabStripFrameActivePurple,
+       kColorTabGroupTabStripFrameInactivePurple,
+       SkColorSetRGB(0x6b, 0x45, 0xb8), SkColorSetRGB(0xc3, 0xa6, 0xf5)},
+      {kColorTabGroupTabStripFrameActiveCyan,
+       kColorTabGroupTabStripFrameInactiveCyan, SkColorSetRGB(0x0f, 0x6f, 0x66),
+       SkColorSetRGB(0x6f, 0xcf, 0xc4)},
+      {kColorTabGroupTabStripFrameActiveOrange,
+       kColorTabGroupTabStripFrameInactiveOrange,
+       SkColorSetRGB(0x9c, 0x47, 0x00), SkColorSetRGB(0xf5, 0xa3, 0x5c)},
+  };
+  for (const GroupColour& group : group_colours) {
+    mixer[group.active] = {dark ? group.dark : group.light};
+    mixer[group.inactive] = {dark ? group.dark : group.light};
+  }
   // boring: end cui-tabgroups
   // boring: cui-toolbar
   // boring: end cui-toolbar
