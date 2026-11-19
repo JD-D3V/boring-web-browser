@@ -114,7 +114,11 @@ BoringToolbarMenu::BoringToolbarMenu(BrowserWindowInterface* browser,
     : browser_(browser), toolbar_(toolbar), model_(this) {
   model_.AddItem(IDC_SHOW_CUSTOMIZE_CHROME_TOOLBAR,
                  l10n_util::GetStringUTF16(IDS_SHOW_CUSTOMIZE_CHROME_TOOLBAR));
-  toolbar_->set_context_menu_controller(this);
+  // Incognito and guest windows have no Customize panel, so no menu there;
+  // the test hook below still runs in them.
+  if (browser_->GetProfile()->IsRegularProfile()) {
+    toolbar_->set_context_menu_controller(this);
+  }
 
   // boring: test hook. Checking this means acting without sending input
   // to the desktop, so --boring-toolbar-test=<step> does one thing a few
@@ -140,7 +144,9 @@ BoringToolbarMenu::BoringToolbarMenu(BrowserWindowInterface* browser,
 }
 
 BoringToolbarMenu::~BoringToolbarMenu() {
-  toolbar_->set_context_menu_controller(nullptr);
+  if (toolbar_->context_menu_controller() == this) {
+    toolbar_->set_context_menu_controller(nullptr);
+  }
 }
 
 bool BoringToolbarMenu::IsCommandIdEnabled(int command_id) const {

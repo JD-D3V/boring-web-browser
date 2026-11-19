@@ -97,7 +97,7 @@ index 3b919b3..9dc60b7 100644
      "chrome_labs/chrome_labs_bubble_view.cc",
      "chrome_labs/chrome_labs_coordinator.cc",
 diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.cc b/chrome/browser/ui/views/toolbar/toolbar_view.cc
-index 5c384da..50b7d30 100644
+index 5c384da..af9acd9 100644
 --- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
 +++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
 @@ -104,6 +104,7 @@
@@ -112,9 +112,9 @@ index 5c384da..50b7d30 100644
      toolbar_webview_->ToolbarInitialized();
    }
  
-+  // boring: right click on the toolbar offers "Customize toolbar".
-+  if (display_mode_ == DisplayMode::kNormal &&
-+      browser_->GetProfile()->IsRegularProfile()) {
++  // boring: right click on the toolbar offers "Customize toolbar" (in
++  // regular windows; the menu checks).
++  if (display_mode_ == DisplayMode::kNormal) {
 +    boring_menu_ = std::make_unique<BoringToolbarMenu>(browser_, this);
 +  }
 +

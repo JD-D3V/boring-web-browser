@@ -141,11 +141,19 @@ class PatchTest(unittest.TestCase):
         self.assertEqual(gone.count("add_action("), 3)
 
     def test_the_toolbar_creates_the_menu_for_normal_windows_only(self):
+        # Regular profiles only is the menu's own check, so its test hook
+        # also runs in incognito windows.
         text = added(self.files[VIEW_CC])
         self.assertIn("boring_toolbar_menu.h", text)
         self.assertIn("DisplayMode::kNormal", text)
-        self.assertIn("IsRegularProfile()", text)
         self.assertIn("make_unique<BoringToolbarMenu>(browser_, this)", text)
+        cc = (MENU / "boring_toolbar_menu.cc").read_text(encoding="utf-8")
+        self.assertIn(
+            "if (browser_->GetProfile()->IsRegularProfile()) {\n"
+            "    toolbar_->set_context_menu_controller(this);",
+            cc,
+        )
+        self.assertIn("if (toolbar_->context_menu_controller() == this) {", cc)
         self.assertEqual(removed(self.files[VIEW_CC]), "")
 
     def test_build_gn_lists_both_new_files(self):
