@@ -190,32 +190,31 @@ diff --git a/chrome/browser/ui/views/toolbar/app_menu.cc b/chrome/browser/ui/vie
  
    int32_t types = views::MenuRunner::HAS_MNEMONICS;
    if (for_drop()) {
-@@ -1074,13 +1077,22 @@
+@@ -1070,6 +1073,11 @@
+ }
+ 
+ const gfx::FontList* AppMenu::GetLabelFontList(int command_id) const {
++  // boring: the main menu's own headings (boring::StyleAppMenu gives them
++  // this id) are small and quiet. Titles in submenus keep the look below.
++  if (command_id == boring::kAppMenuHeadingId) {
++    return &boring::AppMenuHeadingFont();
++  }
+   ui::MenuModel* model = model_;
    size_t index = 0;
    ui::MenuModel::GetModelAndIndexForCommandId(command_id, &model, &index);
-   if (model->GetTypeAt(index) == ui::MenuModel::TYPE_TITLE) {
--    return &views::TypographyProvider::Get().GetFont(
--        views::style::CONTEXT_LABEL, views::style::STYLE_HEADLINE_5);
-+    // boring: the small quiet headings of the approved menu.
-+    return &boring::AppMenuHeadingFont();
-   }
-   return model->GetLabelFontListAt(index);
+@@ -1081,6 +1089,11 @@
  }
  
  std::optional<SkColor> AppMenu::GetLabelColor(int command_id) const {
-+  // boring: headings are quiet, in the colour of the shortcuts.
-+  ui::MenuModel* model = model_;
-+  size_t index = 0;
-+  if (ui::MenuModel::GetModelAndIndexForCommandId(command_id, &model,
-+                                                  &index) &&
-+      model->GetTypeAt(index) == ui::MenuModel::TYPE_TITLE) {
++  // boring: the main menu's headings are in the colour of the shortcuts.
++  if (command_id == boring::kAppMenuHeadingId) {
 +    return root_->GetSubmenu()->GetColorProvider()->GetColor(
 +        ui::kColorMenuItemForegroundSecondary);
 +  }
    // Only return a color if there's a font list - otherwise this method will
    // return a color for every recent tab item, not just the header.
    // Ensure that we call GetColor() using the `root_`'s SubmenuView as this is
-@@ -1233,7 +1245,9 @@
+@@ -1233,7 +1246,9 @@
    // (increment/decrement/reset) and extension toolbar view are always enabled.
    // The child views of these items enabled state updates appropriately.
    if (command_id == AppMenuModel::kEditMenuPlaceholder ||
@@ -226,7 +225,7 @@ diff --git a/chrome/browser/ui/views/toolbar/app_menu.cc b/chrome/browser/ui/vie
      return true;
    }
  
-@@ -1271,7 +1285,9 @@
+@@ -1271,7 +1286,9 @@
    }
  
    if (command_id == AppMenuModel::kEditMenuPlaceholder ||
@@ -237,7 +236,7 @@ diff --git a/chrome/browser/ui/views/toolbar/app_menu.cc b/chrome/browser/ui/vie
      // These items are represented by child views. If ExecuteCommand is invoked
      // it means the user clicked on the area around the buttons and we should
      // not do anyting.
-@@ -1307,7 +1323,9 @@
+@@ -1307,7 +1324,9 @@
    }
  
    if (command_id == AppMenuModel::kEditMenuPlaceholder ||
@@ -248,7 +247,7 @@ diff --git a/chrome/browser/ui/views/toolbar/app_menu.cc b/chrome/browser/ui/vie
      // These have special child views; don't show the accelerator for them.
      return false;
    }
-@@ -1605,6 +1623,16 @@
+@@ -1605,6 +1624,16 @@
          break;
        }
  
@@ -295,7 +294,19 @@ diff --git a/ui/views/controls/menu/menu_item_view.h b/ui/views/controls/menu/me
 diff --git a/ui/views/controls/menu/menu_item_view.cc b/ui/views/controls/menu/menu_item_view.cc
 --- a/ui/views/controls/menu/menu_item_view.cc
 +++ b/ui/views/controls/menu/menu_item_view.cc
-@@ -1403,6 +1403,17 @@
+@@ -1048,6 +1048,11 @@
+ }
+ 
+ bool MenuItemView::IsTraversableByKeyboard() const {
++  // boring: a row shown as a heading is never a stop for the selection,
++  // also not with a screen reader on, when disabled rows are.
++  if (GetViewAccessibility().GetCachedRole() == ax::mojom::Role::kHeading) {
++    return false;
++  }
+   bool ignore_enabled =
+       ui::AXPlatform::GetInstance().GetMode().has_mode(ui::AXMode::kNativeAPIs);
+   return GetVisible() && (ignore_enabled || GetEnabledInViewsSubtree());
+@@ -1403,6 +1408,17 @@
        clip_to_background =
            (menu_item_background_->top_padding > 0 && top_r > 0) ||
            (menu_item_background_->bottom_padding > 0 && bot_r > 0);
@@ -313,3 +324,29 @@ diff --git a/ui/views/controls/menu/menu_item_view.cc b/ui/views/controls/menu/m
      } else {
        radii[2].set(bottom_rounded_corners_.lower_right(),
                     bottom_rounded_corners_.lower_right());
+diff --git a/ui/views/controls/menu/menu_controller.cc b/ui/views/controls/menu/menu_controller.cc
+--- a/ui/views/controls/menu/menu_controller.cc
++++ b/ui/views/controls/menu/menu_controller.cc
+@@ -2064,6 +2064,22 @@
+   bool handled_key_code = false;
+ 
+   const ui::KeyboardCode key_code = event.key_code();
++  // boring: Left and Right move across a row of buttons (the zoom and edit
++  // rows, the main menu's tiles and bottom bar), as Up and Down do. At the
++  // end of a row, or on a button that opens a submenu, they act as before.
++  if ((key_code == ui::VKEY_LEFT || key_code == ui::VKEY_RIGHT) &&
++      pending_state_.item && !IsEditableCombobox()) {
++    MenuItemView* row = pending_state_.item;
++    Button* button = GetFirstHotTrackedView(row);
++    if (button && !button->GetProperty(kSubmenuItemKey)) {
++      const bool forward = (key_code == ui::VKEY_RIGHT) != base::i18n::IsRTL();
++      if (Button* next =
++              Button::AsButton(GetNextFocusableView(row, button, forward))) {
++        SetHotTrackedButton(next);
++        return true;
++      }
++    }
++  }
+   switch (key_code) {
+     case ui::VKEY_HOME:
+       if (IsEditableCombobox()) {

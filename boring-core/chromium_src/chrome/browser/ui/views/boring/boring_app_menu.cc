@@ -26,6 +26,7 @@
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/button_menu_item_model.h"
 #include "ui/base/models/image_model.h"
+#include "ui/base/models/menu_model.h"
 #include "ui/base/ui_base_features.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_provider.h"
@@ -51,6 +52,10 @@
 #include "ui/views/view_utils.h"
 
 namespace boring {
+
+static_assert(kAppMenuHeadingId < 0 &&
+              kAppMenuHeadingId != ui::MenuModel::kTitleId);
+
 namespace {
 
 // The numbers of design/v9-menu/a.html (variant A, "Soft Cards"), in DIP.
@@ -80,6 +85,14 @@ constexpr int kBarButtonRadius = 9;   // .bb border-radius.
 constexpr int kBarButtonPadding = 12;  // .bb padding.
 constexpr int kBarIconGap = 8;         // .bb gap.
 constexpr int kBarIconSize = 16;  // 18 in the mock, as the rows' 16 are.
+constexpr int kRowFontSize = 13;  // .menu font-size, the rows' text.
+
+// A font size of the mock at the default text size. With a larger system
+// text size the rows' font grows, and this grows by as much.
+int ScaledFontSize(int design_size) {
+  const int rows = views::MenuConfig::instance().font_list.GetFontSize();
+  return std::max(design_size, design_size + rows - kRowFontSize);
+}
 
 // The menu's own top and bottom inset is the system menu's border; the
 // tiles and the bar make up the rest of the mock's padding (menu-style.patch
@@ -109,14 +122,12 @@ const gfx::VectorIcon& IconFor(int command_id) {
   }
 }
 
-// What a button shows. The tiles are short; the full name is the
-// button's accessible name and tooltip. Mnemonics stay those of the rows
-// the tiles replace.
+// What a button shows: the model's label, so an Incognito or isolated
+// window's first tile still says so ("New Incognito tab"). Only the third
+// tile is shorter; its accessible name and tooltip carry the full name.
+// Mnemonics stay those of the rows the tiles replace.
 std::u16string ShownLabel(int command_id, const std::u16string& label) {
   switch (command_id) {
-    case IDC_NEW_TAB:
-      // An Incognito window's model says "New Incognito tab".
-      return l10n_util::GetStringUTF16(IDS_NEW_TAB);
     case IDC_NEW_INCOGNITO_WINDOW:
       return u"&Incognito";
     default:
@@ -167,8 +178,9 @@ class MenuButton : public views::Button {
     label_->SetFontList(
         bar ? menu_font.Derive(0, gfx::Font::NORMAL,
                                gfx::Font::Weight::SEMIBOLD)
-            : menu_font.Derive(kTileFontSize - menu_font.GetFontSize(),
-                               gfx::Font::NORMAL, gfx::Font::Weight::MEDIUM));
+            : menu_font.Derive(
+                  ScaledFontSize(kTileFontSize) - menu_font.GetFontSize(),
+                  gfx::Font::NORMAL, gfx::Font::Weight::MEDIUM));
     label_->SetMnemonicMode(views::Label::MnemonicMode::kHide);
     const std::u16string shown =
         ShownLabel(command_id, model->GetLabelAt(index));
@@ -215,10 +227,15 @@ class MenuButton : public views::Button {
   // views::Button:
   gfx::Size CalculatePreferredSize(
       const views::SizeBounds& available_size) const override {
+    // The mock's heights, taller only when a larger text size needs it.
     const gfx::Size content =
         views::Button::CalculatePreferredSize(available_size);
-    return bar_ ? gfx::Size(content.width(), kBarButtonHeight)
-                : gfx::Size(content.width(), kTileHeight);
+    return bar_ ? gfx::Size(content.width(),
+                            std::max(kBarButtonHeight,
+                                     content.height() + 2 * kBarIconGap))
+                : gfx::Size(content.width(),
+                            std::max(kTileHeight,
+                                     content.height() + 2 * kTileIconGap));
   }
 
   void AddedToWidget() override {
@@ -305,14 +322,16 @@ class ButtonRow : public views::View {
   gfx::Size CalculatePreferredSize(
       const views::SizeBounds& available_size) const override {
     int width = 0;
+    int height = 0;
     for (const views::View* child : children()) {
       width += child->GetPreferredSize().width();
+      height = std::max(height, child->GetPreferredSize().height());
     }
     const int gaps =
         children().empty() ? 0 : static_cast<int>(children().size()) - 1;
     width += gaps * (bar_ ? kBarIconGap : kTileGap);
-    return bar_ ? gfx::Size(width, 1 + kBarLinePadding + kBarButtonHeight)
-                : gfx::Size(width, kTileHeight);
+    return bar_ ? gfx::Size(width, 1 + kBarLinePadding + height)
+                : gfx::Size(width, height);
   }
 
   void Layout(PassKey) override {
@@ -321,14 +340,15 @@ class ButtonRow : public views::View {
     }
     if (bar_) {
       const int y = 1 + kBarLinePadding;
+      const int h = std::max(0, height() - y);
       int end = width();
       for (size_t i = children().size(); i-- > 0;) {
         views::View* child = children()[i];
         const int w = std::min(child->GetPreferredSize().width(), width());
         if (i == 0) {
-          child->SetBounds(0, y, w, kBarButtonHeight);
+          child->SetBounds(0, y, w, h);
         } else {
-          child->SetBounds(end - w, y, w, kBarButtonHeight);
+          child->SetBounds(end - w, y, w, h);
           end -= w + kBarIconGap;
         }
       }
@@ -417,6 +437,13 @@ void StyleAppMenu(views::MenuItemView* root) {
     if (item->GetType() == views::MenuItemView::Type::kTitle) {
       PaintCard(card);
       card.clear();
+      // Its own id gives it the heading font and colour (AppMenu::
+      // GetLabelFontList); titles in submenus keep their look.
+      item->SetCommand(kAppMenuHeadingId);
+      // Read out as a heading, not as a menu item that does nothing, and
+      // never a stop for the selection (MenuItemView::
+      // IsTraversableByKeyboard), also with a screen reader on.
+      item->GetViewAccessibility().SetRole(ax::mojom::Role::kHeading);
       item->SetBorder(views::CreateEmptyBorder(
           gfx::Insets::TLBR(0, kHeadingIndent, 0, 0)));
       item->set_top_margin(kHeadingAbove);
@@ -439,8 +466,9 @@ void StyleAppMenu(views::MenuItemView* root) {
 const gfx::FontList& AppMenuHeadingFont() {
   static const base::NoDestructor<gfx::FontList> font([] {
     const gfx::FontList& menu_font = views::MenuConfig::instance().font_list;
-    return menu_font.Derive(kHeadingFontSize - menu_font.GetFontSize(),
-                            gfx::Font::NORMAL, gfx::Font::Weight::SEMIBOLD);
+    return menu_font.Derive(
+        ScaledFontSize(kHeadingFontSize) - menu_font.GetFontSize(),
+        gfx::Font::NORMAL, gfx::Font::Weight::SEMIBOLD);
   }());
   return *font;
 }
