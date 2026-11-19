@@ -154,7 +154,7 @@ def patched_files(patch):
     return files
 
 
-def rewind(src, patch, pristine=PRISTINE):
+def rewind(src, patch, pristine=PRISTINE, series=()):
     """Put a patch's files back to pristine so it can go on cleanly.
 
     An edited patch leaves the tree holding the old version of the
@@ -162,12 +162,38 @@ def rewind(src, patch, pristine=PRISTINE):
     (the lines are taken). The pristine copy is the way out, and this is
     the only safe moment to use it, because every patch is applied again
     right after.
+
+    A whole file goes back, so every other patch in it loses its change
+    there too. One that also changes a file left alone would be half in,
+    and would then neither reverse nor apply. So the files grow until each
+    patch of the series that touches them lies wholly inside, and nothing
+    goes back if one of them has no pristine copy.
     """
+    files = set(patched_files(patch))
+    touched = [set(patched_files(p)) for p in series]
+    grown = True
+    while grown:
+        grown = False
+        for t in touched:
+            if t & files and not t <= files:
+                files |= t
+                grown = True
+    missing = [
+        rel
+        for rel in sorted(files)
+        if os.path.exists(os.path.join(src, rel))
+        and not os.path.exists(os.path.join(pristine, rel))
+    ]
+    if missing:
+        print("no pristine copy, cannot rewind:", ", ".join(missing))
+        return []
     restored = []
-    for rel in patched_files(patch):
+    for rel in sorted(files):
         keep = os.path.join(pristine, rel)
         if os.path.exists(keep):
-            shutil.copy2(keep, os.path.join(src, rel))
+            # Fresh mtime: a file left here by a failed run must not look
+            # older than what ninja last built from it.
+            shutil.copy(keep, os.path.join(src, rel))
             restored.append(rel)
     return restored
 
@@ -257,13 +283,19 @@ def apply_patches(src, patch_set=None, pristine=PRISTINE):
     names = series_names()
     if not names:
         return
-    seed_pristine(src, [patch_path(name, patch_set) for name in names], pristine)
-    # A rewind puts a whole file back, which can take another patch's
-    # change with it, so anything already applied has to go on again.
+    series = [patch_path(name, patch_set) for name in names]
+    seed_pristine(src, series, pristine)
+    # A rewind puts back every patch on its files (see rewind), and they
+    # go on again in order in the second pass. That pass takes only them:
+    # the rest are in, and one whose lines a later patch has since edited
+    # around would not reverse to show it.
+    rewound = set()
     for attempt in range(2):
-        rewound = False
         for name in names:
             patch = patch_path(name, patch_set)
+            # The first pass leaves a patch on rewound files to the second.
+            if bool(rewound & set(patched_files(patch))) != (attempt == 1):
+                continue
             # Skip a patch that is already in.
             r = subprocess.run(
                 ["git", "apply", "--reverse", "--check", patch],
@@ -282,13 +314,13 @@ def apply_patches(src, patch_set=None, pristine=PRISTINE):
             if r.returncode == 0:
                 print("applied", name)
                 continue
-            back = rewind(src, patch, pristine) if attempt == 0 else []
+            back = rewind(src, patch, pristine, series) if attempt == 0 else []
             if not back:
                 print("FAILED to apply", name)
                 print(r.stderr)
                 sys.exit(1)
             print("rewound", name, "->", ", ".join(back))
-            rewound = True
+            rewound.update(back)
         if not rewound:
             return
 

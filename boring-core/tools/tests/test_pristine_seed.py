@@ -232,5 +232,94 @@ class SeedPristine(unittest.TestCase):
         self.assertEqual(self.read(os.path.join(self.store, self.rel)), ORIGINAL)
 
 
+NINE = "".join(f"{n}\n" for n in range(1, 10))
+XYZ = "x\ny\nz\n"
+# Changes both files, like menu-width.patch (app_menu.cc, submenu_view.cc).
+BOTH = (
+    "--- a/a/f.cc\n+++ b/a/f.cc\n@@ -1,3 +1,3 @@\n 1\n-2\n+two\n 3\n"
+    "--- a/b/g.cc\n+++ b/b/g.cc\n@@ -1,3 +1,3 @@\n x\n-y\n+Y\n z\n"
+)
+# A later patch on one of them, edited since the tree took it, like
+# app-menu-refresh.patch on app_menu.cc.
+LATER = "--- a/a/f.cc\n+++ b/a/f.cc\n@@ -7,3 +7,3 @@\n 7\n-8\n+eight\n 9\n"
+
+
+class Rewind(unittest.TestCase):
+    """A rewind on a fully patched tree leaves no patch half in."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.src = os.path.join(self.tmp, "src")
+        self.store = os.path.join(self.tmp, "store")
+        for rel, original, patched in (
+            ("a/f.cc", NINE, NINE.replace("2\n", "two\n").replace("8\n", "EIGHT\n")),
+            ("b/g.cc", XYZ, XYZ.replace("y", "Y")),
+        ):
+            self.write(os.path.join(self.store, rel), original)
+            self.write(os.path.join(self.src, rel), patched)
+        git(self.src, "init", "-q")
+        git(self.src, "config", "core.autocrlf", "false")
+        self.write(os.path.join(self.tmp, "both.patch"), BOTH)
+        self.write(os.path.join(self.tmp, "later.patch"), LATER)
+        for name, fake in (
+            ("series_names", lambda: ["both.patch", "later.patch"]),
+            ("patch_path", lambda name, patch_set: os.path.join(self.tmp, name)),
+        ):
+            self.addCleanup(setattr, apply, name, getattr(apply, name))
+            setattr(apply, name, fake)
+
+    def write(self, path, text):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            f.write(text)
+
+    def read(self, rel):
+        with open(os.path.join(self.src, rel), encoding="utf-8", newline="") as f:
+            return f.read()
+
+    def test_a_patch_sharing_a_rewound_file_goes_back_whole(self):
+        # Putting back only a/f.cc left both.patch in b/g.cc alone: it then
+        # neither reversed nor applied, and the second pass failed.
+        apply.apply_patches(self.src, None, self.store)
+        self.assertEqual(
+            self.read("a/f.cc"), NINE.replace("2\n", "two\n").replace("8\n", "eight\n")
+        )
+        self.assertEqual(self.read("b/g.cc"), XYZ.replace("y", "Y"))
+
+    def test_a_run_after_a_failed_one_finishes(self):
+        # A failed run leaves a/f.cc as it came. The first pass puts its
+        # stack on again in order; the second must not take step1 again,
+        # which no longer reverses once step2 has edited around its line
+        # (chrome-ui-tab-helpers.patch under takeover-tab-helper.patch).
+        self.write(os.path.join(self.src, "a", "f.cc"), NINE)
+        self.write(
+            os.path.join(self.tmp, "step1.patch"),
+            "--- a/a/f.cc\n+++ b/a/f.cc\n@@ -1,3 +1,3 @@\n 1\n-2\n+two\n 3\n",
+        )
+        self.write(
+            os.path.join(self.tmp, "step2.patch"),
+            "--- a/a/f.cc\n+++ b/a/f.cc\n@@ -2,3 +2,3 @@\n two\n-3\n+three\n 4\n",
+        )
+        self.write(
+            os.path.join(self.tmp, "edited.patch"),
+            "--- a/b/g.cc\n+++ b/b/g.cc\n@@ -1,3 +1,3 @@\n x\n-y\n+why\n z\n",
+        )
+        apply.series_names = lambda: ["step1.patch", "step2.patch", "edited.patch"]
+        apply.apply_patches(self.src, None, self.store)
+        self.assertEqual(
+            self.read("a/f.cc"), NINE.replace("2\n", "two\n").replace("3\n", "three\n")
+        )
+        self.assertEqual(self.read("b/g.cc"), "x\nwhy\nz\n")
+
+    def test_no_file_goes_back_when_one_has_no_original(self):
+        os.remove(os.path.join(self.store, "b", "g.cc"))
+        before = self.read("a/f.cc")
+        with self.assertRaises(SystemExit):
+            apply.apply_patches(self.src, None, self.store)
+        self.assertEqual(self.read("a/f.cc"), before)
+        self.assertFalse(os.path.exists(os.path.join(self.store, "b", "g.cc")))
+
+
 if __name__ == "__main__":
     unittest.main()
