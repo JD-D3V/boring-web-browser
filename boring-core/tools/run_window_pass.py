@@ -67,6 +67,7 @@ ARGPARSE_TOOLS = {
     "smoke_tabs.py",
     "smoke_vtabs.py",
     "smoke_quick_buttons.py",
+    "smoke_customize_toolbar.py",  # boring: cui-menu
     "test_update_local.py",
     "probe_focus.py",
 }
@@ -183,6 +184,26 @@ def build_steps(out, net_seconds):
             [tool("smoke_quick_buttons.py", "--out", str(shots / "quick-buttons"))],
             900,
             "six short browser launches, off screen",
+            smoke_lines,
+        ),
+        # boring: cui-menu
+        Step(
+            "1i-customize-toolbar",
+            "Customize toolbar panel finish (smoke and pictures, light and dark)",
+            [tool("smoke_customize_toolbar.py", "--out", str(shots / "customize-toolbar"))],
+            600,
+            "two short browser launches, off screen",
+            smoke_lines,
+        ),
+        Step(
+            "1j-app-menu-finish",
+            "app menu in the compiled finish beside screen C07, light and dark",
+            [
+                tool("smoke_app_menu.py", "--captures", str(shots / "app-menu-finish")),
+                tool("smoke_app_menu.py", "--dark", "--captures", str(shots / "app-menu-finish")),
+            ],
+            900,
+            "browser launches, off screen, with the main menu open",
             smoke_lines,
         ),
         Step(
