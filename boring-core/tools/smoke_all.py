@@ -92,6 +92,8 @@ CHECKS = [
     ("customize toolbar panel finish", "smoke_customize_toolbar.py"),
     # Compiled UI pages (ledger items 8 and 10).
     ("scam warning page as drawn", "smoke_warning_page.py"),
+    # boring: cui-settings
+    ("Settings, Appearance as drawn", "smoke_settings_appearance.py"),
 ]
 
 # Every smoke_*.py that is not a check, with the reason. A new file must

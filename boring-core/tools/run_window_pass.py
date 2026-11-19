@@ -71,6 +71,7 @@ ARGPARSE_TOOLS = {
     # boring: cui-toolbar
     "smoke_toolbar.py",
     "smoke_customize_toolbar.py",  # boring: cui-menu
+    "smoke_icons.py",  # boring: cui-icons
     "test_update_local.py",
     "probe_focus.py",
 }
@@ -225,6 +226,15 @@ def build_steps(out, net_seconds):
             ],
             900,
             "browser launches, off screen, with the main menu open",
+            smoke_lines,
+        ),
+        # boring: cui-icons
+        Step(
+            "1m-icons",
+            "compiled UI icons and the Incognito ghost (build check and pictures)",
+            [tool("smoke_icons.py", "--out", str(shots / "icons"))],
+            600,
+            "four short browser launches, off screen",
             smoke_lines,
         ),
         Step(

@@ -29,6 +29,9 @@ class VerticalTabs(unittest.TestCase):
                     encoding="utf-8", errors="replace"
                 ).splitlines()
                 if line.startswith("+") and not line.startswith("+++")
+                # The Settings control bound to the pref is the person's own
+                # switch (cui-settings.patch moves it), not a forced value.
+                and 'pref-key="vertical_tabs.enabled"' not in line
             ]
             for line in added:
                 self.assertNotRegex(
