@@ -317,4 +317,12 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   mixer[ui::kColorMenuButtonBackground] = {dark ? SkColorSetA(p.ink, 0x1A)
                                                 : p.paper};
   mixer[ui::kColorMenuButtonBackgroundSelected] = {menu_card_hover};
+
+  // boring: cui-menu. The main menu's cards in the compiled design's card
+  // token (design/v12-compiled, Window.dc.html TOKENS), fainter than the
+  // field colour above. The top buttons' outline is kColorBoringEdge
+  // (cui-colours).
+  mixer[kColorAppMenuToolsAndActionsBackground] = {
+      dark ? SkColorSetRGB(0x27, 0x27, 0x25) : SkColorSetRGB(0xf6, 0xf5, 0xf1)};
+  // boring: end cui-menu.
 }

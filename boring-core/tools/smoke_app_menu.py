@@ -34,19 +34,30 @@ import itertools
 import json
 import os
 import re
+import shutil
 import sys
 import tempfile
 import time
+from pathlib import Path
 
 from capture_app_menu import shoot_popup
 from capture_native import frame_window
 from drive import CHROME, Browser
 from smoke_site_panel import COLLAPSE, Window, browser_windows
 
-# The refreshed menu's height in DIP, border included, in a fresh profile
-# with no update, warning or managed row: mockup A comes to 770.
-MENU_HEIGHT = 769
+# The menu's height in DIP, border included, in a fresh profile with no
+# update, warning or managed row. The compiled design's finish (cui-menu):
+# 769 less the smaller tiles, cards, rows, headings and bar, worked out
+# from the constants before the first build; the canvas draws about 670.
+MENU_HEIGHT = 682
 TOLERANCE = 6
+# The compiled design opens the menu 94 DIP below the window's top, and the
+# whole menu must clear an 800 DIP tall window (screen C07).
+MENU_TOP = 94
+WINDOW_HEIGHT = 800
+# The compiled screen this menu is drawn on, light and dark.
+DESIGN_SHOTS = Path(__file__).resolve().parents[2] / "design" / "v12-compiled" / "shots-final"
+DESIGN_SHOT = "c07-menuopen.png"
 
 # The new menu, top to bottom: tiles, headings with their rows, the bar.
 LAYOUT = [
@@ -253,6 +264,11 @@ def check_layout(menu):
         problems.append("the menu's height was not measured")
     elif abs(height - MENU_HEIGHT) > TOLERANCE:
         problems.append(f"the menu is {height:.0f} DIP tall, not {MENU_HEIGHT}")
+    if height is not None and MENU_TOP + height > WINDOW_HEIGHT:
+        problems.append(
+            f"the menu ({height:.0f} DIP from {MENU_TOP}) does not clear a "
+            f"{WINDOW_HEIGHT} DIP tall window"
+        )
     for row, names in menu["submenus"].items():
         if not names or names[0].startswith("<could not open"):
             problems.append(f"submenu {row} did not open")
@@ -448,7 +464,20 @@ def main():
     ap.add_argument("--compare", help="a file --save wrote on the old build")
     ap.add_argument("--dark", action="store_true")
     ap.add_argument("--shot", help="keep the picture of the open menu here")
+    ap.add_argument(
+        "--captures",
+        help="folder for the picture beside the compiled screen (C07) it matches",
+    )
     opts = ap.parse_args()
+    if opts.captures and not opts.shot:
+        scheme = "dark" if opts.dark else "light"
+        os.makedirs(opts.captures, exist_ok=True)
+        opts.shot = os.path.join(opts.captures, f"app-menu-{scheme}.png")
+        design = DESIGN_SHOTS / ("dark" if opts.dark else "") / DESIGN_SHOT
+        if design.exists():
+            shutil.copyfile(design, os.path.join(opts.captures, f"compiled-c07-{scheme}.png"))
+        else:
+            print("no compiled screen to put beside it:", design)
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
 
     args = [

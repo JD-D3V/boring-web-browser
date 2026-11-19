@@ -71,34 +71,39 @@ static_assert(kAppMenuHeadingId < 0 &&
 
 namespace {
 
-// The numbers of design/v9-menu/a.html (variant A, "Soft Cards"), in DIP.
-// tools/tests/test_menu_style.py reads them back, so keep one per line.
-constexpr int kMenuPadding = 8;   // .menu padding: cards and rows inset.
-constexpr int kCardPadding = 4;   // .card padding.
-constexpr int kCardRadius = 12;   // .card border-radius.
-constexpr int kRowRadius = 8;     // .row border-radius (the hover).
-constexpr int kTileHeight = 76;   // .tile height.
-constexpr int kTileRadius = 12;   // .tile border-radius.
-constexpr int kTileGap = 8;       // .tiles gap.
-constexpr int kTileIconGap = 8;   // .tile gap, icon to label.
-constexpr int kTileIconSize = 20;  // 22 in the mock, whose row icons are 18.
-constexpr int kTileFontSize = 12;  // 12.5 in the mock; whole pixels only.
-constexpr int kTileBelow = 2;      // .tiles margin-bottom.
-constexpr int kHeadingIndent = 18;  // menu padding + .head padding 10.
-constexpr int kHeadingFontSize = 12;  // .head font-size.
-// .head padding-top 10, plus the 4 gap above it, less the pixel the font's
-// line box is taller than the mock's.
-constexpr int kHeadingAbove = 13;
-// .head padding-bottom 2, plus the 4 gap below it, less the same pixel.
-constexpr int kHeadingBelow = 5;
-constexpr int kBarAbove = 12;         // The 4 gap and .bar margin-top 8.
-constexpr int kBarLinePadding = 6;    // .bar padding-top.
-constexpr int kBarButtonHeight = 36;  // .bb height.
-constexpr int kBarButtonRadius = 9;   // .bb border-radius.
-constexpr int kBarButtonPadding = 12;  // .bb padding.
-constexpr int kBarIconGap = 8;         // .bb gap.
-constexpr int kBarIconSize = 16;  // 18 in the mock, as the rows' 16 are.
-constexpr int kRowFontSize = 13;  // .menu font-size, the rows' text.
+// The numbers of the compiled design's menu (design/v12-compiled,
+// Window.dc.html, screen C07), in DIP. tools/tests/test_app_menu_refresh.py
+// reads them back, so keep one per line.
+constexpr int kMenuWidth = 320;   // Menu width.
+constexpr int kMenuPadding = 6;   // Menu padding: cards and rows inset.
+constexpr int kCardPadding = 3;   // Card padding.
+constexpr int kCardRadius = 8;    // Card border-radius.
+constexpr int kRowRadius = 6;     // Row border-radius (the hover).
+// Row height 30: the 13px font's 18 line and 6 above and below.
+constexpr int kRowVerticalMargin = 6;
+constexpr int kTileHeight = 54;   // Top button height.
+constexpr int kTileRadius = 8;    // Top button border-radius.
+constexpr int kTileGap = 6;       // Top buttons gap.
+constexpr int kTileIconGap = 5;   // Top button gap, icon to label.
+constexpr int kTileIconSize = 19;  // Top button icon.
+constexpr int kTileFontSize = 12;  // 12.5 in the design; whole pixels only.
+constexpr int kTileBelow = 0;      // The first heading follows at once.
+constexpr int kHeadingIndent = 16;  // menu padding + heading padding 10.
+constexpr int kHeadingFontSize = 12;  // 11.5 in the design; whole pixels.
+// Heading padding-top 10, less the pixel the font's line box is taller
+// than the design's.
+constexpr int kHeadingAbove = 9;
+// Heading padding-bottom 4, less the same pixel.
+constexpr int kHeadingBelow = 3;
+constexpr int kBarAbove = 8;          // Bar margin-top.
+constexpr int kBarLinePadding = 6;    // Bar padding-top.
+constexpr int kBarButtonHeight = 34;  // Settings and Exit height.
+constexpr int kBarButtonRadius = 7;   // Their border-radius.
+constexpr int kBarButtonPadding = 10;  // Their padding.
+constexpr int kBarIconGap = 10;        // Their gap, icon to label.
+constexpr int kBarIconSize = 16;  // Their icons.
+constexpr int kRowFontSize = 13;  // The rows' text.
+constexpr int kRowIconSize = 16;  // The rows' icons.
 
 // A font size of the mock at the default text size. With a larger system
 // text size the rows' font grows, and this grows by as much.
@@ -161,7 +166,6 @@ class MenuButton : public views::Button {
       : views::Button(base::BindRepeating(press, model, index)),
         item_(item),
         bar_(bar),
-        accent_(bar && model->GetCommandIdAt(index) == IDC_OPTIONS),
         icon_(&IconFor(model->GetCommandIdAt(index))) {
     const int command_id = model->GetCommandIdAt(index);
     // The menu only moves its keyboard selection onto focusable buttons.
@@ -190,7 +194,7 @@ class MenuButton : public views::Button {
     label_->SetAutoColorReadabilityEnabled(false);
     label_->SetFontList(
         bar ? menu_font.Derive(0, gfx::Font::NORMAL,
-                               gfx::Font::Weight::SEMIBOLD)
+                               gfx::Font::Weight::MEDIUM)
             : menu_font.Derive(
                   ScaledFontSize(kTileFontSize) - menu_font.GetFontSize(),
                   gfx::Font::NORMAL, gfx::Font::Weight::MEDIUM));
@@ -243,7 +247,7 @@ class MenuButton : public views::Button {
     // The mock's heights, taller only when a larger text size needs it.
     // Known limit: not taller in touch mode. On Windows the stock rows do
     // not grow there either (MenuConfig's touchable sizes are ChromeOS
-    // only), so the bar's 36 stays under a 44 touch target.
+    // only), so the bar's 34 stays under a 44 touch target.
     const gfx::Size content =
         views::Button::CalculatePreferredSize(available_size);
     return bar_ ? gfx::Size(content.width(),
@@ -274,14 +278,19 @@ class MenuButton : public views::Button {
     cc::PaintFlags flags;
     flags.setAntiAlias(true);
     flags.setStyle(cc::PaintFlags::kFill_Style);
-    if (!bar_) {
-      flags.setColor(colors->GetColor(kColorAppMenuToolsAndActionsBackground));
-      canvas->DrawRoundRect(bounds, radius, flags);
-    }
     if (IsHot()) {
-      // The accent wash the card rows hover with, over the fill.
+      // The accent wash the card rows hover with.
       flags.setColor(colors->GetColor(ui::kColorAppMenuRowBackgroundHovered));
       canvas->DrawRoundRect(bounds, radius, flags);
+    }
+    if (!bar_) {
+      // The top buttons are outlined, not filled: a 1px edge inside.
+      gfx::RectF edge = bounds;
+      edge.Inset(0.5f);
+      flags.setStyle(cc::PaintFlags::kStroke_Style);
+      flags.setStrokeWidth(1.0f);
+      flags.setColor(colors->GetColor(kColorBoringEdge));
+      canvas->DrawRoundRect(edge, radius - 0.5f, flags);
     }
   }
 
@@ -295,13 +304,14 @@ class MenuButton : public views::Button {
     // A hovered button's text is a hovered row's: the same ink normally,
     // the system highlight text in high contrast.
     const ui::ColorId text = disabled  ? ui::kColorMenuItemForegroundDisabled
-                             : accent_ ? ui::kColorSysPrimary
                              : IsHot() ? ui::kColorMenuItemForegroundSelected
                                        : ui::kColorMenuItemForeground;
-    // A button you hover turns its icon accent, as the rows do.
-    const ui::ColorId icon = disabled               ? ui::kColorMenuIconDisabled
-                             : (accent_ || IsHot()) ? ui::kColorSysPrimary
-                                                    : ui::kColorMenuIcon;
+    // A button you hover turns its icon accent, as the rows do. The bar's
+    // icons are otherwise the quieter ink, the top buttons' the ink.
+    const ui::ColorId icon = disabled ? ui::kColorMenuIconDisabled
+                             : IsHot() ? ui::kColorSysPrimary
+                             : bar_    ? ui::kColorMenuItemForegroundSecondary
+                                       : ui::kColorMenuIcon;
     label_->SetEnabledColor(text);
     icon_view_->SetImage(ui::ImageModel::FromVectorIcon(
         *icon_, icon, bar_ ? kBarIconSize : kTileIconSize));
@@ -309,7 +319,6 @@ class MenuButton : public views::Button {
 
   const raw_ptr<views::MenuItemView> item_;
   const bool bar_;
-  const bool accent_;
   const raw_ptr<const gfx::VectorIcon> icon_;
   raw_ptr<views::ImageView> icon_view_ = nullptr;
   raw_ptr<views::Label> label_ = nullptr;
@@ -411,6 +420,7 @@ void PaintCard(const std::vector<views::MenuItemView*>& card) {
     background.highlight_radius = kRowRadius;
     background.highlight_inset = kCardPadding;
     card[i]->SetMenuItemBackground(background);
+    card[i]->set_vertical_margin(kRowVerticalMargin);
     // The menu's usual hover tint hardly shows on the card's fill.
     card[i]->SetSelectedColorId(ui::kColorAppMenuRowBackgroundHovered);
   }
@@ -510,6 +520,9 @@ void StyleAppMenu(views::MenuItemView* root) {
   if (!submenu) {
     return;
   }
+  // The compiled design's menu is 320 wide; this overrides menu-width.patch's
+  // 360, set just before this is called.
+  submenu->set_minimum_preferred_width(kMenuWidth);
   // A card is a run of rows. A separator, a heading, the tile row, the bar
   // or a row that paints its own background (the update row) ends it.
   std::vector<views::MenuItemView*> card;
@@ -540,6 +553,11 @@ void StyleAppMenu(views::MenuItemView* root) {
       continue;
     }
     const int command_id = item->GetCommand();
+    if (command_id == IDC_BORING_FORGET_SESSION) {
+      // The compiled design's eraser, in place of the model's bin.
+      item->SetIcon(ui::ImageModel::FromVectorIcon(
+          kBoringEraseIcon, ui::kColorMenuIcon, kRowIconSize));
+    }
     if (command_id == IDC_BORING_APP_MENU_TILES ||
         command_id == IDC_BORING_APP_MENU_BAR ||
         item->GetMenuItemBackground().has_value()) {

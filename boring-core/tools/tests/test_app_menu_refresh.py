@@ -44,7 +44,7 @@ MIXER = (
     / "color"
     / "boring_color_mixer.cc"
 )
-MOCK = REPO / "design" / "v9-menu" / "a.html"
+MOCK = REPO / "design" / "v12-compiled" / "canvas-source" / "Window.dc.html"
 SRC = Path(os.environ.get("BORING_SRC", r"E:\ung-157\build\src"))
 MODEL_PATH = "chrome/browser/ui/toolbar/app_menu_model.cc"
 MODEL = SRC / MODEL_PATH
@@ -172,49 +172,48 @@ def apply_patch(text, reverse=False):
         return path.read_text(encoding="utf-8")
 
 
-# Mockup A's numbers as they were when JD picked it. LookTest checks the
-# constants against these always, and these against design/v9-menu/a.html
-# whenever that page is here (design/ is kept out of the repository).
+# The compiled design's menu (screen C07). LookTest checks the constants
+# against these always, and these against design/v12-compiled's
+# Window.dc.html whenever that page is here (design/ is kept out of the
+# repository).
 MOCK_NUMBERS = {
-    "row_radius": 8,
-    "card_radius": 12,
-    "card_padding": 4,
-    "tile_height": 76,
-    "tile_radius": 12,
-    "tile_gap": 8,
-    "menu_padding": 8,
-    "bar_height": 36,
-    "bar_radius": 9,
-    "bar_padding": 12,
+    "row_radius": 6,
+    "card_radius": 8,
+    "card_padding": 3,
+    "tile_height": 54,
+    "tile_radius": 8,
+    "tile_gap": 6,
+    "menu_padding": 6,
+    "bar_height": 34,
+    "bar_radius": 7,
+    "bar_padding": 10,
     "row_font": 13,
 }
 
 
 def page_numbers():
-    """The same numbers, read from the mockup page."""
+    """The same numbers, read from the compiled design's menu markup."""
+    page = MOCK.read_text(encoding="utf-8")
+    menu = page[page.index('role="menu"') :]
+
+    def px(pattern, text=menu):
+        return int(re.search(pattern, text, re.S).group(1))
+
     numbers = {}
-    css = MOCK.read_text(encoding="utf-8")
-
-    def rule(selector):
-        return re.search(re.escape(selector) + r"\{(.*?)\}", css, re.S).group(1)
-
-    def px(text, prop):
-        return int(re.search(rf"(?:^|;){prop}:(\d+)px", text).group(1))
-
-    numbers["row_radius"] = px(rule(".va"), "--rr")
-    card = rule(".va .card")
-    numbers["card_radius"] = px(card, "border-radius")
-    numbers["card_padding"] = px(card, "padding")
-    tile = rule(".va .tile")
-    numbers["tile_height"] = px(tile, "height")
-    numbers["tile_radius"] = px(tile, "border-radius")
-    numbers["tile_gap"] = px(rule(".va .tiles"), "gap")
-    numbers["menu_padding"] = px(rule(".menu"), "padding")
-    bb = rule(".bb")
-    numbers["bar_height"] = px(bb, "height")
-    numbers["bar_radius"] = px(bb, "border-radius")
-    numbers["bar_padding"] = int(re.search(r"padding:0 (\d+)px", bb).group(1))
-    numbers["row_font"] = int(re.search(r"font:(\d+)px", rule(".menu")).group(1))
+    row = re.search(r"const mrow = .*?height: 30px;(.*?)'", page, re.S).group(1)
+    numbers["row_radius"] = px(r"border-radius: (\d+)px", row)
+    numbers["card_radius"] = px(r"padding: 3px; border-radius: (\d+)px; background: \{\{c\.card\}\}")
+    numbers["card_padding"] = px(r"padding: (\d+)px; border-radius: \d+px; background: \{\{c\.card\}\}")
+    numbers["tile_height"] = px(r"<button style=\"height: (\d+)px; display: flex; flex-direction: column")
+    numbers["tile_radius"] = px(r"flex-direction: column;[^\"]*?border-radius: (\d+)px")
+    numbers["tile_gap"] = px(r"repeat\(3, minmax\(0, 1fr\)\); gap: (\d+)px")
+    numbers["menu_padding"] = px(r'role="menu"[^>]*?padding: (\d+)px', page)
+    bar = menu[menu.index("margin-top: 8px") :]
+    numbers["bar_height"] = px(r"<button style=\"height: (\d+)px", bar)
+    numbers["bar_radius"] = px(r"<button style=\"[^\"]*?border-radius: (\d+)px", bar)
+    numbers["bar_padding"] = px(r"<button style=\"[^\"]*?padding: 0 (\d+)px", bar)
+    # The rows' text size is the page's body size, not in the menu markup.
+    numbers["row_font"] = MOCK_NUMBERS["row_font"]
     return numbers
 
 
@@ -565,6 +564,17 @@ class LookTest(unittest.TestCase):
             ("kRowFontSize", "row_font"),
         ):
             self.assertEqual(constant(name), m[key], name)
+
+    def test_top_buttons_are_outlined_and_rows_are_30_high(self):
+        # The canvas finish (cui-menu): the top buttons are an edge outline
+        # with no fill, and a row is the 13px font's 18 line and 6 around.
+        views = VIEWS.read_text(encoding="utf-8")
+        self.assertIn("colors->GetColor(kColorBoringEdge)", views)
+        self.assertIn("cc::PaintFlags::kStroke_Style", views)
+        self.assertEqual(constant("kRowVerticalMargin"), 6)
+        self.assertIn("set_vertical_margin(kRowVerticalMargin)", views)
+        # Settings in the bar is no longer the accent colour.
+        self.assertNotIn("accent_", views)
 
     def test_card_and_hover_colours_come_from_the_palette(self):
         src = MIXER.read_text(encoding="utf-8")
