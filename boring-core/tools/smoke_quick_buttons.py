@@ -4,8 +4,9 @@ toolbar's right click menu offers "Customize toolbar".
 
 Several launches of one scratch profile, started straight from chrome.exe:
 
-  1. A new profile. The toolbar's buttons are the stock set. The picker
-     lists exactly the expected rows: Settings and Extensions, and not
+  1. A new profile. The toolbar's buttons are the stock set (Forget,
+     the shield and Downloads after the extensions). The picker
+     lists exactly the expected rows: Settings, Extensions and Forget, and not
      Translate, Cast, Send to your device or any other Google feature.
   2. Same profile. Both are ticked in the picker, which pins them. After
      a restart both buttons are on the toolbar, enabled, with plain
@@ -73,7 +74,7 @@ ABSENT = (*DEAD, "Google Lens", "Lens", "Search companion", "Chrome Labs", "Cont
 # The picker's rows, in order, on a new profile.
 EXPECTED_ROWS = [
     "Home", "Forward", "Open in split view", "New Incognito window",
-    SETTINGS, EXTENSIONS, "Password Manager", "Payments", "Contact info",
+    SETTINGS, EXTENSIONS, "Forget this session", "Password Manager", "Payments", "Contact info",
     "Bookmarks", "Reading list", "History", "Downloads", "Delete browsing data",
     "Print", "Create QR code", "Reading mode", "Copy link", "Task manager",
     "Developer tools",
@@ -84,7 +85,8 @@ EXPECTED_SECTIONS = ["appearance", "toolbarButton"]
 # A new profile's toolbar buttons (class names), left to right.
 EXPECTED_FRESH = [
     "BackForwardButton", "BackForwardButton", "ReloadButton", "ExtensionsToolbarButton",
-    "PinnedActionToolbarButton", "BoringProtectionButton", "BrowserAppMenuButton",
+    "PinnedActionToolbarButton", "BoringProtectionButton", "PinnedActionToolbarButton",
+    "BrowserAppMenuButton",
 ]  # fmt: skip
 # The pinned buttons' tooltips. Extensions keeps its action's own text.
 TOOLTIPS = {SETTINGS: "Settings", EXTENSIONS: "Manage extensions"}
@@ -527,7 +529,9 @@ def main():
         fresh = new_profile("hook-dead", {"toolbar": {"pinned_actions": list(DEAD_IDS)}})
         report = hook("buttons", fresh, urls=[fr], background=["chrome://translate-internals"])
         listed_at = (fresh / "Default" / REPORT).stat().st_mtime if report["buttons"] else 0
-        dead = {b[2]: b for b in report["buttons"] if b[0] == PINNED and b[2] != "Downloads"}
+        # Downloads and Forget are pinned on every profile (Forget once, on
+        # an older profile like this one; smoke_toolbar.py checks that).
+        dead = {b[2]: b for b in report["buttons"] if b[0] == PINNED and b[2] not in ("Downloads", "Forget this session")}
         print("pinned by hand:", list(dead.values()))
         checks("exactly the Translate and Send buttons are made", sorted(dead) == sorted(DEAD_TIPS), str(dead))
         for tip in DEAD_TIPS:

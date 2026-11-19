@@ -66,6 +66,8 @@ CHECKS = [
     ("tabs survive restart", "smoke_tabs.py"),
     ("side tabs", "smoke_vtabs.py"),
     ("toolbar quick buttons", "smoke_quick_buttons.py"),
+    # boring: cui-toolbar
+    ("toolbar and bookmarks bar as drawn", "smoke_toolbar.py"),
     ("colour scheme and layout fixes", "smoke_ui_polish.py"),
     ("assistance scripts", "smoke_assistance.py"),
     ("assistance gemini adapter", "smoke_assistance_gemini.py"),
@@ -99,6 +101,8 @@ NATIVE_CHECKS = {
     "smoke_tabs.py",
     "smoke_vtabs.py",
     "smoke_quick_buttons.py",
+    # boring: cui-toolbar
+    "smoke_toolbar.py",
 }
 
 

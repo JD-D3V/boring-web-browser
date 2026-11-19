@@ -67,6 +67,8 @@ ARGPARSE_TOOLS = {
     "smoke_tabs.py",
     "smoke_vtabs.py",
     "smoke_quick_buttons.py",
+    # boring: cui-toolbar
+    "smoke_toolbar.py",
     "test_update_local.py",
     "probe_focus.py",
 }
@@ -183,6 +185,15 @@ def build_steps(out, net_seconds):
             [tool("smoke_quick_buttons.py", "--out", str(shots / "quick-buttons"))],
             900,
             "six short browser launches, off screen",
+            smoke_lines,
+        ),
+        # boring: cui-toolbar
+        Step(
+            "1i-toolbar",
+            "toolbar and bookmarks bar as drawn (smoke and pictures)",
+            [tool("smoke_toolbar.py", "--out", str(shots / "toolbar"))],
+            900,
+            "eleven short browser launches, off screen",
             smoke_lines,
         ),
         Step(
