@@ -1,0 +1,17 @@
+// Copyright 2026 boring. BSD style license.
+
+// boring_book, from the rounded icon set (design/v7/icons-full/icons.svg).
+// 2 px stroke on a 24 grid, round caps.
+
+CANVAS_DIMENSIONS, 20,
+STROKE, 1.6667,
+MOVE_TO, 4.5833, 3.75,
+H_LINE_TO, 12.5,
+ARC_TO, 2.5, 2.5, 0, 0, 1, 15, 6.25,
+V_LINE_TO, 16.6667,
+H_LINE_TO, 7.0833,
+ARC_TO, 2.5, 2.5, 0, 0, 1, 4.5833, 14.1667,
+CLOSE,
+MOVE_TO, 4.5833, 14.1667,
+ARC_TO, 2.5, 2.5, 0, 0, 1, 7.0833, 11.6667,
+H_LINE_TO, 15,

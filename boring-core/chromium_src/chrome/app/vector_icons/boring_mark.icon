@@ -1,0 +1,13 @@
+// Copyright 2026 boring. BSD style license.
+
+// boring_mark, from the rounded icon set (design/v7/icons-full/icons.svg).
+// 2 px stroke on a 24 grid, round caps.
+
+CANVAS_DIMENSIONS, 20,
+STROKE, 1.6667,
+MOVE_TO, 5.8333, 3.3333,
+H_LINE_TO, 14.1667,
+V_LINE_TO, 16.6667,
+LINE_TO, 10, 13.75,
+LINE_TO, 5.8333, 16.6667,
+CLOSE,

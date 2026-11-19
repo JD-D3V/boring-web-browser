@@ -1,20 +1,16 @@
 // Copyright 2026 boring. BSD style license.
 
 // exit_menu_old, from the rounded icon set (design/v7/icons-full/icons.svg).
-// 2 px stroke on a 20 grid, round caps.
+// 2 px stroke on a 24 grid, round caps.
 
 CANVAS_DIMENSIONS, 16,
-STROKE, 1.6,
-MOVE_TO, 6.4, 2.4,
-H_LINE_TO, 4,
-ARC_TO, 1.6, 1.6, 0, 0, 0, 2.4, 4,
-V_LINE_TO, 12,
-ARC_TO, 1.6, 1.6, 0, 0, 0, 4, 13.6,
-H_LINE_TO, 6.4,
-NEW_PATH,
-STROKE, 1.6,
-MOVE_TO, 7.2, 8,
-H_LINE_TO, 13.6,
-MOVE_TO, 10.8, 5.2,
-LINE_TO, 13.6, 8,
-LINE_TO, 10.8, 10.8,
+STROKE, 1.3333,
+MOVE_TO, 6.6667, 3,
+H_LINE_TO, 3.3333,
+V_LINE_TO, 13,
+H_LINE_TO, 6.6667,
+MOVE_TO, 9.3333, 5.3333,
+LINE_TO, 12, 8,
+LINE_TO, 9.3333, 10.6667,
+MOVE_TO, 12, 8,
+H_LINE_TO, 6.3333,

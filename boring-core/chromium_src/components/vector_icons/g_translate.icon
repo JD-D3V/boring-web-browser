@@ -1,23 +1,20 @@
 // Copyright 2026 boring. BSD style license.
 
 // g_translate, from the rounded icon set (design/v7/icons-full/icons.svg).
-// 2 px stroke on a 20 grid, round caps.
+// 2 px stroke on a 24 grid, round caps.
 
 CANVAS_DIMENSIONS, 20,
-STROKE, 2,
-MOVE_TO, 3, 6,
-H_LINE_TO, 11,
-MOVE_TO, 5, 9,
-LINE_TO, 9, 13,
-MOVE_TO, 4, 14,
-LINE_TO, 9, 9,
-LINE_TO, 11, 6,
-NEW_PATH,
-STROKE, 2,
-MOVE_TO, 11, 17,
-LINE_TO, 14, 11,
-LINE_TO, 17, 17,
-MOVE_TO, 12, 15,
-H_LINE_TO, 16,
-NEW_PATH,
-CIRCLE, 7, 3, 1.25,
+STROKE, 1.6667,
+MOVE_TO, 3.3333, 5,
+H_LINE_TO, 10.8333,
+MOVE_TO, 7.0833, 3.3333,
+V_LINE_TO, 5,
+MOVE_TO, 5, 5,
+CUBIC_TO, 5.4167, 7.5, 7, 9.5, 9, 10.6667,
+MOVE_TO, 9.1667, 5,
+CUBIC_TO, 8.75, 7.5, 6.6667, 9.9167, 3.8333, 11.1667,
+MOVE_TO, 10.8333, 16.6667,
+LINE_TO, 14.1667, 9.1667,
+LINE_TO, 17.5, 16.6667,
+MOVE_TO, 12, 14.1667,
+H_LINE_TO, 16.3333,

@@ -135,15 +135,21 @@ class ConvertSymbolTest(unittest.TestCase):
         self.assertIn("MOVE_TO, 19.2, 12,", body)
 
 
+def grid(path):
+    """The grid a converted symbol was drawn on: 24 for the compiled set."""
+    return 24 if Path(path).name.startswith("c_") else 20
+
+
 class ConvertFileTest(unittest.TestCase):
-    def test_all_58_symbols_convert(self):
+    def test_all_111_symbols_convert(self):
+        # 58 of the older set on a 20 grid, 53 of the compiled UI's (c-) on 24.
         with tempfile.TemporaryDirectory() as out:
             paths = svg_to_icon.convert_file(str(ICONS_SVG), out)
-            self.assertEqual(len(paths), 58)
+            self.assertEqual(len(paths), 111)
             for p in paths:
                 text = Path(p).read_text(encoding="utf-8")
                 self.assertTrue(text.startswith("// Copyright 2026 boring."), p)
-                self.assertIn("CANVAS_DIMENSIONS, 20,", text, p)
+                self.assertIn(f"CANVAS_DIMENSIONS, {grid(p)},", text, p)
                 self.assertRegex(Path(p).name, r"^[a-z0-9_]+\.icon$")
                 self.assertIsNone(re.search(r"\d\s*e\d", text), p)
 
@@ -170,7 +176,9 @@ class ConvertFileTest(unittest.TestCase):
                     else:
                         continue
                     for v in vals:
-                        self.assertTrue(-0.01 <= v <= 20.01, f"{Path(p).name}: {ln}")
+                        self.assertTrue(
+                            -0.01 <= v <= grid(p) + 0.01, f"{Path(p).name}: {ln}"
+                        )
 
     def test_only_filters_by_id(self):
         with tempfile.TemporaryDirectory() as out:
