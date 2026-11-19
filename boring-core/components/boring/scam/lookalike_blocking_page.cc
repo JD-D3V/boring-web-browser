@@ -205,7 +205,6 @@ LookalikeBlockingPage::~LookalikeBlockingPage() = default;
 std::string LookalikeBlockingPage::GetHTMLContents() {
   WarningText text;
   text.title = "Address looks like another site";
-  text.eyebrow = "Look-alike address";
   text.address = std::string(request_url().host());
   text.no_bypass =
       "No way past scam warnings is on. This site cannot be opened from "

@@ -88,7 +88,7 @@ WARNED = (
 BUTTON = (
     "[...document.querySelectorAll('button')].find(b => b.textContent.trim() === %s)"
 )
-CONTINUE = BUTTON % "'Continue anyway'"
+CONTINUE = BUTTON % "'Continue anyway, not advised'"
 WARN_LABEL = "return document.querySelector('label[for=warn-scam-tricks]').textContent"
 COLOURS = (
     "return [getComputedStyle(document.body).backgroundColor,"

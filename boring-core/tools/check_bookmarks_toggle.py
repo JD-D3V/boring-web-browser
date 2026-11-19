@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Check, in a real window, that Settings, Appearance, "Show bookmarks bar"
-really shows and hides the bar (ledger 114, Release 3).
+"""Check, in a real window, that Settings, Appearance, Bookmarks (Bar on top
+or Off) really shows and hides the bar (ledger 114, Release 3).
 
-A fresh profile shows the bar with "Bookmarks you add show here". The switch
-is clicked in the page (WebDriver), then the browser window is read through
+A fresh profile shows the bar with "Bookmarks you add show here". The menu
+is changed in the page (WebDriver), then the browser window is read through
 UI Automation on our own window: the hint must go, and come back when the
-switch is put back. The preference bookmark_bar.show_on_all_tabs follows.
+menu is put back. The preference bookmark_bar.show_on_all_tabs follows.
 
 Usage: python check_bookmarks_toggle.py
 Needs BORING_OUT and BORING_ALLOW_HEADFUL=1. The window is off screen. Sends
@@ -22,23 +22,18 @@ from smoke_site_panel import Window, browser_windows
 
 HINT = "Bookmarks you add show here"
 
-FIND_TOGGLE = (
-    FIND
-    + r"""
-function all(root, out) {
-  root.querySelectorAll('settings-toggle-button').forEach(t => out.push(t));
-  root.querySelectorAll('*').forEach(e => { if (e.shadowRoot) all(e.shadowRoot, out); });
-  return out;
-}
-const t = all(document, []).find(x => (x.label || '').indexOf('bookmarks bar') >= 0
-                                      && (x.label || '').indexOf('tab groups') < 0);
-"""
-)
+# Settings, Appearance, Bookmarks (cui-settings.patch): a menu of
+# Bar on top ('true') or Off ('false') on bookmark_bar.show_on_all_tabs.
+FIND_MENU = FIND + "var t = find(document, 'settings-dropdown-menu#showBookmarksBar');"
 READ = (
-    FIND_TOGGLE + "return t ? {label: t.label, checked: !!t.checked, "
+    FIND_MENU + "return t ? {label: t.label, checked: !!(t.pref && t.pref.value), "
     "pref: t.pref ? t.pref.value : null} : null;"
 )
-CLICK = FIND_TOGGLE + "if (t) t.click(); return !!t;"
+CLICK = (
+    FIND_MENU + "if (!t) return false; var s = t.shadowRoot.querySelector('select');"
+    "s.value = (t.pref && t.pref.value) ? 'false' : 'true';"
+    "s.dispatchEvent(new Event('change')); return true;"
+)
 
 
 def hint_visible(driver_pid):
@@ -77,7 +72,7 @@ def main():
         time.sleep(3)
         state = b.run(READ)
         check(
-            "the page has a Show bookmarks bar switch, on",
+            "the page has a Bookmarks menu, Bar on top",
             bool(state and state["checked"]),
             str(state),
         )
@@ -86,7 +81,7 @@ def main():
         time.sleep(1)
         state = b.run(READ)
         check(
-            "clicked: the switch is off and its pref is false",
+            "chose Off: its pref is false",
             bool(state) and not state["checked"] and state["pref"] is False,
             str(state),
         )
@@ -95,7 +90,7 @@ def main():
         time.sleep(1)
         state = b.run(READ)
         check(
-            "clicked again: the switch is on and its pref is true",
+            "chose Bar on top: its pref is true",
             bool(state) and state["checked"] and state["pref"] is True,
             str(state),
         )

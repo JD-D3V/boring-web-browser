@@ -65,7 +65,6 @@ ScamBlockingPage::~ScamBlockingPage() = default;
 std::string ScamBlockingPage::GetHTMLContents() {
   WarningText text;
   text.title = "Site blocked";
-  text.eyebrow = "Site blocked";
   text.address = std::string(request_url().host());
   text.main_button = "Go back to safety";
   if (quad9_block_) {
@@ -76,10 +75,10 @@ std::string ScamBlockingPage::GetHTMLContents() {
     text.no_bypass = "This site cannot be opened from this warning.";
     return BuildWarningPage(web_contents(), text, /*may_continue=*/false);
   }
-  text.heading = "This site may be a scam.";
+  text.heading = "This site is not safe";
   text.what =
-      "This address is on a list of known scam sites. Sites like it try to "
-      "get your passwords or money.";
+      "Boring Browser stopped %HOST% from opening. It is on a list of sites "
+      "that pretend to be real companies to take passwords or card details.";
   text.why =
       "Its address matched the list on this computer. Lists can be wrong.";
   text.no_bypass =

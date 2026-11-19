@@ -22,9 +22,10 @@ inline constexpr char kNewTabShortcutsPref[] = "boring.newtab.shortcuts";
 
 void RegisterNewTabPrefs(user_prefs::PrefRegistrySyncable* registry);
 
-// A quiet new tab page: the shortcuts the person chose and one line
-// saying whether protection is working. Nothing on it is fetched from
-// the internet, so opening a tab never tells anyone anything.
+// A quiet new tab page: the sites the person pinned, the last few pages
+// from their history, and one line saying whether protection is working.
+// Nothing on it is fetched from the internet, so opening a tab never
+// tells anyone anything.
 class BoringNewTabUI : public content::WebUIController {
  public:
   explicit BoringNewTabUI(content::WebUI* web_ui);

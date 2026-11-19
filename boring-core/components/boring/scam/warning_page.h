@@ -15,10 +15,9 @@ namespace boring {
 // short and calm: what happened, what to do, and one main button.
 struct WarningText {
   std::string title;        // the tab title
-  std::string eyebrow;      // the small label over the heading
   std::string heading;      // what this is, in one line
-  std::string what;         // what happened
-  std::string address;      // the address, shown in a box
+  std::string what;         // what happened; %HOST% is where the address goes
+  std::string address;      // the address, in bold at %HOST%, else in a box
   std::string main_button;  // the safe way out
   std::string why;          // the details: why this was blocked
   std::string no_bypass;    // shown instead of "Continue anyway" when it is off

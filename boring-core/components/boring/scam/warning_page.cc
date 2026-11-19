@@ -14,9 +14,10 @@ namespace boring {
 
 namespace {
 
-// The page is written directly here, in plain language, with big text.
-// It stays calm on purpose, and takes its colours from the window's own
-// palette (see ColourVariables).
+// The page is written directly here, in plain language. It stays calm on
+// purpose: it says the computer is fine and nobody needs to be called.
+// Its colours are the TOKENS rows of the compiled design (see
+// ColourVariables).
 constexpr char kPageTop[] = R"HTML(<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -26,53 +27,49 @@ constexpr char kPageTop[] = R"HTML(<!DOCTYPE html>
 <style>
   %COLOURS%
   * { box-sizing: border-box; }
-  body { background: var(--paper); color: var(--ink);
-         font: 14px/1.6 "Segoe UI", system-ui, sans-serif;
+  [hidden] { display: none !important; }
+  body { background: var(--page); color: var(--ink);
+         font: 14px/1.5 Inter, "Segoe UI", system-ui, sans-serif;
          margin: 0; display: flex; min-height: 100vh; align-items: center;
          justify-content: center; }
-  .warning-page { max-width: 640px; width: 100%; margin: 65px auto;
-                  padding: 0 30px 35px; }
-  .warning-symbol { display: grid; place-items: center; font-size: 24px;
-                    color: var(--warning); background: var(--warning-soft);
-                    width: 52px; height: 52px; border-radius: 15px;
-                    margin-bottom: 26px; }
-  .eyebrow { text-transform: uppercase; letter-spacing: 0.16em;
-             font-size: 10px; font-weight: 650; color: var(--warning);
-             margin-bottom: 10px; }
-  h1 { font-size: 38px; letter-spacing: -0.045em; font-weight: 550;
-       line-height: 1.1; margin: 0 0 0.4em; }
-  p { color: var(--muted); font-size: 14px; line-height: 1.65;
-      margin: 0 0 1em; }
-  .host { font-size: 14px; padding: 14px 18px; border: 1px solid var(--line);
-          border-radius: 8px; background: var(--chip); color: var(--ink);
-          font-weight: 600; overflow-wrap: anywhere; margin: 0 0 1.2em; }
-  .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
-  .primary { min-height: 40px; padding: 10px 18px; border-radius: 7px;
-             font-weight: 600; font-size: 13px; border: none;
-             cursor: pointer; font-family: inherit;
-             background: var(--accent); color: var(--on-accent); }
-  .text-button { background: none; border: none; color: var(--accent);
-                 font-weight: 600; padding: 8px 0; text-align: left;
-                 font-size: 13px; cursor: pointer; font-family: inherit; }
-  /* Press and hover: colour and a small scale only, so input never waits. */
-  .primary, .text-button {
-    transition: background-color 150ms ease-out, color 150ms ease-out,
-                border-color 150ms ease-out, transform 150ms ease-out; }
-  .primary:active { transform: scale(0.98); }
-  .text-button:active { transform: scale(0.98); }
-  @media (hover: hover) {
-    .primary:hover { background: color-mix(in srgb, var(--accent) 86%, var(--ink)); }
-    .text-button:hover { text-decoration: underline; text-underline-offset: 3px; }
-  }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  details { margin-top: 28px; font-size: 12px; color: var(--muted); }
-  summary { cursor: pointer; }
-  .panel-note { font-size: 12px; color: var(--muted); margin-top: 28px; }
+  .warning-page { width: 520px; max-width: calc(100% - 32px); margin: 40px 0;
+                  display: flex; flex-direction: column; gap: 20px;
+                  padding: 32px; border-radius: 12px;
+                  background: var(--surface);
+                  box-shadow: 0 0 0 1px var(--line), 0 1px 2px var(--shadow); }
+  .warning-symbol { width: 44px; height: 44px; display: grid;
+                    place-items: center; border-radius: 10px;
+                    color: var(--bad); background: var(--bad-tint); }
+  .words { display: flex; flex-direction: column; gap: 8px; }
+  h1 { margin: 0; font-size: 24px; font-weight: 600;
+       letter-spacing: -0.015em; line-height: 1.25; }
+  p { margin: 0; }
+  .host { font-weight: 600; overflow-wrap: anywhere; }
+  .host-box { padding: 10px 14px; border-radius: 8px; background: var(--field);
+              box-shadow: inset 0 0 0 1px var(--line); }
+  .calm, .why, .panel-note { color: var(--ink2); }
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+  button { font: inherit; color: inherit; border: 0; background: none;
+           padding: 0; cursor: pointer; }
+  .primary, .secondary { height: 40px; display: flex; align-items: center;
+                         border-radius: 8px;
+                         transition: transform 150ms ease-out; }
+  .primary { padding: 0 20px; font-weight: 600; color: var(--solid-ink);
+             background: var(--solid); }
+  .secondary { padding: 0 16px; font-weight: 500;
+               box-shadow: inset 0 0 0 1px var(--edge); }
+  .primary:active, .secondary:active { transform: scale(0.98); }
+  .footer { padding-top: 16px; display: flex; justify-content: space-between;
+            gap: 16px; font-size: 13px; color: var(--ink2);
+            box-shadow: inset 0 1px 0 var(--line); }
+  .link { text-decoration: underline; text-underline-offset: 3px; }
+  @media (hover: hover) { .link:hover { color: var(--ink); } }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) {
-    .primary, .text-button { transition: none; }
-    .primary:active, .text-button:active { transform: none; }
+    .primary, .secondary { transition: none; }
+    .primary:active, .secondary:active { transform: none; }
   }
-  @media (max-width: 480px) { .warning-page { padding: 0 22px 22px; } }
+  @media (max-width: 480px) { .warning-page { padding: 24px; } }
   @media (forced-colors: active) {
     button { border: 1px solid ButtonText; }
     .primary { background: Highlight; color: HighlightText; }
@@ -81,14 +78,17 @@ constexpr char kPageTop[] = R"HTML(<!DOCTYPE html>
 </head>
 <body>
 <div class="warning-page">
-<div class="warning-symbol" aria-hidden="true">!</div>
-<div class="eyebrow">%EYEBROW%</div>
+<div class="warning-symbol" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.5 2.8v5.7c0 4.3-3 7.7-7.5 9-4.5-1.3-7.5-4.7-7.5-9V5.8zM12 8v4.5M12 15.6v.01"></path></svg></div>
+<div class="words">
 <h1>%HEADING%</h1>
 )HTML";
 
 constexpr char kPageBottom[] = R"HTML(
+<p class="calm">Your computer is fine. Nothing was sent, and you do not need to call anyone.</p>
+</div>
 <div class="actions">
 <button class="primary" onclick="goBack()">%MAIN%</button>
+%WHY_BUTTON%
 </div>
 %CONTINUE%
 </div>
@@ -106,62 +106,51 @@ function proceedAnyway() {
   }
   return false;
 }
+function toggleWhy(button) {
+  var why = document.getElementById('why');
+  why.hidden = !why.hidden;
+  button.setAttribute('aria-expanded', why.hidden ? 'false' : 'true');
+}
 </script>
 </body>
 </html>
 )HTML";
 
-constexpr char kContinueTop[] =
-    "<details><summary>Why was this blocked?</summary><p>";
+constexpr char kWhyButton[] =
+    "<button type=\"button\" class=\"secondary\" aria-expanded=\"false\" "
+    "aria-controls=\"why\" onclick=\"toggleWhy(this)\">Why was this "
+    "blocked</button>";
+
+constexpr char kContinueTop[] = "<p class=\"why\" id=\"why\" hidden>";
 
 constexpr char kContinueBottom[] =
-    "</p>"
-    "<button type=\"button\" class=\"text-button\" "
-    "onclick=\"return proceedAnyway()\">Continue anyway</button></details>";
+    "</p><div class=\"footer\">"
+    "<button type=\"button\" class=\"link\" "
+    "onclick=\"return proceedAnyway()\">Continue anyway, not advised</button>"
+    "</div>";
+
+// Where a text names the site: the address goes there, in bold.
+constexpr char kHostMarker[] = "%HOST%";
 
 // The page is not a chrome:// page, so it cannot load the theme's
-// colors.css the way the Protection page does. The colours are read from
-// the tab's own colour provider when the page is built instead, which is
-// the same palette the window is using: Cool, Beige or Green, light or
-// dark. Dark is told from the page colour itself, not from a setting, so
-// it cannot disagree with what the provider handed back.
+// colors.css. Light or dark is told from the tab's own colour provider
+// (its dialog background), so it cannot disagree with the window; the
+// colours themselves are the design's TOKENS rows.
 std::string ColourVariables(content::WebContents* contents) {
-  const ui::ColorProvider& colours = contents->GetColorProvider();
-  const SkColor paper = colours.GetColor(ui::kColorDialogBackground);
-  const bool dark = color_utils::IsDark(paper);
-  const auto rgb = [&colours](ui::ColorId id) {
-    return color_utils::SkColorToRgbString(colours.GetColor(id));
-  };
-  return base::StrCat(
-      {":root { color-scheme: ",
-       dark ? "dark" : "light",
-       ";\n",
-       "    --paper: rgb(",
-       color_utils::SkColorToRgbString(paper),
-       ");\n",
-       "    --ink: rgb(",
-       rgb(ui::kColorDialogForeground),
-       ");\n",
-       "    --muted: rgb(",
-       rgb(ui::kColorLabelForegroundSecondary),
-       ");\n",
-       "    --line: rgb(",
-       rgb(ui::kColorBubbleBorder),
-       ");\n",
-       "    --accent: rgb(",
-       rgb(ui::kColorSysPrimary),
-       ");\n",
-       "    --on-accent: rgb(",
-       rgb(ui::kColorSysOnPrimary),
-       ");\n",
-       "    --chip: color-mix(in srgb, var(--ink) 6%, var(--paper));\n",
-       "    --warning: ",
-       dark ? "#ffb69c" : "#9e3e24",
-       ";\n",
-       "    --warning-soft: ",
-       dark ? "#412f28" : "#fbebe4",
-       ";\n",
-       "  }"});
+  const bool dark = color_utils::IsDark(
+      contents->GetColorProvider().GetColor(ui::kColorDialogBackground));
+  return dark ? ":root { color-scheme: dark;\n"
+                "    --page: #151514; --surface: #1c1c1a; --field: #121211;\n"
+                "    --line: #2d2d2a; --edge: #77756d; --ink: #ecebe7;\n"
+                "    --ink2: #a9a79f; --bad: #ff9a8f; --bad-tint: #3b1c1a;\n"
+                "    --solid: #e8e9ed; --solid-ink: #14151a;\n"
+                "    --shadow: rgba(0,0,0,0.55); }"
+              : ":root { color-scheme: light;\n"
+                "    --page: #f8f7f4; --surface: #ffffff; --field: #f4f3ef;\n"
+                "    --line: #e2dfd9; --edge: #8a867d; --ink: #1f1e1c;\n"
+                "    --ink2: #5d5a54; --bad: #a3271c; --bad-tint: #fbe6e3;\n"
+                "    --solid: #1a1c22; --solid-ink: #ffffff;\n"
+                "    --shadow: rgba(16,24,40,0.16); }";
 }
 
 void ReplaceFirst(std::string& text,
@@ -181,22 +170,32 @@ std::string BuildWarningPage(content::WebContents* web_contents,
   std::string top(kPageTop);
   ReplaceFirst(top, "%COLOURS%", ColourVariables(web_contents));
   ReplaceFirst(top, "%TITLE%", base::EscapeForHTML(text.title));
-  ReplaceFirst(top, "%EYEBROW%", base::EscapeForHTML(text.eyebrow));
   ReplaceFirst(top, "%HEADING%", base::EscapeForHTML(text.heading));
 
-  const std::string body = base::StrCat(
-      {"<p>", base::EscapeForHTML(text.what), "</p><div class=\"host\">",
-       base::EscapeForHTML(text.address), "</div>"});
+  // Everything is escaped first; the marker survives escaping, so the
+  // address (escaped too) can only ever land where the text put it.
+  const std::string address = base::EscapeForHTML(text.address);
+  std::string what = base::EscapeForHTML(text.what);
+  std::string body;
+  if (what.find(kHostMarker) != std::string::npos) {
+    ReplaceFirst(what, kHostMarker,
+                 base::StrCat({"<span class=\"host\">", address, "</span>"}));
+    body = base::StrCat({"<p>", what, "</p>"});
+  } else {
+    body = base::StrCat({"<p>", what, "</p><p class=\"host host-box\">",
+                         address, "</p>"});
+  }
 
   std::string bottom(kPageBottom);
   ReplaceFirst(bottom, "%MAIN%", base::EscapeForHTML(text.main_button));
+  ReplaceFirst(bottom, "%WHY_BUTTON%", may_continue ? kWhyButton : "");
   ReplaceFirst(
       bottom, "%CONTINUE%",
       may_continue
           ? base::StrCat(
                 {kContinueTop, base::EscapeForHTML(text.why), kContinueBottom})
-          : base::StrCat({"<p class=\"panel-note\">",
-                          base::EscapeForHTML(text.no_bypass), "</p>"}));
+          : base::StrCat({"<div class=\"footer\"><p class=\"panel-note\">",
+                          base::EscapeForHTML(text.no_bypass), "</p></div>"}));
   return base::StrCat({top, body, bottom});
 }
 

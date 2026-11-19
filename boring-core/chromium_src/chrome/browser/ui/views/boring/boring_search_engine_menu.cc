@@ -17,6 +17,7 @@
 #include "base/task/sequenced_task_runner.h"
 #include "cc/paint/paint_flags.h"
 #include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -33,6 +34,9 @@
 #include "chrome/browser/ui/views/page_info/page_info_bubble_view_base.h"
 #include "components/boring/newtab/search_engine_menu.h"
 #include "components/boring/search/search_engines.h"
+#include "components/history/core/browser/history_service.h"
+#include "components/history/core/browser/history_types.h"
+#include "components/keyed_service/core/service_access_type.h"
 #include "components/omnibox/browser/autocomplete_match.h"
 #include "components/omnibox/browser/omnibox_client.h"
 #include "components/search_engines/template_url.h"
@@ -746,6 +750,50 @@ bool ShowSearchEngineMenuForPage(
           },
           std::move(on_pick)),
       std::move(on_default_changed), std::move(on_closed));
+}
+
+void GetRecentPagesForPage(
+    content::WebContents* page,
+    size_t max,
+    base::CancelableTaskTracker* tracker,
+    base::OnceCallback<void(std::vector<RecentPage>)> done) {
+  Profile* profile =
+      page ? Profile::FromBrowserContext(page->GetBrowserContext()) : nullptr;
+  // Incognito shows none: its new tab page stays empty of the past.
+  history::HistoryService* history =
+      profile && !profile->IsOffTheRecord()
+          ? HistoryServiceFactory::GetForProfile(
+                profile, ServiceAccessType::EXPLICIT_ACCESS)
+          : nullptr;
+  if (!history || max == 0) {
+    std::move(done).Run({});
+    return;
+  }
+  history::QueryOptions options;
+  // More than needed: pages that are not on the web are dropped below.
+  options.max_count = static_cast<int>(max * 4);
+  options.duplicate_policy = history::QueryOptions::REMOVE_ALL_DUPLICATES;
+  history->QueryHistory(
+      std::u16string(), options,
+      base::BindOnce(
+          [](size_t max,
+             base::OnceCallback<void(std::vector<RecentPage>)> done,
+             history::QueryResults results) {
+            std::vector<RecentPage> pages;
+            for (const history::URLResult& result : results) {
+              if (!result.url().SchemeIsHTTPOrHTTPS()) {
+                continue;
+              }
+              pages.push_back(
+                  {result.url(), result.title(), result.visit_time()});
+              if (pages.size() == max) {
+                break;
+              }
+            }
+            std::move(done).Run(std::move(pages));
+          },
+          max, std::move(done)),
+      tracker);
 }
 
 base::Value RunSearchEngineMenuTestCommand(content::WebContents* page,

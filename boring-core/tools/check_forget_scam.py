@@ -35,7 +35,7 @@ from smoke_scam import (
 )
 from smoke_site_panel import find_panel, poll, press_shield
 
-WARNING = "This site may be a scam"
+WARNING = "This site is not safe"
 
 
 def main():
