@@ -115,6 +115,9 @@ def main():
 
     chrome_args = [
         HOOK,
+        # No update check or list fetch, and so no update row in the menu.
+        "--disable-boring-updates",
+        "--disable-boring-list-updates",
         "--disable-backgrounding-occluded-windows",
         "--disable-features=CalculateNativeWinOcclusion",
         f"--window-size={w},{h}",

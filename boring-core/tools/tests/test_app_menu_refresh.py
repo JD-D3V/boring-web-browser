@@ -2,8 +2,10 @@
 """The main menu refresh (design/v9-menu, mockup A) keeps every command.
 
 Reads patches/157/app-menu-refresh.patch, the views in
-chromium_src/.../boring/boring_app_menu.cc and, once the patch is applied,
-the built tree's app_menu_model.cc (BORING_SRC, default E:\\ung-157\\build\\src).
+chromium_src/.../boring/boring_app_menu.cc and the tree's app_menu_model.cc
+(BORING_SRC, default E:\\ung-157\\build\\src), patched or not: the patch is
+applied to, or undone from, a scratch copy, so the commands before and
+after it are compared whenever a tree is here.
 
 Usage:
   python -m unittest boring-core/tools/tests/test_app_menu_refresh.py -v
@@ -11,11 +13,14 @@ Usage:
 
 import os
 import re
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
 CORE = Path(__file__).resolve().parents[2]
 REPO = CORE.parent
+TOOLS = CORE / "tools"
 PATCH = CORE / "patches" / "157" / "app-menu-refresh.patch"
 SERIES = CORE / "patches" / "series"
 VIEWS = (
@@ -39,11 +44,25 @@ MIXER = (
 )
 MOCK = REPO / "design" / "v9-menu" / "a.html"
 SRC = Path(os.environ.get("BORING_SRC", r"E:\ung-157\build\src"))
-MODEL = SRC / "chrome" / "browser" / "ui" / "toolbar" / "app_menu_model.cc"
+MODEL_PATH = "chrome/browser/ui/toolbar/app_menu_model.cc"
+MODEL = SRC / MODEL_PATH
+# The files the patch changes. Submenu models live in app_menu_model.cc or
+# files of their own that are not here, so the patch cannot drop a row
+# inside a submenu unless app_menu_model.cc changes outside Build().
+PATCHED_FILES = {
+    "chrome/app/chrome_command_ids.h",
+    "chrome/browser/ui/toolbar/app_menu_model.h",
+    MODEL_PATH,
+    "chrome/browser/ui/views/toolbar/app_menu.cc",
+    "chrome/browser/ui/views/toolbar/BUILD.gn",
+    "ui/views/controls/menu/menu_item_view.h",
+    "ui/views/controls/menu/menu_item_view.cc",
+    "ui/views/controls/menu/menu_controller.cc",
+}
 
 # Every command AppMenuModel::Build() put in the menu before the refresh
 # (157.0.8103.38 with patch set 157), the ones only some profiles or
-# builds show included.
+# builds show included. ParityTest checks it against the tree.
 BEFORE = {
     "IDC_UPGRADE_DIALOG",
     "AddSafetyHubMenuItem",
@@ -136,23 +155,42 @@ def build_body(text):
     return text[start : text.index("\n}\n", start)]
 
 
-def mock_numbers():
-    """Mockup A's numbers, read from the page when it is here (design/v9-menu
-    is kept out of the repository), else the ones it had when JD picked it."""
-    numbers = {
-        "row_radius": 8,
-        "card_radius": 12,
-        "card_padding": 4,
-        "tile_height": 76,
-        "tile_radius": 12,
-        "tile_gap": 8,
-        "menu_padding": 8,
-        "bar_height": 36,
-        "bar_radius": 9,
-        "bar_padding": 12,
-    }
-    if not MOCK.exists():
-        return numbers
+def apply_patch(text, reverse=False):
+    """`text` (an app_menu_model.cc) with the patch's hunks for it applied,
+    or undone, in a scratch repository of its own."""
+    with tempfile.TemporaryDirectory(prefix="app-menu-parity-") as tmp:
+        subprocess.run(["git", "init", "-q", tmp], check=True)
+        path = Path(tmp) / MODEL_PATH
+        path.parent.mkdir(parents=True)
+        path.write_text(text, encoding="utf-8", newline="\n")
+        args = ["git", "apply", "--include=" + MODEL_PATH]
+        if reverse:
+            args.append("--reverse")
+        subprocess.run([*args, str(PATCH)], cwd=tmp, check=True, capture_output=True)
+        return path.read_text(encoding="utf-8")
+
+
+# Mockup A's numbers as they were when JD picked it. LookTest checks the
+# constants against these always, and these against design/v9-menu/a.html
+# whenever that page is here (design/ is kept out of the repository).
+MOCK_NUMBERS = {
+    "row_radius": 8,
+    "card_radius": 12,
+    "card_padding": 4,
+    "tile_height": 76,
+    "tile_radius": 12,
+    "tile_gap": 8,
+    "menu_padding": 8,
+    "bar_height": 36,
+    "bar_radius": 9,
+    "bar_padding": 12,
+    "row_font": 13,
+}
+
+
+def page_numbers():
+    """The same numbers, read from the mockup page."""
+    numbers = {}
     css = MOCK.read_text(encoding="utf-8")
 
     def rule(selector):
@@ -174,6 +212,7 @@ def mock_numbers():
     numbers["bar_height"] = px(bb, "height")
     numbers["bar_radius"] = px(bb, "border-radius")
     numbers["bar_padding"] = int(re.search(r"padding:0 (\d+)px", bb).group(1))
+    numbers["row_font"] = int(re.search(r"font:(\d+)px", rule(".menu")).group(1))
     return numbers
 
 
@@ -209,14 +248,49 @@ class PatchTest(unittest.TestCase):
         self.assertIn('    "../boring/boring_app_menu.h",', added)
 
     def test_ui_views_change_is_small_and_marked(self):
-        for path in (
-            "ui/views/controls/menu/menu_item_view.h",
-            "ui/views/controls/menu/menu_item_view.cc",
+        for path, most in (
+            ("ui/views/controls/menu/menu_item_view.h", 15),
+            ("ui/views/controls/menu/menu_item_view.cc", 16),
+            ("ui/views/controls/menu/menu_controller.cc", 17),
         ):
             removed, added = file_hunks(path)
             self.assertEqual(removed, [], path)
-            self.assertLess(len(added), 16, path)
+            self.assertLessEqual(len(added), most, path)
             self.assertTrue(any("boring:" in ln for ln in added), path)
+
+    def test_patch_changes_only_its_files(self):
+        files = re.findall(r"^diff --git a/(\S+) ", patch_text(), re.M)
+        self.assertEqual(sorted(files), sorted(PATCHED_FILES))
+
+    def test_only_the_main_menus_headings_look_new(self):
+        # Titles in submenus share kTitleId with the headings; the headings
+        # get an id of their own, and the stock title look stays.
+        removed, added = file_hunks("chrome/browser/ui/views/toolbar/app_menu.cc")
+        self.assertFalse(any("STYLE_HEADLINE_5" in ln for ln in removed))
+        text = "\n".join(added)
+        self.assertEqual(text.count("command_id == boring::kAppMenuHeadingId"), 2)
+        views = VIEWS.read_text(encoding="utf-8")
+        self.assertIn("item->SetCommand(kAppMenuHeadingId);", views)
+
+    def test_headings_are_headings_and_not_selection_stops(self):
+        views = VIEWS.read_text(encoding="utf-8")
+        self.assertIn("SetRole(ax::mojom::Role::kHeading)", views)
+        _, added = file_hunks("ui/views/controls/menu/menu_item_view.cc")
+        text = "\n".join(added)
+        self.assertIn("GetCachedRole() == ax::mojom::Role::kHeading", text)
+
+    def test_left_and_right_move_across_a_row_of_buttons(self):
+        _, added = file_hunks("ui/views/controls/menu/menu_controller.cc")
+        text = "\n".join(added)
+        self.assertIn("key_code == ui::VKEY_LEFT || key_code == ui::VKEY_RIGHT", text)
+        self.assertIn("GetNextFocusableView(row, button, forward)", text)
+        self.assertIn("SetHotTrackedButton(next);", text)
+
+    def test_first_tile_shows_the_models_label(self):
+        # An Incognito or isolated window's model says "New Incognito tab".
+        views = VIEWS.read_text(encoding="utf-8")
+        self.assertNotIn("GetStringUTF16(IDS_NEW_TAB)", views)
+        self.assertIn("ShownLabel(command_id, model->GetLabelAt(index))", views)
 
     def test_text_is_plain(self):
         added = []
@@ -236,26 +310,72 @@ class PatchTest(unittest.TestCase):
         self.assertNotIn("\u2014", patch_text())
 
 
-class BuiltModelTest(unittest.TestCase):
-    def setUp(self):
+class ParityTest(unittest.TestCase):
+    """The menu's commands before the patch against after it, read from the
+    tree's app_menu_model.cc with the patch undone or applied in a scratch
+    copy, whichever the tree lacks."""
+
+    @classmethod
+    def setUpClass(cls):
         if not MODEL.exists():
-            self.skipTest(f"no tree at {SRC}")
-        self.body = build_body(MODEL.read_text(encoding="utf-8"))
-        if "IDC_BORING_APP_MENU_TILES" not in self.body:
-            self.skipTest("app-menu-refresh.patch is not applied in " + str(SRC))
+            raise unittest.SkipTest(f"no tree at {SRC}")
+        text = MODEL.read_text(encoding="utf-8")
+        if "IDC_BORING_APP_MENU_TILES" in text:
+            cls.before, cls.after = apply_patch(text, reverse=True), text
+        else:
+            cls.before, cls.after = text, apply_patch(text)
+
+    def test_checked_in_list_is_the_menu_before_the_patch(self):
+        self.assertEqual(
+            sorted(set(TOKEN.findall(build_body(self.before)))), sorted(BEFORE)
+        )
 
     def test_every_command_is_still_in_the_menu(self):
-        self.assertEqual(sorted(BEFORE - set(TOKEN.findall(self.body))), [])
+        after = set(TOKEN.findall(build_body(self.after)))
+        self.assertEqual(sorted(BEFORE - after), [])
+
+    def test_submenus_are_as_they_were(self):
+        # Everything outside Build(), the submenu models in this file
+        # included, is untouched.
+        self.assertEqual(
+            self.before.replace(build_body(self.before), ""),
+            self.after.replace(build_body(self.after), ""),
+        )
 
     def test_rows_are_in_the_mockups_order(self):
-        at = [self.body.find(t) for t in ORDER]
+        body = build_body(self.after)
+        at = [body.find(t) for t in ORDER]
         self.assertNotIn(-1, at, [t for t, i in zip(ORDER, at, strict=True) if i < 0])
         self.assertEqual(at, sorted(at))
 
 
+class SmokeWiringTest(unittest.TestCase):
+    def test_the_window_pass_checks_the_smokes_height(self):
+        smoke = (TOOLS / "smoke_app_menu.py").read_text(encoding="utf-8")
+        height = re.search(r"^MENU_HEIGHT = (\d+)$", smoke, re.M).group(1)
+        wiring = (TOOLS / "run_window_pass.py").read_text(encoding="utf-8")
+        self.assertEqual(
+            re.findall(r'"--expect-height",\s*"(\d+)"', wiring), [height, height]
+        )
+
+    def test_the_menu_tools_turn_updates_off(self):
+        for name in ("smoke_app_menu.py", "capture_app_menu.py"):
+            src = (TOOLS / name).read_text(encoding="utf-8")
+            self.assertIn('"--disable-boring-updates"', src, name)
+            self.assertIn('"--disable-boring-list-updates"', src, name)
+
+
 class LookTest(unittest.TestCase):
+    def test_checked_in_numbers_are_the_mockups(self):
+        if not MOCK.exists():
+            self.skipTest(
+                f"{MOCK} is not here (design/ is kept out of the repository); "
+                "the sizes are checked against MOCK_NUMBERS only"
+            )
+        self.assertEqual(page_numbers(), MOCK_NUMBERS)
+
     def test_sizes_are_the_mockups(self):
-        m = mock_numbers()
+        m = MOCK_NUMBERS
         for name, key in (
             ("kRowRadius", "row_radius"),
             ("kCardRadius", "card_radius"),
@@ -267,6 +387,7 @@ class LookTest(unittest.TestCase):
             ("kBarButtonHeight", "bar_height"),
             ("kBarButtonRadius", "bar_radius"),
             ("kBarButtonPadding", "bar_padding"),
+            ("kRowFontSize", "row_font"),
         ):
             self.assertEqual(constant(name), m[key], name)
 

@@ -280,12 +280,16 @@ def build_steps(out, net_seconds):
             [
                 tool(
                     "capture_app_menu.py",
+                    "--expect-height",
+                    "769",
                     "--out",
                     str(shots / "app-menu" / "app-menu-light.png"),
                 ),
                 tool(
                     "capture_app_menu.py",
                     "--dark",
+                    "--expect-height",
+                    "769",
                     "--out",
                     str(shots / "app-menu" / "app-menu-dark.png"),
                 ),
