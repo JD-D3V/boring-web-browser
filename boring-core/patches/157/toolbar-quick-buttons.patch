@@ -1,0 +1,188 @@
+diff --git a/chrome/browser/ui/browser_actions.cc b/chrome/browser/ui/browser_actions.cc
+index 3c89142..cc04e15 100644
+--- a/chrome/browser/ui/browser_actions.cc
++++ b/chrome/browser/ui/browser_actions.cc
+@@ -4063,6 +4063,10 @@ void BrowserActions::InitializeToolbarAndMiscActions() {
+                                                 : kSettingsMenuOldIcon,
+               ui::kColorIcon))
+           .SetAccelerator(GetAcceleratorForCommandId(IDC_OPTIONS))
++          // boring: Settings can be pinned to the toolbar.
++          .SetProperty(actions::kActionItemPinnableKey,
++                       std::underlying_type_t<actions::ActionPinnableState>(
++                           actions::ActionPinnableState::kPinnable))
+           .Build());
+ 
+   root_action_item_->AddChild(
+@@ -4787,6 +4791,10 @@ void BrowserActions::InitializeToolbarAndMiscActions() {
+                   : vector_icons::kExtensionChromeRefreshOldIcon,
+               ui::kColorIcon))
+           .SetAccelerator(GetAcceleratorForCommandId(IDC_MANAGE_EXTENSIONS))
++          // boring: so can Extensions.
++          .SetProperty(actions::kActionItemPinnableKey,
++                       std::underlying_type_t<actions::ActionPinnableState>(
++                           actions::ActionPinnableState::kPinnable))
+           .Build());
+ 
+   root_action_item_->AddChild(
+diff --git a/chrome/browser/ui/views/toolbar/BUILD.gn b/chrome/browser/ui/views/toolbar/BUILD.gn
+index 3b919b3..9dc60b7 100644
+--- a/chrome/browser/ui/views/toolbar/BUILD.gn
++++ b/chrome/browser/ui/views/toolbar/BUILD.gn
+@@ -15,6 +15,7 @@ source_set("toolbar") {
+     "back_forward_button.h",
+     "boring_protection_button.h",
+     "boring_reader_button.h",
++    "boring_toolbar_menu.h",
+     "browser_app_menu_button.h",
+     "chrome_labs/chrome_labs_bubble_view.h",
+     "chrome_labs/chrome_labs_coordinator.h",
+@@ -179,6 +180,7 @@ source_set("impl") {
+     "back_forward_button.cc",
+     "boring_protection_button.cc",
+     "boring_reader_button.cc",
++    "boring_toolbar_menu.cc",
+     "browser_app_menu_button.cc",
+     "chrome_labs/chrome_labs_bubble_view.cc",
+     "chrome_labs/chrome_labs_coordinator.cc",
+diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.cc b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+index 5c384da..50b7d30 100644
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+@@ -104,6 +104,7 @@
+ #include "chrome/browser/ui/views/toolbar/back_forward_button.h"
+ #include "chrome/browser/ui/views/toolbar/boring_protection_button.h"
+ #include "chrome/browser/ui/views/toolbar/boring_reader_button.h"
++#include "chrome/browser/ui/views/toolbar/boring_toolbar_menu.h"
+ #include "chrome/browser/ui/views/toolbar/browser_app_menu_button.h"
+ #include "chrome/browser/ui/views/toolbar/chrome_labs/chrome_labs_coordinator.h"
+ #include "chrome/browser/ui/views/toolbar/home_button.h"
+@@ -737,6 +738,12 @@ void ToolbarView::Init() {
+     toolbar_webview_->ToolbarInitialized();
+   }
+ 
++  // boring: right click on the toolbar offers "Customize toolbar".
++  if (display_mode_ == DisplayMode::kNormal &&
++      browser_->GetProfile()->IsRegularProfile()) {
++    boring_menu_ = std::make_unique<BoringToolbarMenu>(browser_, this);
++  }
++
+   initialized_ = true;
+ }
+ 
+diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.h b/chrome/browser/ui/views/toolbar/toolbar_view.h
+index 735572b..6d6ff6b 100644
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.h
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.h
+@@ -52,6 +52,7 @@ class AvatarToolbarButtonInterface;
+ class BatterySaverButton;
+ class BoringProtectionButton;
+ class BoringReaderButton;
++class BoringToolbarMenu;
+ class BrowserAppMenuButton;
+ class BrowserWindowInterface;
+ class ExtensionsToolbarButton;
+@@ -487,6 +488,9 @@ class ToolbarView : public views::AccessiblePaneView,
+ 
+   std::unique_ptr<ToolbarController> toolbar_controller_;
+ 
++  // boring: the right click menu of the toolbar.
++  std::unique_ptr<BoringToolbarMenu> boring_menu_;
++
+   base::CallbackListSubscription subscription_ =
+       ui::TouchUiController::Get()->RegisterCallback(
+           base::BindRepeating(&ToolbarView::OnTouchUiChanged,
+diff --git a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom
+index 717dac2..a65eada 100644
+--- a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom
++++ b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom
+@@ -34,6 +34,9 @@ enum ActionId {
+   kTabSearch,
+   kSplitTab,
+   kContextualTasks,
++  // boring: Settings and Extensions can be pinned too.
++  kShowSettings,
++  kShowExtensions,
+ };
+ 
+ // Unique identifiers for categories the actions can belong to.
+diff --git a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar_handler.cc b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar_handler.cc
+index 1f019a8..295c8d6 100644
+--- a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar_handler.cc
++++ b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar_handler.cc
+@@ -95,6 +95,10 @@ MojoActionForChromeAction(actions::ActionId action_id) {
+       return side_panel::customize_chrome::mojom::ActionId::kSplitTab;
+     case kActionSidePanelShowContextualTasks:
+       return side_panel::customize_chrome::mojom::ActionId::kContextualTasks;
++    case kActionOptions:
++      return side_panel::customize_chrome::mojom::ActionId::kShowSettings;
++    case kActionManageExtensions:
++      return side_panel::customize_chrome::mojom::ActionId::kShowExtensions;
+     default:
+       return std::nullopt;
+   }
+@@ -155,6 +159,10 @@ std::optional<actions::ActionId> ChromeActionForMojoAction(
+       return kActionSplitTab;
+     case side_panel::customize_chrome::mojom::ActionId::kContextualTasks:
+       return kActionSidePanelShowContextualTasks;
++    case side_panel::customize_chrome::mojom::ActionId::kShowSettings:
++      return kActionOptions;
++    case side_panel::customize_chrome::mojom::ActionId::kShowExtensions:
++      return kActionManageExtensions;
+     default:
+       return std::nullopt;
+   }
+@@ -259,7 +267,8 @@ void CustomizeToolbarHandler::ListActions(ListActionsCallback callback) {
+   const auto add_action =
+       [&actions, this, &provider, scale_factor, bwi](
+           actions::ActionId id,
+-          side_panel::customize_chrome::mojom::CategoryId category) {
++          side_panel::customize_chrome::mojom::CategoryId category,
++          std::u16string name = std::u16string()) {
+         actions::ActionItem* const scope_action =
+             BrowserActions::From(bwi)->root_action_item();
+         actions::ActionItem* const action_item =
+@@ -304,7 +313,8 @@ void CustomizeToolbarHandler::ListActions(ListActionsCallback callback) {
+                 actions::ActionPinnableState::kEnterpriseControlled);
+         auto mojo_action = side_panel::customize_chrome::mojom::Action::New(
+             MojoActionForChromeAction(id).value(),
+-            base::UTF16ToUTF8(action_item->GetText()), model_->Contains(id),
++            base::UTF16ToUTF8(name.empty() ? action_item->GetText() : name),
++            model_->Contains(id),
+             has_enterprise_controlled_pinned_state, category,
+             GURL(webui::EncodePNGAndMakeDataURI(
+                 recolored_icon.Rasterize(&provider), scale_factor)));
+@@ -314,6 +324,12 @@ void CustomizeToolbarHandler::ListActions(ListActionsCallback callback) {
+   add_action(kActionNewIncognitoWindow,
+              side_panel::customize_chrome::mojom::CategoryId::kNavigation);
+ 
++  // boring: Settings and Extensions, with the icons the app menu uses.
++  add_action(kActionOptions,
++             side_panel::customize_chrome::mojom::CategoryId::kYourChrome);
++  add_action(kActionManageExtensions,
++             side_panel::customize_chrome::mojom::CategoryId::kYourChrome,
++             l10n_util::GetStringUTF16(IDS_EXTENSIONS_MENU_TITLE));
+   add_action(kActionShowPasswordsBubbleOrPage,
+              side_panel::customize_chrome::mojom::CategoryId::kYourChrome);
+   add_action(kActionShowPaymentsBubbleOrPage,
+@@ -342,18 +358,15 @@ void CustomizeToolbarHandler::ListActions(ListActionsCallback callback) {
+              side_panel::customize_chrome::mojom::CategoryId::kTools);
+   add_action(kActionSidePanelShowSearchCompanion,
+              side_panel::customize_chrome::mojom::CategoryId::kTools);
+-  add_action(kActionShowTranslate,
+-             side_panel::customize_chrome::mojom::CategoryId::kTools);
++  // boring: no Translate, Cast or Send to your device here. Each does
++  // nothing in this build: translation is off, device discovery is not
++  // built and there is no account to send to.
+   add_action(kActionQrCodeGenerator,
+              side_panel::customize_chrome::mojom::CategoryId::kTools);
+-  add_action(kActionRouteMedia,
+-             side_panel::customize_chrome::mojom::CategoryId::kTools);
+   add_action(kActionSidePanelShowReadAnything,
+              side_panel::customize_chrome::mojom::CategoryId::kTools);
+   add_action(kActionCopyUrl,
+              side_panel::customize_chrome::mojom::CategoryId::kTools);
+-  add_action(kActionSendTabToSelf,
+-             side_panel::customize_chrome::mojom::CategoryId::kTools);
+   add_action(kActionTaskManager,
+              side_panel::customize_chrome::mojom::CategoryId::kTools);
+   add_action(kActionDevTools,

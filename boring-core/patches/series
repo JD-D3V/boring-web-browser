@@ -80,3 +80,4 @@ native-hosts-launch.patch
 folder-copy-start.patch
 feature-defaults.patch
 default-browser-prompts-off.patch
+toolbar-quick-buttons.patch
