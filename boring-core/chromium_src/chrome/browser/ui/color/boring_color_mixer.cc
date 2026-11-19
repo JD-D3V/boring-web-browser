@@ -206,6 +206,74 @@ const Palette& LookPalette(const ui::ColorProviderKey& key, bool dark) {
   return dark ? kSoftWhiteDark : kSoftWhiteLight;
 }
 
+// The accent picked in Settings, Appearance: the profile pref
+// boring.appearance.accent, which theme_service.cc checks and puts in the
+// key (patches/157/cui-colours.patch), so a new accent repaints at once.
+// The default is the indigo Soft white and Slate are drawn with; it, or no
+// valid value at all, leaves every palette exactly as it is, the Look's
+// own accent lifted in dark. Any other colour replaces the accent and its
+// wash under every Look; the surfaces, ink, line and edge stay the Look's.
+constexpr SkColor kDefaultAccent = SkColorSetRGB(0x4f, 0x46, 0xe5);
+
+bool HasCustomAccent(const ui::ColorProviderKey& key) {
+  return key.boring_accent && *key.boring_accent != kDefaultAccent;
+}
+
+// The Look's palette with a custom accent in place. Soft white washes
+// nothing in the accent (its tint is the design's neutral sel); the other
+// palettes wash it about 11% over the toolbar in light and 18% in dark,
+// as Green's tints are made.
+Palette WithAccent(const Palette& look,
+                   const ui::ColorProviderKey& key,
+                   bool dark) {
+  Palette p = look;
+  if (!HasCustomAccent(key)) {
+    return p;
+  }
+  p.accent = *key.boring_accent;
+  if (&look != &kSoftWhiteLight && &look != &kSoftWhiteDark) {
+    p.tint = color_utils::AlphaBlend(p.accent, p.toolbar, dark ? 0.18f : 0.11f);
+  }
+  return p;
+}
+
+// Text and icons drawn on the accent: buttons, selected text. The palettes'
+// own pairs are as drawn. On a custom accent, white when it reaches 4.5 to
+// 1; when it does not, the accent is light enough (relative luminance past
+// 0.18) that black reaches more than 4.6 to 1.
+SkColor OnAccent(const Palette& p, const ui::ColorProviderKey& key, bool dark) {
+  if (!HasCustomAccent(key)) {
+    return dark ? p.window : SK_ColorWHITE;
+  }
+  return color_utils::GetContrastRatio(SK_ColorWHITE, p.accent) >= 4.5f
+             ? SK_ColorWHITE
+             : SK_ColorBLACK;
+}
+
+// The accent where it is drawn on a surface rather than filled: focus
+// rings and accented icons need 3 to 1, links 4.5 to 1, on the frame,
+// toolbar, field and paper. A custom accent that falls short is moved
+// toward the ink in 5% steps until it gets there; the person's own colour
+// still fills buttons, switches that are on and selections. The ink is
+// past 4.5 to 1 on every surface (test_palettes.py), so this always ends.
+SkColor AccentOnSurfaces(const Palette& p,
+                         const ui::ColorProviderKey& key,
+                         float ratio) {
+  if (!HasCustomAccent(key)) {
+    return p.accent;
+  }
+  for (int step = 0; step < 20; ++step) {
+    const SkColor c = color_utils::AlphaBlend(p.ink, p.accent, step / 20.0f);
+    if (color_utils::GetContrastRatio(c, p.frame) >= ratio &&
+        color_utils::GetContrastRatio(c, p.toolbar) >= ratio &&
+        color_utils::GetContrastRatio(c, p.field) >= ratio &&
+        color_utils::GetContrastRatio(c, p.paper) >= ratio) {
+      return c;
+    }
+  }
+  return p.ink;
+}
+
 }  // namespace
 
 void AddBoringColorMixer(ui::ColorProvider* provider,
@@ -220,10 +288,16 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
     return;
   }
   const bool dark = key.color_mode == ui::ColorProviderKey::ColorMode::kDark;
-  const Palette& p = WantsBeige(key)
-                         ? (dark ? kBeigeDark : kBeigeLight)
-                         : WantsGreen(key) ? (dark ? kGreenDark : kGreenLight)
-                                           : LookPalette(key, dark);
+  const Palette& look = WantsBeige(key)
+                            ? (dark ? kBeigeDark : kBeigeLight)
+                            : WantsGreen(key)
+                                  ? (dark ? kGreenDark : kGreenLight)
+                                  : LookPalette(key, dark);
+  // The accent from Settings, Appearance, over whichever palette that is.
+  const Palette p = WithAccent(look, key, dark);
+  const SkColor on_accent = OnAccent(p, key, dark);
+  const SkColor accent_ring = AccentOnSurfaces(p, key, 3.0f);
+  const SkColor accent_text = AccentOnSurfaces(p, key, 4.5f);
   ui::ColorMixer& mixer = provider->AddMixer();
   // The mock's hover wash: 7% of the ink in light, 9% in dark.
   const float hover_wash = dark ? 0.09f : 0.07f;
@@ -283,8 +357,8 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   // As in the mock, a button you hover or press gets a wash of the ink
   // behind it and its icon turns accent; pressing deepens the wash to
   // the accent's own.
-  mixer[kColorToolbarButtonIconHovered] = {p.accent};
-  mixer[kColorToolbarButtonIconPressed] = {p.accent};
+  mixer[kColorToolbarButtonIconHovered] = {accent_ring};
+  mixer[kColorToolbarButtonIconPressed] = {accent_ring};
   mixer[kColorToolbarInkDrop] = {p.ink};
   mixer[kColorToolbarInkDropHover] = {
       SkColorSetA(p.ink, dark ? 0x17 : 0x12)};
@@ -325,25 +399,24 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   mixer[kColorOmniboxResultsBackground] = {p.paper};
 
   // One accent, used where something is focused or selected.
-  mixer[ui::kColorFocusableBorderFocused] = {p.accent};
-  mixer[kColorOmniboxResultsIconSelected] = {p.accent};
+  mixer[ui::kColorFocusableBorderFocused] = {accent_ring};
+  mixer[kColorOmniboxResultsIconSelected] = {accent_ring};
   // Selected text, in the address bar and on Chromium's own pages. Its
   // default is a tone of the seed colour, which stayed indigo under
   // Green. Filled with the accent, as a button is, so the text on it
   // reads at the same contrast.
   mixer[ui::kColorSysStateTextHighlight] = {p.accent};
-  mixer[ui::kColorSysStateOnTextHighlight] = {dark ? p.window
-                                                   : SK_ColorWHITE};
+  mixer[ui::kColorSysStateOnTextHighlight] = {on_accent};
 
   // Chromium's own pages are painted from this same colour provider.
   // Without these, settings and history keep Chromium's blue and the
   // browser reads as two products stuck together.
   mixer[ui::kColorSysPrimary] = {p.accent};
-  mixer[ui::kColorSysOnPrimary] = {dark ? p.window : SK_ColorWHITE};
+  mixer[ui::kColorSysOnPrimary] = {on_accent};
   mixer[ui::kColorSysPrimaryContainer] = {p.tint};
   mixer[ui::kColorSysOnPrimaryContainer] = {p.ink};
-  mixer[ui::kColorSysStateFocusRing] = {p.accent};
-  mixer[ui::kColorLinkForegroundDefault] = {p.accent};
+  mixer[ui::kColorSysStateFocusRing] = {accent_ring};
+  mixer[ui::kColorLinkForegroundDefault] = {accent_text};
   mixer[ui::kColorCheckboxForegroundChecked] = {p.accent};
 
   // Popovers: page info, downloads, the star, and the rest of the
@@ -357,7 +430,7 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   mixer[ui::kColorDialogForeground] = {p.ink};
   mixer[ui::kColorLabelForeground] = {p.ink};
   mixer[ui::kColorLabelForegroundSecondary] = {p.muted};
-  mixer[ui::kColorLinkForeground] = {p.accent};
+  mixer[ui::kColorLinkForeground] = {accent_text};
 
   // Text fields, outline buttons and switches that are off take the same
   // edge as the address bar. A palette with no edge of its own (its edge

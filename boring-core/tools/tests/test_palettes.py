@@ -9,6 +9,7 @@ Usage:
 """
 
 import colorsys
+import math
 import re
 import unittest
 from pathlib import Path
@@ -255,7 +256,8 @@ class PaletteTest(unittest.TestCase):
             "kColorToolbarButtonIconHovered",
             "kColorToolbarButtonIconPressed",
         ):
-            self.assertRegex(src, rf"mixer\[{name}\]\s*=\s*\{{p\.accent\}}")
+            # The accent, kept at 3 to 1 when it is a custom one.
+            self.assertRegex(src, rf"mixer\[{name}\]\s*=\s*\{{accent_ring\}}")
         self.assertRegex(
             src, r"mixer\[kColorToolbarInkDropHover\]\s*=\s*\{\s*SkColorSetA\(p\.ink,"
         )
@@ -365,6 +367,193 @@ class PaletteTest(unittest.TestCase):
         self.assertIn("green", src)
         for look in ("soft_white", "slate", "dusk"):
             self.assertIn(f'scheme == "{look}"', src)
+
+
+# Settings, Appearance's accent row (ledger item 20). The dots screen 10
+# draws (design/v12-compiled/canvas-source/PageSettings.dc.html).
+PRESETS = {
+    "Indigo": "#4f46e5", "Blue": "#2563c9", "Teal": "#0f766e",
+    "Green": "#1a7f55", "Amber": "#a16207", "Rose": "#be2d5a",
+    "Violet": "#7c3aed", "Graphite": "#4b5160",
+}
+# Values a person (or a broken sync, or a hand-edited Preferences file) can
+# put in the pref: the extremes, colours that sit on a surface, a bright
+# yellow and a mid grey.
+HOSTILE = [
+    "#ffffff", "#000000", "#ffff00", "#808080", "#00ffff", "#ff00ff",
+    "#1c1c1a", "#20201e", "#f4f3ef", "#eceae6", "#111110", "#fefefe",
+]
+# The palettes each Look draws, light and dark (Dusk is Slate in light).
+LOOK_PALETTES = ["kSoftWhiteLight", "kSoftWhiteDark", "kCoolLight", "kCoolDark", "kDuskDark"]
+SURFACES = ("frame", "toolbar", "field", "paper")
+DEFAULT_ACCENT = "#4f46e5"
+
+
+def parse_accent(value):
+    """theme_service.cc's check: exactly "#" and six hex digits, by byte."""
+    raw = value.encode("utf-8")
+    if len(raw) != 7 or raw[:1] != b"#":
+        return None
+    if not all(chr(c) in "0123456789abcdefABCDEF" for c in raw[1:]):
+        return None
+    return tuple(int(raw[i:i + 2], 16) for i in (1, 3, 5))
+
+
+def chromium_luminance(c):
+    # ui/gfx/color_utils.cc Linearize uses 0.04045, not the W3C 0.03928.
+    def lin(v):
+        v /= 255
+        return v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4
+
+    r, g, b = (lin(v) for v in c)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def chromium_contrast(a, b):
+    la, lb = sorted((chromium_luminance(a), chromium_luminance(b)), reverse=True)
+    return (la + 0.05) / (lb + 0.05)
+
+
+def alpha_blend(fg, bg, alpha):
+    # color_utils::AlphaBlend for opaque colours, rounded as ClampRound.
+    return tuple(math.floor(f * alpha + b * (1 - alpha) + 0.5) for f, b in zip(fg, bg, strict=True))
+
+
+def derive(name, accent_hex):
+    """The mixer's WithAccent, OnAccent and AccentOnSurfaces, in Python."""
+    p = dict(PALETTES[name])
+    dark = "Dark" in name
+    accent = parse_accent(accent_hex)
+    custom = accent is not None and accent != parse_accent(DEFAULT_ACCENT)
+    if not custom:
+        on = p["window"] if dark else (255, 255, 255)
+        return {"fill": p["accent"], "tint": p["tint"], "on": on,
+                "ring": p["accent"], "text": p["accent"], "p": p}
+    p["accent"] = accent
+    if not name.startswith("kSoftWhite"):
+        p["tint"] = alpha_blend(accent, p["toolbar"], 0.18 if dark else 0.11)
+    white, black = (255, 255, 255), (0, 0, 0)
+    on = white if chromium_contrast(white, accent) >= 4.5 else black
+
+    def on_surfaces(ratio):
+        for step in range(20):
+            c = alpha_blend(p["ink"], accent, step / 20)
+            if all(chromium_contrast(c, p[s]) >= ratio for s in SURFACES):
+                return c
+        return p["ink"]
+
+    return {"fill": accent, "tint": p["tint"], "on": on,
+            "ring": on_surfaces(3.0), "text": on_surfaces(4.5), "p": p}
+
+
+class AccentTest(unittest.TestCase):
+    def test_pref_is_one_name_with_the_designs_default(self):
+        prefs_h = PREFS_H.read_text(encoding="utf-8")
+        self.assertIn('kAppearanceAccent[] = "boring.appearance.accent"', prefs_h)
+        self.assertIn(f'kAccentDefault[] = "{DEFAULT_ACCENT}"', prefs_h)
+        self.assertIn(
+            "RegisterStringPref(prefs::kAppearanceAccent, prefs::kAccentDefault)",
+            PREFS_CC.read_text(encoding="utf-8"),
+        )
+        src = MIXER.read_text(encoding="utf-8")
+        m = RGB.search(re.search(r"kDefaultAccent\s*=\s*([^;]+);", src).group(1))
+        self.assertEqual(hexof(tuple(int(g, 16) for g in m.groups())), DEFAULT_ACCENT)
+
+    def test_theme_service_puts_the_accent_in_the_key_and_repaints(self):
+        patch = COLOURS_PATCH.read_text(encoding="utf-8")
+        self.assertIn('+constexpr char kBoringAccentPref[] = "boring.appearance.accent";', patch)
+        self.assertRegex(patch, r"\+\s+kBoringAccentPref, base::BindRepeating\(&ThemeService::NotifyThemeChanged")
+        self.assertIn("+  std::optional<SkColor> boring_accent = std::nullopt;", patch)
+        self.assertEqual(patch.count("other.boring_accent"), 4)
+        # The strict check that parse_accent mirrors.
+        self.assertIn("+  if (boring_accent.size() == 7 && boring_accent[0] == '#' &&", patch)
+        self.assertIn("base::IsHexDigit(c)", patch)
+        self.assertIn("+    key.boring_accent = SkColorSetA(rgb, SK_AlphaOPAQUE);", patch)
+
+    def test_parse_takes_exactly_hash_and_six_hex_digits(self):
+        self.assertEqual(parse_accent("#4f46e5"), (0x4F, 0x46, 0xE5))
+        self.assertEqual(parse_accent("#4F46E5"), (0x4F, 0x46, 0xE5))
+        self.assertEqual(parse_accent("#000000"), (0, 0, 0))
+        wide_four = "#" + chr(0xFF14) + "f46e5"
+        arabic_five = "#4f46e" + chr(0x665)
+        for bad in ("", "#", "#fff", "4f46e5", "#4f46e5 ", " #4f46e5", "#4f46e5ff",
+                    "#gggggg", "#+12345", "#-12345", "#0x1234", "rgb(1,2,3)",
+                    wide_four, arabic_five, "##4f46e5", "#4f 46e"):
+            self.assertIsNone(parse_accent(bad), repr(bad))
+
+    def test_default_or_bad_value_leaves_every_palette_as_drawn(self):
+        for name in NAMES:
+            p = PALETTES[name]
+            for value in (DEFAULT_ACCENT, "", "garbage", "#12345"):
+                a = derive(name, value)
+                self.assertEqual(a["fill"], p["accent"], name)
+                self.assertEqual(a["ring"], p["accent"], name)
+                self.assertEqual(a["tint"], p["tint"], name)
+        src = MIXER.read_text(encoding="utf-8")
+        self.assertIn("return key.boring_accent && *key.boring_accent != kDefaultAccent;", src)
+        self.assertEqual(src.count("if (!HasCustomAccent(key)) {"), 3)
+
+    def test_the_accent_changes_only_the_accent_and_its_wash(self):
+        for name in LOOK_PALETTES:
+            a = derive(name, "#be2d5a")
+            self.assertEqual(hexof(a["fill"]), "#be2d5a")
+            for field in FIELDS:
+                if field not in ("accent", "tint"):
+                    self.assertEqual(a["p"][field], PALETTES[name][field], f"{name} {field}")
+            if name.startswith("kSoftWhite"):
+                self.assertEqual(a["tint"], PALETTES[name]["tint"], name)
+            else:
+                self.assertNotEqual(a["tint"], PALETTES[name]["tint"], name)
+
+    def test_presets_and_hostile_values_stay_readable_under_every_look(self):
+        for name in LOOK_PALETTES + ["kBeigeLight", "kBeigeDark", "kGreenLight", "kGreenDark"]:
+            for value in [*PRESETS.values(), *HOSTILE]:
+                if value == DEFAULT_ACCENT:
+                    continue  # Each palette as drawn, tested above.
+                a = derive(name, value)
+                where = f"{name} {value}"
+                self.assertGreaterEqual(chromium_contrast(a["on"], a["fill"]), 4.5, where + " ink on accent")
+                for s in SURFACES:
+                    self.assertGreaterEqual(chromium_contrast(a["ring"], a["p"][s]), 3, f"{where} ring on {s}")
+                    self.assertGreaterEqual(chromium_contrast(a["text"], a["p"][s]), 4.5, f"{where} link on {s}")
+                # The person's colour is never changed where it is filled.
+                self.assertEqual(hexof(a["fill"]), value)
+
+    def test_the_ring_is_moved_only_when_it_falls_short(self):
+        # Every preset reaches 3 to 1 on the light Looks as it is.
+        for name in ("kSoftWhiteLight", "kCoolLight"):
+            for value in PRESETS.values():
+                self.assertEqual(hexof(derive(name, value)["ring"]), value, name)
+        # Graphite on the dark charcoal falls short, so its ring is lifted
+        # toward the ink; its fill stays Graphite.
+        a = derive("kSoftWhiteDark", PRESETS["Graphite"])
+        self.assertLess(chromium_contrast(a["fill"], a["p"]["toolbar"]), 3)
+        self.assertNotEqual(hexof(a["ring"]), PRESETS["Graphite"])
+
+    def test_mixer_uses_the_checked_colours(self):
+        src = MIXER.read_text(encoding="utf-8")
+        self.assertIn("color_utils::AlphaBlend(p.ink, p.accent, step / 20.0f)", src)
+        self.assertIn("for (int step = 0; step < 20; ++step) {", src)
+        self.assertIn("AccentOnSurfaces(p, key, 3.0f)", src)
+        self.assertIn("AccentOnSurfaces(p, key, 4.5f)", src)
+        self.assertIn("GetContrastRatio(SK_ColorWHITE, p.accent) >= 4.5f", src)
+        for s in SURFACES:
+            self.assertIn(f"GetContrastRatio(c, p.{s}) >= ratio", src)
+        for name in ("ui::kColorFocusableBorderFocused", "ui::kColorSysStateFocusRing",
+                     "kColorOmniboxResultsIconSelected"):
+            self.assertRegex(src, rf"mixer\[{name}\]\s*=\s*\{{accent_ring\}}")
+        for name in ("ui::kColorLinkForeground", "ui::kColorLinkForegroundDefault"):
+            self.assertRegex(src, rf"mixer\[{name}\]\s*=\s*\{{accent_text\}}")
+        for name in ("ui::kColorSysOnPrimary", "ui::kColorSysStateOnTextHighlight"):
+            self.assertRegex(src, rf"mixer\[{name}\]\s*=\s*\{{on_accent\}}")
+        self.assertIn("const Palette p = WithAccent(look, key, dark);", src)
+
+    def test_the_accent_never_switches_our_palette_off(self):
+        # Our palette depends only on the seed colour and custom themes, as
+        # before; the accent pref plays no part in that check.
+        src = MIXER.read_text(encoding="utf-8")
+        body = re.search(r"bool UsingOurTheme\(.*?\n\}", src, re.S).group(0)
+        self.assertNotIn("boring_accent", body)
 
 
 if __name__ == "__main__":

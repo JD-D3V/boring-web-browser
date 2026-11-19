@@ -54,6 +54,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterBooleanPref(prefs::kBoringFolderCopyArmed, false);
   // No sync flag, like Chromium's own colour choice.
   registry->RegisterStringPref(prefs::kAppearanceLook, prefs::kLookSoftWhite);
+  registry->RegisterStringPref(prefs::kAppearanceAccent, prefs::kAccentDefault);
 }
 
 void MigrateObsoleteProfilePrefs(PrefService* prefs) {
