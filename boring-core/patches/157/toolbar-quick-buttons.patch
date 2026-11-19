@@ -1,3 +1,33 @@
+diff --git a/chrome/browser/ui/actions/chrome_actions.cc b/chrome/browser/ui/actions/chrome_actions.cc
+index d55dd6e..9e30391 100644
+--- a/chrome/browser/ui/actions/chrome_actions.cc
++++ b/chrome/browser/ui/actions/chrome_actions.cc
+@@ -29,6 +29,13 @@ void InitializeActionIdStringMapping() {
+           std::vector<std::pair<actions::ActionId, std::string>>{
+               TOOLBAR_PINNABLE_ACTION_IDS}));
+ 
++  // Boring: Settings and Extensions can be pinned, and the pinned_actions
++  // pref stores them by name.
++  actions::ActionIdMap::AddActionIdToStringMappings(
++      base::flat_map<actions::ActionId, std::string>(
++          std::vector<std::pair<actions::ActionId, std::string>>{
++              E(kActionOptions) E(kActionManageExtensions)}));
++
+ #include "ui/actions/action_id_macros.inc"
+ #undef MAP_ACTION_IDS_TO_STRINGS
+ 
+@@ -45,6 +52,11 @@ void InitializeActionIdStringMapping() {
+           std::vector<std::pair<std::string, actions::ActionId>>{
+               TOOLBAR_PINNABLE_ACTION_IDS}));
+ 
++  actions::ActionIdMap::AddStringToActionIdMappings(
++      base::flat_map<std::string, actions::ActionId>(
++          std::vector<std::pair<std::string, actions::ActionId>>{
++              E(kActionOptions) E(kActionManageExtensions)}));
++
+ #include "ui/actions/action_id_macros.inc"
+ #undef MAP_STRING_TO_ACTION_IDS
+ }
 diff --git a/chrome/browser/ui/browser_actions.cc b/chrome/browser/ui/browser_actions.cc
 index 3c89142..cc04e15 100644
 --- a/chrome/browser/ui/browser_actions.cc

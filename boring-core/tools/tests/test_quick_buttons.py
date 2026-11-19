@@ -33,6 +33,7 @@ MOJOM = (
 VIEW_CC = "chrome/browser/ui/views/toolbar/toolbar_view.cc"
 VIEW_H = "chrome/browser/ui/views/toolbar/toolbar_view.h"
 BUILD = "chrome/browser/ui/views/toolbar/BUILD.gn"
+ID_MAP = "chrome/browser/ui/actions/chrome_actions.cc"
 
 
 def sections(text):
@@ -64,11 +65,22 @@ class PatchTest(unittest.TestCase):
 
     def test_touches_only_the_files_it_should(self):
         self.assertEqual(
-            set(self.files), {ACTIONS, HANDLER, MOJOM, VIEW_CC, VIEW_H, BUILD}
+            set(self.files),
+            {ACTIONS, HANDLER, MOJOM, VIEW_CC, VIEW_H, BUILD, ID_MAP},
         )
 
+    def test_both_ids_get_a_string_both_ways(self):
+        # Pinning writes the id's string to the pinned_actions pref and
+        # CHECKs that it has one; a restart reads the string back. Neither
+        # id is in Chromium's pinnable list, so both mappings are added.
+        text = added(self.files[ID_MAP])
+        self.assertEqual(text.count("AddActionIdToStringMappings"), 1)
+        self.assertEqual(text.count("AddStringToActionIdMappings"), 1)
+        self.assertEqual(text.count("E(kActionOptions)"), 2)
+        self.assertEqual(text.count("E(kActionManageExtensions)"), 2)
+
     def test_it_stays_small(self):
-        self.assertLess(len(self.text.splitlines()), 200)
+        self.assertLess(len(self.text.splitlines()), 220)
 
     def test_settings_and_extensions_become_pinnable(self):
         text = added(self.files[ACTIONS])
