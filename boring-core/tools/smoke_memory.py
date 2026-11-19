@@ -209,7 +209,7 @@ class Cdp(DevTools):
         return False
 
 
-def launch(exe, profile, extra):
+def launch(exe, profile, extra, urls=("about:blank",)):
     require_headful()
     port_file = profile / "DevToolsActivePort"
     if port_file.exists():
@@ -227,7 +227,7 @@ def launch(exe, profile, extra):
             "--window-size=1200,850",
             "--disable-backgrounding-occluded-windows",
             *extra,
-            "about:blank",
+            *urls,
         ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

@@ -225,9 +225,21 @@ def constant(name):
 
 
 class PatchTest(unittest.TestCase):
-    def test_patch_is_last_in_the_series(self):
+    def test_patch_comes_after_every_patch_on_its_files(self):
+        # It is made against the tree with every patch before it applied, so
+        # no patch after it may touch its files. The quick buttons patch also
+        # edits views/toolbar/BUILD.gn, so it must come first.
         names = [n.strip() for n in SERIES.read_text().splitlines() if n.strip()]
-        self.assertEqual(names[-1], "app-menu-refresh.patch")
+        self.assertEqual(names.count("app-menu-refresh.patch"), 1)
+        at = names.index("app-menu-refresh.patch")
+        self.assertLess(names.index("toolbar-quick-buttons.patch"), at)
+        for name in names[at + 1 :]:
+            path = CORE / "patches" / "157" / name
+            if not path.exists():
+                path = CORE / "patches" / name
+            text = path.read_text(encoding="utf-8", errors="replace")
+            touched = set(re.findall(r"^\+\+\+ b/(\S+)", text, re.M))
+            self.assertEqual(touched & PATCHED_FILES, set(), name)
 
     def test_no_command_the_patch_removes_is_lost(self):
         removed, added = file_hunks("chrome/browser/ui/toolbar/app_menu_model.cc")
