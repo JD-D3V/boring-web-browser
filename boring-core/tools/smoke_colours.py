@@ -18,6 +18,15 @@ the frame band must follow without a restart. Until Settings lists the
 pref (compiled UI item 9), setPref refuses it and that check is reported
 as NOT CHECKED, which fails the run.
 
+The accent (ledger item 20, the pref boring.appearance.accent): under
+each Look, light and dark, a profile holding Rose (white ink on it), a
+pale yellow (black ink on it) or a value that is not "#rrggbb" (the
+Look's own accent) must hand out that accent as kColorSysPrimary, the
+readable ink on it as kColorSysOnPrimary, a focus ring at 3 to 1 on the
+toolbar, and the Look's own frame band, so the palette stays ours. Then
+the accent is changed to Teal the way the Settings control writes it and
+must follow at once (NOT CHECKED until Settings lists the pref, item 9).
+
 With BORING_ALLOW_HEADFUL=1 it also photographs the new tab page of each
 Look, light and dark, by PrintWindow of our own window, and puts the
 matching compiled screen beside each picture (design/v12-compiled/
@@ -25,7 +34,7 @@ shots-final: c01 for light, c02 for dark). Sends no mouse or keys to the
 desktop.
 
     python smoke_colours.py            # expects "PASS: colours"
-    python smoke_colours.py --no-live  # skip the live change
+    python smoke_colours.py --no-live  # skip the live changes
 
 Needs the built browser (BORING_OUT / BORING_CHROME as for the smoke tests).
 """
@@ -112,13 +121,14 @@ def all_vars():
     return names + EDGE_CONTROLS + [OK_VAR]
 
 
-def seed_profile(path, look):
+def seed_profile(path, look, accent=None):
     """A new profile holding the Look, as Settings would have left it."""
-    if look is None:
+    appearance = {k: v for k, v in (("look", look), ("accent", accent)) if v is not None}
+    if not appearance:
         return
     default = Path(path) / "Default"
     default.mkdir(parents=True, exist_ok=True)
-    prefs = {"boring": {"appearance": {"look": look}}}
+    prefs = {"boring": {"appearance": appearance}}
     (default / "Preferences").write_text(json.dumps(prefs), encoding="utf-8")
 
 
@@ -155,7 +165,7 @@ def check_look(look, dark, checks):
         )
 
 
-def set_pref(b, value):
+def set_pref(b, value, pref=PREF):
     """Write the pref the way the Settings control does, and read it back."""
     b.get("chrome://settings/appearance")
     time.sleep(1.5)
@@ -164,7 +174,7 @@ def set_pref(b, value):
         "chrome.settingsPrivate.setPref(arguments[0], arguments[1], '', ok => {"
         "  chrome.settingsPrivate.getPref(arguments[0], p => done([ok, p && p.value]));"
         "});",
-        [PREF, value],
+        [pref, value],
     )
 
 
@@ -183,6 +193,85 @@ def check_live(checks):
         before.get(frame) == rgb(SOFT_LIGHT["frame"]), before.get(frame))
     checks["live: Slate at once, no restart"] = (
         after.get(frame) == rgb(SLATE_LIGHT["frame"]), after.get(frame))
+
+
+# boring: cui-accent
+ACCENT_PREF = "boring.appearance.accent"
+# The Look's own accent (boring_color_mixer.cc), shown for the default and
+# for anything that is not "#rrggbb".
+OWN_ACCENT = {False: "4f46e5", True: "9d9aff"}
+OWN_ACCENT_SOFT_DARK = "9b98ff"
+# Pref value -> (accent, ink on it). Rose takes white; the pale yellow
+# fails 4.5 to 1 with white, so it takes black.
+ACCENTS = {"#be2d5a": ("be2d5a", "ffffff"), "#f5e663": ("f5e663", "000000"),
+           "be2d5a": (None, None)}
+ACCENT_VARS = ["--color-frame-active", "--color-toolbar", "--color-sys-primary",
+               "--color-sys-on-primary", "--color-sys-state-focus-ring"]
+
+
+def parse_rgb(css):
+    m = re.match(r"rgba?\((\d+), (\d+), (\d+)", css or "")
+    return tuple(int(v) for v in m.groups()) if m else None
+
+
+def contrast(a, b):
+    def lum(c):
+        lin = [(v / 255) / 12.92 if v / 255 <= 0.04045 else ((v / 255 + 0.055) / 1.055) ** 2.4
+               for v in c]
+        return 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2]
+
+    hi, lo = sorted((lum(a), lum(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def read_accent(b):
+    have, _ = resolve(b)
+    got = b.run(RESOLVE, [ACCENT_VARS])
+    return have, got
+
+
+def check_accent(look, dark, value, checks):
+    tag = f"accent {value!r} {look} {'dark' if dark else 'light'}"
+    args = ["--window-size=1200,700"] + (["--force-dark-mode"] if dark else [])
+    want_fill, want_on = ACCENTS[value]
+    if want_fill is None:
+        want_fill = OWN_ACCENT_SOFT_DARK if (look, dark) == ("soft_white", True) else OWN_ACCENT[dark]
+    with tempfile.TemporaryDirectory(prefix="colours-accent-", dir=os.environ.get("TMP")) as prof:
+        seed_profile(prof, None if look == "soft_white" else look, value)
+        with Browser(user_data_dir=prof, args=args) as b:
+            have, got = read_accent(b)
+    frame = EXPECT[(look, dark)]["frame"]
+    checks[f"{tag}: frame stays the Look's #{frame}"] = (
+        got.get("--color-frame-active") == rgb(frame), got.get("--color-frame-active"))
+    checks[f"{tag}: accent is #{want_fill}"] = (
+        "--color-sys-primary" in have and got.get("--color-sys-primary") == rgb(want_fill),
+        got.get("--color-sys-primary"))
+    if want_on:
+        checks[f"{tag}: ink on the accent is #{want_on}"] = (
+            got.get("--color-sys-on-primary") == rgb(want_on), got.get("--color-sys-on-primary"))
+    fill, on = parse_rgb(got.get("--color-sys-primary")), parse_rgb(got.get("--color-sys-on-primary"))
+    ring, bar = parse_rgb(got.get("--color-sys-state-focus-ring")), parse_rgb(got.get("--color-toolbar"))
+    checks[f"{tag}: ink on the accent at 4.5 to 1"] = (
+        bool(fill and on) and contrast(fill, on) >= 4.5, got.get("--color-sys-on-primary"))
+    checks[f"{tag}: focus ring at 3 to 1 on the toolbar"] = (
+        bool(ring and bar) and contrast(ring, bar) >= 3, got.get("--color-sys-state-focus-ring"))
+
+
+def check_accent_live(checks):
+    with tempfile.TemporaryDirectory(prefix="colours-accent-live-", dir=os.environ.get("TMP")) as prof:
+        with Browser(user_data_dir=prof, args=["--window-size=1200,700"]) as b:
+            ok, value = set_pref(b, "#0f766e", ACCENT_PREF)
+            if not ok or value != "#0f766e":
+                checks["live: Settings can write the accent"] = (
+                    None, "NOT CHECKED: settingsPrivate refused the pref (item 9)")
+                return
+            _, after = read_accent(b)
+    checks["live: Teal at once, no restart"] = (
+        after.get("--color-sys-primary") == rgb("0f766e"), after.get("--color-sys-primary"))
+    checks["live: frame stays Soft white"] = (
+        after.get("--color-frame-active") == rgb(SOFT_LIGHT["frame"]),
+        after.get("--color-frame-active"))
+# boring: end cui-accent
 
 
 def capture(look, dark):
@@ -221,8 +310,13 @@ def main():
     for look in ("soft_white", "slate", "dusk"):
         for dark in (False, True):
             check_look(look, dark, checks)
+    for look in ("soft_white", "slate", "dusk"):
+        for dark in (False, True):
+            for value in ACCENTS:
+                check_accent(look, dark, value, checks)
     if not opts.no_live:
         check_live(checks)
+        check_accent_live(checks)
     if headful_allowed():
         for look in ("soft_white", "slate", "dusk"):
             for dark in (False, True):
