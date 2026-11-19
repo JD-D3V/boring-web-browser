@@ -65,6 +65,7 @@ ARGPARSE_TOOLS = {
     "smoke_forget.py",
     "smoke_tabs.py",
     "smoke_vtabs.py",
+    "smoke_quick_buttons.py",
     "test_update_local.py",
     "probe_focus.py",
 }
@@ -165,6 +166,14 @@ def build_steps(out, net_seconds):
             [tool("smoke_vtabs.py", "--out", str(shots / "side-tabs"))],
             1200,
             "four short browser launches, off screen",
+            smoke_lines,
+        ),
+        Step(
+            "1h-quick-buttons",
+            "toolbar quick buttons (smoke and pictures)",
+            [tool("smoke_quick_buttons.py", "--out", str(shots / "quick-buttons"))],
+            900,
+            "six short browser launches, off screen",
             smoke_lines,
         ),
         Step(

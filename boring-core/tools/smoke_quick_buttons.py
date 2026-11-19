@@ -193,9 +193,9 @@ def main():
     flags = ["--disable-features=CalculateNativeWinOcclusion"]
     proc = cdp = None
 
-    def start(extra=()):
+    def start(extra=(), where=profile):
         nonlocal proc, cdp
-        proc, cdp = launch(CHROME, profile, [*flags, *extra])
+        proc, cdp = launch(CHROME, where, [*flags, *extra])
         time.sleep(3)
 
     def stop():
@@ -224,9 +224,10 @@ def main():
         for dead in DEAD:
             checks(f"the picker does not offer {dead}", dead not in names)
         checks("no picker text says Chrome or has a dash", not any(bad_text(n) for n in names))
+        new_rows = [r for r in listed if r["name"] in (SETTINGS, EXTENSIONS)]
         checks(
             "the new rows have an icon",
-            all(r["icon"] for r in listed if r["name"] in (SETTINGS, EXTENSIONS)),
+            len(new_rows) == 2 and all(r["icon"] for r in new_rows),
         )
         checks(
             "nothing is ticked that was not before",
@@ -280,18 +281,23 @@ def main():
         print("pinned_actions after unticking:", pins)
         checks("neither is pinned after unticking", SETTINGS_ID not in pins and EXTENSIONS_ID not in pins, str(pins))
 
-        # 4. What the menu item and the pinned buttons run.
+        # 4. What the menu item and the pinned buttons run. Each in a new
+        # profile, so no tab restored from an earlier run can stand in.
         for step, needle, what in (
             ("customize", "customize-chrome-side-panel", "Customize toolbar opens the picker"),
             ("settings", "chrome://settings", "the Settings button opens Settings"),
             ("extensions", "chrome://extensions", "the Extensions button opens Extensions"),
         ):
-            start([f"--boring-toolbar-test={step}"])
+            fresh = work / f"hook-{step}"
+            fresh.mkdir()
+            start([f"--boring-toolbar-test={step}"], fresh)
             checks(what, wait_target(cdp, needle) is not None)
             stop()
 
         # 5. The right click menu itself.
-        start(["--boring-toolbar-test=menu"])
+        fresh = work / "hook-menu"
+        fresh.mkdir()
+        start(["--boring-toolbar-test=menu"], fresh)
         frame = frame_window(CHROME, under=os.getpid())
         popup, deadline = None, time.monotonic() + 15
         while popup is None and time.monotonic() < deadline:
