@@ -1,0 +1,82 @@
+--- a/chrome/browser/resources/side_panel/customize_chrome/customize_toolbar/toolbar.css
++++ b/chrome/browser/resources/side_panel/customize_chrome/customize_toolbar/toolbar.css
+@@ -143,3 +143,79 @@
+   margin-bottom: 8px;
+   padding: 16px;
+ }
++
++/* boring: cui-menu. The compiled design's finish (design/v12-compiled,
++ * screen C11): flat on the panel's surface, hairlines, the design's text
++ * sizes, 36 high rows and 34 by 20 switches, on in the accent and off in
++ * the edge colour. Look only; rows and behaviour are Chromium's. */
++.sp-card {
++  background: transparent;
++  border-radius: 0;
++}
++
++.sp-card sp-heading h2 {
++  font-size: 14px;
++  font-weight: 600;
++}
++
++.intro-text {
++  font-size: 13px;
++  line-height: 20px;
++  padding: 14px 18px 6px;
++  text-align: start;
++}
++
++hr.sp-cards-separator {
++  border: 0;
++  border-top: 1px solid var(--color-side-panel-divider);
++  height: 0;
++  margin: 0;
++}
++
++.sp-hr {
++  display: none;
++}
++
++.category-title {
++  color: var(--cr-secondary-text-color);
++  font-size: 11.5px;
++  font-weight: 600;
++  margin: 0;
++  padding: 12px 18px 4px;
++}
++
++.choose-icons-row-container.choose-icons-row {
++  box-sizing: border-box;
++  font-size: 13px;
++  font-weight: 400;
++  height: 36px;
++  padding: 0 18px;
++}
++
++.toggle-icon {
++  height: 16px;
++  width: 16px;
++}
++
++#tipCard {
++  background-color: transparent;
++  border: 0;
++  border-radius: 0;
++  color: var(--cr-secondary-text-color);
++}
++
++cr-toggle {
++  --cr-toggle-track-width: 34px;
++  --cr-toggle-track-height: 20px;
++  --cr-toggle-knob-inset: 10px;
++  --cr-toggle-knob-size: 16px;
++  --cr-toggle-knob-size-active: 16px;
++  --cr-toggle-knob-size-checked: 16px;
++  --cr-toggle-knob-size-checked-active: 16px;
++  --cr-toggle-checked-bar-color: var(--color-sys-primary);
++  --cr-toggle-checked-button-color: #ffffff;
++  --cr-toggle-unchecked-bar-color: var(--color-boring-edge);
++  --cr-toggle-unchecked-button-color: #ffffff;
++  --cr-toggle-track-border-color: transparent;
++}
++/* boring: end cui-menu. */

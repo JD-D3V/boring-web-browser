@@ -17,6 +17,10 @@ CORE = Path(__file__).resolve().parents[2]
 REPO = CORE.parent
 PATCH = CORE / "patches" / "menu-style.patch"
 WIDTH_PATCH = CORE / "patches" / "menu-width.patch"
+MENU_VIEWS = (
+    CORE / "chromium_src" / "chrome" / "browser" / "ui" / "views" / "boring"
+    / "boring_app_menu.cc"
+)
 BUTTON = (
     CORE
     / "chromium_src"
@@ -103,6 +107,11 @@ class MenuStyleTest(unittest.TestCase):
         text = WIDTH_PATCH.read_text(encoding="utf-8")
         self.assertIn("menu-width.patch", SERIES.read_text().split())
         self.assertIn("set_minimum_preferred_width(360)", text)
+        # The main menu then narrows it to the compiled design's 320
+        # (boring::StyleAppMenu runs right after).
+        views = MENU_VIEWS.read_text(encoding="utf-8")
+        self.assertIn("constexpr int kMenuWidth = 320;", views)
+        self.assertIn("submenu->set_minimum_preferred_width(kMenuWidth);", views)
         self.assertIn(
             "max_minor_text_width_ += 2 * config.item_horizontal_padding;", text
         )

@@ -70,6 +70,7 @@ ARGPARSE_TOOLS = {
     "smoke_tabgroups.py",  # boring: cui-tabgroups
     # boring: cui-toolbar
     "smoke_toolbar.py",
+    "smoke_customize_toolbar.py",  # boring: cui-menu
     "test_update_local.py",
     "probe_focus.py",
 }
@@ -199,11 +200,31 @@ def build_steps(out, net_seconds):
         ),
         # boring: cui-toolbar
         Step(
-            "1i-toolbar",
+            "1j-toolbar",
             "toolbar and bookmarks bar as drawn (smoke and pictures)",
             [tool("smoke_toolbar.py", "--out", str(shots / "toolbar"))],
             900,
             "eleven short browser launches, off screen",
+            smoke_lines,
+        ),
+        # boring: cui-menu
+        Step(
+            "1k-customize-toolbar",
+            "Customize toolbar panel finish (smoke and pictures, light and dark)",
+            [tool("smoke_customize_toolbar.py", "--out", str(shots / "customize-toolbar"))],
+            600,
+            "two short browser launches, off screen",
+            smoke_lines,
+        ),
+        Step(
+            "1l-app-menu-finish",
+            "app menu in the compiled finish beside screen C07, light and dark",
+            [
+                tool("smoke_app_menu.py", "--captures", str(shots / "app-menu-finish")),
+                tool("smoke_app_menu.py", "--dark", "--captures", str(shots / "app-menu-finish")),
+            ],
+            900,
+            "browser launches, off screen, with the main menu open",
             smoke_lines,
         ),
         Step(
@@ -311,7 +332,7 @@ def build_steps(out, net_seconds):
                 tool(
                     "capture_app_menu.py",
                     "--expect-height",
-                    "769",
+                    "682",
                     "--out",
                     str(shots / "app-menu" / "app-menu-light.png"),
                 ),
@@ -319,7 +340,7 @@ def build_steps(out, net_seconds):
                     "capture_app_menu.py",
                     "--dark",
                     "--expect-height",
-                    "769",
+                    "682",
                     "--out",
                     str(shots / "app-menu" / "app-menu-dark.png"),
                 ),

@@ -88,6 +88,8 @@ CHECKS = [
     ("compiled UI icons and the Incognito ghost", "smoke_icons.py"),
     # boring: cui-tabgroups
     ("tab groups: label, wash and line, top and side", "smoke_tabgroups.py"),
+    # boring: cui-menu
+    ("customize toolbar panel finish", "smoke_customize_toolbar.py"),
 ]
 
 # Every smoke_*.py that is not a check, with the reason. A new file must
@@ -113,6 +115,8 @@ NATIVE_CHECKS = {
     "smoke_tabgroups.py",  # boring: cui-tabgroups
     # boring: cui-toolbar
     "smoke_toolbar.py",
+    # boring: cui-menu
+    "smoke_customize_toolbar.py",
 }
 
 
