@@ -28,7 +28,19 @@ diff --git a/chrome/browser/ui/toolbar/app_menu_model.h b/chrome/browser/ui/tool
 diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/toolbar/app_menu_model.cc
 --- a/chrome/browser/ui/toolbar/app_menu_model.cc
 +++ b/chrome/browser/ui/toolbar/app_menu_model.cc
-@@ -1999,25 +1999,24 @@
+@@ -960,8 +960,9 @@
+           NtpCustomBackgroundServiceFactory::GetForProfile(
+               browser->GetProfile()),
+           browser->GetProfile())) {
+-    AddItemWithStringIdAndVectorIcon(this, IDC_SHOW_CUSTOMIZE_CHROME_SIDE_PANEL,
+-                                     IDS_SHOW_CUSTOMIZE_CHROME_SIDE_PANEL,
++    // boring: the branded label, so More tools does not say Chrome.
++    AddItemWithStringIdAndVectorIcon(this, IDC_SHOW_CUSTOMIZE_CHROME_SIDE_PANEL,
++                                     IDS_SIDE_PANEL_CUSTOMIZE_CHROME_TITLE,
+                                      features::IsRoundedIconsEnabled()
+                                          ? kEditIcon
+                                          : kEditChromeRefreshOldIcon);
+@@ -1999,25 +2000,24 @@
               !browser_->GetProfile()->IsGuestSession()) {
      new_tab_string_id = IDS_NEW_INCOGNITO_TAB;
    }
@@ -68,7 +80,7 @@ diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/too
      bool isolated_mode_enabled =
          enterprise_isolated_mode::IsolatedModeReplacesIncognito(
              browser_->GetProfile());
-@@ -2031,7 +2030,8 @@
+@@ -2031,7 +2031,8 @@
      }
    }
  
@@ -78,7 +90,7 @@ diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/too
  
    if (!browser_->GetProfile()->IsGuestSession()) {
      sub_menus_.push_back(
-@@ -2132,9 +2132,9 @@
+@@ -2132,9 +2133,9 @@
    SetElementIdentifierAt(GetIndexOfCommandId(IDC_CLEAR_BROWSING_DATA).value(),
                           kClearBrowsingDataMenuItem);
  
@@ -90,7 +102,7 @@ diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/too
  
    AddItemWithStringIdAndVectorIcon(
        this, IDC_PRINT, IDS_PRINT,
-@@ -2269,7 +2269,23 @@
+@@ -2269,7 +2270,23 @@
    SetElementIdentifierAt(GetIndexOfCommandId(kMoreToolsMenuPlaceholder).value(),
                           kMoreToolsMenuItem);
  
@@ -115,7 +127,7 @@ diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/too
  // The help submenu is only displayed on official Chrome builds. As the
  // 'About' item has been moved to this submenu, it's reinstated here for
  // Chromium builds.
-@@ -2291,35 +2307,12 @@
+@@ -2291,35 +2308,12 @@
  #endif
  #endif
  
@@ -153,7 +165,7 @@ diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/too
      AddItemWithIcon(
          IDC_SHOW_MANAGEMENT_PAGE,
          GetManagedUiMenuItemLabel(browser_->GetProfile()),
-@@ -2338,6 +2331,16 @@
+@@ -2338,6 +2332,16 @@
  #endif  // BUILDFLAG(IS_LINUX)
    }
  #endif  // !BUILDFLAG(IS_CHROMEOS)

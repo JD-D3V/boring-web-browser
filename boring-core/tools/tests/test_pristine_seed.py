@@ -312,6 +312,24 @@ class Rewind(unittest.TestCase):
         )
         self.assertEqual(self.read("b/g.cc"), "x\nwhy\nz\n")
 
+    def test_a_file_a_patch_created_goes_back_by_deletion(self):
+        # settings-boring-pages.patch creates files (--- /dev/null). They sit
+        # in the tree and have no original; a rewind that reaches one must
+        # remove it for the patch to create it again, not stop for want of
+        # a pristine copy.
+        made = os.path.join("n", "new.txt")
+        self.write(
+            os.path.join(self.tmp, "both.patch"),
+            BOTH + "--- /dev/null\n+++ b/n/new.txt\n@@ -0,0 +1 @@\n+hello\n",
+        )
+        self.write(os.path.join(self.src, made), "hello\n")
+        apply.apply_patches(self.src, None, self.store)
+        self.assertEqual(
+            self.read("a/f.cc"), NINE.replace("2\n", "two\n").replace("8\n", "eight\n")
+        )
+        self.assertEqual(self.read(made), "hello\n")
+        self.assertFalse(os.path.exists(os.path.join(self.store, made)))
+
     def test_no_file_goes_back_when_one_has_no_original(self):
         os.remove(os.path.join(self.store, "b", "g.cc"))
         before = self.read("a/f.cc")

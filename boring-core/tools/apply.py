@@ -154,6 +154,18 @@ def patched_files(patch):
     return files
 
 
+def created_files(patch):
+    """The files a patch creates (--- /dev/null), as tree-relative paths."""
+    files = []
+    with open(patch, encoding="utf-8") as f:
+        was_null = False
+        for line in f:
+            if line.startswith("+++ b/") and was_null:
+                files.append(line[6:].strip().replace("/", os.sep))
+            was_null = line.startswith("--- /dev/null")
+    return files
+
+
 def rewind(src, patch, pristine=PRISTINE, series=()):
     """Put a patch's files back to pristine so it can go on cleanly.
 
@@ -167,7 +179,8 @@ def rewind(src, patch, pristine=PRISTINE, series=()):
     there too. One that also changes a file left alone would be half in,
     and would then neither reverse nor apply. So the files grow until each
     patch of the series that touches them lies wholly inside, and nothing
-    goes back if one of them has no pristine copy.
+    goes back if one of them has no pristine copy. A file a patch of the
+    series creates has none, and goes back by being deleted.
     """
     files = set(patched_files(patch))
     touched = [set(patched_files(p)) for p in series]
@@ -178,9 +191,10 @@ def rewind(src, patch, pristine=PRISTINE, series=()):
             if t & files and not t <= files:
                 files |= t
                 grown = True
+    created = {rel for p in [patch, *series] for rel in created_files(p)}
     missing = [
         rel
-        for rel in sorted(files)
+        for rel in sorted(files - created)
         if os.path.exists(os.path.join(src, rel))
         and not os.path.exists(os.path.join(pristine, rel))
     ]
@@ -190,7 +204,12 @@ def rewind(src, patch, pristine=PRISTINE, series=()):
     restored = []
     for rel in sorted(files):
         keep = os.path.join(pristine, rel)
-        if os.path.exists(keep):
+        if rel in created:
+            # The patch that creates it goes on again in the second pass.
+            if os.path.exists(os.path.join(src, rel)):
+                os.remove(os.path.join(src, rel))
+                restored.append(rel)
+        elif os.path.exists(keep):
             # Fresh mtime: a file left here by a failed run must not look
             # older than what ninja last built from it.
             shutil.copy(keep, os.path.join(src, rel))

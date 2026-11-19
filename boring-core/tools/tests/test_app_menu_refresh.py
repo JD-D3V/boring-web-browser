@@ -351,9 +351,21 @@ class ParityTest(unittest.TestCase):
     def test_submenus_are_as_they_were(self):
         # Everything outside Build(), the submenu models in this file
         # included, is untouched.
+        # The one change outside it is More tools' "Customize" row, which
+        # takes the branded label so that no menu string says Chrome.
+        mine = (
+            "    // boring: the branded label, so More tools does not say Chrome.\n"
+            "    AddItemWithStringIdAndVectorIcon(this, IDC_SHOW_CUSTOMIZE_CHROME_SIDE_PANEL,\n"
+            "                                     IDS_SIDE_PANEL_CUSTOMIZE_CHROME_TITLE,\n"
+        )
+        stock = (
+            "    AddItemWithStringIdAndVectorIcon(this, IDC_SHOW_CUSTOMIZE_CHROME_SIDE_PANEL,\n"
+            "                                     IDS_SHOW_CUSTOMIZE_CHROME_SIDE_PANEL,\n"
+        )
+        self.assertEqual(self.after.count(mine), 1)
         self.assertEqual(
             self.before.replace(build_body(self.before), ""),
-            self.after.replace(build_body(self.after), ""),
+            self.after.replace(mine, stock).replace(build_body(self.after), ""),
         )
 
     def test_rows_are_in_the_mockups_order(self):
@@ -363,10 +375,11 @@ class ParityTest(unittest.TestCase):
         self.assertEqual(at, sorted(at))
 
 
-def press(after_handles, after_url, prefix):
+def press(after, prefix, before=None):
     """smoke_app_menu.press_opens_tab("Settings") with the browser faked:
-    one tab at chrome://newtab/, then `after_handles` and `after_url` once
-    the button is pressed."""
+    the tabs are `before` ({handle: url}, one New tab page by default), and
+    `after` once the button is pressed."""
+    before = before or {"a": "chrome://newtab/"}
     if str(TOOLS) not in sys.path:
         sys.path.insert(0, str(TOOLS))
     try:
@@ -399,19 +412,22 @@ def press(after_handles, after_url, prefix):
 
     class FakeBrowser:
         sid = "s"
+        on = None
 
         def _req(self, method, path, body=None):
+            if body and "handle" in body:
+                self.on = body["handle"]
             return {"value": None}
 
         def current_url(self):
-            return after_url if pressed else "chrome://newtab/"
+            return (after if pressed else before)[self.on]
 
     with (
         mock.patch.object(smoke, "time", Clock()),
         mock.patch.object(smoke, "Window", FakeWindow),
         mock.patch.object(smoke, "window_names", return_value=(1, [])),
         mock.patch.object(
-            smoke, "handles", lambda b: after_handles if pressed else ["a"]
+            smoke, "handles", lambda b: list(after if pressed else before)
         ),
     ):
         return smoke.press_opens_tab(FakeBrowser(), 0, "Settings", prefix)
@@ -429,15 +445,28 @@ class SmokeWiringTest(unittest.TestCase):
     def test_settings_may_open_in_the_new_tab_page_in_front(self):
         # Settings over a New tab page loads in that tab, no new handle
         # (singleton_tabs.cc ShowSingletonTabOverwritingNTP).
-        self.assertIsNone(press(["a"], "chrome://settings/", "chrome://settings"))
+        self.assertIsNone(press({"a": "chrome://settings/"}, "chrome://settings"))
 
     def test_a_new_tab_at_the_same_url_counts(self):
-        self.assertIsNone(press(["a", "b"], "chrome://newtab/", "chrome://"))
+        after = {"a": "chrome://newtab/", "b": "chrome://newtab/"}
+        self.assertIsNone(press(after, "chrome://"))
+
+    def test_a_tab_that_was_already_open_and_moved_counts(self):
+        # About reuses the open Settings tab, not the one the driver is on.
+        before = {"a": "chrome://settings/", "b": "chrome://boring-protection/"}
+        after = {"a": "chrome://settings/help", "b": "chrome://boring-protection/"}
+        self.assertIsNone(press(after, "chrome://settings/help", before))
 
     def test_a_press_that_opens_nothing_fails(self):
         self.assertEqual(
-            press(["a"], "chrome://newtab/", "chrome://settings"),
+            press({"a": "chrome://newtab/"}, "chrome://settings"),
             "Settings opened nothing",
+        )
+
+    def test_a_page_that_was_there_before_does_not_count(self):
+        same = {"a": "chrome://settings/help"}
+        self.assertEqual(
+            press(same, "chrome://settings/help", same), "Settings opened nothing"
         )
 
     def test_the_smoke_checks_the_keys_the_hook_sends(self):
@@ -457,6 +486,58 @@ class SmokeWiringTest(unittest.TestCase):
             src = (TOOLS / name).read_text(encoding="utf-8")
             self.assertIn('"--disable-boring-updates"', src, name)
             self.assertIn('"--disable-boring-list-updates"', src, name)
+
+
+def smoke_module():
+    if str(TOOLS) not in sys.path:
+        sys.path.insert(0, str(TOOLS))
+    try:
+        import smoke_app_menu as smoke
+    except (ImportError, OSError, AttributeError) as e:
+        raise unittest.SkipTest(f"smoke_app_menu does not import here: {e}") from e
+    return smoke
+
+
+class SmokeLayoutTest(unittest.TestCase):
+    """check_layout fails on any entry that is extra, repeated or moved."""
+
+    def setUp(self):
+        self.smoke = smoke_module()
+
+    def problems(self, top):
+        menu = {"top": top, "submenus": {}, "height": self.smoke.MENU_HEIGHT}
+        return self.smoke.check_layout(menu)
+
+    def test_the_layout_itself_passes(self):
+        self.assertEqual(self.problems(list(self.smoke.LAYOUT)), [])
+
+    def test_an_extra_entry_fails(self):
+        top = [*self.smoke.LAYOUT[:3], "Update now", *self.smoke.LAYOUT[3:]]
+        self.assertTrue(any("extra" in p for p in self.problems(top)))
+
+    def test_a_repeated_entry_fails(self):
+        top = [*self.smoke.LAYOUT, "Settings"]
+        self.assertTrue(any("repeated" in p for p in self.problems(top)))
+
+    def test_a_moved_entry_fails(self):
+        top = list(self.smoke.LAYOUT)
+        top[-2], top[-1] = top[-1], top[-2]
+        self.assertTrue(any("order" in p for p in self.problems(top)))
+
+    def test_a_missing_entry_fails(self):
+        top = [n for n in self.smoke.LAYOUT if n != "History"]
+        self.assertTrue(any("missing" in p for p in self.problems(top)))
+
+    def test_chrome_or_chromium_in_any_menu_fails(self):
+        menu = {"top": ["Settings"], "submenus": {"More tools": ["Customize Chrome"]}}
+        self.assertEqual(len(self.smoke.check_upstream_names(menu)), 1)
+        menu = {"top": ["Chromium"], "submenus": {}}
+        self.assertEqual(len(self.smoke.check_upstream_names(menu)), 1)
+        menu = {
+            "top": ["Settings"],
+            "submenus": {"More tools": ["Customize Boring Browser"]},
+        }
+        self.assertEqual(self.smoke.check_upstream_names(menu), [])
 
 
 class LookTest(unittest.TestCase):
