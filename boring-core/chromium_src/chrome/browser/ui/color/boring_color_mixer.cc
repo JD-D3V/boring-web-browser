@@ -271,6 +271,21 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   mixer[ui::kColorLabelForegroundSecondary] = {p.muted};
   mixer[ui::kColorLinkForeground] = {p.accent};
 
+  // Rows in our own popups (the search engine list) hover the same way as
+  // the menus below. It is painted over the row, so it has to be
+  // see-through or it covers the text: a light wash of the accent.
+  mixer[kColorHoverButtonBackgroundHovered] = {SkColorSetA(p.accent, 0x24)};
+
+  // Windows high contrast: menus keep the system colours Chromium maps
+  // them to (ui/color/win/native_color_mixers_win.cc), as the stock menu
+  // does: the main menu's cards take the menu's own background, a row or
+  // tile you hover the system highlight. Known limit: the rest of the
+  // window, and the accent (kColorSysPrimary) on the menu's icons, keep
+  // the palette.
+  if (key.contrast_mode == ui::ColorProviderKey::ContrastMode::kHigh) {
+    return;
+  }
+
   // Menus: the main menu and context menus read as the same paper panel
   // as our popovers. A row you hover takes a wash of the accent, the
   // shortcut beside it is quiet, and the separators are the same hairline
@@ -283,10 +298,6 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   mixer[ui::kColorMenuIcon] = {p.ink};
   mixer[ui::kColorMenuItemBackgroundHighlighted] = {p.tint};
   mixer[ui::kColorMenuItemBackgroundSelected] = {p.tint};
-  // Rows in our own popups (the search engine list) hover the same way.
-  // It is painted over the row, so it has to be see-through or it covers
-  // the text: a light wash of the accent.
-  mixer[kColorHoverButtonBackgroundHovered] = {SkColorSetA(p.accent, 0x24)};
 
   // The main menu's cards and tiles (views/boring/boring_app_menu.cc), as
   // in design/v9-menu: the address bar's field colour in light, a little

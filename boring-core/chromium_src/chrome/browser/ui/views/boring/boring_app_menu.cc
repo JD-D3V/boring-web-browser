@@ -228,6 +228,9 @@ class MenuButton : public views::Button {
   gfx::Size CalculatePreferredSize(
       const views::SizeBounds& available_size) const override {
     // The mock's heights, taller only when a larger text size needs it.
+    // Known limit: not taller in touch mode. On Windows the stock rows do
+    // not grow there either (MenuConfig's touchable sizes are ChromeOS
+    // only), so the bar's 36 stays under a 44 touch target.
     const gfx::Size content =
         views::Button::CalculatePreferredSize(available_size);
     return bar_ ? gfx::Size(content.width(),
@@ -276,8 +279,11 @@ class MenuButton : public views::Button {
 
   void UpdateColors() {
     const bool disabled = GetState() == STATE_DISABLED;
+    // A hovered button's text is a hovered row's: the same ink normally,
+    // the system highlight text in high contrast.
     const ui::ColorId text = disabled  ? ui::kColorMenuItemForegroundDisabled
                              : accent_ ? ui::kColorSysPrimary
+                             : IsHot() ? ui::kColorMenuItemForegroundSelected
                                        : ui::kColorMenuItemForeground;
     // A button you hover turns its icon accent, as the rows do.
     const ui::ColorId icon = disabled               ? ui::kColorMenuIconDisabled

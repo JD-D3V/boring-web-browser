@@ -6,7 +6,7 @@ menu button, as smoke_forget.py and smoke_site_panel.py do), reads the
 accessible names in it, measures it by PrintWindow of the menu's own
 window, then opens each submenu the same way and reads those. Last it
 presses the New tab tile and the Settings button (UI Automation Invoke)
-and checks through WebDriver that each opened its tab. Sends no mouse or
+and checks through WebDriver that each opened its page. Sends no mouse or
 keys to the desktop.
 
     python smoke_app_menu.py                           # wired: window pass 1e, smoke_all
@@ -153,28 +153,31 @@ def handles(b):
 
 
 def press_opens_tab(b, frame, name, url_prefix):
-    """Press `name` in the open menu; None when it opened a tab at the
-    prefix, else what went wrong."""
+    """Press `name` in the open menu; None when it opened a page at the
+    prefix, in a new tab or in the tab in front, else what went wrong.
+    Settings opens in the tab in front when that is a New tab page
+    (ShowSingletonTabOverwritingNTP), as it is after the New tab press."""
     menu, _ = window_names(b, frame, lambda ns: "Downloads" in ns, timeout=3)
     if not menu:
         menu, _ = open_menu(b, frame)
     before = handles(b)
+    was = b.current_url()
     try:
         with Window(menu) as w:
             w.press(lambda n: plain(n) == name)
     except (LookupError, RuntimeError) as e:
         return f"could not press {name}: {e}"
     deadline = time.time() + 10
-    url = None
+    url = was
     while time.time() < deadline:
         new = [h for h in handles(b) if h not in before]
         if new:
             b._req("POST", f"/session/{b.sid}/window", {"handle": new[-1]})
-            url = b.current_url()
-            if url.startswith(url_prefix):
-                return None
+        url = b.current_url()
+        if url.startswith(url_prefix) and (new or url != was):
+            return None
         time.sleep(0.3)
-    return f"{name} opened {url}" if url else f"{name} opened no tab"
+    return f"{name} opened {url}" if url != was else f"{name} opened nothing"
 
 
 def check_layout(menu):

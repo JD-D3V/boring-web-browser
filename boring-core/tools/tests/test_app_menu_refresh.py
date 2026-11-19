@@ -14,9 +14,11 @@ Usage:
 import os
 import re
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 CORE = Path(__file__).resolve().parents[2]
 REPO = CORE.parent
@@ -349,6 +351,60 @@ class ParityTest(unittest.TestCase):
         self.assertEqual(at, sorted(at))
 
 
+def press(after_handles, after_url, prefix):
+    """smoke_app_menu.press_opens_tab("Settings") with the browser faked:
+    one tab at chrome://newtab/, then `after_handles` and `after_url` once
+    the button is pressed."""
+    if str(TOOLS) not in sys.path:
+        sys.path.insert(0, str(TOOLS))
+    try:
+        import smoke_app_menu as smoke
+    except (ImportError, OSError, AttributeError) as e:
+        raise unittest.SkipTest(f"smoke_app_menu does not import here: {e}") from e
+    pressed = []
+
+    class Clock:
+        now = 0.0
+
+        def time(self):
+            return self.now
+
+        def sleep(self, seconds):
+            self.now += seconds
+
+    class FakeWindow:
+        def __init__(self, hwnd):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def press(self, wanted):
+            pressed.append(wanted("Settings"))
+
+    class FakeBrowser:
+        sid = "s"
+
+        def _req(self, method, path, body=None):
+            return {"value": None}
+
+        def current_url(self):
+            return after_url if pressed else "chrome://newtab/"
+
+    with (
+        mock.patch.object(smoke, "time", Clock()),
+        mock.patch.object(smoke, "Window", FakeWindow),
+        mock.patch.object(smoke, "window_names", return_value=(1, [])),
+        mock.patch.object(
+            smoke, "handles", lambda b: after_handles if pressed else ["a"]
+        ),
+    ):
+        return smoke.press_opens_tab(FakeBrowser(), 0, "Settings", prefix)
+
+
 class SmokeWiringTest(unittest.TestCase):
     def test_the_window_pass_checks_the_smokes_height(self):
         smoke = (TOOLS / "smoke_app_menu.py").read_text(encoding="utf-8")
@@ -356,6 +412,20 @@ class SmokeWiringTest(unittest.TestCase):
         wiring = (TOOLS / "run_window_pass.py").read_text(encoding="utf-8")
         self.assertEqual(
             re.findall(r'"--expect-height",\s*"(\d+)"', wiring), [height, height]
+        )
+
+    def test_settings_may_open_in_the_new_tab_page_in_front(self):
+        # Settings over a New tab page loads in that tab, no new handle
+        # (singleton_tabs.cc ShowSingletonTabOverwritingNTP).
+        self.assertIsNone(press(["a"], "chrome://settings/", "chrome://settings"))
+
+    def test_a_new_tab_at_the_same_url_counts(self):
+        self.assertIsNone(press(["a", "b"], "chrome://newtab/", "chrome://"))
+
+    def test_a_press_that_opens_nothing_fails(self):
+        self.assertEqual(
+            press(["a"], "chrome://newtab/", "chrome://settings"),
+            "Settings opened nothing",
         )
 
     def test_the_menu_tools_turn_updates_off(self):
@@ -400,6 +470,25 @@ class LookTest(unittest.TestCase):
         views = VIEWS.read_text(encoding="utf-8")
         self.assertIn("kColorAppMenuToolsAndActionsBackground", views)
         self.assertIn("ui::kColorAppMenuRowBackgroundHovered", views)
+
+    def test_high_contrast_keeps_the_system_menu_colours(self):
+        # As the stock menu: in Windows high contrast the menu ids keep what
+        # ui/color/win/native_color_mixers_win.cc maps them to.
+        src = MIXER.read_text(encoding="utf-8")
+        stop = src.index("ContrastMode::kHigh")
+        for name in (
+            "mixer[ui::kColorMenuBackground]",
+            "mixer[ui::kColorMenuItemForeground]",
+            "mixer[kColorAppMenuToolsAndActionsBackground]",
+            "mixer[ui::kColorAppMenuRowBackgroundHovered]",
+            "mixer[ui::kColorMenuButtonBackground]",
+        ):
+            self.assertGreater(src.index(name), stop, name)
+        # Our popups' row hover is not a menu id; it stays as it was.
+        self.assertLess(src.index("mixer[kColorHoverButtonBackgroundHovered]"), stop)
+        # A hovered tile's text is a hovered row's (HighlightText there).
+        views = VIEWS.read_text(encoding="utf-8")
+        self.assertIn("IsHot() ? ui::kColorMenuItemForegroundSelected", views)
 
 
 if __name__ == "__main__":
