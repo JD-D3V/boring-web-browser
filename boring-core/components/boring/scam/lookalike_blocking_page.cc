@@ -24,6 +24,7 @@
 #include "content/public/common/referrer.h"
 #include "ui/base/page_transition_types.h"
 #include "ui/base/window_open_disposition.h"
+#include "url/gurl.h"
 
 namespace boring {
 
@@ -244,6 +245,11 @@ void LookalikeBlockingPage::CommandReceived(const std::string& command) {
   }
   if (command_id == security_interstitials::CMD_DONT_PROCEED) {
     controller()->GoBack();
+    return;
+  }
+  // Report a mistake: the project's issue list, with nothing added to it.
+  if (command_id == security_interstitials::CMD_OPEN_HELP_CENTER) {
+    controller()->OpenUrlInNewForegroundTab(GURL(kReportMistakeUrl));
   }
 }
 

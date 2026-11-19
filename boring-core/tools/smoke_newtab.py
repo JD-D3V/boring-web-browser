@@ -9,7 +9,8 @@ link, and an empty reserved row on top for the account chips. A fresh
 profile starts with the Reading and Wikipedia pinned sites; a person can
 add and remove sites, with removed defaults staying removed, and only web
 addresses become sites, never script or local files. The colours are the
-TOKENS rows of the compiled design.
+TOKENS rows of the compiled design, and the font is the system's (no
+Inter, no web font).
 
 Light and dark photographs of the real window (PrintWindow, never the
 screen) are written to artifacts/ui-implemented next to the compiled
@@ -21,6 +22,7 @@ Usage: python smoke_newtab.py
 
 import json
 import os
+import re
 import sys
 import tempfile
 import time
@@ -143,6 +145,9 @@ def static_checks(checks):
     checks["page script parses"] = error is None
     if error:
         print("  script:", error)
+    checks["the page names no web font"] = not re.search(
+        r"@import|@font-face|googleapis|gstatic|Inter,", text
+    )
 
 
 def shape_checks(b, checks):
@@ -154,6 +159,16 @@ def shape_checks(b, checks):
     checks["tab icon brand.svg loads"] = icon == "ok"
     if icon != "ok":
         print("  icon:", icon)
+
+    # The system font: no Inter, and no font asked for.
+    checks["the computed font is not Inter"] = b.run(
+        r"return ![document.body, ...document.querySelectorAll('h2,button,a,input')]"
+        r".some(e => /\binter\b/i.test(getComputedStyle(e).fontFamily))"
+    )
+    checks["the page asks for no font"] = b.run(
+        r"return document.fonts.size===0 && !performance.getEntriesByType('resource')"
+        r".some(r => /\.(woff2?|ttf|otf)(\?|$)|fonts\.g/i.test(r.name))"
+    )
 
     # Nothing from the old page, and no search box.
     checks["no search box"] = b.run(

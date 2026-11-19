@@ -14,6 +14,11 @@ mapped to 127.0.0.1, so nothing leaves the machine. smoke_scam.py keeps
 the checks of the warning's behaviour across the colour choices and the
 list size; this one is the look and the words.
 
+It also checks the report link and the fonts: Report a mistake opens the
+project's issue list in a new tab with nothing about the site in the
+address and no request before the press; the page uses the system font and
+requests none (no web font, no @import).
+
 Light and dark photographs of our own window (PrintWindow) are written to
 artifacts/ui-implemented next to the compiled design's picture C12. They
 need a native window: set BORING_ALLOW_HEADFUL=1, otherwise that part is
@@ -24,6 +29,7 @@ Usage: python smoke_warning_page.py
 
 import json
 import os
+import re
 import sys
 import tempfile
 import time
@@ -56,6 +62,7 @@ SENTENCE = (
     "Boring Browser stopped {host} from opening. It is on a list of sites "
     "that pretend to be real companies to take passwords or card details."
 )
+REPORT_URL = "https://github.com/JD-D3V/boring-web-browser/issues"
 WHY = "Its address matched the list on this computer. Lists can be wrong."
 NO_WAY = (
     "No way past scam warnings is on. This site cannot be opened from this warning."
@@ -100,6 +107,13 @@ def static_checks(checks):
         return
     checks["the calm line is in the page source"] = (
         f'<p class="calm">{CALM}</p>' in bottom
+    )
+    header = (WARNING_CC.parent / "warning_page.h").read_text(encoding="utf-8")
+    checks["the report address is exactly the issue list, with nothing added"] = (
+        f'"{REPORT_URL}";' in header and "?" not in REPORT_URL and "#" not in REPORT_URL
+    )
+    checks["the page names no web font and no outside address"] = not re.search(
+        r"@import|@font-face|googleapis|gstatic|https?://|Inter,", text
     )
     checks["the site name and every text are escaped before they go in"] = all(
         needle in text
@@ -161,6 +175,14 @@ FACTS = r"""
     primaryHeight: primary && Math.round(primary.getBoundingClientRect().height),
     secondaryHeight: secondary && Math.round(secondary.getBoundingClientRect().height),
     secondaryEdge: secondary && cs(secondary, 'boxShadow'),
+    fontFamily: cs(document.body, 'fontFamily'),
+    fontFamilies: [q('h1'), primary, secondary, host].filter(e => e).map(e => cs(e, 'fontFamily')),
+    fontsLoaded: document.fonts.size,
+    resources: performance.getEntriesByType('resource').map(r => r.name),
+    fontRules: /@import|@font-face|googleapis|gstatic|\.woff|\.ttf|\.otf/i
+        .test(document.documentElement.outerHTML),
+    mentionsGithub: /github/i.test(document.documentElement.outerHTML),
+    links: document.querySelectorAll('a[href], link, img, iframe, script[src]').length,
   };
 """
 
@@ -204,12 +226,85 @@ def words_checks(b, checks, f):
     checks["the footer offers Continue anyway, not advised"] = (
         "Continue anyway, not advised" in f["footerLinks"]
     )
+    font_checks(checks, f)
     checks["the card is 520 px wide with 32 px padding and 12 px corners"] = (
         f["cardWidth"] == 520 and f["cardPadding"] == "32px" and f["cardRadius"] == "12px"
     )
     checks["symbol is 44 px, buttons are 40 px high"] = (
         f["symbol"] == [44, 44] and f["primaryHeight"] == 40 and f["secondaryHeight"] == 40
     )
+
+
+def font_checks(checks, f):
+    """The system font: no web font, nothing requested, not Inter."""
+    inter = [name for name in [f["fontFamily"], *f["fontFamilies"]] if re.search(r"\binter\b", name, re.I)]
+    checks["the computed font is not Inter"] = not inter
+    checks["the page asks for no font and no outside file"] = (
+        f["fontsLoaded"] == 0 and f["resources"] == [] and not f["fontRules"]
+    )
+
+
+def report_checks(b, checks, f):
+    """Report a mistake: there, quiet until pressed."""
+    checks["the footer offers Report a mistake"] = "Report a mistake" in f["footerLinks"]
+    checks["before the press: no link, no request, nothing of the address in the page"] = bool(
+        f["links"] == 0 and not f["mentionsGithub"] and f["resources"] == []
+    )
+    checks["before the press: still one tab"] = len(handles(b)) == 1
+
+
+def handles(b):
+    return b._req("GET", f"/session/{b.sid}/window/handles")["value"]
+
+
+def opened_address(b, handle):
+    """What the new tab was sent to, however the browser reports it: a
+    page that could not load (the test is offline) may show an error
+    page, whose navigation entry still holds the address."""
+    b._req("POST", f"/session/{b.sid}/window", {"handle": handle})
+    seen = [b.current_url()]
+    try:
+        path = f"/session/{b.sid}/goog/cdp/execute"
+        history = b._req("POST", path, {"cmd": "Page.getNavigationHistory", "params": {}})["value"]
+        entry = history["entries"][history["currentIndex"]]
+        seen += [entry.get("url", ""), entry.get("userTypedURL", "")]
+    except RuntimeError:
+        pass
+    return seen
+
+
+def press_report(lists, pages, checks):
+    """Press Report a mistake with every outside name unresolvable, so
+    nothing can leave the machine: a second tab holds the issue list."""
+    args = [
+        a + ", MAP * ~NOTFOUND, EXCLUDE 127.0.0.1" if a.startswith("--host-resolver-rules=") else a
+        for a in args_for(lists, pages, [])
+    ]
+    with (
+        tempfile.TemporaryDirectory(prefix="warn-", dir=os.environ.get("TMP") or None) as profile,
+        Browser(user_data_dir=profile, args=args) as b,
+    ):
+        wait_until_list_is_loaded(b)
+        open_url(b, f"http://{LISTED}:{pages.port}/")
+        shown(b)
+        report_checks(b, checks, b.run(FACTS))
+        first = handles(b)[0]
+        b.run(
+            "[...document.querySelectorAll('.footer button')]"
+            ".find(e => e.textContent.trim() === 'Report a mistake').click()"
+        )
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and len(handles(b)) < 2:
+            time.sleep(0.2)
+        new = [h for h in handles(b) if h != first]
+        checks["pressing it opens one new tab"] = len(new) == 1
+        if new:
+            seen = opened_address(b, new[0])
+            print("  report tab address:", seen)
+            checks["the new tab is exactly the project's issue list"] = REPORT_URL in seen
+            checks["no part of the site is in that address"] = all(
+                LISTED not in s for s in seen
+            )
 
 
 def why_checks(b, checks, f):
@@ -327,6 +422,7 @@ def main():
                     why_checks(b, checks, facts)
                     behaviour_checks(b, pages, checks)
                 no_way_checks(profile, lists, pages, checks)
+                press_report(lists, pages, checks)
             with (
                 tempfile.TemporaryDirectory(prefix="warn-", dir=os.environ.get("TMP") or None) as dark_profile,
                 Browser(

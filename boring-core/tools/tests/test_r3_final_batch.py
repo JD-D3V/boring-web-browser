@@ -77,15 +77,13 @@ class OffTheRecordSharedSwitches(unittest.TestCase):
 
 
 class NewTabEngineMenuNumbers(unittest.TestCase):
-    """C6. The engine button rectangle from the page is saturated, not cast."""
+    """C6. The new tab page has no engine button any more, so no handler
+    takes a rectangle from the page."""
 
-    def test_no_plain_cast_of_page_numbers(self):
+    def test_no_handler_takes_numbers_from_the_page(self):
         src = read(BORING / "newtab" / "newtab_ui.cc")
-        start = src.index("void HandleShowEngineMenu(")
-        body = src[start : src.index("\n  }\n", start)]
-        self.assertNotIn("static_cast<int>", body)
-        self.assertEqual(body.count("base::saturated_cast<int>(args["), 4)
-        self.assertIn('#include "base/numerics/safe_conversions.h"', src)
+        self.assertNotIn("HandleShowEngineMenu", src)
+        self.assertNotIn("saturated_cast", src)
 
 
 class Quad9AnnotationPolicy(unittest.TestCase):

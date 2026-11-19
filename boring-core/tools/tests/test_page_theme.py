@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""Our pages take their colours from the browser's theme.
+"""Our pages take their colours from the compiled design.
 
-The new tab page used to carry its own teal. It now reads the colours the
-window already uses (boring_color_mixer.cc sets them for Cool and Beige,
-light and dark) from chrome://theme/colors.css, so the page and the window
-are one design and follow the colour picker. The old teal stays as the
-fallback if the stylesheet ever fails to load.
+The new tab page carries the TOKENS rows of the design (light and dark)
+and takes only its accent from the window (boring_color_mixer.cc sets it
+from chrome://theme/colors.css), so it follows the colour picker's accent.
 
 Usage:
   python -m unittest boring-core/tools/tests/test_page_theme.py -v
@@ -27,24 +25,12 @@ MIXER = (
     / "boring_color_mixer.cc"
 )
 
-# Page token -> the theme colour it reads, which the mixer sets from the
-# palette field named on the right.
+# The page's own palette is the TOKENS rows of the compiled design, light
+# and dark, written into the page. Only the accent is the window's.
+PALETTE = ("page", "surface", "field", "hover", "line", "edge", "ink", "ink2",
+           "ok", "bad", "bad-tint", "solid", "solid-ink")
 TOKENS = {
-    "--surface": (
-        "--color-location-bar-background",
-        "kColorLocationBarBackground",
-        "field",
-    ),
-    "--paper": ("--color-dialog-background", "kColorDialogBackground", "paper"),
-    "--ink": ("--color-dialog-foreground", "kColorDialogForeground", "ink"),
-    "--muted": (
-        "--color-label-foreground-secondary",
-        "kColorLabelForegroundSecondary",
-        "muted",
-    ),
-    "--line": ("--color-bubble-border", "kColorBubbleBorder", "line"),
     "--accent": ("--color-sys-primary", "kColorSysPrimary", "accent"),
-    "--soft": ("--color-sys-primary-container", "kColorSysPrimaryContainer", "tint"),
 }
 
 
@@ -59,18 +45,19 @@ class PageThemeTest(unittest.TestCase):
         link = text.index('href="chrome://theme/colors.css?sets=ui,chrome"')
         self.assertLess(link, text.index("<style>"))
 
-    def test_each_token_reads_its_theme_colour_with_the_old_teal_as_fallback(self):
+    def test_the_palette_is_the_design_tokens_light_and_dark(self):
         css = page_css()
-        for token, (var, _, _) in TOKENS.items():
+        for name in PALETTE:
             self.assertRegex(
                 css,
-                rf"{re.escape(token)}:\s*var\({re.escape(var)},\s*light-dark\(#[0-9a-f]{{6}},\s*#[0-9a-f]{{6}}\)\);",
+                rf"--{re.escape(name)}:\s*light-dark\(#[0-9a-f]{{6}},\s*#[0-9a-f]{{6}}\);",
+                name,
             )
 
-    def test_field_edge_is_derived_so_it_keeps_its_contrast_in_every_scheme(self):
+    def test_the_accent_is_the_windows_with_a_fallback(self):
         self.assertRegex(
             page_css(),
-            r"--field:\s*color-mix\(in srgb,\s*var\(--ink\)\s*\d+%,\s*var\(--surface\)\);",
+            r"--accent:\s*var\(--color-sys-primary,\s*light-dark\(#[0-9a-f]{6},\s*#[0-9a-f]{6}\)\);",
         )
 
     def test_the_mixer_sets_every_colour_the_page_reads(self):

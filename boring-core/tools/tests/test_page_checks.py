@@ -70,6 +70,47 @@ class PagesOwnScriptsTest(unittest.TestCase):
         self.assertIsNone(page_checks.js_syntax_error(blocks[0]))
 
 
+SCAM = CORE / "components" / "boring" / "scam"
+
+
+class WarningPageContractTest(unittest.TestCase):
+    """What the two page smokes rely on in the C++ source."""
+
+    def test_report_a_mistake_goes_to_the_issue_list_and_nowhere_else(self):
+        header = (SCAM / "warning_page.h").read_text(encoding="utf-8")
+        self.assertIn(
+            'kReportMistakeUrl[] =\n    "https://github.com/JD-D3V/boring-web-browser/issues";',
+            header,
+        )
+        for name in ("scam_blocking_page.cc", "lookalike_blocking_page.cc"):
+            text = (SCAM / name).read_text(encoding="utf-8")
+            self.assertIn("CMD_OPEN_HELP_CENTER", text)
+            self.assertIn("OpenUrlInNewForegroundTab(GURL(kReportMistakeUrl))", text)
+        page = WARNING.read_text(encoding="utf-8")
+        self.assertIn("Report a mistake</button>", page)
+        self.assertIn("certificateErrorPageController.openHelpCenter()", page)
+
+    def test_the_report_link_is_not_an_address(self):
+        # A link or a prefetch would be a request before the press.
+        page = WARNING.read_text(encoding="utf-8")
+        self.assertNotIn("github", page.lower())
+        self.assertNotRegex(page, r"<a [^>]*href")
+
+    def test_both_pages_use_the_system_font(self):
+        for path in (WARNING, NEWTAB):
+            text = path.read_text(encoding="utf-8")
+            self.assertNotRegex(text, r"\bInter\b")
+            self.assertNotRegex(text, r"@import|@font-face|googleapis|gstatic")
+            self.assertIn("system-ui", text)
+
+    def test_the_calm_line_is_the_drawn_wording(self):
+        page = WARNING.read_text(encoding="utf-8")
+        self.assertIn(
+            "Your computer is fine. Nothing was sent, and you do not need to call anyone.",
+            page,
+        )
+
+
 class BesideTest(unittest.TestCase):
     def test_every_reference_is_in_the_shots_folder(self):
         for name in page_checks.REFERENCES.values():

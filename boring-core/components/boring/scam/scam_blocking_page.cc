@@ -13,6 +13,7 @@
 #include "components/user_prefs/user_prefs.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/web_contents.h"
+#include "url/gurl.h"
 
 namespace boring {
 
@@ -100,6 +101,11 @@ void ScamBlockingPage::CommandReceived(const std::string& command) {
   }
   if (command_id == security_interstitials::CMD_DONT_PROCEED) {
     controller()->GoBack();
+    return;
+  }
+  // Report a mistake: the project's issue list, with nothing added to it.
+  if (command_id == security_interstitials::CMD_OPEN_HELP_CENTER) {
+    controller()->OpenUrlInNewForegroundTab(GURL(kReportMistakeUrl));
   }
 }
 

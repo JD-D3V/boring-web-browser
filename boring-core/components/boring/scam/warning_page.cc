@@ -29,7 +29,7 @@ constexpr char kPageTop[] = R"HTML(<!DOCTYPE html>
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
   body { background: var(--page); color: var(--ink);
-         font: 14px/1.5 Inter, "Segoe UI", system-ui, sans-serif;
+         font: 14px/1.5 system-ui, "Segoe UI", sans-serif;
          margin: 0; display: flex; min-height: 100vh; align-items: center;
          justify-content: center; }
   .warning-page { width: 520px; max-width: calc(100% - 32px); margin: 40px 0;
@@ -106,6 +106,11 @@ function proceedAnyway() {
   }
   return false;
 }
+function reportMistake() {
+  if (window.certificateErrorPageController) {
+    certificateErrorPageController.openHelpCenter();
+  }
+}
 function toggleWhy(button) {
   var why = document.getElementById('why');
   why.hidden = !why.hidden;
@@ -127,6 +132,8 @@ constexpr char kContinueBottom[] =
     "</p><div class=\"footer\">"
     "<button type=\"button\" class=\"link\" "
     "onclick=\"return proceedAnyway()\">Continue anyway, not advised</button>"
+    "<button type=\"button\" class=\"link\" "
+    "onclick=\"reportMistake()\">Report a mistake</button>"
     "</div>";
 
 // Where a text names the site: the address goes there, in bold.
