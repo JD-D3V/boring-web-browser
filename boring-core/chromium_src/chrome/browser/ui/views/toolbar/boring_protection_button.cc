@@ -340,6 +340,8 @@ void BoringProtectionButton::UpdateState() {
     SetTooltipText(u"Ads and trackers are not blocked on " + site + u".");
     accessible_name = u"Protection, blocking off for " + site;
   } else if (state_ == State::kWorking) {
+    // The word says the state, as drawn: "Protected", beside the shield.
+    label = u"Protected";
     SetTooltipText(u"Protection is on. Scam sites and ads are blocked.");
     accessible_name = u"Protection, on";
   } else {

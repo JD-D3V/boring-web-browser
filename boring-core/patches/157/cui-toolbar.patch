@@ -1,0 +1,274 @@
+warning: in the working copy of 'base/chrome/browser/ui/actions/chrome_action_id.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'after/chrome/browser/ui/actions/chrome_action_id.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'base/chrome/browser/ui/browser_actions.cc', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'after/chrome/browser/ui/browser_actions.cc', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'base/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'after/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'base/chrome/browser/ui/toolbar/toolbar_pref_names.cc', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'after/chrome/browser/ui/toolbar/toolbar_pref_names.cc', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'base/chrome/browser/ui/toolbar/toolbar_pref_names.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'after/chrome/browser/ui/toolbar/toolbar_pref_names.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'base/chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.cc', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'after/chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.cc', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'base/chrome/browser/ui/views/toolbar/toolbar_view.cc', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'after/chrome/browser/ui/views/toolbar/toolbar_view.cc', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'base/chrome/browser/ui/views/toolbar/toolbar_view.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'after/chrome/browser/ui/views/toolbar/toolbar_view.h', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'base/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'after/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'base/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar_handler.cc', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'after/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar_handler.cc', LF will be replaced by CRLF the next time Git touches it
+diff --git a/chrome/browser/ui/actions/chrome_action_id.h b/chrome/browser/ui/actions/chrome_action_id.h
+--- a/chrome/browser/ui/actions/chrome_action_id.h
++++ b/chrome/browser/ui/actions/chrome_action_id.h
+@@ -565,6 +565,8 @@
+   E(kActionAutofillPayment) \
+   E(kActionWalletReminderNotice) \
+   E(kActionTtcToolbar) \
++  /* boring: Forget this session, pinned from the start. */ \
++  E(kActionBoringForgetSession, IDC_BORING_FORGET_SESSION) \
+ 
+ #define SUBMENU_ACTION_IDS                                                     \
+   E(kActionAppMenuRoot)                                                        \
+diff --git a/chrome/browser/ui/browser_actions.cc b/chrome/browser/ui/browser_actions.cc
+--- a/chrome/browser/ui/browser_actions.cc
++++ b/chrome/browser/ui/browser_actions.cc
+@@ -4069,6 +4069,26 @@ void BrowserActions::InitializeToolbarAndMiscActions() {
+                            actions::ActionPinnableState::kPinnable))
+           .Build());
+ 
++  // boring: Forget this session as a toolbar button, pinned from the start
++  // (toolbar_pref_names.cc). It runs the menu row's command, so it asks the
++  // same question first.
++  root_action_item_->AddChild(
++      actions::ActionItem::Builder(
++          base::BindRepeating(
++              [](BrowserWindowInterface* bwi, actions::ActionItem* item,
++                 actions::ActionInvocationContext context) {
++                chrome::ExecuteCommand(bwi, IDC_BORING_FORGET_SESSION);
++              },
++              bwi))
++          .SetActionId(kActionBoringForgetSession)
++          .SetText(u"Forget")
++          .SetTooltipText(u"Forget this session")
++          .SetImage(ui::ImageModel::FromVectorIcon(kDeleteIcon, ui::kColorIcon))
++          .SetProperty(actions::kActionItemPinnableKey,
++                       std::underlying_type_t<actions::ActionPinnableState>(
++                           actions::ActionPinnableState::kPinnable))
++          .Build());
++
+   root_action_item_->AddChild(
+       actions::ActionItem::Builder(
+           base::BindRepeating(
+diff --git a/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc b/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc
+--- a/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc
++++ b/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc
+@@ -252,6 +252,16 @@ void PinnedToolbarActionsModel::MaybeMigrateExistingPinnedStates() {
+     UpdatePinnedState(kActionTtcToolbar, true);
+     pref_service_->SetBoolean(prefs::kTtcAutoPinnedMigration, true);
+   }
++  // boring: a profile from before Forget existed gets it pinned once, first
++  // in the row as on a new profile. A new profile has it already (the
++  // default list), so nothing moves there and the list stays the default.
++  if (!pref_service_->GetBoolean(prefs::kBoringForgetPinnedMigration)) {
++    if (!Contains(kActionBoringForgetSession)) {
++      UpdatePinnedState(kActionBoringForgetSession, true);
++      MovePinnedAction(kActionBoringForgetSession, 0);
++    }
++    pref_service_->SetBoolean(prefs::kBoringForgetPinnedMigration, true);
++  }
+ }
+ 
+ const std::vector<actions::ActionId>&
+diff --git a/chrome/browser/ui/toolbar/toolbar_pref_names.cc b/chrome/browser/ui/toolbar/toolbar_pref_names.cc
+--- a/chrome/browser/ui/toolbar/toolbar_pref_names.cc
++++ b/chrome/browser/ui/toolbar/toolbar_pref_names.cc
+@@ -29,6 +29,14 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
+   // so it reads like the reference instead of appearing only once a
+   // download exists. Unpinning it from the toolbar's own right-click
+   // menu still works.
++  // boring: Forget this session sits ahead of the downloads button, as
++  // drawn, and can be unpinned like any other.
++  const std::optional<std::string>& forget_action =
++      actions::ActionIdMap::ActionIdToString(kActionBoringForgetSession);
++  if (forget_action.has_value()) {
++    default_pinned_actions.Append(forget_action.value());
++  }
++
+   const std::optional<std::string>& show_downloads_action =
+       actions::ActionIdMap::ActionIdToString(kActionShowDownloads);
+   if (show_downloads_action.has_value()) {
+@@ -58,6 +66,8 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
+   registry->RegisterBooleanPref(
+       prefs::kTtcAutoPinnedMigration, false,
+       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
++  // boring: not synced; there is no sync.
++  registry->RegisterBooleanPref(prefs::kBoringForgetPinnedMigration, false);
+ }
+ 
+ }  // namespace toolbar
+diff --git a/chrome/browser/ui/toolbar/toolbar_pref_names.h b/chrome/browser/ui/toolbar/toolbar_pref_names.h
+--- a/chrome/browser/ui/toolbar/toolbar_pref_names.h
++++ b/chrome/browser/ui/toolbar/toolbar_pref_names.h
+@@ -34,6 +34,11 @@ inline constexpr char kPinnedCastMigrationComplete[] =
+ inline constexpr char kTtcAutoPinnedMigration[] =
+     "toolbar.ttc_auto_pinned_migration";
+ 
++// boring: whether Forget has been pinned once on a profile from before it
++// existed. After that, unpinning it sticks.
++inline constexpr char kBoringForgetPinnedMigration[] =
++    "boring.toolbar.forget_pinned_once";
++
+ }  // namespace prefs
+ 
+ namespace toolbar {
+diff --git a/chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.cc b/chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.cc
+--- a/chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.cc
++++ b/chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.cc
+@@ -40,6 +40,7 @@
+ #include "ui/base/ui_base_features.h"
+ #include "ui/color/color_id.h"
+ #include "ui/gfx/canvas.h"
++#include "ui/gfx/font_list.h"
+ #include "ui/gfx/geometry/insets.h"
+ #include "ui/views/accessibility/view_accessibility.h"
+ #include "ui/views/controls/button/button.h"
+@@ -123,6 +124,19 @@ PinnedActionToolbarButton::PinnedActionToolbarButton(
+   GetViewAccessibility().SetRole(ax::mojom::Role::kToggleButton);
+   GetViewAccessibility().SetCheckedState(ax::mojom::CheckedState::kFalse);
+ 
++  // boring: Forget carries its word beside the icon, as drawn, with the
++  // padding, gap and type of the Protection button next to it. The text
++  // goes in first: the side spacing only applies to a button with text.
++  if (action_id == kActionBoringForgetSession) {
++    SetText(u"Forget");
++    SetLayoutInsets(gfx::Insets::VH(0, 10));
++    SetLabelSideSpacing(7);
++    const gfx::FontList& font = label()->font_list();
++    label()->SetFontList(font.DeriveWithSizeDelta(13 - font.GetFontSize())
++                             .DeriveWithWeight(gfx::Font::Weight::MEDIUM));
++    GetViewAccessibility().SetName(u"Forget this session");
++  }
++
+   if (web_app::AppBrowserController::IsWebApp(browser_)) {
+     SetLayoutInsets(gfx::Insets());
+     SetHorizontalAlignment(gfx::ALIGN_CENTER);
+diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.cc b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+@@ -517,6 +517,17 @@ void ToolbarView::Init() {
+     toolbar_divider_ = AddChildView(std::move(toolbar_divider));
+   }
+ 
++  // boring: reader view, next to the shield. It hides itself on pages
++  // that have no article in them, so it is never a dead control.
++  boring_reader_ = AddChildView(std::make_unique<BoringReaderButton>(browser_));
++
++  // boring: the shield sits just right of the address bar, where the
++  // state of the page you are on belongs. It opens the Protection page.
++  // It comes ahead of the pinned buttons, so Forget and the downloads
++  // button sit together after it.
++  boring_protection_ =
++      AddChildView(std::make_unique<BoringProtectionButton>(browser_));
++
+   if (!features::IsWebUIPinnedToolbarActionsEnabled()) {
+     pinned_toolbar_actions_container_ = AddChildView(
+         std::make_unique<PinnedToolbarActionsContainer>(browser_view_, this));
+@@ -546,15 +557,6 @@ void ToolbarView::Init() {
+     }
+   }
+ 
+-  // boring: reader view, next to the shield. It hides itself on pages
+-  // that have no article in them, so it is never a dead control.
+-  boring_reader_ = AddChildView(std::make_unique<BoringReaderButton>(browser_));
+-
+-  // boring: the shield sits just right of the address bar, where the
+-  // state of the page you are on belongs. It opens the Protection page.
+-  boring_protection_ =
+-      AddChildView(std::make_unique<BoringProtectionButton>(browser_));
+-
+   // Only show the Battery Saver button when it is not controlled by the OS. On
+   // ChromeOS the battery icon in the shelf shows the same information.
+   if (!performance_manager::user_tuning::IsBatterySaverModeManagedByOS() &&
+@@ -636,6 +638,11 @@ void ToolbarView::Init() {
+     avatar_->SetVisible(show_avatar_toolbar_button);
+   }
+ 
++  // boring: the Accounts button (ledger item 11) goes in this slot, after
++  // the pinned buttons and ahead of the menu. Nothing is drawn until then.
++  boring_accounts_slot_ = AddChildView(std::make_unique<views::View>());
++  boring_accounts_slot_->SetVisible(false);
++
+   // Only manage the overflow button when there are at least some views
+   // controls. If there aren't any, the WebUIToolbarWebView will handle all
+   // layout and overflow itself, in Javascript.
+@@ -644,6 +651,11 @@ void ToolbarView::Init() {
+     overflow_button_->SetVisible(false);
+   }
+ 
++  // boring: a hairline ahead of the menu button, 4 DIP either side, as
++  // drawn.
++  boring_menu_divider_ = AddChildView(std::make_unique<ToolbarDivider>());
++  boring_menu_divider_->SetProperty(views::kMarginsKey, gfx::Insets::VH(0, 4));
++
+   // WebUI app menu button handles these internally, so no need to set these
+   // properties here, and the control is added as part of the WebUI toolbar.
+   if (!features::IsWebUIAppMenuButtonEnabled()) {
+diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.h b/chrome/browser/ui/views/toolbar/toolbar_view.h
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.h
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.h
+@@ -427,6 +427,10 @@ class ToolbarView : public views::AccessiblePaneView,
+   raw_ptr<BoringProtectionButton> boring_protection_ = nullptr;
+   // boring: shows itself only on pages with an article in them.
+   raw_ptr<BoringReaderButton> boring_reader_ = nullptr;
++  // boring: where the Accounts button will sit; empty and hidden for now.
++  raw_ptr<views::View> boring_accounts_slot_ = nullptr;
++  // boring: the hairline ahead of the menu button.
++  raw_ptr<ToolbarDivider> boring_menu_divider_ = nullptr;
+   raw_ptr<PerformanceInterventionButton> performance_intervention_button_ =
+       nullptr;
+   raw_ptr<PinnedToolbarActionsContainer> pinned_toolbar_actions_container_ =
+diff --git a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom
+--- a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom
++++ b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar.mojom
+@@ -37,6 +37,8 @@ enum ActionId {
+   // boring: Settings and Extensions can be pinned too.
+   kShowSettings,
+   kShowExtensions,
++  // boring: and Forget this session, which starts pinned.
++  kForgetSession,
+ };
+ 
+ // Unique identifiers for categories the actions can belong to.
+diff --git a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar_handler.cc b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar_handler.cc
+--- a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar_handler.cc
++++ b/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolbar/customize_toolbar_handler.cc
+@@ -99,6 +99,8 @@ MojoActionForChromeAction(actions::ActionId action_id) {
+       return side_panel::customize_chrome::mojom::ActionId::kShowSettings;
+     case kActionManageExtensions:
+       return side_panel::customize_chrome::mojom::ActionId::kShowExtensions;
++    case kActionBoringForgetSession:
++      return side_panel::customize_chrome::mojom::ActionId::kForgetSession;
+     default:
+       return std::nullopt;
+   }
+@@ -163,6 +165,8 @@ std::optional<actions::ActionId> ChromeActionForMojoAction(
+       return kActionOptions;
+     case side_panel::customize_chrome::mojom::ActionId::kShowExtensions:
+       return kActionManageExtensions;
++    case side_panel::customize_chrome::mojom::ActionId::kForgetSession:
++      return kActionBoringForgetSession;
+     default:
+       return std::nullopt;
+   }
+@@ -330,6 +334,10 @@ void CustomizeToolbarHandler::ListActions(ListActionsCallback callback) {
+   add_action(kActionManageExtensions,
+              side_panel::customize_chrome::mojom::CategoryId::kYourChrome,
+              l10n_util::GetStringUTF16(IDS_EXTENSIONS_MENU_TITLE));
++  // boring: Forget, by the name its menu row has.
++  add_action(kActionBoringForgetSession,
++             side_panel::customize_chrome::mojom::CategoryId::kYourChrome,
++             u"Forget this session");
+   add_action(kActionShowPasswordsBubbleOrPage,
+              side_panel::customize_chrome::mojom::CategoryId::kYourChrome);
+   add_action(kActionShowPaymentsBubbleOrPage,
