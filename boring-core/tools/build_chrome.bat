@@ -16,5 +16,14 @@ set TEMP=E:\tmp
 set DEPOT_TOOLS_WIN_TOOLCHAIN=0
 set PATH=%LOCALAPPDATA%\Microsoft\WinGet\Links;%PATH%
 cd /d %BORING_SRC%
-ninja -C out\Default %* chrome chromedriver
+rem Use the ninja inside the tree. A newer ninja on PATH deletes the tree's
+rem .ninja_log and forces a full rebuild. ninja_guard.py picks the right
+rem one and refuses if the log version would clash.
+set BORING_NINJA=
+for /f "delims=" %%N in ('python "%~dp0ninja_guard.py" out\Default') do set BORING_NINJA=%%N
+if "%BORING_NINJA%"=="" (
+  echo build_chrome: no ninja chosen, not building.
+  exit /b 1
+)
+"%BORING_NINJA%" -C out\Default %* chrome chromedriver
 exit /b %ERRORLEVEL%

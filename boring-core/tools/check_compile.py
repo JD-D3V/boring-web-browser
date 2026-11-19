@@ -19,6 +19,10 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import ninja_guard  # noqa: E402
+
 TOOLS = Path(__file__).resolve().parent
 BORING_CORE = TOOLS.parent
 DEFAULT_OUT = Path("E:/ung-154/build/src/out/Default")
@@ -61,8 +65,12 @@ def is_dropped(arg: str) -> bool:
 def ninja_command(out: Path, obj: str) -> list[str]:
     """Return the compile command ninja uses for obj, as an argument list."""
     try:
+        exe = ninja_guard.guard(out, ["-t", "commands"])
+    except ninja_guard.GuardError as err:
+        raise CheckError(str(err)) from err
+    try:
         done = subprocess.run(
-            ["ninja", "-C", str(out), "-t", "commands", "-s", obj],
+            [str(exe), "-C", str(out), "-t", "commands", "-s", obj],
             capture_output=True,
             text=True,
             encoding="utf-8",
