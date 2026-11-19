@@ -1,0 +1,191 @@
+diff --git a/ui/color/color_provider_key.h b/ui/color/color_provider_key.h
+--- a/ui/color/color_provider_key.h
++++ b/ui/color/color_provider_key.h
+@@ -148,6 +148,19 @@
+       nullptr;  // unowned
+   std::optional<SkColor> app_background_color = std::nullopt;
+   size_t system_theme_version = 0;
++  // boring: the Look picked in Settings, Appearance, set by ThemeService
++  // from the profile pref boring.appearance.look and read by
++  // chrome/browser/ui/color/boring_color_mixer.cc.
++  enum class BoringLook {
++    kSoftWhite,
++    kSlate,
++    kDusk,
++  };
++  BoringLook boring_look = BoringLook::kSoftWhite;
++  // boring: the accent picked in Settings, Appearance, set by ThemeService
++  // from the profile pref boring.appearance.accent when it is a valid
++  // "#rrggbb". Unset is the default accent.
++  std::optional<SkColor> boring_accent = std::nullopt;
+ 
+   // TODO(crbug.com/537023567): Populate the hash and context from
+   // WindowAndroid.
+@@ -159,56 +172,66 @@
+   bool operator==(const ColorProviderKey& other) const {
+     auto* lhs_app_controller = app_controller.get();
+     auto* rhs_app_controller = other.app_controller.get();
++    // boring: both lists end with boring_look and boring_accent.
+ #if BUILDFLAG(IS_ANDROID)
+     return std::tie(color_mode, contrast_mode, forced_colors, system_theme,
+                     frame_type, frame_style, user_color_source, user_color,
+                     scheme_variant, custom_theme, lhs_app_controller,
+-                    app_background_color, system_theme_version, context_hash) ==
++                    app_background_color, system_theme_version, context_hash,
++                    boring_look, boring_accent) ==
+            std::tie(other.color_mode, other.contrast_mode, other.forced_colors,
+                     other.system_theme, other.frame_type, other.frame_style,
+                     other.user_color_source, other.user_color,
+                     other.scheme_variant, other.custom_theme,
+                     rhs_app_controller, other.app_background_color,
+-                    other.system_theme_version, other.context_hash);
++                    other.system_theme_version, other.context_hash,
++                    other.boring_look, other.boring_accent);
+ #else
+     return std::tie(color_mode, contrast_mode, forced_colors, system_theme,
+                     frame_type, frame_style, user_color_source, user_color,
+                     scheme_variant, custom_theme, lhs_app_controller,
+-                    app_background_color, system_theme_version) ==
++                    app_background_color, system_theme_version,
++                    boring_look, boring_accent) ==
+            std::tie(other.color_mode, other.contrast_mode, other.forced_colors,
+                     other.system_theme, other.frame_type, other.frame_style,
+                     other.user_color_source, other.user_color,
+                     other.scheme_variant, other.custom_theme,
+                     rhs_app_controller, other.app_background_color,
+-                    other.system_theme_version);
++                    other.system_theme_version, other.boring_look,
++                    other.boring_accent);
+ #endif
+   }
+ 
+   bool operator<(const ColorProviderKey& other) const {
+     auto* lhs_app_controller = app_controller.get();
+     auto* rhs_app_controller = other.app_controller.get();
++    // boring: both lists end with boring_look and boring_accent.
+ #if BUILDFLAG(IS_ANDROID)
+     return std::tie(color_mode, contrast_mode, forced_colors, system_theme,
+                     frame_type, frame_style, user_color_source, user_color,
+                     scheme_variant, custom_theme, lhs_app_controller,
+-                    app_background_color, system_theme_version, context_hash) <
++                    app_background_color, system_theme_version, context_hash,
++                    boring_look, boring_accent) <
+            std::tie(other.color_mode, other.contrast_mode, other.forced_colors,
+                     other.system_theme, other.frame_type, other.frame_style,
+                     other.user_color_source, other.user_color,
+                     other.scheme_variant, other.custom_theme,
+                     rhs_app_controller, other.app_background_color,
+-                    other.system_theme_version, other.context_hash);
++                    other.system_theme_version, other.context_hash,
++                    other.boring_look, other.boring_accent);
+ #else
+     return std::tie(color_mode, contrast_mode, forced_colors, system_theme,
+                     frame_type, frame_style, user_color_source, user_color,
+                     scheme_variant, custom_theme, lhs_app_controller,
+-                    app_background_color, system_theme_version) <
++                    app_background_color, system_theme_version,
++                    boring_look, boring_accent) <
+            std::tie(other.color_mode, other.contrast_mode, other.forced_colors,
+                     other.system_theme, other.frame_type, other.frame_style,
+                     other.user_color_source, other.user_color,
+                     other.scheme_variant, other.custom_theme,
+                     rhs_app_controller, other.app_background_color,
+-                    other.system_theme_version);
++                    other.system_theme_version, other.boring_look,
++                    other.boring_accent);
+ #endif
+   }
+ };
+diff --git a/chrome/browser/themes/theme_service.cc b/chrome/browser/themes/theme_service.cc
+--- a/chrome/browser/themes/theme_service.cc
++++ b/chrome/browser/themes/theme_service.cc
+@@ -138,6 +138,14 @@
+   return kSchemeVariantMap.at(color_variant);
+ }
+ 
++// boring: the Look in Settings, Appearance, registered by boring::
++// RegisterProfilePrefs (components/boring/core/boring_prefs.h,
++// kAppearanceLook). By name here, so this target needs no new dependency.
++constexpr char kBoringLookPref[] = "boring.appearance.look";
++// boring: the accent in Settings, Appearance, "#rrggbb" (boring_prefs.h,
++// kAppearanceAccent).
++constexpr char kBoringAccentPref[] = "boring.appearance.accent";
++
+ class DefaultThemeProviderDelegate : public BrowserThemeProviderDelegate {
+  public:
+   CustomThemeSupplier* GetThemeSupplier() const override { return nullptr; }
+@@ -427,6 +435,14 @@
+   pref_change_registrar_.Add(
+       prefs::kUserColor, base::BindRepeating(&ThemeService::NotifyThemeChanged,
+                                              base::Unretained(this)));
++  // boring: a new Look in Settings, Appearance repaints at once.
++  pref_change_registrar_.Add(
++      kBoringLookPref, base::BindRepeating(&ThemeService::NotifyThemeChanged,
++                                           base::Unretained(this)));
++  // boring: so does a new accent.
++  pref_change_registrar_.Add(
++      kBoringAccentPref, base::BindRepeating(&ThemeService::NotifyThemeChanged,
++                                             base::Unretained(this)));
+ }
+ 
+ void ThemeService::Shutdown() {
+@@ -768,6 +784,29 @@
+     }
+   }
+ 
++  // boring: the Look, for boring_color_mixer.cc. Anything but "slate" or
++  // "dusk" is Soft white, the default.
++  const std::string& boring_look =
++      profile_->GetPrefs()->GetString(kBoringLookPref);
++  key.boring_look =
++      boring_look == "slate"  ? ui::ColorProviderKey::BoringLook::kSlate
++      : boring_look == "dusk" ? ui::ColorProviderKey::BoringLook::kDusk
++                              : ui::ColorProviderKey::BoringLook::kSoftWhite;
++  // boring: the accent, for boring_color_mixer.cc, only when it is exactly
++  // "#" and six hex digits. Anything else leaves it unset, which is the
++  // default accent.
++  const std::string& boring_accent =
++      profile_->GetPrefs()->GetString(kBoringAccentPref);
++  if (boring_accent.size() == 7 && boring_accent[0] == '#' &&
++      std::all_of(boring_accent.begin() + 1, boring_accent.end(),
++                  [](char c) { return base::IsHexDigit(c); })) {
++    SkColor rgb = 0;
++    for (size_t i = 1; i < boring_accent.size(); ++i) {
++      rgb = rgb * 16 + base::HexDigitToInt(boring_accent[i]);
++    }
++    key.boring_accent = SkColorSetA(rgb, SK_AlphaOPAQUE);
++  }
++
+   // user_color_source.
+   if (is_incognito) {
+     key.user_color_source = ui::ColorProviderKey::UserColorSource::kGrayscale;
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -568,8 +568,9 @@
+ 
+ // static
+ int LocationBarView::ComputeBorderRadius(gfx::Size size) {
+-  return ChromeLayoutProvider::Get()->GetCornerRadiusMetric(
+-      views::Emphasis::kMaximum, size);
++  // boring: the field's 9 DIP corners as drawn in the compiled design
++  // (design/v12-compiled, Window.dc.html), not a pill.
++  return 9;
+ }
+ 
+ // static
+diff --git a/chrome/browser/ui/color/chrome_color_id.h b/chrome/browser/ui/color/chrome_color_id.h
+--- a/chrome/browser/ui/color/chrome_color_id.h
++++ b/chrome/browser/ui/color/chrome_color_id.h
+@@ -1179,6 +1179,11 @@
+   /* Window control button background colors. */ \
+   E_CPONLY(kColorWindowControlButtonBackgroundActive) \
+   E_CPONLY(kColorWindowControlButtonBackgroundInactive) \
++  /* boring: the compiled UI's 3 to 1 edge, for fields, outline */ \
++  /* buttons and off switches (boring_color_mixer.cc). */ \
++  E_CPONLY(kColorBoringEdge) \
++  /* boring: the compiled UI's ok token (the toolbar's Protected shield). */ \
++  E_CPONLY(kColorBoringOk) \
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
+ #define CHROME_PLATFORM_SPECIFIC_COLOR_IDS \
