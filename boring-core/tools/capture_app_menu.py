@@ -10,6 +10,12 @@ again within a couple of seconds, so this polls and photographs it at once.
 
     python capture_app_menu.py --out menu-cool-light.png
     python capture_app_menu.py --out menu-beige-dark.png --dark --scheme beige
+    python capture_app_menu.py --out menu.png --expect-height 769
+
+--expect-height fails the run when the menu's height, in DIP, is more than
+--tolerance away from it. The refreshed menu (design/v9-menu, mockup A,
+patches/157/app-menu-refresh.patch) is 769 DIP tall, border included, in a
+profile with no update, warning or managed row.
 
 Needs the built browser (BORING_OUT / BORING_CHROME as for the smoke tests).
 """
@@ -87,8 +93,9 @@ def shoot_popup(popup, path, margin=16):
             d = ((y + margin) * w + (x + margin)) * 4
             canvas[d : d + 3] = px[s : s + 3]
     write_png(str(path), w, h, bytes(canvas))
-    print(f"saved {path} ({cw}x{ch} menu)")
-    return True
+    scale = user32.GetDpiForWindow(popup) / 96 or 1
+    print(f"saved {path} ({cw}x{ch} menu, {cw / scale:.0f}x{ch / scale:.0f} DIP)")
+    return ch / scale
 
 
 def main():
@@ -98,6 +105,8 @@ def main():
     ap.add_argument("--dark", action="store_true")
     ap.add_argument("--scheme", choices=["cool", "beige", "green"], default="cool")
     ap.add_argument("--url", default="chrome://boring-newtab")
+    ap.add_argument("--expect-height", type=float, help="menu height in DIP")
+    ap.add_argument("--tolerance", type=float, default=6)
     args = ap.parse_args()
 
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
@@ -137,6 +146,10 @@ def main():
         laid = bool(popup) and shoot_popup(popup, out)
     if not laid:
         raise SystemExit("the menu did not open (no popup window over the frame)")
+    if args.expect_height and abs(laid - args.expect_height) > args.tolerance:
+        raise SystemExit(
+            f"the menu is {laid:.0f} DIP tall, expected {args.expect_height:.0f}"
+        )
 
 
 if __name__ == "__main__":

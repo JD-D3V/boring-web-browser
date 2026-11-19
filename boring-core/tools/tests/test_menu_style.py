@@ -124,6 +124,20 @@ class MenuStyleTest(unittest.TestCase):
         ):
             self.assertRegex(src, rf"mixer\[ui::{name}\]\s*=\s*\{{p\.{field}\}}")
 
+    def test_main_menu_cards_and_zoom_buttons_have_their_own_colours(self):
+        # The refreshed main menu (design/v9-menu, mockup A; numbers in
+        # test_app_menu_refresh.py): rows on a filled card hover with an
+        # accent wash, as the tint hardly shows there, and the zoom row's
+        # round buttons stand off the card.
+        src = MIXER.read_text(encoding="utf-8")
+        for name in (
+            "kColorAppMenuToolsAndActionsBackground",
+            "ui::kColorAppMenuRowBackgroundHovered",
+            "ui::kColorMenuButtonBackground",
+            "ui::kColorMenuButtonBackgroundSelected",
+        ):
+            self.assertIn(f"mixer[{name}]", src)
+
     def test_row_hover_uses_the_accent_tint(self):
         src = MIXER.read_text(encoding="utf-8")
         self.assertRegex(

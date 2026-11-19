@@ -62,6 +62,7 @@ CHECKS = [
     ("phone number banner", "smoke_phone_banner.py"),
     ("redirect and AMP skipping", "smoke_debounce.py"),
     ("forget this site", "smoke_forget.py"),
+    ("main menu entries and layout", "smoke_app_menu.py"),
     ("tabs survive restart", "smoke_tabs.py"),
     ("side tabs", "smoke_vtabs.py"),
     ("colour scheme and layout fixes", "smoke_ui_polish.py"),
@@ -93,6 +94,7 @@ NATIVE_CHECKS = {
     "smoke_site_panel.py",
     "smoke_webstore.py",
     "smoke_forget.py",
+    "smoke_app_menu.py",
     "smoke_tabs.py",
     "smoke_vtabs.py",
 }

@@ -63,6 +63,7 @@ ARGPARSE_TOOLS = {
     "measure_startup.py",
     "smoke_site_panel.py",
     "smoke_forget.py",
+    "smoke_app_menu.py",
     "smoke_tabs.py",
     "smoke_vtabs.py",
     "test_update_local.py",
@@ -149,6 +150,14 @@ def build_steps(out, net_seconds):
             [tool("smoke_forget.py", "--shots", str(shots / "smoke" / "forget"))],
             1200,
             "browser window off screen; panel pressed through UI Automation",
+            smoke_lines,
+        ),
+        Step(
+            "1e-app-menu",
+            "main menu entries and layout",
+            [tool("smoke_app_menu.py")],
+            300,
+            "browser window off screen; menu opened through UI Automation",
             smoke_lines,
         ),
         Step(
