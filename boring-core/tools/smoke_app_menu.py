@@ -6,8 +6,10 @@ menu button, as smoke_forget.py and smoke_site_panel.py do), reads the
 accessible names in it, measures it by PrintWindow of the menu's own
 window, then opens each submenu the same way and reads those. Last it
 presses the New tab tile and the Settings button (UI Automation Invoke)
-and checks through WebDriver that each opened its page. Sends no mouse or
-keys to the desktop.
+and checks through WebDriver that each opened its page. A second launch
+with --boring-open-app-menu=keys has the browser send key events to its own
+open menu (Down, Up, Left, Right, End, Enter) and checks what each selected.
+Sends no mouse or keys to the desktop.
 
     python smoke_app_menu.py                           # wired: window pass 1e, smoke_all
     python smoke_app_menu.py --save before.json        # on the old build
@@ -24,6 +26,7 @@ Needs the built browser (BORING_OUT / BORING_CHROME as for the smoke tests).
 
 import argparse
 import ctypes
+import itertools
 import json
 import os
 import re
@@ -52,11 +55,11 @@ LAYOUT = [
     "Downloads",
     "Bookmarks and lists",
     "Extensions",
-    "Delete browsing data...",
+    "Delete browsing data\u2026",
     "Page",
     "Zoom",
-    "Print...",
-    "Translate...",
+    "Print\u2026",
+    "Translate\u2026",
     "Find and edit",
     "Save and share",
     "More tools",
@@ -76,6 +79,10 @@ SUBMENUS = [
     "Save and share",
     "More tools",
 ]
+KEYS_FILE = "boring-app-menu-keys.txt"
+# The keys WalkKeysForTest (boring_app_menu.cc) sends, in order: Down, Up,
+# Left, Right, End (X), Home (H), Enter (E).
+KEYS = "DRRL" + "D" * 20 + "XLRL" + "U" * 14 + "HDDDUXLE"
 # A row's name ends with its shortcut ("Downloads Ctrl+J").
 SHORTCUT = re.compile(r"\s+((Ctrl|Alt|Shift|F\d+)(\+\S+)*)$")
 
@@ -111,7 +118,11 @@ def window_names(b, frame, wanted, timeout=10.0):
 
 def open_menu(b, frame):
     with Window(frame) as w:
-        w.press(is_app_menu_button)
+        # On a browser page the location bar's chip is also named "Boring
+        # Browser"; the menu button is the last control of that name.
+        last = len(w.elements(is_app_menu_button))
+        calls = itertools.count(1)
+        w.press(lambda n: is_app_menu_button(n) and next(calls) == last)
     menu, top = window_names(b, frame, lambda ns: "Downloads" in ns)
     if not menu:
         raise SystemExit("the app menu did not open")
@@ -132,7 +143,7 @@ def read_menu(b, frame, shot):
         try:
             with Window(menu) as w:
                 w.press(lambda n, row=row: plain(n) == row)
-        except (LookupError, RuntimeError) as e:
+        except (LookupError, RuntimeError, OSError) as e:
             subs[row] = [f"<could not open: {e}>"]
             continue
         _, names = window_names(
@@ -200,6 +211,93 @@ def check_layout(menu):
     return problems
 
 
+def walk_keys(args):
+    """The keyboard walk: --boring-open-app-menu=keys opens the menu and
+    sends it key events inside the browser (boring_app_menu.cc,
+    WalkKeysForTest), which writes (key, selection) after each. Returns
+    those and whether the Enter at the end opened Settings."""
+    with (
+        tempfile.TemporaryDirectory(
+            prefix="app-menu-keys-", dir=os.environ.get("TMP") or None
+        ) as profile,
+        Browser(
+            user_data_dir=profile,
+            args=[*args, "--boring-open-app-menu=keys"],
+            headful=True,
+        ) as b,
+    ):
+        b.get("chrome://boring-newtab")
+        report = os.path.join(profile, KEYS_FILE)
+        deadline = time.time() + 20
+        while time.time() < deadline and not os.path.exists(report):
+            time.sleep(0.3)
+        time.sleep(0.5)
+        settings = False
+        while time.time() < deadline + 5 and not settings:
+            for handle in handles(b):
+                b._req("POST", f"/session/{b.sid}/window", {"handle": handle})
+                settings = settings or b.current_url().startswith("chrome://settings")
+            time.sleep(0.3)
+        text = ""
+        if os.path.exists(report):
+            with open(report, encoding="utf-8") as f:
+                text = f.read()
+    steps = [line.split(" ", 1) for line in text.splitlines() if " " in line]
+    return [(k, plain(n.replace("&", ""))) for k, n in steps], settings
+
+
+def check_keys(steps, settings):
+    """Left and Right move across the tiles and the bar; Up and Down step
+    through a row's buttons first, as in the stock zoom row, and never stop
+    on a heading; Enter presses the selected button."""
+    problems = [] if settings else ["Enter on Settings opened no Settings page"]
+    if "".join(k for k, _ in steps) != KEYS:
+        return [f"the key walk stopped after {len(steps)} keys: {steps}", *problems]
+    names = [name for _, name in steps]
+    if set(names) & {"Browse", "Page", "Browser"}:
+        problems.append(f"a heading took the selection: {names}")
+    want = {
+        0: "New tab",
+        1: "New window",  # Right
+        2: "New Incognito window",  # Right
+        3: "New window",  # Left
+        24: "Exit",  # End
+        25: "Settings",  # Left
+        26: "Exit",  # Right
+        27: "Settings",  # Left
+        42: "New tab",  # Home
+        45: "Passwords and autofill",  # Down past Browse
+        46: "New Incognito window",  # Up past Browse
+        47: "Exit",  # End
+        48: "Settings",  # Left, then Enter
+    }
+    for i, name in want.items():
+        if names[i] != name:
+            problems.append(f"key {i + 1} ({KEYS[i]}) selected {names[i]}, not {name}")
+    down, up = names[4:24], names[28:42]
+    for walk, pairs in (
+        (
+            down,
+            [
+                ("New Incognito window", "Passwords and autofill"),
+                ("Delete browsing data\u2026", "Make Text Smaller"),
+                ("More tools", "Protection"),
+            ],
+        ),
+        (
+            up,
+            [
+                ("Protection", "More tools"),
+                ("Make Text Smaller", "Delete browsing data\u2026"),
+            ],
+        ),
+    ):
+        for a, b in pairs:
+            if not any(walk[k : k + 2] == [a, b] for k in range(len(walk) - 1)):
+                problems.append(f"no step from {a} to {b} in {walk}")
+    return problems
+
+
 def compare(before, after):
     problems = []
     gone = sorted(set(before["top"]) - set(after["top"]))
@@ -245,8 +343,10 @@ def main():
             ("Settings", "chrome://settings"),
         ):
             pressed.append(press_opens_tab(b, frame, name, prefix))
+    steps, settings = walk_keys(args)
 
     print("top level:", menu["top"])
+    print("keys:", steps)
     for row, names in menu["submenus"].items():
         print(f"{row}: {names}")
     if opts.save:
@@ -254,6 +354,7 @@ def main():
             json.dump(menu, f, indent=1)
         print("saved", opts.save)
     problems = check_layout(menu) + [p for p in pressed if p]
+    problems += check_keys(steps, settings)
     if opts.compare:
         with open(opts.compare, encoding="utf-8") as f:
             problems += compare(json.load(f), menu)

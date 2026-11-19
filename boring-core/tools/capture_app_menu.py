@@ -39,6 +39,8 @@ from capture_search_menu import grab_raw, window_rect
 from drive import CHROME, OFFSCREEN, Browser
 
 HOOK = "--boring-open-app-menu"
+# The brightest a pixel of the menu's shadow comes back.
+SHADOW = 24
 
 
 def find_menu(frame, pids):
@@ -73,12 +75,14 @@ def shoot_popup(popup, path, margin=16):
     time.sleep(0.6)
     _, _, pw, ph = window_rect(popup)
     _, _, px = grab_raw(popup)
-    # The menu's own bounds: everything that is not the black ring.
+    # The menu's own bounds: everything that is not the ring. Its shadow
+    # comes back nearly black (up to about 17), not 0, and is no part of
+    # the menu: counted, it made the menu 27 DIP taller and 22 wider.
     xs, ys = [], []
     for y in range(ph):
         for x in range(pw):
             s = (y * pw + x) * 4
-            if px[s] or px[s + 1] or px[s + 2]:
+            if max(px[s : s + 3]) > SHADOW:
                 xs.append(x)
                 ys.append(y)
     x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
@@ -88,7 +92,7 @@ def shoot_popup(popup, path, margin=16):
     for y in range(ch):
         for x in range(cw):
             s = ((y + y0) * pw + (x + x0)) * 4
-            if px[s] == 0 and px[s + 1] == 0 and px[s + 2] == 0:
+            if max(px[s : s + 3]) <= SHADOW:
                 continue
             d = ((y + margin) * w + (x + margin)) * 4
             canvas[d : d + 3] = px[s : s + 3]

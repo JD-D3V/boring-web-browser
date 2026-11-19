@@ -6,12 +6,22 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
+#include "base/command_line.h"
+#include "base/files/file_path.h"
+#include "base/files/file_util.h"
 #include "base/functional/bind.h"
+#include "base/location.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
+#include "base/strings/strcat.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/single_thread_task_runner.h"
+#include "base/task/thread_pool.h"
+#include "base/time/time.h"
 #include "cc/paint/paint_flags.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/app/vector_icons/vector_icons.h"
@@ -30,6 +40,8 @@
 #include "ui/base/ui_base_features.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_provider.h"
+#include "ui/events/event.h"
+#include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/font.h"
 #include "ui/gfx/font_list.h"
@@ -44,6 +56,7 @@
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/controls/menu/menu_config.h"
+#include "ui/views/controls/menu/menu_controller.h"
 #include "ui/views/controls/menu/menu_item_view.h"
 #include "ui/views/controls/menu/submenu_view.h"
 #include "ui/views/layout/box_layout.h"
@@ -403,6 +416,76 @@ void PaintCard(const std::vector<views::MenuItemView*>& card) {
   }
 }
 
+// What the keyboard selection is on: the hot button of a row of buttons,
+// else the row's own title.
+std::string SelectedForTest(views::MenuController* controller) {
+  views::MenuItemView* item = controller->GetSelectedMenuItem();
+  if (!item) {
+    return "none";
+  }
+  std::vector<views::View*> todo(item->children().begin(),
+                                 item->children().end());
+  while (!todo.empty()) {
+    views::View* view = todo.back();
+    todo.pop_back();
+    views::Button* button = views::Button::AsButton(view);
+    if (button && button->IsHotTracked()) {
+      return base::UTF16ToUTF8(button->GetViewAccessibility().GetCachedName());
+    }
+    todo.insert(todo.end(), view->children().begin(), view->children().end());
+  }
+  return base::UTF16ToUTF8(item->title());
+}
+
+// Test hook for tools/smoke_app_menu.py, with --boring-open-app-menu=keys
+// (the switch app-menu-test-hook.patch opens the menu with): key events go
+// to the open menu inside the browser, nothing to the desktop, and what is
+// selected after each lands in boring-app-menu-keys.txt in the user data
+// folder. Enter, last, presses the selected button.
+void WalkKeysForTest() {
+  // Down into the tiles, across and back, down the whole menu, End to the
+  // bar, across it, up the menu, Home, down past Browse and back up, End,
+  // Left to Settings. tools/smoke_app_menu.py (KEYS) reads the same list.
+  constexpr char kKeys[] =
+      "DRRLDDDDDDDDDDDDDDDDDDDDXLRLUUUUUUUUUUUUUUHDDDUXLE";
+  views::MenuController* active = views::MenuController::GetActiveInstance();
+  base::WeakPtr<views::MenuController> controller;
+  if (active) {
+    controller = active->AsWeakPtr();
+  }
+  std::string report;
+  for (const char key : std::string_view(kKeys)) {
+    if (!controller) {
+      report += "no menu\n";
+      break;
+    }
+    const ui::KeyboardCode code =
+        key == 'D'   ? ui::VKEY_DOWN
+        : key == 'U' ? ui::VKEY_UP
+        : key == 'L' ? ui::VKEY_LEFT
+        : key == 'R' ? ui::VKEY_RIGHT
+        : key == 'X' ? ui::VKEY_END
+        : key == 'H' ? ui::VKEY_HOME
+                     : ui::VKEY_RETURN;
+    ui::KeyEvent event(ui::EventType::kKeyPressed, code, ui::EF_NONE);
+    controller->OnWillDispatchKeyEvent(&event);
+    report += key == 'E' ? std::string("E pressed\n")
+                         : base::StrCat({std::string(1, key), " ",
+                                         SelectedForTest(controller.get()),
+                                         "\n"});
+  }
+  base::ThreadPool::PostTask(
+      FROM_HERE, {base::MayBlock()},
+      base::BindOnce(
+          [](const base::FilePath& path, const std::string& text) {
+            base::WriteFile(path, text);
+          },
+          base::CommandLine::ForCurrentProcess()
+              ->GetSwitchValuePath("user-data-dir")
+              .AppendASCII("boring-app-menu-keys.txt"),
+          std::move(report)));
+}
+
 }  // namespace
 
 void AddAppMenuButtonRow(views::MenuItemView* item,
@@ -467,6 +550,15 @@ void StyleAppMenu(views::MenuItemView* root) {
     card.push_back(item);
   }
   PaintCard(card);
+
+  // The keyboard test hook, once per process (see WalkKeysForTest).
+  static bool keys_posted = false;
+  if (!keys_posted && base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
+                          "boring-open-app-menu") == "keys") {
+    keys_posted = true;
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        FROM_HERE, base::BindOnce(&WalkKeysForTest), base::Milliseconds(600));
+  }
 }
 
 const gfx::FontList& AppMenuHeadingFont() {

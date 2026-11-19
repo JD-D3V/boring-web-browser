@@ -440,6 +440,18 @@ class SmokeWiringTest(unittest.TestCase):
             "Settings opened nothing",
         )
 
+    def test_the_smoke_checks_the_keys_the_hook_sends(self):
+        if str(TOOLS) not in sys.path:
+            sys.path.insert(0, str(TOOLS))
+        try:
+            import smoke_app_menu as smoke
+        except (ImportError, OSError, AttributeError) as e:
+            raise unittest.SkipTest(f"smoke_app_menu does not import here: {e}") from e
+        sent = re.search(
+            r'kKeys\[\] =\s*"([A-Z]+)";', VIEWS.read_text(encoding="utf-8")
+        )
+        self.assertEqual(sent.group(1), smoke.KEYS)
+
     def test_the_menu_tools_turn_updates_off(self):
         for name in ("smoke_app_menu.py", "capture_app_menu.py"):
             src = (TOOLS / name).read_text(encoding="utf-8")
