@@ -36,8 +36,11 @@ FIELDS = [
     "line",
     "accent",
     "tint",
+    "edge",
 ]
-NAMES = [
+# The palettes from before the compiled UI. Their rules (the band six
+# points off the toolbar) came from the earlier mockup.
+OLD_NAMES = [
     "kCoolLight",
     "kCoolDark",
     "kBeigeLight",
@@ -45,6 +48,28 @@ NAMES = [
     "kGreenLight",
     "kGreenDark",
 ]
+NAMES = ["kSoftWhiteLight", "kSoftWhiteDark", "kDuskDark", *OLD_NAMES]
+
+# The two TOKENS rows of design/v12-compiled/canvas-source/Window.dc.html,
+# mapped to the palette's fields (see the Soft white comment in the mixer).
+SOFT_WHITE = {
+    "kSoftWhiteLight": {
+        "window": "#eceae6", "frame": "#eceae6", "toolbar": "#ffffff",
+        "field": "#f4f3ef", "paper": "#ffffff", "ink": "#1f1e1c",
+        "muted": "#5d5a54", "line": "#e2dfd9", "accent": "#4f46e5",
+        "tint": "#f0eeea", "edge": "#8a867d",
+    },
+    "kSoftWhiteDark": {
+        "window": "#111110", "frame": "#111110", "toolbar": "#1c1c1a",
+        "field": "#121211", "paper": "#20201e", "ink": "#ecebe7",
+        "muted": "#a9a79f", "line": "#2d2d2a", "accent": "#9b98ff",
+        "tint": "#292927", "edge": "#77756d",
+    },
+}
+PREFS_H = CORE / "components" / "boring" / "core" / "boring_prefs.h"
+PREFS_CC = CORE / "components" / "boring" / "core" / "boring_prefs.cc"
+COLOURS_PATCH = CORE / "patches" / "157" / "cui-colours.patch"
+SERIES = CORE / "patches" / "series"
 
 RGB = re.compile(
     r"SkColorSetRGB\(\s*0x([0-9a-fA-F]{2}),\s*0x([0-9a-fA-F]{2}),\s*0x([0-9a-fA-F]{2})\s*\)"
@@ -96,13 +121,15 @@ PALETTES = parse_palettes()
 
 
 class PaletteTest(unittest.TestCase):
-    def test_six_palettes_exist_with_ten_colours_each(self):
+    def test_every_palette_exists_with_eleven_colours(self):
         self.assertEqual(sorted(PALETTES), sorted(NAMES))
         for name, p in PALETTES.items():
             self.assertEqual(p["_count"], len(FIELDS), name)
 
     def test_frame_band_differs_from_toolbar_by_6_points_of_lightness(self):
-        for name, p in PALETTES.items():
+        # Soft white is drawn closer than that in dark (TOKENS row).
+        for name in OLD_NAMES:
+            p = PALETTES[name]
             diff = abs(lightness_pct(p["frame"]) - lightness_pct(p["toolbar"]))
             self.assertGreaterEqual(
                 diff, 6, f"{name} band/toolbar differ by {diff:.1f}"
@@ -250,11 +277,94 @@ class PaletteTest(unittest.TestCase):
                 rf"mixer\[{name}\]\s*=\s*\{{\s*color_utils::AlphaBlend\(p\.accent,",
             )
 
+    def test_soft_white_is_the_tokens_rows_value_for_value(self):
+        for name, want in SOFT_WHITE.items():
+            got = {f: hexof(PALETTES[name][f]) for f in FIELDS}
+            self.assertEqual(got, want, name)
+
+    def test_edge_is_3_to_1_on_every_surface_where_it_is_drawn(self):
+        for name, p in PALETTES.items():
+            if p["edge"] == p["line"]:
+                continue
+            for surface in ("window", "frame", "toolbar", "field", "paper"):
+                self.assertGreaterEqual(
+                    contrast(p["edge"], p[surface]), 3, f"{name} edge on {surface}"
+                )
+
+    def test_palettes_with_no_drawn_edge_keep_their_line(self):
+        for name in (*OLD_NAMES, "kDuskDark"):
+            self.assertEqual(PALETTES[name]["edge"], PALETTES[name]["line"], name)
+
+    def test_dusk_takes_its_swatch_and_slate_dark_for_the_rest(self):
+        dusk, slate = PALETTES["kDuskDark"], PALETTES["kCoolDark"]
+        self.assertEqual(hexof(dusk["frame"]), "#0f1017")
+        self.assertEqual(hexof(dusk["toolbar"]), "#1b1d2b")
+        self.assertEqual(hexof(dusk["field"]), "#262838")
+        self.assertEqual(dusk["paper"], dusk["toolbar"])
+        for field in ("window", "ink", "muted", "line", "accent", "tint"):
+            self.assertEqual(dusk[field], slate[field], field)
+
+    def test_edge_goes_on_fields_outline_buttons_and_off_switches(self):
+        src = MIXER.read_text(encoding="utf-8")
+        for name in (
+            "kColorLocationBarBorder",
+            "kColorLocationBarBorderOpaque",
+            "ui::kColorTextfieldOutline",
+            "ui::kColorButtonBorder",
+            "ui::kColorToggleButtonTrackOff",
+            "kColorBoringEdge",
+        ):
+            self.assertRegex(src, rf"mixer\[{name}\]\s*=\s*\{{p\.edge\}}")
+        patch = COLOURS_PATCH.read_text(encoding="utf-8")
+        self.assertIn("+  E_CPONLY(kColorBoringEdge) \\", patch)
+
+    def test_ok_is_the_tokens_green_and_legible_on_every_toolbar(self):
+        src = MIXER.read_text(encoding="utf-8")
+        m = re.search(r"mixer\[kColorBoringOk\]\s*=\s*\{dark \? (.*?)\s*:\s*(SkColorSetRGB\(.*?\))\}", src, re.S)
+        dark_ok, light_ok = (
+            tuple(int(g, 16) for g in RGB.search(s).groups()) for s in m.groups()
+        )
+        self.assertEqual((hexof(light_ok), hexof(dark_ok)), ("#1a7f55", "#4cc38a"))
+        for name, p in PALETTES.items():
+            ok = dark_ok if "Dark" in name else light_ok
+            self.assertGreaterEqual(contrast(ok, p["toolbar"]), 4.5, name)
+        self.assertIn("+  E_CPONLY(kColorBoringOk) \\", COLOURS_PATCH.read_text(encoding="utf-8"))
+
+    def test_look_pref_is_one_name_everywhere_and_soft_white_by_default(self):
+        prefs_h = PREFS_H.read_text(encoding="utf-8")
+        self.assertIn('kAppearanceLook[] = "boring.appearance.look"', prefs_h)
+        for value in ("soft_white", "slate", "dusk"):
+            self.assertIn(f'"{value}"', prefs_h)
+        self.assertIn(
+            "RegisterStringPref(prefs::kAppearanceLook, prefs::kLookSoftWhite)",
+            PREFS_CC.read_text(encoding="utf-8"),
+        )
+        patch = COLOURS_PATCH.read_text(encoding="utf-8")
+        self.assertIn('+constexpr char kBoringLookPref[] = "boring.appearance.look";', patch)
+        # Repaints when the pref changes, and carries it in the key.
+        self.assertRegex(patch, r"\+\s+kBoringLookPref, base::BindRepeating\(&ThemeService::NotifyThemeChanged")
+        self.assertIn("+  key.boring_look =", patch)
+        self.assertIn("+  BoringLook boring_look = BoringLook::kSoftWhite;", patch)
+        # The key compares it, or a new Look would reuse the old colours.
+        self.assertEqual(patch.count("other.boring_look"), 4)
+        self.assertIn("cui-colours.patch", SERIES.read_text(encoding="utf-8").split())
+
+    def test_look_picks_the_palette_with_soft_white_the_default(self):
+        src = MIXER.read_text(encoding="utf-8")
+        body = re.search(r"const Palette& LookPalette\(.*?\n\}", src, re.S).group(0)
+        self.assertRegex(body, r"kSlate:\s*return dark \? kCoolDark : kCoolLight;")
+        self.assertRegex(body, r"kDusk:\s*return dark \? kDuskDark : kCoolLight;")
+        self.assertTrue(body.rstrip("}").rstrip().endswith(
+            "return dark ? kSoftWhiteDark : kSoftWhiteLight;"))
+        self.assertIn(": LookPalette(key, dark);", src)
+
     def test_scheme_switch_reads_the_command_line(self):
         src = MIXER.read_text(encoding="utf-8")
         self.assertIn('"boring-scheme"', src)
         self.assertIn("beige", src)
         self.assertIn("green", src)
+        for look in ("soft_white", "slate", "dusk"):
+            self.assertIn(f'scheme == "{look}"', src)
 
 
 if __name__ == "__main__":

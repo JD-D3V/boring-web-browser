@@ -121,6 +121,15 @@ inline constexpr char kBoringFolderCopyDir[] = "boring.folder_copy.dir";
 // computer's files with its own empty ones.
 inline constexpr char kBoringFolderCopyArmed[] = "boring.folder_copy.armed";
 
+// The Look in Settings, Appearance: the window's palette, "soft_white"
+// (the default), "slate" or "dusk". Any other value is Soft white.
+// theme_service.cc reads it by this name and repaints when it changes,
+// boring_color_mixer.cc holds the palettes (patches/157/cui-colours.patch).
+inline constexpr char kAppearanceLook[] = "boring.appearance.look";
+inline constexpr char kLookSoftWhite[] = "soft_white";
+inline constexpr char kLookSlate[] = "slate";
+inline constexpr char kLookDusk[] = "dusk";
+
 }  // namespace prefs
 
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);

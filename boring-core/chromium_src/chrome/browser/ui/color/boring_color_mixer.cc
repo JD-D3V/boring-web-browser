@@ -13,10 +13,12 @@
 
 namespace {
 
-// A scheme is a palette for light and one for dark. Cool is the default
-// and follows the system light/dark setting. Beige is the warm scheme we
-// shipped first. Green is Cool's surfaces with the brand mark's green as
-// the accent.
+// A scheme is a palette for light and one for dark, following the system
+// light/dark setting. The Look in Settings, Appearance picks Soft white
+// (the default), Slate or Dusk. Slate is the Cool palette we shipped
+// before. Beige is the warm scheme we shipped first. Green is Cool's
+// surfaces with the brand mark's green as the accent. Beige and Green are
+// picked by their seed colour, not the Look.
 //
 // The top of the window is built from three tones: the frame band behind
 // the tabs, the toolbar, and the open tab, which is the toolbar's own
@@ -33,35 +35,79 @@ struct Palette {
   SkColor line;     // Edges and separators.
   SkColor accent;   // The one colour with a job: focus and selection.
   SkColor tint;     // A wash of the accent, behind accented things.
+  SkColor edge;     // Fields, outline buttons and off switches: 3 to 1.
 };
+
+// Soft white, the default Look, and its neutral charcoal for dark: the
+// two TOKENS rows in design/v12-compiled/canvas-source/Window.dc.html,
+// value for value. frame is the design's frame, toolbar its bar, field
+// its field, paper its pop, ink its ink, muted its ink2, line its line,
+// edge its edge, and the accent its default accent. The design washes
+// nothing in the accent (selection is its neutral sel), so tint is sel.
+// It draws no window that is not in front, so window is the frame.
+constexpr Palette kSoftWhiteLight = {
+    SkColorSetRGB(0xec, 0xea, 0xe6), SkColorSetRGB(0xec, 0xea, 0xe6),
+    SK_ColorWHITE,                   SkColorSetRGB(0xf4, 0xf3, 0xef),
+    SK_ColorWHITE,                   SkColorSetRGB(0x1f, 0x1e, 0x1c),
+    SkColorSetRGB(0x5d, 0x5a, 0x54), SkColorSetRGB(0xe2, 0xdf, 0xd9),
+    SkColorSetRGB(0x4f, 0x46, 0xe5), SkColorSetRGB(0xf0, 0xee, 0xea),
+    SkColorSetRGB(0x8a, 0x86, 0x7d)};
+
+constexpr Palette kSoftWhiteDark = {
+    SkColorSetRGB(0x11, 0x11, 0x10), SkColorSetRGB(0x11, 0x11, 0x10),
+    SkColorSetRGB(0x1c, 0x1c, 0x1a), SkColorSetRGB(0x12, 0x12, 0x11),
+    SkColorSetRGB(0x20, 0x20, 0x1e), SkColorSetRGB(0xec, 0xeb, 0xe7),
+    SkColorSetRGB(0xa9, 0xa7, 0x9f), SkColorSetRGB(0x2d, 0x2d, 0x2a),
+    SkColorSetRGB(0x9b, 0x98, 0xff), SkColorSetRGB(0x29, 0x29, 0x27),
+    SkColorSetRGB(0x77, 0x75, 0x6d)};
+
+// The palettes below had no edge colour of their own; their edge is
+// their line, so they look as they did.
 
 constexpr Palette kCoolLight = {
     SkColorSetRGB(0xdc, 0xde, 0xe8), SkColorSetRGB(0xd3, 0xd6, 0xe3),
     SK_ColorWHITE,                   SkColorSetRGB(0xee, 0xf0, 0xf6),
     SK_ColorWHITE,                   SkColorSetRGB(0x23, 0x24, 0x2e),
     SkColorSetRGB(0x50, 0x52, 0x65), SkColorSetRGB(0xd9, 0xdb, 0xe6),
-    SkColorSetRGB(0x4f, 0x46, 0xe5), SkColorSetRGB(0xe6, 0xe5, 0xfb)};
+    SkColorSetRGB(0x4f, 0x46, 0xe5), SkColorSetRGB(0xe6, 0xe5, 0xfb),
+    SkColorSetRGB(0xd9, 0xdb, 0xe6)};
 
 constexpr Palette kCoolDark = {
     SkColorSetRGB(0x07, 0x08, 0x0b), SkColorSetRGB(0x0a, 0x0b, 0x0f),
     SkColorSetRGB(0x1d, 0x1e, 0x28), SkColorSetRGB(0x0f, 0x10, 0x15),
     SkColorSetRGB(0x1d, 0x1e, 0x28), SkColorSetRGB(0xdc, 0xdd, 0xe6),
     SkColorSetRGB(0xa0, 0xa2, 0xb4), SkColorSetRGB(0x2c, 0x2d, 0x3a),
-    SkColorSetRGB(0x9d, 0x9a, 0xff), SkColorSetRGB(0x2a, 0x29, 0x50)};
+    SkColorSetRGB(0x9d, 0x9a, 0xff), SkColorSetRGB(0x2a, 0x29, 0x50),
+    SkColorSetRGB(0x2c, 0x2d, 0x3a)};
+
+// Dusk, the deep blue grey Look. The design gives Dusk only its swatch in
+// Settings (canvas-source/PageSettings.dc.html), and only for dark: the
+// frame band, the bar and the field are those. Everything else is Slate's
+// dark palette above, with the popovers on the bar as there. In light,
+// Dusk is Slate's light palette.
+constexpr Palette kDuskDark = {
+    SkColorSetRGB(0x07, 0x08, 0x0b), SkColorSetRGB(0x0f, 0x10, 0x17),
+    SkColorSetRGB(0x1b, 0x1d, 0x2b), SkColorSetRGB(0x26, 0x28, 0x38),
+    SkColorSetRGB(0x1b, 0x1d, 0x2b), SkColorSetRGB(0xdc, 0xdd, 0xe6),
+    SkColorSetRGB(0xa0, 0xa2, 0xb4), SkColorSetRGB(0x2c, 0x2d, 0x3a),
+    SkColorSetRGB(0x9d, 0x9a, 0xff), SkColorSetRGB(0x2a, 0x29, 0x50),
+    SkColorSetRGB(0x2c, 0x2d, 0x3a)};
 
 constexpr Palette kBeigeLight = {
     SkColorSetRGB(0xe8, 0xe7, 0xe2), SkColorSetRGB(0xe6, 0xe5, 0xdf),
     SkColorSetRGB(0xf7, 0xf6, 0xf2), SK_ColorWHITE,
     SK_ColorWHITE,                   SkColorSetRGB(0x24, 0x2e, 0x2d),
     SkColorSetRGB(0x5d, 0x69, 0x66), SkColorSetRGB(0xd8, 0xdd, 0xd7),
-    SkColorSetRGB(0x17, 0x6b, 0x5b), SkColorSetRGB(0xe5, 0xf1, 0xeb)};
+    SkColorSetRGB(0x17, 0x6b, 0x5b), SkColorSetRGB(0xe5, 0xf1, 0xeb),
+    SkColorSetRGB(0xd8, 0xdd, 0xd7)};
 
 constexpr Palette kBeigeDark = {
     SkColorSetRGB(0x13, 0x18, 0x17), SkColorSetRGB(0x0e, 0x13, 0x12),
     SkColorSetRGB(0x1c, 0x25, 0x23), SkColorSetRGB(0x13, 0x18, 0x17),
     SkColorSetRGB(0x25, 0x2e, 0x2b), SkColorSetRGB(0xe8, 0xed, 0xe7),
     SkColorSetRGB(0xad, 0xb9, 0xb2), SkColorSetRGB(0x41, 0x4e, 0x47),
-    SkColorSetRGB(0x92, 0xd4, 0xbb), SkColorSetRGB(0x27, 0x3f, 0x35)};
+    SkColorSetRGB(0x92, 0xd4, 0xbb), SkColorSetRGB(0x27, 0x3f, 0x35),
+    SkColorSetRGB(0x41, 0x4e, 0x47)};
 
 // Green keeps Cool's surfaces; only the accent and its washes change. The
 // accent is the brand mark's green, lifted in dark so it reads on the dark
@@ -72,17 +118,19 @@ constexpr Palette kGreenLight = {
     SK_ColorWHITE,                   SkColorSetRGB(0xee, 0xf0, 0xf6),
     SK_ColorWHITE,                   SkColorSetRGB(0x23, 0x24, 0x2e),
     SkColorSetRGB(0x50, 0x52, 0x65), SkColorSetRGB(0xd9, 0xdb, 0xe6),
-    SkColorSetRGB(0x17, 0x6b, 0x5b), SkColorSetRGB(0xe5, 0xef, 0xed)};
+    SkColorSetRGB(0x17, 0x6b, 0x5b), SkColorSetRGB(0xe5, 0xef, 0xed),
+    SkColorSetRGB(0xd9, 0xdb, 0xe6)};
 
 constexpr Palette kGreenDark = {
     SkColorSetRGB(0x07, 0x08, 0x0b), SkColorSetRGB(0x0a, 0x0b, 0x0f),
     SkColorSetRGB(0x1d, 0x1e, 0x28), SkColorSetRGB(0x0f, 0x10, 0x15),
     SkColorSetRGB(0x1d, 0x1e, 0x28), SkColorSetRGB(0xdc, 0xdd, 0xe6),
     SkColorSetRGB(0xa0, 0xa2, 0xb4), SkColorSetRGB(0x2c, 0x2d, 0x3a),
-    SkColorSetRGB(0x4f, 0xc9, 0xae), SkColorSetRGB(0x26, 0x3d, 0x40)};
+    SkColorSetRGB(0x4f, 0xc9, 0xae), SkColorSetRGB(0x26, 0x3d, 0x40),
+    SkColorSetRGB(0x2c, 0x2d, 0x3a)};
 
-// The seed colours we recognise. Cool is registered as the default (see
-// frame-color.patch). Beige's is the teal we shipped first, so a profile
+// The seed colours we recognise. Cool's is registered as the default (see
+// frame-color.patch); with it the Look picks the palette. Beige's is the teal we shipped first, so a profile
 // that already holds it keeps the look it has. Anyone who picks their own
 // colour, or grey, in Customize Chrome gets Chromium's palette instead of
 // ours, which is what they asked for.
@@ -125,10 +173,49 @@ bool WantsGreen(const ui::ColorProviderKey& key) {
              "boring-scheme") == "green";
 }
 
+// The Look picked in Settings, Appearance: the profile pref
+// boring.appearance.look, which theme_service.cc puts in the key
+// (patches/157/cui-colours.patch), so a new Look repaints at once. Or
+// --boring-scheme=soft_white, slate or dusk, for the capture tools.
+ui::ColorProviderKey::BoringLook GetLook(const ui::ColorProviderKey& key) {
+  using Look = ui::ColorProviderKey::BoringLook;
+  const std::string scheme =
+      base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
+          "boring-scheme");
+  if (scheme == "soft_white") {
+    return Look::kSoftWhite;
+  }
+  if (scheme == "slate") {
+    return Look::kSlate;
+  }
+  if (scheme == "dusk") {
+    return Look::kDusk;
+  }
+  return key.boring_look;
+}
+
+const Palette& LookPalette(const ui::ColorProviderKey& key, bool dark) {
+  switch (GetLook(key)) {
+    case ui::ColorProviderKey::BoringLook::kSlate:
+      return dark ? kCoolDark : kCoolLight;
+    case ui::ColorProviderKey::BoringLook::kDusk:
+      return dark ? kDuskDark : kCoolLight;
+    case ui::ColorProviderKey::BoringLook::kSoftWhite:
+      break;
+  }
+  return dark ? kSoftWhiteDark : kSoftWhiteLight;
+}
+
 }  // namespace
 
 void AddBoringColorMixer(ui::ColorProvider* provider,
                          const ui::ColorProviderKey& key) {
+  // The edge id has a colour under every theme: with Chromium's own
+  // colours it is the outline button's border.
+  // The ok id is the accent there, as the shield was before.
+  ui::ColorMixer& ids = provider->AddMixer();
+  ids[kColorBoringEdge] = {ui::kColorButtonBorder};
+  ids[kColorBoringOk] = {ui::kColorSysPrimary};
   if (!UsingOurTheme(key)) {
     return;
   }
@@ -136,7 +223,7 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   const Palette& p = WantsBeige(key)
                          ? (dark ? kBeigeDark : kBeigeLight)
                          : WantsGreen(key) ? (dark ? kGreenDark : kGreenLight)
-                                           : (dark ? kCoolDark : kCoolLight);
+                                           : LookPalette(key, dark);
   ui::ColorMixer& mixer = provider->AddMixer();
   // The mock's hover wash: 7% of the ink in light, 9% in dark.
   const float hover_wash = dark ? 0.09f : 0.07f;
@@ -227,8 +314,9 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   mixer[kColorToolbarBackgroundSubtleEmphasisHovered] = {p.field};
   mixer[kColorOmniboxText] = {p.ink};
   mixer[kColorOmniboxTextDimmed] = {p.muted};
-  mixer[kColorLocationBarBorder] = {p.line};
-  mixer[kColorLocationBarBorderOpaque] = {p.line};
+  // Its edge is the design's 3 to 1 edge, as on every field.
+  mixer[kColorLocationBarBorder] = {p.edge};
+  mixer[kColorLocationBarBorderOpaque] = {p.edge};
   // The focus glow around the address bar: the mock's soft accent, 10% in
   // light and 14% in dark. LocationBarView reads this id for its focus
   // ring (see location-bar-focus-glow.patch).
@@ -271,10 +359,40 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   mixer[ui::kColorLabelForegroundSecondary] = {p.muted};
   mixer[ui::kColorLinkForeground] = {p.accent};
 
+  // Text fields, outline buttons and switches that are off take the same
+  // edge as the address bar. A palette with no edge of its own (its edge
+  // is its line) keeps Chromium's colours for them, as before.
+  mixer[kColorBoringEdge] = {p.edge};
+  // The design's ok green, the same in every Look (TOKENS rows): 5 to 1 on
+  // the light toolbar, 7.7 to 1 on the dark one.
+  mixer[kColorBoringOk] = {dark ? SkColorSetRGB(0x4c, 0xc3, 0x8a)
+                                : SkColorSetRGB(0x1a, 0x7f, 0x55)};
+  if (p.edge != p.line) {
+    mixer[ui::kColorTextfieldOutline] = {p.edge};
+    mixer[ui::kColorButtonBorder] = {p.edge};
+    mixer[ui::kColorToggleButtonTrackOff] = {p.edge};
+  }
+
   // Rows in our own popups (the search engine list) hover the same way as
   // the menus below. It is painted over the row, so it has to be
   // see-through or it covers the text: a light wash of the accent.
   mixer[kColorHoverButtonBackgroundHovered] = {SkColorSetA(p.accent, 0x24)};
+
+  // The compiled UI's other pieces add their colour ids in their own
+  // block below, from the palette `p` (tokens to fields: see the Soft
+  // white comment above), so their merges stay apart. These come before
+  // the high contrast return; a piece that must leave high contrast alone
+  // puts its lines after it.
+  // boring: cui-icons
+  // boring: end cui-icons
+  // boring: cui-tabgroups
+  // boring: end cui-tabgroups
+  // boring: cui-toolbar
+  // boring: end cui-toolbar
+  // boring: cui-menu
+  // boring: end cui-menu
+  // boring: cui-pages
+  // boring: end cui-pages
 
   // Windows high contrast: menus keep the system colours Chromium maps
   // them to (ui/color/win/native_color_mixers_win.cc), as the stock menu
