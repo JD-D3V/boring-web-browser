@@ -3,6 +3,7 @@
 #include "chrome/browser/ui/views/toolbar/boring_protection_button.h"
 
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "base/command_line.h"
@@ -70,9 +71,9 @@ constexpr int kPanelWidth = 300;
 // The shield from the approved icon set, drawn in the state's colour.
 constexpr int kShieldSize = 16;
 
-ui::ImageModel MakeShieldImageModel(ui::ColorId color_id) {
-  return ui::ImageModel::FromVectorIcon(kBoringProtectionIcon, color_id,
-                                        kShieldSize);
+ui::ImageModel MakeShieldImageModel(const gfx::VectorIcon& icon,
+                                    ui::ColorId color_id) {
+  return ui::ImageModel::FromVectorIcon(icon, color_id, kShieldSize);
 }
 
 // A plain row that acts, like a menu item: full width, left aligned,
@@ -322,6 +323,8 @@ void BoringProtectionButton::UpdateState() {
   // colour, so a forced-colours or high-contrast theme still tells the
   // states apart once the accent and the muted colour collapse together.
   ui::ColorId color_id = ui::kColorSysPrimary;
+  // The shield's colour; the same as the word's except when on.
+  std::optional<ui::ColorId> icon_color_id;
   std::u16string label = u"Protection";
   std::u16string accessible_name;
 
@@ -342,6 +345,10 @@ void BoringProtectionButton::UpdateState() {
   } else if (state_ == State::kWorking) {
     // The word says the state, as drawn: "Protected", beside the shield.
     label = u"Protected";
+    // As drawn: the word in the toolbar's ink, the shield in the ok green
+    // (kColorBoringOk, from cui-colours.patch).
+    color_id = kColorToolbarButtonText;
+    icon_color_id = kColorBoringOk;
     SetTooltipText(u"Protection is on. Scam sites and ads are blocked.");
     accessible_name = u"Protection, on";
   } else {
@@ -355,7 +362,11 @@ void BoringProtectionButton::UpdateState() {
   // label alone ("Protection") would not tell a screen reader the state.
   GetViewAccessibility().SetName(accessible_name);
   SetEnabledTextColors(color_id);
-  SetImageModel(views::Button::STATE_NORMAL, MakeShieldImageModel(color_id));
+  SetImageModel(views::Button::STATE_NORMAL,
+                MakeShieldImageModel(state_ == State::kWorking
+                                         ? kBoringProtectionOnIcon
+                                         : kBoringProtectionIcon,
+                                     icon_color_id.value_or(color_id)));
 
   // Ask again only while there is nothing to report yet.
   if (state_ == State::kLoading) {

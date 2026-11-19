@@ -27,6 +27,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/customize_chrome/side_panel_controller.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/views/toolbar/toolbar_divider.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/tabs/public/tab_interface.h"
 #include "ui/actions/actions.h"
@@ -38,11 +39,13 @@
 #include "ui/gfx/geometry/point.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/controls/button/button.h"
+#include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/menu/menu_controller.h"
 #include "ui/views/controls/menu/menu_item_view.h"
 #include "ui/views/controls/menu/menu_runner.h"
 #include "ui/views/controls/menu/submenu_view.h"
 #include "ui/views/view.h"
+#include "ui/views/view_utils.h"
 #include "ui/views/widget/widget.h"
 
 #if BUILDFLAG(IS_WIN)
@@ -54,20 +57,26 @@ namespace {
 constexpr std::string_view kLocationBar = "LocationBarView";
 
 // Test hook output: one line per visible button under `view`, with its
-// class, name, tooltip and whether it is enabled. The address bar's own
-// buttons are left out.
+// class, name, tooltip, the words on it and whether it is enabled, and a
+// "divider" line per visible toolbar divider, in order. The address bar's
+// own buttons are left out.
 void ListButtons(views::View* view, std::string* out) {
   for (views::View* child : view->children()) {
     if (!child->GetVisible() || child->width() == 0 ||
         child->GetClassName() == kLocationBar) {
       continue;
     }
+    if (views::IsViewClass<ToolbarDivider>(child)) {
+      base::StrAppend(out, {"divider\t", child->GetClassName(), "\n"});
+    }
     if (views::Button::AsButton(child)) {
+      const auto* label_button = views::AsViewClass<views::LabelButton>(child);
       base::StrAppend(
           out, {"button\t", child->GetClassName(), "\t",
                 base::UTF16ToUTF8(child->GetViewAccessibility().GetCachedName()),
                 "\t", base::UTF16ToUTF8(child->GetTooltipText()), "\t",
-                child->GetEnabled() ? "on" : "off", "\n"});
+                label_button ? base::UTF16ToUTF8(label_button->GetText()) : "",
+                "\t", child->GetEnabled() ? "on" : "off", "\n"});
     }
     ListButtons(child, out);
   }
