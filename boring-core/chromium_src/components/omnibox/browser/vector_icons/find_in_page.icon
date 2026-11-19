@@ -1,20 +1,13 @@
 // Copyright 2026 boring. BSD style license.
 
 // find_in_page, from the rounded icon set (design/v7/icons-full/icons.svg).
-// 2 px stroke on a 20 grid, round caps.
+// 2 px stroke on a 24 grid, round caps.
 
 CANVAS_DIMENSIONS, 20,
-STROKE, 2,
-MOVE_TO, 3, 4,
-H_LINE_TO, 13,
-MOVE_TO, 3, 8,
-H_LINE_TO, 7,
-NEW_PATH,
-STROKE, 2,
-CIRCLE, 12, 12, 4,
-NEW_PATH,
-STROKE, 2,
-MOVE_TO, 15, 15,
-LINE_TO, 17, 17,
-NEW_PATH,
-CIRCLE, 4, 12, 1.25,
+STROKE, 1.6667,
+MOVE_TO, 9.1667, 3.3333,
+ARC_TO, 5.8333, 5.8333, 0, 1, 0, 9.1667, 15,
+ARC_TO, 5.8333, 5.8333, 0, 0, 0, 9.1667, 3.3333,
+CLOSE,
+MOVE_TO, 16.6667, 16.6667,
+LINE_TO, 13.3333, 13.3333,

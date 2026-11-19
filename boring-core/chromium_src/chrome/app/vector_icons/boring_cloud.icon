@@ -1,0 +1,12 @@
+// Copyright 2026 boring. BSD style license.
+
+// boring_cloud, from the rounded icon set (design/v7/icons-full/icons.svg).
+// 2 px stroke on a 24 grid, round caps.
+
+CANVAS_DIMENSIONS, 20,
+STROKE, 1.6667,
+MOVE_TO, 6.25, 15,
+ARC_TO, 3.3333, 3.3333, 0, 0, 1, 6, 8.3333,
+ARC_TO, 4.4167, 4.4167, 0, 0, 1, 14.5833, 9.5,
+ARC_TO, 2.75, 2.75, 0, 0, 1, 14.1667, 15,
+CLOSE,

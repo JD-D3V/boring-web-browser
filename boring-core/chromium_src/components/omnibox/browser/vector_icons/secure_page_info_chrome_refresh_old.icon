@@ -1,16 +1,16 @@
 // Copyright 2026 boring. BSD style license.
 
 // secure_page_info_chrome_refresh_old, from the rounded icon set (design/v7/icons-full/icons.svg).
-// 2 px stroke on a 20 grid, round caps.
+// 2 px stroke on a 24 grid, round caps.
 
 CANVAS_DIMENSIONS, 16,
-STROKE, 1.6,
-ROUND_RECT, 3.2, 7.2, 9.6, 6.4, 2.4,
-NEW_PATH,
-STROKE, 1.6,
-MOVE_TO, 5.6, 7.2,
-V_LINE_TO, 5.6,
-ARC_TO, 2.4, 2.4, 0, 0, 1, 10.4, 5.6,
-V_LINE_TO, 7.2,
-NEW_PATH,
-CIRCLE, 8, 10.4, 1,
+STROKE, 1.3333,
+MOVE_TO, 4.3333, 7.3333,
+H_LINE_TO, 11.6667,
+V_LINE_TO, 13.3333,
+H_LINE_TO, 4.3333,
+CLOSE,
+MOVE_TO, 5.6667, 7.3333,
+V_LINE_TO, 5.3333,
+ARC_TO, 2.3333, 2.3333, 0, 0, 1, 10.3333, 5.3333,
+V_LINE_TO, 7.3333,

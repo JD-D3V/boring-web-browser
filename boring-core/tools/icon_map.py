@@ -32,19 +32,24 @@ SEARCH_ROOTS = ("chrome", "components", "ui")
 REFERENCE_SIZE_DIP = 48
 SKIP_DIRS = {"out", "third_party", "node_modules", "test", "tests"}
 
-# Icons that are ours alone: no Chromium file to replace.
-OURS = ("boring_menu", "boring_protection")
-OURS_SUFFIXES = tuple(n + ".icon" for n in OURS)
-
-# Our id -> Chromium icon base names (file name without .icon). Our ids
-# with no entry here (split-view, sleeping, vertical and
-# horizontal tabs, zoom, lock-open, reader, profile) have no Chromium
-# counterpart worth replacing; they stay in the set for new UI. The
-# warning icons also stay Chromium's: they are filled, which says
-# "danger" more strongly than our outline, and a scam-safe browser keeps
-# the stronger cue.
+# Our id -> icon base names (file name without .icon). A name that starts
+# with "boring_" is ours alone, with no Chromium file to replace: it lands
+# in chrome/app/vector_icons and compiled-icons.patch lists it in BUILD.gn.
+#
+# The c- ids are the compiled UI's set (2026-11-19): the master window's
+# I table, 24 grid, 2 px line, full ink. Each has an icon of ours named
+# after it, so new UI can draw any glyph the screens show, and takes over
+# the Chromium icons for the same idea. The b- ids are the older set; they
+# stay only where the compiled screens draw no glyph of their own (stop,
+# home, star, pin, audio, share, help and the like). Our b- ids with no
+# entry here (split-view, sleeping, vertical and horizontal tabs, zoom,
+# lock-open, reader, profile) have no Chromium counterpart worth
+# replacing. The warning icons stay Chromium's: they are filled, which
+# says "danger" more strongly than our outline, and a scam-safe browser
+# keeps the stronger cue.
 ICON_MAP = {
-    "b-back": [
+    "c-back": [
+        "boring_back",
         "arrow_back",
         "arrow_back_old",
         "arrow_back_chrome_refresh_old",
@@ -52,14 +57,16 @@ ICON_MAP = {
         "back_arrow_chrome_refresh_old",
         "back_arrow_touch_old",
     ],
-    "b-forward": [
+    "c-fwd": [
+        "boring_fwd",
         "arrow_forward",
         "arrow_forward_old",
         "forward_arrow_old",
         "forward_arrow_chrome_refresh_old",
         "forward_arrow_touch_old",
     ],
-    "b-reload": [
+    "c-reload": [
+        "boring_reload",
         "autorenew",
         "autorenew_old",
         "reload_chrome_refresh_old",
@@ -69,25 +76,49 @@ ICON_MAP = {
     "b-home": ["navigate_home_chrome_refresh_old", "navigate_home_touch_old", "home"],
     "b-star": ["star", "star_old", "star_chrome_refresh_old"],
     "b-star-filled": ["star_filled", "star_active_chrome_refresh_old"],
-    "b-download": [
+    "c-down": [
+        "boring_down",
         "download_toolbar_button_chrome_refresh_old",
         "download_toolbar_button_old",
         "download_toolbar_button_touch_old",
+        "download_menu_old",
     ],
-    "b-downloads-tray": ["download_menu_old"],
-    "b-extensions": ["extension_chrome_refresh_old", "extension_old"],
-    "b-menu": ["boring_menu"],
-    "b-protection": ["boring_protection"],
-    "b-close": ["close_tab_chrome_refresh_old", "close_chrome_refresh_old", "close"],
-    "b-new-tab": ["new_tab_refresh_old", "add_old"],
+    "c-ext": ["boring_ext", "extension_chrome_refresh_old", "extension_old"],
+    "c-dots": ["boring_menu"],
+    # Protected, with the tick: the toolbar button's on state.
+    "c-shield": ["boring_protection_on"],
+    # The plain shield: the Protection button in its other states, and the
+    # menu's Protection row, which draws vector_icons::kShieldIcon.
+    "c-shield-plain": ["boring_protection", "shield"],
+    "c-close": [
+        "boring_close",
+        "close_tab_chrome_refresh_old",
+        "close_chrome_refresh_old",
+        "close",
+    ],
+    "c-plus": [
+        "boring_plus",
+        "new_tab_refresh_old",
+        "add_old",
+        "zoom_plus_menu_refresh_old",
+        "zoom_plus_chrome_refresh_old",
+        "add_chrome_refresh_old",
+    ],
     "b-group": ["tab_group_old"],
-    "b-lock": [
+    "c-lock": [
+        "boring_lock",
         "lock",
         "lock_old",
         "https_valid_old",
         "secure_page_info_chrome_refresh_old",
     ],
-    "b-search": ["search", "search_chrome_refresh_old", "search_menu_old"],
+    "c-find": [
+        "boring_find",
+        "search",
+        "search_chrome_refresh_old",
+        "search_menu_old",
+        "find_in_page",
+    ],
     "b-page-info": ["tune"],
     "b-share": [
         "share",
@@ -95,39 +126,44 @@ ICON_MAP = {
         "share_win_chrome_refresh_old",
         "share_windows",
     ],
-    "b-translate": ["translate", "translate_old", "g_translate"],
-    "b-settings": ["settings", "settings_menu_old"],
-    "b-history": ["history", "history_old"],
-    "b-bookmarks": [
+    "c-lang": ["boring_lang", "translate", "translate_old", "g_translate"],
+    # Settings is the sliders everywhere the screens show it.
+    "c-sliders": ["boring_sliders", "settings", "settings_menu_old"],
+    "c-clock": ["boring_clock", "history", "history_old"],
+    "c-mark": [
+        "boring_mark",
         "bookmarks_side_panel_refresh_old",
         "bookmarks_side_panel_old",
         "bookmarks_lists_menu_old",
     ],
-    "b-print": ["print", "print_menu_old"],
-    "b-find": ["find_in_page"],
-    "b-incognito": ["incognito_refresh_menu_old"],
-    "b-new-window": ["new_window", "new_window_old"],
+    "c-print": ["boring_print", "print", "print_menu_old"],
+    # The ghost, wherever Chromium draws Incognito: the avatar button of an
+    # Incognito window, the menu, its profile menu, downloads, the omnibox.
+    "c-priv": [
+        "boring_priv",
+        "incognito_refresh_menu_old",
+        "incognito",
+        "incognito_old",
+        "incognito_circle_filled",
+        "incognito_cr2023_old",
+    ],
+    "c-win": ["boring_win", "new_window", "new_window_old"],
     "b-fullscreen": ["fullscreen", "fullscreen_old", "fullscreen_refresh_old"],
-    "b-tools": ["more_tools_menu_old"],
+    "c-tools": ["boring_tools", "more_tools_menu_old"],
     "b-help": ["help_menu_old"],
     "b-check": ["check"],
-    "b-info": ["info", "http_chrome_refresh_old", "info_refresh_old"],
+    "c-info": ["boring_info", "info", "http_chrome_refresh_old", "info_refresh_old"],
     "b-audio-on": ["volume_up", "volume_up_old", "volume_up_chrome_refresh_old"],
     "b-audio-muted": ["volume_off", "volume_off_chrome_refresh_old"],
     "b-pin": ["pin_old"],
-    "b-zoom": ["zoom_in", "zoom_in_old"],
+    "c-zoom": ["boring_zoom", "zoom_in", "zoom_in_old"],
     "b-profile": ["account_circle_chrome_refresh_old", "account_circle"],
-    "b-key": ["password_manager_old", "password_manager"],
-    "b-trash": ["trash_can_refresh_old", "trash_can_old"],
+    "c-key": ["boring_key", "password_manager_old", "password_manager"],
+    "c-trash": ["boring_trash", "trash_can_refresh_old", "trash_can_old"],
     "b-cast": ["cast_chrome_refresh_old", "cast"],
-    "b-save": ["file_save_chrome_refresh_old", "file_save_old", "file_save"],
-    "b-exit": ["exit_menu_old", "exit_to_app"],
+    "c-save": ["boring_save", "file_save_chrome_refresh_old", "file_save_old", "file_save"],
+    "c-exit": ["boring_exit", "exit_menu_old", "exit_to_app"],
     "b-tab-groups": ["saved_tab_group_bar_everything_old"],
-    "b-plus": [
-        "zoom_plus_menu_refresh_old",
-        "zoom_plus_chrome_refresh_old",
-        "add_chrome_refresh_old",
-    ],
     "b-minus": [
         "zoom_minus_menu_refresh_old",
         "zoom_minus_chrome_refresh_old",
@@ -135,8 +171,9 @@ ICON_MAP = {
         "remove_old",
     ],
     "b-copy": ["copy_menu_old", "copy_old", "content_copy"],
-    "b-link": ["link_chrome_refresh_old", "link"],
-    "b-chevron-right": [
+    "c-link": ["boring_link", "link_chrome_refresh_old", "link"],
+    "c-chevron-right": [
+        "boring_chevron_right",
         "submenu_arrow_chrome_refresh_old",
         "chevron_right_chrome_refresh_old",
         "chevron_right_old",
@@ -155,7 +192,42 @@ ICON_MAP = {
         "keyboard_arrow_up_old",
         "keyboard_arrow_up",
     ],
+    "c-code": ["boring_code", "developer_tools_old", "code"],
+    # Glyphs of the compiled screens with nothing of Chromium's to replace:
+    # Forget, the Shelf and its rows, the Passport's facts, the Bar's
+    # actions, the accounts' links and the stand-ins for site icons.
+    "c-erase": ["boring_erase"],
+    "c-shelf": ["boring_shelf"],
+    "c-tab": ["boring_tab"],
+    "c-folder": ["boring_folder"],
+    "c-doc": ["boring_doc"],
+    "c-eye": ["boring_eye"],
+    "c-cal": ["boring_cal"],
+    "c-twin": ["boring_twin"],
+    "c-card": ["boring_card"],
+    "c-moon": ["boring_moon"],
+    "c-mail": ["boring_mail"],
+    "c-pin": ["boring_pin"],
+    "c-bed": ["boring_bed"],
+    "c-cloud": ["boring_cloud"],
+    "c-news": ["boring_news"],
+    "c-bank": ["boring_bank"],
+    "c-book": ["boring_book"],
+    "c-fork": ["boring_fork"],
+    "c-box": ["boring_box"],
+    "c-train": ["boring_train"],
+    "c-qr": ["boring_qr"],
+    "c-look": ["boring_look"],
+    "c-account": ["boring_account"],
+    "c-shield-alert": ["boring_shield_alert"],
 }
+
+# Icons that are ours alone: no Chromium file to replace.
+OURS = tuple(n for names in ICON_MAP.values() for n in names if n.startswith("boring_"))
+OURS_SUFFIXES = tuple(n + ".icon" for n in OURS)
+# The canvas our own icons declare: the toolbar's icon size, as the menu
+# and Protection icons always had. Callers name the size they draw.
+OURS_CANVAS = 20
 
 
 def resolve(tree_root):
@@ -225,7 +297,7 @@ def generate(tree_root, out_root):
         for name in names:
             if name in OURS:
                 # Ours already, not in the Chromium tree.
-                rels = [(f"chrome/app/vector_icons/{name}.icon", None)]
+                rels = [(f"chrome/app/vector_icons/{name}.icon", OURS_CANVAS)]
             else:
                 rels = [
                     (rel, original_canvas(tree_root, rel))

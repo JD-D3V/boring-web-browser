@@ -1,21 +1,13 @@
 // Copyright 2026 boring. BSD style license.
 
 // bookmarks_side_panel_refresh_old, from the rounded icon set (design/v7/icons-full/icons.svg).
-// 2 px stroke on a 20 grid, round caps.
+// 2 px stroke on a 24 grid, round caps.
 
 CANVAS_DIMENSIONS, 20,
-STROKE, 2,
-MOVE_TO, 3, 17,
-V_LINE_TO, 5,
-ARC_TO, 2, 2, 0, 0, 1, 5, 3,
-H_LINE_TO, 11,
-ARC_TO, 2, 2, 0, 0, 1, 13, 5,
-V_LINE_TO, 17,
-LINE_TO, 8, 13.5,
+STROKE, 1.6667,
+MOVE_TO, 5.8333, 3.3333,
+H_LINE_TO, 14.1667,
+V_LINE_TO, 16.6667,
+LINE_TO, 10, 13.75,
+LINE_TO, 5.8333, 16.6667,
 CLOSE,
-NEW_PATH,
-STROKE, 2,
-MOVE_TO, 17, 7,
-V_LINE_TO, 15,
-NEW_PATH,
-CIRCLE, 8, 8, 1.25,
