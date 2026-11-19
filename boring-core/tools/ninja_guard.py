@@ -24,6 +24,12 @@ from pathlib import Path
 # Ninja 1.12 and older write log version 6; 1.13 and newer write version 7.
 FIRST_VERSION_7 = (1, 13)
 LOG_HEADER = re.compile(r"^# ninja log v(\d+)\s*$")
+# `ninja -t <tool>` runs that never reach the point where ninja opens the log.
+# They read the manifest and print, so a newer ninja cannot hurt the log.
+LOG_FREE_TOOLS = frozenset(
+    {"commands", "inputs", "graph", "targets", "compdb", "rules", "browse"}
+)
+LOG_FREE_FLAGS = frozenset({"--version", "--help", "-h"})
 
 
 class GuardError(Exception):
@@ -60,11 +66,27 @@ def read_log_version(log: Path) -> int | None:
     return int(found.group(1))
 
 
+def opens_log(args: list[str]) -> bool:
+    """True unless these ninja arguments are a call that never opens the log."""
+    if any(arg in LOG_FREE_FLAGS for arg in args):
+        return False
+    for index, arg in enumerate(args):
+        if arg == "-t" and index + 1 < len(args):
+            return args[index + 1] not in LOG_FREE_TOOLS
+        if arg.startswith("-t") and len(arg) > 2:
+            return arg[2:] not in LOG_FREE_TOOLS
+    return True
+
+
 def tree_ninja(out: Path) -> Path | None:
     """The ninja inside the tree that owns this out dir, if it has one."""
-    name = "ninja.exe" if sys.platform == "win32" else "ninja"
-    candidate = out.resolve().parent.parent / "third_party" / "ninja" / name
-    return candidate if candidate.is_file() else None
+    # A .bat stands in for the exe on Windows so tests can use a script.
+    names = ("ninja.exe", "ninja.bat") if sys.platform == "win32" else ("ninja",)
+    folder = out.resolve().parent.parent / "third_party" / "ninja"
+    for name in names:
+        if (folder / name).is_file():
+            return folder / name
+    return None
 
 
 def choose_ninja(out: Path) -> Path:
@@ -93,21 +115,42 @@ def ninja_version(exe: Path) -> tuple[int, int]:
     return parse_version(done.stdout)
 
 
-def guard(out: Path) -> Path:
-    """The ninja to run for this out dir, or GuardError if it would wreck the log."""
-    exe = choose_ninja(out)
+def log_clash(have: int, wants: int) -> bool:
+    """True when a ninja writing log version `wants` would delete version `have`.
+
+    A log older than 6 read by a pre-1.13 ninja is not a clash: that ninja
+    predates version 6 and upgrades the old log itself.
+    """
+    if wants == 6 and have < 6:
+        return False
+    return have != wants
+
+
+def check(exe: Path, out: Path, args: list[str] | None = None) -> None:
+    """Raise GuardError if running exe with these arguments would wreck the log.
+
+    args=None means a run that may open the log, such as a build.
+    """
+    if args is not None and not opens_log(args):
+        return
     log = out / ".ninja_log"
     have = read_log_version(log)
     if have is None:
-        return exe
+        return
     version = ninja_version(exe)
     wants = log_version_for(version)
-    if wants != have:
+    if log_clash(have, wants):
         raise GuardError(
             f"refusing to run: {exe} (ninja {version[0]}.{version[1]}) writes "
             f"log version {wants} but {log} is version {have}, "
             f"and it would delete the log and force a full rebuild"
         )
+
+
+def guard(out: Path, args: list[str] | None = None) -> Path:
+    """The ninja to run for this out dir, or GuardError if it would wreck the log."""
+    exe = choose_ninja(out)
+    check(exe, out, args)
     return exe
 
 

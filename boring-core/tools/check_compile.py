@@ -65,7 +65,7 @@ def is_dropped(arg: str) -> bool:
 def ninja_command(out: Path, obj: str) -> list[str]:
     """Return the compile command ninja uses for obj, as an argument list."""
     try:
-        exe = ninja_guard.guard(out)
+        exe = ninja_guard.guard(out, ["-t", "commands"])
     except ninja_guard.GuardError as err:
         raise CheckError(str(err)) from err
     try:

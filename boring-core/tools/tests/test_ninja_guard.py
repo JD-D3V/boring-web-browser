@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Tests for ninja_guard.py. Fake ninjas and temp folders only, no real tree.
+"""Tests for ninja_guard.py and the ninja routing in joblock.py.
+
+Fake ninja scripts and temp folders only, no real tree. The tree finder and
+the PATH lookup are the real ones: the fakes sit where they look.
 
 Usage:
   python -m unittest boring-core/tools/tests/test_ninja_guard.py -v
 """
 
+import contextlib
+import io
 import os
 import sys
 import tempfile
@@ -15,21 +20,38 @@ from unittest import mock
 TOOLS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS))
 
+import joblock  # noqa: E402
 import ninja_guard  # noqa: E402
-
-TREE_NAME = "ninja.exe" if sys.platform == "win32" else "ninja"
 
 
 def make_fake_ninja(path: Path, version: str) -> Path:
-    """A stand in that prints a version for --version and nothing else."""
+    """A stand in that prints a version for --version and logs any other call."""
     path.parent.mkdir(parents=True, exist_ok=True)
+    marker = path.parent / "calls.txt"
     if sys.platform == "win32":
         path = path.with_suffix(".bat")
-        path.write_text(f"@echo {version}\r\n", encoding="ascii")
+        path.write_text(
+            "@echo off\r\n"
+            'if "%~1"=="--version" goto ver\r\n'
+            f'echo %*>>"{marker}"\r\n'
+            "exit /b 0\r\n"
+            f":ver\r\necho {version}\r\n",
+            encoding="ascii",
+        )
     else:
-        path.write_text(f"#!/bin/sh\necho {version}\n", encoding="ascii")
+        path.write_text(
+            f'#!/bin/sh\n[ "$1" = --version ] && {{ echo {version}; exit 0; }}\n'
+            f'echo "$@" >> "{marker}"\n',
+            encoding="ascii",
+        )
         path.chmod(0o755)
     return path
+
+
+def calls_of(fake: Path) -> list[str]:
+    """The non-version calls the fake saw."""
+    marker = fake.parent / "calls.txt"
+    return marker.read_text().splitlines() if marker.exists() else []
 
 
 class Tree:
@@ -41,10 +63,19 @@ class Tree:
         self.out.mkdir(parents=True)
 
     def add_tree_ninja(self, version: str) -> Path:
-        return make_fake_ninja(self.src / "third_party" / "ninja" / "fake", version)
+        """The tree's own ninja, where the real finder looks for it."""
+        return make_fake_ninja(self.src / "third_party" / "ninja" / "ninja", version)
+
+    def add_path_ninja(self, version: str) -> Path:
+        """A ninja on PATH, found by the real PATH lookup."""
+        return make_fake_ninja(self.src / "bin" / "ninja", version)
 
     def write_log(self, header: str) -> None:
         (self.out / ".ninja_log").write_text(header + "\n1\t2\t3\tobj\tabc\n")
+
+    def path_only(self, exe: Path):
+        """Run with PATH holding only this fake's folder."""
+        return mock.patch.dict(os.environ, {"PATH": str(exe.parent)})
 
 
 class MappingTest(unittest.TestCase):
@@ -95,22 +126,31 @@ class GuardTest(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.tree = Tree(Path(self._tmp.name))
 
-    def finder_sees(self, exe: Path):
-        """Make choose_ninja treat this fake as the tree's own ninja."""
-        return mock.patch.object(ninja_guard, "tree_ninja", return_value=exe)
-
-    def test_matching_versions_allowed(self):
-        exe = self.tree.add_tree_ninja("1.12.1")
+    def test_tree_ninja_with_a_version_6_log_passes(self):
+        own = self.tree.add_tree_ninja("1.12.1")
+        newer = self.tree.add_path_ninja("1.13.2")
         self.tree.write_log("# ninja log v6")
-        with self.finder_sees(exe):
-            self.assertEqual(ninja_guard.guard(self.tree.out), exe)
+        with self.tree.path_only(newer):
+            self.assertEqual(ninja_guard.guard(self.tree.out), own)
 
-    def test_mismatch_refused_with_one_line(self):
-        exe = make_fake_ninja(self.tree.src / "bin" / "ninja", "1.13.2")
+    def test_no_log_passes_even_with_a_newer_ninja(self):
+        newer = self.tree.add_path_ninja("1.13.2")
+        with self.tree.path_only(newer):
+            self.assertEqual(ninja_guard.guard(self.tree.out), newer)
+
+    def test_older_tree_with_a_version_7_log_and_path_ninja_passes(self):
+        newer = self.tree.add_path_ninja("1.13.2")
+        self.tree.write_log("# ninja log v7")
+        self.assertIsNone(ninja_guard.tree_ninja(self.tree.out))
+        with self.tree.path_only(newer):
+            self.assertEqual(ninja_guard.guard(self.tree.out), newer)
+
+    def test_path_ninja_against_a_version_6_log_is_refused(self):
+        newer = self.tree.add_path_ninja("1.13.2")
         self.tree.write_log("# ninja log v6")
+        before = (self.tree.out / ".ninja_log").read_bytes()
         with (
-            mock.patch.object(ninja_guard, "tree_ninja", return_value=None),
-            mock.patch.object(ninja_guard.shutil, "which", return_value=str(exe)),
+            self.tree.path_only(newer),
             self.assertRaises(ninja_guard.GuardError) as ctx,
         ):
             ninja_guard.guard(self.tree.out)
@@ -118,76 +158,136 @@ class GuardTest(unittest.TestCase):
         self.assertNotIn("\n", message)
         self.assertIn("version 7", message)
         self.assertIn("version 6", message)
-
-    def test_refusal_leaves_the_log_alone(self):
-        exe = make_fake_ninja(self.tree.src / "bin" / "ninja", "1.13.2")
-        self.tree.write_log("# ninja log v6")
-        before = (self.tree.out / ".ninja_log").read_bytes()
-        with (
-            mock.patch.object(ninja_guard, "tree_ninja", return_value=None),
-            mock.patch.object(ninja_guard.shutil, "which", return_value=str(exe)),
-            self.assertRaises(ninja_guard.GuardError),
-        ):
-            ninja_guard.guard(self.tree.out)
         self.assertEqual((self.tree.out / ".ninja_log").read_bytes(), before)
 
-    def test_no_log_allowed_even_with_newer_ninja(self):
-        exe = make_fake_ninja(self.tree.src / "bin" / "ninja", "1.13.2")
-        with (
-            mock.patch.object(ninja_guard, "tree_ninja", return_value=None),
-            mock.patch.object(ninja_guard.shutil, "which", return_value=str(exe)),
-        ):
-            self.assertEqual(ninja_guard.guard(self.tree.out), exe)
+    def test_old_ninja_against_a_version_7_log_is_refused(self):
+        older = self.tree.add_path_ninja("1.12.1")
+        self.tree.write_log("# ninja log v7")
+        with self.tree.path_only(older), self.assertRaises(ninja_guard.GuardError):
+            ninja_guard.guard(self.tree.out)
 
-    def test_prefers_the_tree_ninja_over_path(self):
-        own = self.tree.add_tree_ninja("1.12.1")
-        path_one = make_fake_ninja(self.tree.src / "bin" / "ninja", "1.13.2")
+    def test_read_only_call_is_not_refused(self):
+        newer = self.tree.add_path_ninja("1.13.2")
         self.tree.write_log("# ninja log v6")
-        with (
-            self.finder_sees(own),
-            mock.patch.object(ninja_guard.shutil, "which", return_value=str(path_one)),
-        ):
-            self.assertEqual(ninja_guard.choose_ninja(self.tree.out), own)
-            self.assertEqual(ninja_guard.guard(self.tree.out), own)
+        with self.tree.path_only(newer):
+            for args in (
+                ["-C", "out", "-t", "commands", "-s", "x.obj"],
+                ["-t", "targets", "all"],
+                ["-tgraph"],
+                ["--version"],
+            ):
+                with self.subTest(args=args):
+                    self.assertEqual(ninja_guard.guard(self.tree.out, args), newer)
+            for args in (["-n"], ["-t", "clean"], ["chrome"], ["-t", "deps"]):
+                with self.subTest(args=args), self.assertRaises(ninja_guard.GuardError):
+                    ninja_guard.guard(self.tree.out, args)
 
-    def test_falls_back_to_path_without_a_tree_ninja(self):
-        path_one = make_fake_ninja(self.tree.src / "bin" / "ninja", "1.12.1")
-        self.tree.write_log("# ninja log v6")
-        # No third_party/ninja in the temp tree, so the real finder says None.
-        self.assertIsNone(ninja_guard.tree_ninja(self.tree.out))
-        with mock.patch.object(ninja_guard.shutil, "which", return_value=str(path_one)):
-            self.assertEqual(ninja_guard.guard(self.tree.out), path_one)
+    def test_log_older_than_6_with_an_older_ninja_is_not_refused(self):
+        older = self.tree.add_path_ninja("1.9.0")
+        for header in ("# ninja log v5", "# ninja log v4"):
+            self.tree.write_log(header)
+            with self.subTest(header=header), self.tree.path_only(older):
+                self.assertEqual(ninja_guard.guard(self.tree.out), older)
 
-    def test_real_finder_sees_a_tree_ninja(self):
-        placed = self.tree.src / "third_party" / "ninja" / TREE_NAME
-        placed.parent.mkdir(parents=True)
-        placed.write_text("")
-        self.assertEqual(
-            ninja_guard.tree_ninja(self.tree.out).resolve(), placed.resolve()
-        )
+    def test_log_older_than_6_with_ninja_1_13_is_refused(self):
+        newer = self.tree.add_path_ninja("1.13.2")
+        self.tree.write_log("# ninja log v5")
+        with self.tree.path_only(newer), self.assertRaises(ninja_guard.GuardError):
+            ninja_guard.guard(self.tree.out)
 
     def test_nothing_anywhere(self):
         with (
-            mock.patch.object(ninja_guard.shutil, "which", return_value=None),
+            mock.patch.dict(os.environ, {"PATH": str(self.tree.src)}),
             self.assertRaises(ninja_guard.GuardError),
         ):
             ninja_guard.choose_ninja(self.tree.out)
+
+
+class OpensLogTest(unittest.TestCase):
+    def test_calls(self):
+        self.assertTrue(ninja_guard.opens_log([]))
+        self.assertTrue(ninja_guard.opens_log(["-C", "out", "chrome"]))
+        self.assertTrue(ninja_guard.opens_log(["-n", "chrome"]))
+        self.assertTrue(ninja_guard.opens_log(["-t", "clean"]))
+        self.assertFalse(ninja_guard.opens_log(["-t", "commands", "-s", "x"]))
+        self.assertFalse(ninja_guard.opens_log(["-tcommands"]))
+        self.assertFalse(ninja_guard.opens_log(["--version"]))
 
 
 class MainTest(unittest.TestCase):
     def test_exit_codes(self):
         with tempfile.TemporaryDirectory(dir=os.environ.get("TMP")) as raw:
             tree = Tree(Path(raw))
-            exe = make_fake_ninja(tree.src / "bin" / "ninja", "1.13.2")
+            exe = tree.add_path_ninja("1.13.2")
             tree.write_log("# ninja log v6")
             with (
-                mock.patch.object(ninja_guard, "tree_ninja", return_value=None),
-                mock.patch.object(ninja_guard.shutil, "which", return_value=str(exe)),
+                tree.path_only(exe),
+                contextlib.redirect_stdout(io.StringIO()),
+                contextlib.redirect_stderr(io.StringIO()),
             ):
                 self.assertEqual(ninja_guard.main([str(tree.out)]), 1)
                 (tree.out / ".ninja_log").unlink()
                 self.assertEqual(ninja_guard.main([str(tree.out)]), 0)
-            self.assertEqual(ninja_guard.main([]), 2)
+                self.assertEqual(ninja_guard.main([]), 2)
+
+
+class JoblockRoutingTest(unittest.TestCase):
+    """joblock.py -- ninja ... must reach the guard, not the PATH ninja."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory(dir=os.environ.get("TMP"))
+        self.addCleanup(self._tmp.cleanup)
+        self.tree = Tree(Path(self._tmp.name))
+        self.lock = str(Path(self._tmp.name) / "test.lock")
+
+    def run_main(self, *command: str) -> tuple[int, str]:
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            code = joblock.main(["--lock-file", self.lock, "--", *command])
+        return code, err.getvalue()
+
+    def test_bare_ninja_is_rerouted_to_the_tree_ninja(self):
+        own = self.tree.add_tree_ninja("1.12.1")
+        newer = self.tree.add_path_ninja("1.13.2")
+        self.tree.write_log("# ninja log v6")
+        with self.tree.path_only(newer):
+            code, _ = self.run_main("ninja", "-C", str(self.tree.out), "chrome")
+        self.assertEqual(code, 0)
+        self.assertEqual(calls_of(own), [f"-C {self.tree.out} chrome"])
+        self.assertEqual(calls_of(newer), [])
+
+    def test_bare_ninja_that_clashes_is_refused_and_not_run(self):
+        newer = self.tree.add_path_ninja("1.13.2")
+        self.tree.write_log("# ninja log v6")
+        with self.tree.path_only(newer):
+            code, err = self.run_main("ninja", "-C", str(self.tree.out), "-n", "chrome")
+        self.assertEqual(code, 1)
+        self.assertIn("refusing to run", err)
+        self.assertEqual(calls_of(newer), [])
+
+    def test_ninja_named_by_path_is_checked_too(self):
+        newer = self.tree.add_path_ninja("1.13.2")
+        self.tree.write_log("# ninja log v6")
+        code, err = self.run_main(str(newer), "-C", str(self.tree.out), "chrome")
+        self.assertEqual(code, 1)
+        self.assertIn("refusing to run", err)
+        self.assertEqual(calls_of(newer), [])
+
+    def test_read_only_call_runs(self):
+        newer = self.tree.add_path_ninja("1.13.2")
+        self.tree.write_log("# ninja log v6")
+        with self.tree.path_only(newer):
+            code, _ = self.run_main(
+                "ninja", f"-C{self.tree.out}", "-t", "commands", "x.obj"
+            )
+        self.assertEqual(code, 0)
+        self.assertEqual(len(calls_of(newer)), 1)
+
+    def test_other_commands_are_left_alone(self):
+        self.assertEqual(joblock.route_ninja(["python", "-V"]), ["python", "-V"])
+        self.assertEqual(
+            joblock.route_ninja(["ninja157.bat", "x"]), ["ninja157.bat", "x"]
+        )
 
 
 if __name__ == "__main__":

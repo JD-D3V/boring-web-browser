@@ -6,6 +6,9 @@ build JD starts by hand at a developer prompt. Two ninja runs against
 one out\\Default corrupt each other quietly, and the damage only shows
 up hours later in a half linked chrome.exe.
 
+A ninja command goes through ninja_guard: a bare `ninja` becomes the tree's own
+ninja, and one that would wreck the tree's .ninja_log is refused (exit 1).
+
 Usage:
   python joblock.py --job "manual build" -- ninja -C out\\Default chrome
   python joblock.py --claim --owner gh-1234 --lease 43200 --job release
@@ -24,6 +27,10 @@ import tempfile
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import ninja_guard  # noqa: E402
 
 # Told apart from the exit code of whatever we ran, so a caller can see
 # "someone else has the tree" rather than "the build failed".
@@ -273,6 +280,34 @@ def _release_claim(path: Path, owner: str | None) -> int:
     return 0
 
 
+def ninja_out_dir(args: list[str]) -> Path:
+    """The directory a ninja run works in: its last -C, else the current one."""
+    out = Path.cwd()
+    for index, arg in enumerate(args):
+        if arg == "-C" and index + 1 < len(args):
+            out = Path(args[index + 1])
+        elif arg.startswith("-C") and len(arg) > 2:
+            out = Path(arg[2:])
+    return out if out.is_absolute() else Path.cwd() / out
+
+
+def route_ninja(command: list[str]) -> list[str]:
+    """Send a ninja command through ninja_guard, so PATH ninja cannot wreck a tree.
+
+    A bare `ninja` becomes the tree's own ninja when it has one. A ninja
+    named by path is kept but still refused when it clashes with the log.
+    Raises ninja_guard.GuardError. Any other command is returned as it is.
+    """
+    if Path(command[0]).stem.lower() != "ninja":
+        return command
+    args = command[1:]
+    out = ninja_out_dir(args)
+    if Path(command[0]).name != command[0]:
+        ninja_guard.check(Path(command[0]), out, args)
+        return command
+    return [str(ninja_guard.guard(out, args)), *args]
+
+
 def _build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         description="One writer at a time for the shared Chromium build tree."
@@ -346,6 +381,12 @@ def main(argv: list[str] | None = None) -> int:
     if not command:
         print("give a command to run after --", file=sys.stderr)
         return 2
+
+    try:
+        command = route_ninja(command)
+    except ninja_guard.GuardError as err:
+        print(str(err), file=sys.stderr)
+        return 1
 
     lock = JobLock(
         args.job, path=path, owner=args.owner, lease=args.lease, wait=args.wait
