@@ -1,0 +1,741 @@
+diff --git a/chrome/browser/extensions/api/settings_private/prefs_util.cc b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+--- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -241,6 +241,14 @@ const PrefsUtil::TypedPrefMap& PrefsUtil::GetAllowlistedKeys() {
+       settings_api::PrefType::kBoolean;
+   (*s_allowlist)["boring.list_updates"] = settings_api::PrefType::kBoolean;
+   (*s_allowlist)["boring.ai.provider"] = settings_api::PrefType::kString;
++  // boring: cui-settings, the Look on Settings, Appearance ("soft_white",
++  // "slate" or "dusk"). components/boring/core/boring_prefs.h's
++  // kAppearanceLook registers it; the literal must stay in sync.
++  (*s_allowlist)["boring.appearance.look"] = settings_api::PrefType::kString;
++  // boring: cui-settings, the Accent: "#rrggbb", lower case. Registered by
++  // the Accent work on feat/cui-colours; the literal must match it.
++  (*s_allowlist)["boring.appearance.accent"] =
++      settings_api::PrefType::kString;
+ 
+   // Miscellaneous
+   (*s_allowlist)[::embedder_support::kAlternateErrorPagesEnabled] =
+diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts b/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
+--- a/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
+@@ -11,7 +11,151 @@ export function getHtml(this: SettingsAppearancePageElement) {
+   return html`<!--_html_template_start_-->
+ <settings-section page-title="$i18n{appearancePageTitle}">
+   <div route-path="default">
+-    <div class="cr-row first" id="themeRow"
++    <!-- boring: cui-settings.patch. Settings, Appearance as drawn (design
++         v12-compiled PageSettings): Light or dark, Look, Accent, Tabs,
++         Bookmarks and Toolbar buttons first, the other rows below as before. -->
++    <div class="boring-subline">
++      How the browser looks. Changes apply straight away.
++    </div>
++    <div id="colorSchemeModeRow" class="cr-row first"
++        ?hidden="${!this.showColorSchemeMode_()}">
++      <div id="colorSchemeModeLabel" class="flex cr-padded-text cui-title">
++        Light or dark
++      </div>
++      <div id="colorSchemeModeButtons" class="cui-segmented" role="group"
++          aria-labelledby="colorSchemeModeLabel">
++        ${this.colorSchemeModeOptions_.map(item => html`
++          <button class="cui-mode" data-value="${item.value}"
++              aria-pressed="${this.isSelectedColorSchemeMode_(item.value)}"
++              @click="${this.onColorSchemeModeClick_}">${item.name}</button>
++        `)}
++      </div>
++    </div>
++    ${this.boringLookPref_ ? html`
++      <div id="boringLookRow" class="cui-look-row hr">
++        <div id="boringLookLabel" class="cui-title">Look</div>
++        <div class="cui-looks" role="group" aria-labelledby="boringLookLabel">
++          ${this.boringLooks_.map(item => html`
++            <button class="cui-look" data-value="${item.value}"
++                aria-pressed="${this.boringLookPref_?.value === item.value}"
++                @click="${this.onBoringLookClick_}">
++              <span class="cui-preview ${item.value}" aria-hidden="true">
++                <span class="cui-tabs"><span></span><span></span></span>
++                <span class="cui-bar"><span></span></span>
++                <span class="cui-page"></span>
++              </span>
++              <span class="cui-label">
++                <span class="cui-title">${item.name}</span>
++                <span class="secondary">${item.about}</span>
++              </span>
++            </button>
++          `)}
++        </div>
++      </div>
++    ` : ''}
++    ${this.boringAccentPref_ ? html`
++      <div id="boringAccentRow" class="cr-row">
++        <div id="boringAccentLabel" class="flex cr-padded-text cui-title">
++          Accent
++        </div>
++        <div class="cui-accents" role="group" aria-label="Accent colour">
++          ${this.boringAccents_.map(item => html`
++            <button class="cui-dot ${item.low ? 'low' : ''}"
++                data-value="${item.value}" aria-label="${item.name}"
++                aria-pressed="${this.boringAccentPref_?.value === item.value}"
++                style="--cui-dot: ${item.value}"
++                @click="${this.onBoringAccentClick_}"></button>
++          `)}
++          <label class="cui-outline cui-custom ${
++              this.isCustomAccent_() ? 'on' : ''}"
++              style="--cui-dot: ${this.boringAccentPref_?.value}">
++            Custom
++            <input id="boringAccentCustom" type="color"
++                aria-label="Custom accent colour"
++                .value="${this.boringAccentPref_?.value || '#4f46e5'}"
++                @change="${this.onBoringAccentCustomChange_}">
++          </label>
++        </div>
++      </div>
++    ` : ''}
++    <div id="tabsRow" class="cr-row">
++      <div class="flex cr-padded-text" aria-hidden="true">
++        <div class="cui-title">Tabs</div>
++        <div class="secondary">Along the top, or down the side.</div>
++      </div>
++      <settings-dropdown-menu id="tabStripPosition" label="Tabs"
++          pref-key="vertical_tabs.enabled"
++          .menuOptions="${this.tabStripOptions_}" @settings-control-change="${
++              this.onTabStripPositionSettingsControlChange_}">
++      </settings-dropdown-menu>
++    </div>
++    <div class="list-frame indented-toggles"
++        ?hidden="${!this.verticalTabsEnabledPref_?.value}">
++      ${this.showVerticalTabsExpandOnHoverSetting_() ? html`
++        <settings-toggle-button id="showVerticalTabsExpandOnHover"
++            pref-key="vertical_tabs.expand_on_hover"
++            label="$i18n{showVerticalTabsExpandOnHover}">
++        </settings-toggle-button>
++      ` : ''}
++
++      ${this.showEverythingMenuToggle_() ? html`
++        <settings-toggle-button id="showEverythingMenuButton"
++            pref-key="everything_menu.pinned_to_tabstrip"
++            label="$i18n{showEverythingMenuButton}"
++            @change="${this.onShowEverythingMenuButtonChange_}">
++        </settings-toggle-button>
++      ` : ''}
++    </div>
++    ${this.tabStripUnificationEnabled_ ? html`
++      <div class="list-frame indented-toggles"
++          ?hidden="${!!this.verticalTabsEnabledPref_?.value}">
++        <settings-toggle-button id="tabScrollAutoShowOnOverflow"
++            pref-key="tab_scroll_buttons.pinned_to_tabstrip"
++            label="$i18n{tabScrollAutoShowOnOverflow}"
++            @change="${this.onTabScrollAutoShowOnOverflowChange_}">
++        </settings-toggle-button>
++      </div>
++    ` : ''}
++    <div id="bookmarksRow" class="cr-row"
++        ?hidden="${!this.pageVisibility_.bookmarksBar}">
++      <div class="flex cr-padded-text" aria-hidden="true">
++        <div class="cui-title">Bookmarks</div>
++        <div class="secondary">On a bar under the address bar, or off.</div>
++      </div>
++      ${!this.ntpSimplificationBookmarksBarEnabled_ ? html`
++        <settings-dropdown-menu id="showBookmarksBar" label="Bookmarks"
++            pref-key="bookmark_bar.show_on_all_tabs"
++            .menuOptions="${this.boringBookmarksOptions_}">
++        </settings-dropdown-menu>
++      ` : html`
++        <settings-dropdown-menu id="bookmarksBarVisibilityDropdown"
++            label="Bookmarks" pref-key="bookmark_bar.visibility_state"
++            .menuOptions="${this.bookmarksBarOptions_}"
++            @settings-control-change="${
++                this.onBookmarksBarVisibilitySettingsControlChange_}">
++        </settings-dropdown-menu>
++      `}
++    </div>
++    <div id="toolbarRow" class="cr-row">
++      <div class="flex cr-padded-text">
++        <div class="cui-title">Toolbar buttons</div>
++        <div class="secondary">
++          Choose which buttons sit next to the address bar.
++        </div>
++      </div>
++      ${this.showResetPinnedActionsButton_ ? html`
++        <cr-button id="resetPinnedToolbarActions"
++            @click="${this.onResetPinnedToolbarActionsClick_}"
++            aria-label="$i18n{resetToolbarToDefault}">
++          $i18n{resetToDefault}
++        </cr-button>
++      ` : ''}
++      <cr-button id="customizeToolbar" class="cui-outline"
++          @click="${this.onCustomizeToolbarClick_}">
++        Customize
++      </cr-button>
++    </div>
++    <div class="cr-row" id="themeRow"
+         ?hidden="${!this.pageVisibility_.setTheme}">
+       <div class="flex cr-padded-text">
+         <div>$i18n{themes}</div><div class="secondary">${this.themeSublabel_}</div>
+@@ -47,36 +191,6 @@ export function getHtml(this: SettingsAppearancePageElement) {
+       </div>
+ </if>
+     </div>
+-    <div id="toolbarRow" class="settings-row">
+-      <cr-link-row id="customizeToolbar" label="$i18n{customizeToolbar}"
+-          @click="${this.onCustomizeToolbarClick_}" external>
+-      </cr-link-row>
+-      ${this.showResetPinnedActionsButton_ ? html`
+-        <div class="separator"></div>
+-        <cr-button id="resetPinnedToolbarActions"
+-            @click="${this.onResetPinnedToolbarActionsClick_}"
+-            aria-label="$i18n{resetToolbarToDefault}">
+-          $i18n{resetToDefault}
+-        </cr-button>
+-      ` : ''}
+-    </div>
+-    <div id="colorSchemeModeRow" class="cr-row"
+-        ?hidden="${!this.showColorSchemeMode_()}">
+-      <div id="colorSchemeModeLabel" class="flex cr-padded-text"
+-          aria-hidden="true">
+-        $i18n{colorSchemeMode}
+-      </div>
+-      <select id="colorSchemeModeSelect" class="md-select"
+-          @change="${this.onColorSchemeModeChange_}"
+-          aria-labelledby="colorSchemeModeLabel">
+-        ${this.colorSchemeModeOptions_.map(item => html`
+-          <option value="${item.value}"
+-              ?selected="${this.isSelectedColorSchemeMode_(item.value)}">
+-            ${item.name}
+-          </option>
+-        `)}
+-      </select>
+-    </div>
+     <div class="hr"
+         ?hidden="${!this.showHr_(
+             this.pageVisibility_.setTheme, this.pageVisibility_.homeButton)}">
+@@ -116,31 +230,6 @@ export function getHtml(this: SettingsAppearancePageElement) {
+         </settings-radio-group>
+       </div>
+     ` : ''}
+-    <div class="hr"
+-        ?hidden="${!this.showHr_(
+-            this.pageVisibility_.homeButton,
+-            this.pageVisibility_.bookmarksBar)}">
+-    </div>
+-    ${!this.ntpSimplificationBookmarksBarEnabled_ ? html`
+-      <settings-toggle-button id="showBookmarksBar"
+-          ?hidden="${!this.pageVisibility_.bookmarksBar}"
+-          pref-key="bookmark_bar.show_on_all_tabs"
+-          label="$i18n{showBookmarksBar}">
+-      </settings-toggle-button>
+-    ` : ''}
+-    ${this.ntpSimplificationBookmarksBarEnabled_ ? html`
+-      <div class="cr-row" ?hidden="${!this.pageVisibility_.bookmarksBar}">
+-        <div class="flex cr-padded-text" aria-hidden="true">
+-          $i18n{bookmarksBar}
+-        </div>
+-        <settings-dropdown-menu id="bookmarksBarVisibilityDropdown"
+-            label="$i18n{bookmarksBar}" pref-key="bookmark_bar.visibility_state"
+-            .menuOptions="${this.bookmarksBarOptions_}"
+-            @settings-control-change="${
+-                this.onBookmarksBarVisibilitySettingsControlChange_}">
+-        </settings-dropdown-menu>
+-      </div>
+-    ` : ''}
+ 
+ <if expr="is_macosx">
+     ${this.showGlassEffectEnabled_ ? html`
+@@ -159,43 +248,6 @@ export function getHtml(this: SettingsAppearancePageElement) {
+ </if>
+ 
+ 
+-    <div class="cr-row">
+-      <div class="flex cr-padded-text" aria-hidden="true">
+-        $i18n{tabStripPosition}
+-      </div>
+-      <settings-dropdown-menu id="tabStripPosition"
+-          label="$i18n{tabStripPosition}" pref-key="vertical_tabs.enabled"
+-          .menuOptions="${this.tabStripOptions_}" @settings-control-change="${
+-              this.onTabStripPositionSettingsControlChange_}">
+-      </settings-dropdown-menu>
+-    </div>
+-    <div class="list-frame indented-toggles"
+-        ?hidden="${!this.verticalTabsEnabledPref_?.value}">
+-      ${this.showVerticalTabsExpandOnHoverSetting_() ? html`
+-        <settings-toggle-button id="showVerticalTabsExpandOnHover"
+-            pref-key="vertical_tabs.expand_on_hover"
+-            label="$i18n{showVerticalTabsExpandOnHover}">
+-        </settings-toggle-button>
+-      ` : ''}
+-
+-      ${this.showEverythingMenuToggle_() ? html`
+-        <settings-toggle-button id="showEverythingMenuButton"
+-            pref-key="everything_menu.pinned_to_tabstrip"
+-            label="$i18n{showEverythingMenuButton}"
+-            @change="${this.onShowEverythingMenuButtonChange_}">
+-        </settings-toggle-button>
+-      ` : ''}
+-    </div>
+-    ${this.tabStripUnificationEnabled_ ? html`
+-      <div class="list-frame indented-toggles"
+-          ?hidden="${!!this.verticalTabsEnabledPref_?.value}">
+-        <settings-toggle-button id="tabScrollAutoShowOnOverflow"
+-            pref-key="tab_scroll_buttons.pinned_to_tabstrip"
+-            label="$i18n{tabScrollAutoShowOnOverflow}"
+-            @change="${this.onTabScrollAutoShowOnOverflowChange_}">
+-        </settings-toggle-button>
+-      </div>
+-    ` : ''}
+ 
+     ${this.showOrganizerPanelEnabled_ ? html`
+       <settings-toggle-button id="showOrganizerPanelButton"
+diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.ts b/chrome/browser/resources/settings/appearance_page/appearance_page.ts
+--- a/chrome/browser/resources/settings/appearance_page/appearance_page.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_page.ts
+@@ -71,7 +71,6 @@ type PrefObject<T> = chrome.settingsPrivate.PrefObject<T>;
+ export interface SettingsAppearancePageElement {
+   $: {
+     colorSchemeModeRow: HTMLElement,
+-    colorSchemeModeSelect: HTMLSelectElement,
+     defaultFontSize: SettingsDropdownMenuElement,
+     zoomLevel: HTMLSelectElement,
+   };
+@@ -152,6 +151,12 @@ export class SettingsAppearancePageElement extends
+       themeIdPref_: {type: Object},
+       themePolicyColorPref_: {type: Object},
+       verticalTabsEnabledPref_: {type: Object},
++      // boring: cui-settings, the Look, Accent and Bookmarks choices.
++      boringLookPref_: {type: Object},
++      boringLooks_: {type: Array},
++      boringBookmarksOptions_: {type: Array},
++      boringAccentPref_: {type: Object},
++      boringAccents_: {type: Array},
+ 
+       // <if expr="is_linux">
+       themeSystemThemePref_: {type: Object},
+@@ -219,6 +224,33 @@ export class SettingsAppearancePageElement extends
+       undefined;
+   protected accessor verticalTabsEnabledPref_: PrefObject<boolean>|undefined =
+       undefined;
++  // boring: cui-settings. undefined until the pref arrives, which hides Look.
++  protected accessor boringLookPref_: PrefObject<string>|undefined = undefined;
++  protected accessor boringLooks_:
++      Array<{value: string, name: string, about: string}> = [
++        {value: 'soft_white', name: 'Soft white', about: 'The default'},
++        {value: 'slate', name: 'Slate', about: 'Cool grey'},
++        {value: 'dusk', name: 'Dusk', about: 'Deep blue grey'},
++      ];
++  // boring: cui-settings, Accent writes "#rrggbb" to boring.appearance.accent.
++  // low: under 3 to 1 on the dark card, so it gets an edge ring in dark.
++  protected accessor boringAccentPref_: PrefObject<string>|undefined =
++      undefined;
++  protected accessor boringAccents_:
++      Array<{value: string, name: string, low: boolean}> = [
++        {value: '#4f46e5', name: 'Indigo', low: true},
++        {value: '#2563c9', name: 'Blue', low: false},
++        {value: '#0f766e', name: 'Teal', low: false},
++        {value: '#1a7f55', name: 'Green', low: false},
++        {value: '#a16207', name: 'Amber', low: false},
++        {value: '#be2d5a', name: 'Rose', low: false},
++        {value: '#7c3aed', name: 'Violet', low: true},
++        {value: '#4b5160', name: 'Graphite', low: true},
++      ];
++  protected accessor boringBookmarksOptions_: DropdownMenuOptionList = [
++    {value: 'true', name: 'Bar on top'},
++    {value: 'false', name: 'Off'},
++  ];
+ 
+   // <if expr="is_linux">
+   protected accessor themeSystemThemePref_: PrefObject<number>|undefined =
+@@ -229,15 +261,15 @@ export class SettingsAppearancePageElement extends
+       Array<{value: ColorSchemeMode, name: string}> = [
+         {
+           value: ColorSchemeMode.kLight,
+-          name: loadTimeData.getString('lightMode'),
++          name: 'Light',  // boring: cui-settings
+         },
+         {
+           value: ColorSchemeMode.kDark,
+-          name: loadTimeData.getString('darkMode'),
++          name: 'Dark',  // boring: cui-settings
+         },
+         {
+           value: ColorSchemeMode.kSystem,
+-          name: loadTimeData.getString('systemMode'),
++          name: 'Match system',  // boring: cui-settings
+         },
+       ];
+ 
+@@ -260,9 +292,10 @@ export class SettingsAppearancePageElement extends
+     {value: 'true', name: loadTimeData.getString('glassEffectModern')},
+  ];
+ 
++  // boring: cui-settings, Top first, in the words of the design.
+   protected accessor tabStripOptions_: DropdownMenuOptionList = [
+-    {value: 'true', name: loadTimeData.getString('uiFeatureAlignSide')},
+-    {value: 'false', name: loadTimeData.getString('uiFeatureAlignTop')},
++    {value: 'false', name: 'Top'},
++    {value: 'true', name: 'Side'},
+   ];
+ 
+   // The values in this array must match the BookmarkBarVisibilityState enum
+@@ -333,6 +366,9 @@ export class SettingsAppearancePageElement extends
+ 
+     this.mirrorPrefs({
+       'autogenerated.theme.policy.color': 'themePolicyColorPref_',
++      // boring: cui-settings
++      'boring.appearance.accent': 'boringAccentPref_',
++      'boring.appearance.look': 'boringLookPref_',
+       'browser.pin_contextual_task_button': 'pinContextualTaskButtonPref_',
+       'browser.pin_split_tab_button': 'pinSplitTabButtonPref_',
+       'browser.show_forward_button': 'showForwardButtonPref_',
+@@ -614,9 +650,41 @@ export class SettingsAppearancePageElement extends
+     return colorSchemeMode === this.selectedColorSchemeMode_;
+   }
+ 
+-  protected onColorSchemeModeChange_(): void {
+-    this.colorSchemeModeBrowserProxy_.handler.setColorSchemeMode(
+-        parseInt(this.$.colorSchemeModeSelect.value, 10) as ColorSchemeMode);
++  // boring: cui-settings, Light or dark is a row of three buttons.
++  protected onColorSchemeModeClick_(e: Event): void {
++    const value =
++        Number((e.currentTarget as HTMLElement).dataset['value']) as
++        ColorSchemeMode;
++    this.selectedColorSchemeMode_ = value;
++    this.colorSchemeModeBrowserProxy_.handler.setColorSchemeMode(value);
++  }
++
++  // boring: cui-settings, Accent: a preset dot, or Custom's own colour.
++  protected isCustomAccent_(): boolean {
++    const value = this.boringAccentPref_?.value;
++    return !!value && !this.boringAccents_.some(a => a.value === value);
++  }
++
++  protected onBoringAccentClick_(e: Event): void {
++    const value = (e.currentTarget as HTMLElement).dataset['value'];
++    if (value) {
++      PrefService.getInstance().setPrefValue('boring.appearance.accent', value);
++    }
++  }
++
++  protected onBoringAccentCustomChange_(e: Event): void {
++    const value = (e.target as HTMLInputElement).value.toLowerCase();
++    if (/^#[0-9a-f]{6}$/.test(value)) {
++      PrefService.getInstance().setPrefValue('boring.appearance.accent', value);
++    }
++  }
++
++  // boring: cui-settings, the Look writes boring.appearance.look.
++  protected onBoringLookClick_(e: Event): void {
++    const value = (e.currentTarget as HTMLElement).dataset['value'];
++    if (value) {
++      PrefService.getInstance().setPrefValue('boring.appearance.look', value);
++    }
+   }
+ 
+   protected onZoomLevelChange_() {
+diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.css b/chrome/browser/resources/settings/appearance_page/appearance_page.css
+--- a/chrome/browser/resources/settings/appearance_page/appearance_page.css
++++ b/chrome/browser/resources/settings/appearance_page/appearance_page.css
+@@ -23,30 +23,14 @@
+ /* The theme mixes a link and a cr-button divided by a separator with
+  * grit expressions and dom-if templates. That leads to a tricky thing
+  * to style correctly, these are a workaround. */
+-#themeRow cr-button,
+-#toolbarRow cr-button {
++#themeRow cr-button {
+   margin-inline-end: 20px;
+ }
+ 
+-#themeRow .separator,
+-#toolbarRow .separator  {
++#themeRow .separator {
+   margin-inline-start: 0;
+ }
+ 
+-/* Content-box divider hooks, see settings-restyle.patch's .hr/.cr-row
+- * (cr_shared_style_lit.css) for the full explanation: byte-for-byte
+- * the old flush border-top by default, inset to this row's own text
+- * when settings-restyle's settings-section/settings-subpage scope
+- * turns the two vars on. */
+-#toolbarRow {
+-  background-image: var(--cr-row-divider-background, none);
+-  background-origin: content-box;
+-  background-position: top center;
+-  background-repeat: no-repeat;
+-  background-size: calc(100% - 2 * var(--cr-section-padding)) var(--cr-separator-height);
+-  border-top: var(--cr-row-divider-border, var(--cr-separator-line));
+-}
+-
+ .indented-toggles,
+ .indented-rows {
+   padding-inline-end: 0;
+@@ -56,3 +40,272 @@
+ .indented-rows .cr-row {
+   padding-inline-start: 0;
+ }
++
++/* boring: cui-settings. Settings, Appearance as drawn (design v12-compiled
++ * PageSettings). Colours come from the master window's TOKENS rows (light,
++ * then dark); outlines of fields and outline buttons use the edge token. */
++:host {
++  --cui-surface: #ffffff;
++  --cui-field: #f4f3ef;
++  --cui-line: #e2dfd9;
++  --cui-line2: #d0ccc4;
++  --cui-edge: #8a867d;
++  --cui-ink2: #5d5a54;
++}
++
++@media (prefers-color-scheme: dark) {
++  :host {
++    --cui-surface: #1c1c1a;
++    --cui-field: #121211;
++    --cui-line: #2d2d2a;
++    --cui-line2: #3b3b37;
++    --cui-edge: #77756d;
++    --cui-ink2: #a9a79f;
++  }
++}
++
++.boring-subline {
++  color: var(--cui-ink2);
++  font-size: 13px;
++  margin: 0 0 4px;
++  padding-block-start: 4px;
++  padding-inline: var(--cr-section-padding);
++}
++
++.cui-title {
++  font-weight: 500;
++}
++
++.cui-segmented {
++  background: var(--cui-field);
++  border-radius: 8px;
++  box-shadow: inset 0 0 0 1px var(--cui-line);
++  display: flex;
++  padding: 3px;
++}
++
++.cui-mode {
++  background: none;
++  border: 0;
++  border-radius: 6px;
++  color: var(--cui-ink2);
++  cursor: pointer;
++  font: inherit;
++  font-size: 13px;
++  height: 30px;
++  padding: 0 14px;
++}
++
++.cui-mode[aria-pressed='true'] {
++  background: var(--cui-surface);
++  box-shadow: 0 0 0 1px var(--cui-line2);
++  color: inherit;
++  font-weight: 500;
++}
++
++.cui-look-row {
++  display: flex;
++  flex-direction: column;
++  gap: 12px;
++  padding: 14px var(--cr-section-padding);
++}
++
++.cui-looks {
++  display: grid;
++  gap: 12px;
++  grid-template-columns: repeat(3, minmax(0, 1fr));
++}
++
++.cui-look {
++  background: none;
++  border: 0;
++  border-radius: 9px;
++  box-shadow: inset 0 0 0 1px var(--cui-line);
++  color: inherit;
++  cursor: pointer;
++  display: flex;
++  flex-direction: column;
++  font: inherit;
++  gap: 8px;
++  padding: 8px 8px 9px;
++  text-align: start;
++}
++
++.cui-look[aria-pressed='true'] {
++  box-shadow: inset 0 0 0 2px var(--boring-accent);
++}
++
++/* Each preview is a small picture of that Look's window, in its colours. */
++.cui-preview {
++  background: var(--p-frame);
++  border-radius: 6px;
++  box-shadow: inset 0 0 0 1px var(--p-edge);
++  display: flex;
++  flex-direction: column;
++  height: 72px;
++  overflow: hidden;
++}
++
++.cui-preview.soft_white {
++  --p-frame: #eceae6;
++  --p-bar: #ffffff;
++  --p-page: #f8f7f4;
++  --p-field: #f4f3ef;
++  --p-edge: #d0ccc4;
++}
++
++.cui-preview.slate {
++  --p-frame: #e6e8ee;
++  --p-bar: #ffffff;
++  --p-page: #f5f6f8;
++  --p-field: #eceef2;
++  --p-edge: #cfd2da;
++}
++
++.cui-preview.dusk {
++  --p-frame: #0f1017;
++  --p-bar: #1b1d2b;
++  --p-page: #141520;
++  --p-field: #262838;
++  --p-edge: #34364a;
++}
++
++.cui-tabs {
++  align-items: flex-end;
++  display: flex;
++  gap: 3px;
++  height: 13px;
++  padding-inline-start: 6px;
++}
++
++.cui-tabs span {
++  background: var(--p-bar);
++  border-radius: 3px 3px 0 0;
++  height: 8px;
++  width: 34px;
++}
++
++.cui-tabs span + span {
++  background: var(--p-edge);
++}
++
++.cui-bar {
++  align-items: center;
++  background: var(--p-bar);
++  display: flex;
++  height: 15px;
++  padding: 0 6px;
++}
++
++.cui-bar span {
++  background: var(--p-field);
++  border-radius: 3px;
++  flex: 1;
++  height: 7px;
++}
++
++.cui-page {
++  background: var(--p-page);
++  flex: 1;
++}
++
++.cui-label {
++  align-items: baseline;
++  display: flex;
++  gap: 8px;
++  padding: 0 2px;
++}
++
++.cui-label .secondary {
++  font-size: 12.5px;
++}
++
++.cui-accents {
++  align-items: center;
++  display: flex;
++  gap: 10px;
++}
++
++.cui-dot {
++  background: var(--cui-dot);
++  border: 0;
++  border-radius: 12px;
++  cursor: pointer;
++  height: 24px;
++  padding: 0;
++  width: 24px;
++}
++
++/* Dots under 3 to 1 against the dark card get an edge ring there. */
++@media (prefers-color-scheme: dark) {
++  .cui-dot.low {
++    box-shadow: 0 0 0 1px var(--cui-edge);
++  }
++}
++
++.cui-dot[aria-pressed='true'] {
++  box-shadow: 0 0 0 2px var(--cui-surface), 0 0 0 4px var(--cui-dot);
++}
++
++.cui-outline {
++  align-items: center;
++  border-radius: 7px;
++  box-shadow: inset 0 0 0 1px var(--cui-edge);
++  box-sizing: border-box;
++  cursor: pointer;
++  display: inline-flex;
++  font-size: 13px;
++  font-weight: 500;
++  height: 32px;
++  padding: 0 12px;
++}
++
++.cui-custom {
++  height: 30px;
++  margin-inline-start: 6px;
++  position: relative;
++}
++
++.cui-custom.on {
++  box-shadow: inset 0 0 0 2px var(--cui-dot);
++}
++
++.cui-custom:focus-within {
++  outline: 2px solid var(--cr-focus-outline-color);
++  outline-offset: 2px;
++}
++
++/* The colour field covers the button, so a click opens its picker. */
++.cui-custom input {
++  border: 0;
++  cursor: pointer;
++  height: 100%;
++  inset: 0;
++  opacity: 0;
++  padding: 0;
++  position: absolute;
++  width: 100%;
++}
++
++#customizeToolbar {
++  --cr-button-border: 1px solid var(--cui-edge);
++  --cr-button-border-radius: 7px;
++  --cr-button-height: 32px;
++  box-shadow: none;
++  font-size: 13px;
++  font-weight: 500;
++}
++
++#resetPinnedToolbarActions {
++  margin-inline-end: 8px;
++}
++
++#tabsRow settings-dropdown-menu::part(select),
++#bookmarksRow settings-dropdown-menu::part(select) {
++  border-color: var(--cui-edge);
++  border-radius: 7px;
++  font-size: 13px;
++  font-weight: 500;
++  height: 32px;
++  width: auto;
++}

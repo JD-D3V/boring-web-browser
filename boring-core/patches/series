@@ -82,3 +82,5 @@ feature-defaults.patch
 default-browser-prompts-off.patch
 toolbar-quick-buttons.patch
 app-menu-refresh.patch
+# boring: cui-settings (Settings, Appearance as drawn). Goes after cui-colours.patch.
+cui-settings.patch
