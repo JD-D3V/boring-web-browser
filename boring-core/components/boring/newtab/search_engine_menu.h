@@ -4,10 +4,17 @@
 #define COMPONENTS_BORING_NEWTAB_SEARCH_ENGINE_MENU_H_
 
 #include <string>
+#include <vector>
 
 #include "base/functional/callback.h"
+#include "base/time/time.h"
 #include "base/values.h"
 #include "ui/gfx/geometry/rect.h"
+#include "url/gurl.h"
+
+namespace base {
+class CancelableTaskTracker;
+}
 
 namespace content {
 class WebContents;
@@ -46,6 +53,24 @@ bool OpenColourPickerForPage(content::WebContents* page);
 // without the switch.
 base::Value RunSearchEngineMenuTestCommand(content::WebContents* page,
                                            const base::ListValue& args);
+
+// One page from history, for the new tab page's "Pick up where you left
+// off".
+struct RecentPage {
+  GURL url;
+  std::u16string title;
+  base::Time when;
+};
+
+// Up to `max` of the most recent web pages (http and https only) in the
+// history of the profile that holds `page`, newest first, one per
+// address. Empty in Incognito, which shows none. `tracker` cancels the
+// query, and `done` with it, when the page goes away.
+void GetRecentPagesForPage(
+    content::WebContents* page,
+    size_t max,
+    base::CancelableTaskTracker* tracker,
+    base::OnceCallback<void(std::vector<RecentPage>)> done);
 
 }  // namespace boring
 

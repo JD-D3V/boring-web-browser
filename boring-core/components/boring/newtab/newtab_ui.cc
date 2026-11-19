@@ -2,17 +2,17 @@
 
 #include "components/boring/newtab/newtab_ui.h"
 
-#include <algorithm>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "base/command_line.h"
 #include "base/functional/bind.h"
 #include "base/memory/ref_counted_memory.h"
 #include "base/memory/weak_ptr.h"
-#include "base/numerics/safe_conversions.h"
 #include "base/strings/string_util.h"
-#include "base/task/sequenced_task_runner.h"
+#include "base/strings/utf_string_conversions.h"
+#include "base/task/cancelable_task_tracker.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "components/boring/adblock/adblock_service.h"
@@ -20,7 +20,6 @@
 #include "components/boring/core/boring_capabilities.h"
 #include "components/boring/newtab/search_engine_menu.h"
 #include "components/boring/scam/scam_service.h"
-#include "components/boring/search/search_engines.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
@@ -31,7 +30,6 @@
 #include "content/public/browser/web_ui_data_source.h"
 #include "content/public/browser/web_ui_message_handler.h"
 #include "content/public/common/url_constants.h"
-#include "ui/gfx/geometry/rect.h"
 #include "url/gurl.h"
 
 namespace boring {
@@ -41,6 +39,9 @@ namespace {
 // Enough to be useful, few enough that the page stays calm.
 constexpr size_t kMaxShortcuts = 8;
 constexpr size_t kMaxTitleLength = 40;
+// "Pick up where you left off" shows this many pages, as drawn.
+constexpr size_t kMaxRecentPages = 3;
+constexpr size_t kMaxRecentTitleLength = 200;
 
 // The two shortcuts a fresh profile starts with. They are written once,
 // the first time this page loads on a profile that has never had a
@@ -60,252 +61,170 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
 <link rel="icon" type="image/svg+xml" href="brand.svg">
 <link rel="stylesheet" href="chrome://theme/colors.css?sets=ui,chrome">
 <style>
-  /* The colours are the window's own, read from the browser's theme, so the
-     page follows the colour scheme and the light or dark mode. The values
-     in light-dark() are only the fallback if the theme stylesheet fails. */
+  /* The colours are the TOKENS rows of the compiled design, light and
+     dark. Only the accent is the window's own, so the page follows the
+     accent the person chose. */
   :root { color-scheme: light dark;
-    --surface: var(--color-location-bar-background, light-dark(#faf9f6, #1c2422));
-    --paper: var(--color-dialog-background, light-dark(#ffffff, #252e2b));
-    --ink: var(--color-dialog-foreground, light-dark(#242e2d, #e8ede7));
-    --muted: var(--color-label-foreground-secondary, light-dark(#5d6966, #adb9b2));
-    --line: var(--color-bubble-border, light-dark(#d8ddd7, #414e47));
-    /* Field edges: 3:1 or more against the page in every scheme, so derived
-       from the ink and the page rather than fixed. */
-    --field: color-mix(in srgb, var(--ink) 52%, var(--surface));
-    --accent: var(--color-sys-primary, light-dark(#176b5b, #92d4bb));
-    --soft: var(--color-sys-primary-container, light-dark(#e5f1eb, #273f35));
-    --warn: light-dark(#9e3e24, #ffb69c);
-    --warn-soft: light-dark(#fbebe4, #412f28);
+    --page: light-dark(#f8f7f4, #151514);
+    --surface: light-dark(#ffffff, #1c1c1a);
+    --field: light-dark(#f4f3ef, #121211);
+    --hover: light-dark(#ebe9e4, #333330);
+    --line: light-dark(#e2dfd9, #2d2d2a);
+    --edge: light-dark(#8a867d, #77756d);
+    --ink: light-dark(#1f1e1c, #ecebe7);
+    --ink2: light-dark(#5d5a54, #a9a79f);
+    --ok: light-dark(#1a7f55, #4cc38a);
+    --bad: light-dark(#a3271c, #ff9a8f);
+    --bad-tint: light-dark(#fbe6e3, #3b1c1a);
+    --solid: light-dark(#1a1c22, #e8e9ed);
+    --solid-ink: light-dark(#ffffff, #14151a);
+    --accent: var(--color-sys-primary, light-dark(#4f46e5, #9b98ff));
   }
   * { box-sizing: border-box; }
-  body { font: 15px/1.6 system-ui, sans-serif; margin: 0;
-         background: var(--surface); color: var(--ink); }
+  body { margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+         align-items: center; background: var(--page); color: var(--ink);
+         font: 13px/1.4 Inter, "Segoe UI", system-ui, sans-serif; }
   /* Always wins over any author display rule, no matter its specificity,
      so a form given the hidden attribute is always actually hidden. */
   [hidden] { display: none !important; }
-  .home { max-width: 640px; margin: 0 auto; padding: 36px 24px 16px;
-          text-align: center; }
-  .home-brand { display: block; width: 44px; height: 44px;
-                margin: 0 auto 20px; }
-  .home h1 { font: 550 52px/1.08 system-ui, sans-serif;
-       letter-spacing: -0.045em; color: var(--ink); margin: 12px 0 18px; }
-  .intro { font-size: 15px; color: var(--muted); margin: 0 0 32px; }
-  .search-form { position: relative; display: flex; align-items: center;
-            gap: 10px;
-            background: var(--paper); border: 1px solid var(--field);
-            border-radius: 12px; padding: 5px 8px 5px 16px; margin: 0;
-            box-shadow: 0 3px 12px #00000003; text-align: start;
-            outline: 2px solid transparent; outline-offset: 3px;
-            transition: outline-color 120ms ease-out,
-                        border-color 120ms ease-out; }
-  .search-form:has(#q:focus-visible) { outline-color: var(--accent); }
-  @media (hover: hover) {
-    .search-form:hover { border-color: var(--ink); }
-  }
-  .search-form .icon { flex: none; color: var(--muted); }
-  .search-form .engine { width: auto; min-width: 36px; gap: 4px;
-        display: flex; align-items: center; padding: 0 6px;
-        color: var(--muted); }
-  .engine-mark { width: 22px; height: 22px; border-radius: 6px;
-        border: 1px solid var(--field); background: var(--paper);
-        color: var(--ink); font: 600 12px/20px Georgia, serif;
-        text-align: center; }
-  .engines { position: absolute; top: calc(100% + 6px); left: 0;
-        z-index: 2; min-width: 220px; margin: 0; padding: 6px;
-        list-style: none; background: var(--paper);
-        border: 1px solid var(--field); border-radius: 12px;
-        box-shadow: 0 8px 24px #0000001a;
-        transform-origin: top left; animation: pop-in 150ms ease-out; }
-  .engines[hidden] { display: none; }
-  @keyframes pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.98); } }
-  .search-form .engines button { width: 100%; height: auto; min-height: 36px;
-        display: flex; align-items: center; gap: 10px; padding: 6px 10px;
-        border-radius: 8px; text-align: start; font: inherit; }
-  .search-form .engines button[aria-selected="true"] { font-weight: 600; }
-  .search-form .engines button:disabled { cursor: default; color: var(--muted); }
-  .engines .note { font-size: 12px; color: var(--muted);
-        padding: 6px 10px 2px; }
-  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden;
-        clip-path: inset(50%); white-space: nowrap; }
-  .search-form input { flex: 1; min-width: 0; height: 36px;
-       line-height: 36px; border: none; background: transparent;
-       color: var(--ink); font: inherit; padding: 0; }
-  .search-form input:focus-visible { outline: none; }
-  .search-form input::placeholder { color: var(--muted); }
-  .search-form button { flex: none; width: 36px; height: 36px; border: none;
-        border-radius: 8px; background: transparent; color: var(--ink);
-        display: grid; place-items: center; padding: 0; cursor: pointer; }
-  .search-form button { transition: background-color 120ms ease-out,
-        transform 120ms ease-out; }
-  .search-form button:active { transform: scale(0.94); }
-  @media (hover: hover) {
-    .search-form button:hover { background: var(--soft); }
-  }
-  .search-form button svg { display: block; }
-  .shortcuts { display: flex; flex-wrap: wrap; justify-content: center;
-               gap: 32px; margin: 30px 0 0; padding: 0; list-style: none; }
-  .shortcuts li { position: relative; }
+  button { font: inherit; color: inherit; border: 0; background: none;
+           padding: 0; cursor: pointer; text-align: start; }
+  /* Kept empty for the account chips (Accounts, a later piece). */
+  .top { align-self: stretch; height: 56px; flex: none; display: flex;
+         align-items: center; justify-content: flex-end; gap: 6px;
+         padding: 0 20px; }
+  .home { width: 640px; max-width: calc(100% - 40px); margin-top: 44px;
+          display: flex; flex-direction: column; gap: 32px; }
+  section { display: flex; flex-direction: column; gap: 12px; }
+  .head { display: flex; align-items: center; justify-content: space-between; }
+  .label { margin: 0; font-size: 12.5px; font-weight: 500; color: var(--ink2); }
+  .edit { font-size: 12.5px; color: var(--ink2); border-radius: 5px; }
+  @media (hover: hover) { .edit:hover { color: var(--ink); } }
+  .shortcuts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+               gap: 10px; margin: 0; padding: 0; list-style: none; }
+  .shortcuts li { position: relative; min-width: 0; }
   /* Tiles arrive once per page load, a few ms apart. */
   @keyframes tile-in { from { opacity: 0; transform: translateY(6px); } }
   @keyframes tile-fade { from { opacity: 0; } }
   .shortcuts.appear li { animation: tile-in 220ms ease-out both;
         animation-delay: calc(var(--i, 0) * 30ms); }
-  .shortcut { display: flex; flex-direction: column;
-                        align-items: center; gap: 10px; width: 72px;
-                        color: inherit; text-decoration: none;
-                        background: transparent; border: none;
-                        padding: 9px; font: inherit; cursor: pointer;
-                        border-radius: 14px;
-                        transition: background-color 150ms ease-out,
-                                    transform 120ms ease-out; }
-  .shortcut:active { transform: scale(0.97); }
-  @media (hover: hover) {
-    .shortcut:hover { background: var(--soft); }
-    .shortcut:hover .shortcut-mark { border-color: var(--accent); }
-  }
-  .shortcut-mark { transition: border-color 150ms ease-out; }
-  .shortcut-mark { width: 42px; height: 42px; border-radius: 11px;
-          display: grid; place-items: center; background: var(--paper);
-          border: 1px solid var(--line); font: 21px/1 Georgia, serif;
-          color: var(--ink); }
-  .shortcut .name { max-width: 72px; overflow: hidden;
-          text-overflow: ellipsis; white-space: nowrap; font-size: 12px;
-          text-align: center; }
-  /* 24px hit target; always faintly there on touch, where there is no hover. */
-  .remove { position: absolute; top: 1px; right: -8px; width: 24px;
-            height: 24px; border-radius: 8px; border: none; padding: 0;
-            background: var(--paper); color: var(--muted);
-            cursor: pointer; font: inherit; line-height: 1; opacity: 0;
-            transition: opacity 120ms ease-out, background-color 120ms ease-out,
-                        transform 120ms ease-out; }
-  .shortcuts li:hover .remove, .remove:focus-visible { opacity: 1; }
+  .shortcut { width: 100%; height: 52px; display: flex; align-items: center;
+              gap: 12px; padding: 0 12px; border-radius: 9px;
+              text-decoration: none; color: var(--ink);
+              background: var(--surface); box-shadow: inset 0 0 0 1px var(--edge);
+              transition: background-color 150ms ease-out,
+                          transform 120ms ease-out; }
+  .shortcut:active { transform: scale(0.98); }
+  @media (hover: hover) { .shortcut:hover { background: var(--hover); } }
+  .shortcut-mark { width: 28px; height: 28px; flex: none; display: grid;
+                   place-items: center; border-radius: 7px;
+                   background: var(--field); color: var(--ink);
+                   font-size: 13px; font-weight: 600; }
+  .shortcut .name { min-width: 0; overflow: hidden; text-overflow: ellipsis;
+                    white-space: nowrap; font-weight: 500; }
+  .shortcut.add { color: var(--ink2); background: transparent;
+                  box-shadow: inset 0 0 0 1px var(--edge); }
+  /* Remove and Add a site show while editing; Add a site also shows when
+     there is nothing pinned, so the grid is never an empty box. */
+  .pinned:not(.editing) .remove,
+  .pinned:not(.editing):not(.empty) .shortcut.add { display: none; }
+  .remove { position: absolute; top: -8px; right: -8px; width: 24px;
+            height: 24px; border-radius: 12px; display: grid;
+            place-items: center; line-height: 1; color: var(--ink2);
+            background: var(--surface); box-shadow: 0 0 0 1px var(--line);
+            transition: transform 120ms ease-out; }
   .remove:active { transform: scale(0.92); }
-  @media (hover: hover) {
-    .remove:hover { background: var(--soft); color: var(--ink); }
-  }
-  @media (hover: none) { .remove { opacity: 0.7; } }
-  .editor { display: grid; gap: 10px; background: var(--paper);
-              border: 1px solid var(--line); border-radius: 10px;
-              padding: 16px 18px; margin-top: 24px; text-align: start; }
-  .editor label { display: grid; gap: 4px; font-size: 13px;
-                     color: var(--muted); }
-  .editor input { border: 1px solid var(--field);
-                     background: var(--surface); color: var(--ink);
-                     border-radius: 8px; font: inherit;
-                     padding: 8px 10px; }
+  @media (hover: hover) { .remove:hover { color: var(--ink); } }
+  .editor { display: grid; gap: 10px; padding: 16px 18px;
+            border-radius: 10px; background: var(--surface);
+            box-shadow: 0 0 0 1px var(--line); }
+  .editor label { display: grid; gap: 4px; font-size: 13px; color: var(--ink2); }
+  .editor input { height: 34px; padding: 0 10px; border: 0;
+                  border-radius: 7px; background: var(--field);
+                  color: var(--ink); font: inherit;
+                  box-shadow: inset 0 0 0 1px var(--edge); }
   .buttons { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  button.primary { background: var(--accent); color: var(--surface);
-                   border: none; border-radius: 9px; padding: 9px 16px;
-                   font: inherit; cursor: pointer;
-                   transition: background-color 150ms ease-out,
-                               transform 120ms ease-out; }
-  button.primary:active, button.secondary:active { transform: scale(0.98); }
-  @media (hover: hover) {
-    button.primary:hover { background: color-mix(in srgb, var(--accent) 86%, var(--ink)); }
-    button.secondary:hover { background: var(--soft); }
-  }
-  button.secondary { background: transparent; color: inherit;
-                      border: 1px solid var(--line); border-radius: 9px;
-                      padding: 9px 16px; font: inherit; cursor: pointer;
-                      transition: background-color 150ms ease-out,
-                                  transform 120ms ease-out; }
-  .text-button { background: none; border: none; padding: 0; margin: 0;
-                 color: var(--accent); font: inherit; font-weight: 600;
-                 font-size: 13px; cursor: pointer; text-decoration: none; }
-  .bad { color: var(--warn); margin: 0; font-size: 13px; }
-  .home-bottom { display: flex; gap: 9px; align-items: center;
-                 justify-content: center; margin: 32px 0 0;
-                 font-size: 12px; color: var(--muted); }
-  .home-bottom.off { color: var(--warn); background: var(--warn-soft);
-                    border-radius: 10px; padding: 10px 16px;
-                    width: fit-content; max-width: 100%;
-                    margin-inline: auto; }
-  .home-colours { margin: 14px 0 0; font-size: 12px; text-align: center; }
-  .status-dot { flex: none; width: 7px; height: 7px; border-radius: 50%;
-         background: var(--accent); }
-  .home-bottom.off .status-dot { background: var(--warn); }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-  @media (max-width: 800px) {
-    .home { padding-top: 48px; }
-  }
-  @media (max-width: 500px) {
-    .home { padding-inline: 20px; }
-    .home h1 { font-size: 40px; }
-    .shortcuts { gap: 16px; }
-    .home-bottom { flex-wrap: wrap; }
+  .primary, .secondary { height: 32px; padding: 0 14px; border-radius: 7px;
+                         font-weight: 500;
+                         transition: transform 120ms ease-out; }
+  .primary { background: var(--solid); color: var(--solid-ink); }
+  .secondary { box-shadow: inset 0 0 0 1px var(--edge); }
+  .primary:active, .secondary:active { transform: scale(0.98); }
+  .text-link { color: var(--ink); text-decoration: underline;
+               text-underline-offset: 3px; }
+  .bad { color: var(--bad); margin: 0; font-size: 13px; }
+  .recent-list { margin: 0; padding: 0; list-style: none; border-radius: 10px;
+                 background: var(--surface); box-shadow: 0 0 0 1px var(--line); }
+  .recent-list li + li { box-shadow: inset 0 1px 0 var(--line); }
+  .recent-row { height: 42px; display: flex; align-items: center; gap: 12px;
+                padding: 0 14px; text-decoration: none; color: var(--ink);
+                border-radius: 10px; }
+  @media (hover: hover) { .recent-row:hover { background: var(--hover); } }
+  .recent-row svg { flex: none; }
+  .recent-row .title { flex: 1; min-width: 0; overflow: hidden;
+                       text-overflow: ellipsis; white-space: nowrap; }
+  .recent-row .site { color: var(--ink2); white-space: nowrap; }
+  .recent-row .when { width: 70px; flex: none; text-align: end;
+                      font-size: 12px; color: var(--ink2); }
+  .spacer { flex: 1; }
+  .protection { margin: 32px 0 22px; display: flex; align-items: center;
+                gap: 8px; font-size: 12.5px; color: var(--ink2); }
+  .protection svg { flex: none; color: var(--ok); }
+  .protection.off { padding: 8px 14px; border-radius: 9px;
+                    color: var(--bad); background: var(--bad-tint); }
+  .protection.off svg { color: var(--bad); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (max-width: 560px) {
+    .shortcuts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .recent-row .site { display: none; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .remove, .shortcut, .shortcut-mark, .search-form, .search-form button,
-    button.primary, button.secondary { transition: none; }
-    .shortcut:active, .search-form button:active, .remove:active,
-    button.primary:active, button.secondary:active { transform: none; }
-    .engines { animation: none; }
+    .shortcut, .remove, .primary, .secondary { transition: none; }
+    .shortcut:active, .remove:active, .primary:active,
+    .secondary:active { transform: none; }
     .shortcuts.appear li { animation: tile-fade 150ms ease-out both;
           animation-delay: 0ms; }
   }
   @media (forced-colors: active) {
-    .shortcut, .shortcut-mark, .search-form, .editor input, button {
+    .shortcut, .remove, .editor input, .recent-list, button {
       border: 1px solid ButtonText;
     }
-    .search-form:has(#q:focus-visible) { outline-color: Highlight; }
-    .status-dot { background: CanvasText; forced-color-adjust: none; }
+    .protection svg { color: CanvasText; }
   }
 </style>
 </head>
 <body>
+<div class="top" id="accounts"></div>
 <main class="home">
-  <img class="home-brand" src="brand.svg" width="44" height="44" alt=""
-      aria-hidden="true">
-  <h1>Just a Browser.</h1>
-  <p class="intro">Find what you&rsquo;re looking for.</p>
-  <form class="search-form" id="search" role="search">
-    <button id="engine" class="engine" type="button"
-        aria-haspopup="dialog" aria-expanded="false"
-        aria-label="Choose a search engine">
-      <span class="engine-mark" id="engine-mark" aria-hidden="true">?</span>
-      <svg aria-hidden="true" focusable="false" width="10" height="10"
-          viewBox="0 0 10 10">
-        <polyline points="2,3.5 5,6.5 8,3.5" fill="none"
-            stroke="currentColor" stroke-width="1.5"
-            stroke-linecap="round"/>
-      </svg>
-    </button>
-    <!-- Only where the browser's own menu cannot be shown, such as a
-         window with no address bar. -->
-    <ul class="engines" id="engines" role="listbox"
-        aria-label="Search engines" hidden></ul>
-    <p class="sr-only" id="engine-status" role="status"></p>
-    <input id="q" type="search" autocomplete="off" spellcheck="false"
-        aria-label="Search the web">
-    <button id="go" type="submit" aria-label="Search">
-      <svg aria-hidden="true" focusable="false" width="16" height="16"
-          viewBox="0 0 20 20">
-        <line x1="4" y1="10" x2="15" y2="10" stroke="currentColor"
-            stroke-width="1.8" stroke-linecap="round"/>
-        <polyline points="10,5 15,10 10,15" fill="none"
-            stroke="currentColor" stroke-width="1.8"
-            stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-    </button>
-  </form>
-  <ul class="shortcuts" id="shortcuts" aria-label="Shortcuts"></ul>
-  <form class="editor" id="add-form" hidden>
-    <label>Name <input id="add-title" maxlength="40" autocomplete="off"></label>
-    <label>Address <input id="add-url" autocomplete="off"
-        placeholder="example.com"></label>
-    <p id="add-bad" class="bad" hidden role="alert">Not a web address.</p>
-    <div class="buttons">
-      <button class="primary" type="submit">Add</button>
-      <button class="secondary" type="button" id="add-cancel">Cancel</button>
-      <a class="text-button" href="chrome://settings/appearance">More appearance settings</a>
+  <section class="pinned" id="pinned" aria-labelledby="pinned-label">
+    <div class="head">
+      <h2 class="label" id="pinned-label">Pinned sites</h2>
+      <button class="edit" id="edit" type="button" aria-pressed="false">Edit</button>
     </div>
-  </form>
-  <p class="home-bottom" id="protection" hidden role="status">
-    <span class="status-dot" aria-hidden="true"></span>
-    <span id="protection-text"></span>
-  </p>
-  <p class="home-colours"><button class="text-button" id="colours" type="button">Colours</button></p>
+    <ul class="shortcuts" id="shortcuts" aria-labelledby="pinned-label"></ul>
+    <form class="editor" id="add-form" hidden>
+      <label>Name <input id="add-title" maxlength="40" autocomplete="off"></label>
+      <label>Address <input id="add-url" autocomplete="off"
+             placeholder="example.com" spellcheck="false"></label>
+      <p id="add-bad" class="bad" hidden role="alert">Not a web address.</p>
+      <div class="buttons">
+        <button class="primary" type="submit">Add</button>
+        <button class="secondary" type="button" id="add-cancel">Cancel</button>
+      </div>
+    </form>
+  </section>
+  <section id="recent" aria-labelledby="recent-label" hidden>
+    <h2 class="label" id="recent-label">Pick up where you left off</h2>
+    <ul class="recent-list" id="recent-list" aria-labelledby="recent-label"></ul>
+  </section>
 </main>
+<div class="spacer"></div>
+<p class="protection" id="protection" hidden role="status">
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none"
+       stroke="currentColor" stroke-width="2" stroke-linejoin="round"
+       aria-hidden="true"><path d="M12 3l7.5 2.8v5.7c0 4.3-3 7.7-7.5 9-4.5-1.3-7.5-4.7-7.5-9V5.8z"></path></svg>
+  <span id="protection-text"></span>
+</p>
 <script src="newtab.js"></script>
 </body>
 </html>
@@ -321,6 +240,25 @@ function node(tag, className, text) {
   return n;
 }
 
+// A 2px line icon, as the design draws them.
+function glyph(d, size) {
+  var ns = 'http://www.w3.org/2000/svg';
+  var svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('width', size);
+  svg.setAttribute('height', size);
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  var path = document.createElementNS(ns, 'path');
+  path.setAttribute('d', d);
+  svg.append(path);
+  return svg;
+}
+
 var shortcutCount = 0;
 var tilesShown = false;
 
@@ -329,9 +267,10 @@ function showShortcuts(list) {
   ul.replaceChildren();
   shortcutCount = list.length;
   // Only the first time: a tile added or removed later should not make
-  // the whole row arrive again.
+  // the whole grid arrive again.
   ul.classList.toggle('appear', !tilesShown);
   tilesShown = true;
+  el('pinned').classList.toggle('empty', list.length === 0);
   list.forEach(function(item, index) {
     var li = node('li');
     li.style.setProperty('--i', index);
@@ -341,7 +280,7 @@ function showShortcuts(list) {
     a.append(node('span', 'shortcut-mark', (name || '?').charAt(0).toUpperCase()),
              node('span', 'name', name));
     a.setAttribute('aria-label', name);
-    var remove = node('button', 'remove', '\u00d7');
+    var remove = node('button', 'remove', '×');
     remove.type = 'button';
     remove.setAttribute('aria-label', 'Remove ' + name);
     remove.addEventListener('click', function() {
@@ -353,17 +292,27 @@ function showShortcuts(list) {
   if (list.length < 8) {
     var li = node('li');
     li.style.setProperty('--i', list.length);
-    var add = node('button', 'shortcut');
+    var add = node('button', 'shortcut add');
     add.type = 'button';
     add.id = 'add-open';
-    add.setAttribute('aria-label', 'Customize shortcuts');
-    add.append(node('span', 'shortcut-mark', '\uff0b'),
-               node('span', 'name', 'Customize'));
+    add.append(node('span', 'shortcut-mark', '+'),
+               node('span', 'name', 'Add a site'));
     add.addEventListener('click', openForm);
     li.append(add);
     ul.append(li);
   }
 }
+
+// Edit shows the remove buttons and Add a site; Done hides them again.
+function setEditing(on) {
+  el('pinned').classList.toggle('editing', on);
+  el('edit').textContent = on ? 'Done' : 'Edit';
+  el('edit').setAttribute('aria-pressed', on ? 'true' : 'false');
+  if (!on) closeForm();
+}
+el('edit').addEventListener('click', function() {
+  setEditing(!el('pinned').classList.contains('editing'));
+});
 
 function openForm() {
   el('add-form').hidden = false;
@@ -385,6 +334,41 @@ el('add-form').addEventListener('submit', function(e) {
 });
 el('add-cancel').addEventListener('click', closeForm);
 
+// Today, Yesterday, a weekday within the week, a date before that.
+function whenText(ms) {
+  var then = new Date(ms);
+  var day = new Date(ms);
+  day.setHours(0, 0, 0, 0);
+  var today = new Date();
+  today.setHours(0, 0, 0, 0);
+  var days = Math.round((today - day) / 86400000);
+  if (days <= 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  if (days < 7) return then.toLocaleDateString(undefined, {weekday: 'long'});
+  return then.toLocaleDateString(undefined, {day: 'numeric', month: 'short'});
+}
+
+var PAGE_ICON = 'M6.5 3.5h7.5l4 4V20.5h-11.5zM14 3.5v4h4M9.5 12h5M9.5 15.5h5';
+
+// The last few pages from history. Titles come from the sites, so they
+// only ever go in as text.
+window.loadRecent = function(list) {
+  var ul = el('recent-list');
+  ul.replaceChildren();
+  list.forEach(function(item) {
+    var li = node('li');
+    var a = node('a', 'recent-row');
+    a.href = item.url;
+    a.append(glyph(PAGE_ICON, 15),
+             node('span', 'title', item.title || item.host),
+             node('span', 'site', item.host),
+             node('span', 'when', whenText(item.when)));
+    li.append(a);
+    ul.append(li);
+  });
+  el('recent').hidden = list.length === 0;
+};
+
 // Only claims a state the browser can actually back up: real status from
 // the scam and ad-blocking services, never a guess, and never nothing
 // while there is something true to say.
@@ -397,212 +381,21 @@ function showProtection(p) {
   var ready = scamOk && p.ads === 'ready';
   var failed = p.scam === 'failed' || p.ads === 'failed';
   text.replaceChildren();
+  var details = node('a', 'text-link', 'Details');
+  details.href = 'chrome://settings/protection';
   if (failed) {
     box.hidden = false;
     box.classList.add('off');
-    var details = node('a', 'text-button', 'View →');
-    details.href = 'chrome://settings/protection';
     text.append('Protection needs attention. ', details);
   } else if (ready) {
     box.hidden = false;
     box.classList.remove('off');
-    var view = node('a', 'text-button', 'View →');
-    view.href = 'chrome://settings/protection';
-    text.append('Protection is on. You\u2019re in control. ', view);
+    text.append('Protection is on. ', details);
   } else {
     box.hidden = true;
     setTimeout(function() { chrome.send('getProtection'); }, 2000);
   }
 }
-
-var searchUrl = '';
-var searchName = '';
-// An engine chosen from the menu for the next search only.
-var onceUrl = '';
-
-el('search').addEventListener('submit', function(e) {
-  e.preventDefault();
-  var typed = el('q').value.trim();
-  var url = onceUrl || searchUrl;
-  if (!typed || !url) return;
-  location.href = url.replace('%s', encodeURIComponent(typed));
-});
-
-var engineButton = el('engine');
-var engineList = el('engines');
-
-function closeEngines(focusButton) {
-  engineList.hidden = true;
-  engineButton.setAttribute('aria-expanded', 'false');
-  if (focusButton) engineButton.focus();
-}
-
-function openEngines() {
-  engineList.hidden = false;
-  engineButton.setAttribute('aria-expanded', 'true');
-  var current = engineList.querySelector('[aria-selected="true"]') ||
-      engineList.querySelector('button:not(:disabled)');
-  if (current) current.focus();
-}
-
-// Arrow keys, Home and End move between the engines that can be chosen.
-// A disabled one cannot take focus, so it is skipped rather than left
-// to stop the arrows there.
-engineList.addEventListener('keydown', function(e) {
-  var items = Array.from(engineList.querySelectorAll('button:not(:disabled)'));
-  var at = items.indexOf(document.activeElement);
-  var next = -1;
-  if (e.key === 'Escape') {
-    e.preventDefault();
-    closeEngines(true);
-    return;
-  }
-  if (!items.length) return;
-  if (e.key === 'ArrowDown') {
-    next = (at + 1) % items.length;
-  } else if (e.key === 'ArrowUp') {
-    next = (at - 1 + items.length) % items.length;
-  } else if (e.key === 'Home') {
-    next = 0;
-  } else if (e.key === 'End') {
-    next = items.length - 1;
-  }
-  if (next >= 0) {
-    e.preventDefault();
-    items[next].focus();
-  }
-});
-
-// Tab, or a click somewhere else, closes the list, so it is never left
-// open behind the focus.
-engineList.addEventListener('focusout', function(e) {
-  if (!engineList.hidden && !engineList.contains(e.relatedTarget) &&
-      e.relatedTarget !== engineButton) {
-    closeEngines(false);
-  }
-});
-
-document.addEventListener('click', function(e) {
-  if (!engineList.hidden && !el('search').contains(e.target)) {
-    closeEngines(false);
-  }
-});
-
-// The in-page list, kept for when the browser's menu is unavailable.
-function showEngines(engines, canChange) {
-  engineList.textContent = '';
-  engines.forEach(function(engine) {
-    var item = document.createElement('li');
-    item.setAttribute('role', 'none');
-    var pick = document.createElement('button');
-    pick.type = 'button';
-    pick.tabIndex = -1;
-    pick.setAttribute('role', 'option');
-    pick.setAttribute('aria-selected', engine.isDefault ? 'true' : 'false');
-    var mark = document.createElement('span');
-    mark.className = 'engine-mark';
-    mark.setAttribute('aria-hidden', 'true');
-    mark.textContent = (engine.name || '?').charAt(0).toUpperCase();
-    pick.append(mark, engine.name);
-    pick.disabled = !engine.isDefault && (!canChange || !engine.canBeDefault);
-    pick.addEventListener('click', function() {
-      closeEngines(true);
-      if (!engine.isDefault) {
-        chrome.send('setSearchEngine', [engine.id]);
-      }
-    });
-    item.append(pick);
-    engineList.append(item);
-  });
-  engineList.removeAttribute('aria-describedby');
-  if (!canChange) {
-    var note = document.createElement('li');
-    note.className = 'note';
-    note.id = 'engines-note';
-    note.setAttribute('role', 'none');
-    note.textContent = 'Change the search engine in a normal window.';
-    engineList.append(note);
-    engineList.setAttribute('aria-describedby', 'engines-note');
-  }
-  // With search off, even one engine is worth offering.
-  engineButton.hidden = engines.length < (searchUrl ? 2 : 1);
-}
-
-// The engine list is the browser's own menu, the same one the address
-// bar's engine icon opens. It is placed under this button.
-engineButton.addEventListener('click', function() {
-  if (!engineList.hidden) {
-    closeEngines(true);
-    return;
-  }
-  var r = engineButton.getBoundingClientRect();
-  engineButton.setAttribute('aria-expanded', 'true');
-  chrome.send('showEngineMenu', [Math.round(r.left), Math.round(r.top),
-                                 Math.round(r.width), Math.round(r.height)]);
-});
-
-// No address bar to hang the menu from: use the list in the page.
-window.engineMenuUnavailable = function() {
-  openEngines();
-};
-
-engineButton.addEventListener('keydown', function(e) {
-  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-    e.preventDefault();
-    engineButton.click();
-  }
-});
-
-window.engineMenuClosed = function() {
-  engineButton.setAttribute('aria-expanded', 'false');
-};
-
-// A search with this engine, this once. With words typed it goes now;
-// otherwise the box says which engine the next search will use.
-window.searchOnce = function(engine) {
-  var typed = el('q').value.trim();
-  if (typed) {
-    location.href = engine.url.replace('%s', encodeURIComponent(typed));
-    return;
-  }
-  onceUrl = engine.url;
-  el('q').disabled = false;
-  el('q').placeholder = 'Search ' + engine.name;
-  el('engine-status').textContent = 'Next search: ' + engine.name;
-  el('q').focus();
-};
-
-// "Make default" in the menu: the new default wins over a one-time
-// choice, and the box says so.
-window.defaultChanged = function() {
-  onceUrl = '';
-  chrome.send('getSearch');
-};
-
-// Test only, see kSearchMenuTestSwitch.
-window.searchMenuTestResult = function(result) {
-  window.lastSearchMenuTest = result;
-};
-
-window.loadSearch = function(engine) {
-  searchUrl = engine.url || '';
-  var engines = engine.engines || [];
-  // No engine to search with, for example after "No Search" in
-  // settings: say so, and keep the list so one can be chosen here.
-  searchName = engine.name || '';
-  el('q').disabled = !searchUrl && !onceUrl;
-  if (!onceUrl) {
-    el('q').placeholder = searchUrl ? 'Search ' + (searchName || 'the web') :
-                                      'Search is off. Choose an engine.';
-  }
-  el('engine-mark').textContent =
-      searchUrl ? (engine.name || '?').charAt(0).toUpperCase() : '?';
-  engineButton.setAttribute('aria-label', searchUrl ?
-      'Search engine: ' + (engine.name || 'none') + '. Choose another' :
-      'Choose a search engine');
-  showEngines(engines, engine.canChange);
-  el('search').hidden = !searchUrl && !engines.length;
-};
 
 window.loadShortcuts = function(list, added, rejected) {
   showShortcuts(list);
@@ -612,14 +405,13 @@ window.loadShortcuts = function(list, added, rejected) {
   } else if (added) {
     closeForm();
   }
-};
 window.loadProtection = showProtection;
-// Opens the browser's colour picker (Cool, Beige, light and dark).
-el('colours').addEventListener('click', function() {
-  chrome.send('openColours');
-});
+// Test only, see kSearchMenuTestSwitch.
+window.searchMenuTestResult = function(result) {
+  window.lastSearchMenuTest = result;
+};
 chrome.send('getShortcuts');
-chrome.send('getSearch');
+chrome.send('getRecent');
 chrome.send('getProtection');
 )SCRIPT";
 
@@ -663,41 +455,6 @@ bool IsAllowedInternalShortcut(const GURL& url) {
          url.host() == "settings" && url.path() == "/reading";
 }
 
-// Where the address bar sends a search. The prefs hold a template with
-// {searchTerms} in it, and are only written once someone picks an
-// engine, so until then it is the one we ship with. The first is not
-// always written; the mirrored copy is, whenever the default changes.
-constexpr const char* kSearchEnginePrefs[] = {
-    "default_search_provider_data.template_url_data",
-    "default_search_provider_data.mirrored_template_url_data",
-};
-constexpr char kDefaultSearchName[] = "DuckDuckGo";
-constexpr char kDefaultSearchUrl[] = "https://duckduckgo.com/?q=%s";
-
-// Turns a search engine's template into a plain url with one %s where the
-// typed words go. Returns nothing if it is not a web address we can use.
-std::string SearchUrlFromTemplate(const std::string& engine_url) {
-  const std::string terms = "{searchTerms}";
-  size_t at = engine_url.find(terms);
-  if (at == std::string::npos) {
-    return std::string();
-  }
-  std::string url = engine_url;
-  url.replace(at, terms.size(), "%s");
-  // Drop the other {...} parts, which stand for things like the client id
-  // and are optional.
-  while ((at = url.find('{')) != std::string::npos) {
-    size_t end = url.find('}', at);
-    if (end == std::string::npos) {
-      return std::string();
-    }
-    url.erase(at, end - at + 1);
-  }
-  GURL parsed(url);
-  return parsed.is_valid() && parsed.SchemeIsHTTPOrHTTPS() ? url
-                                                           : std::string();
-}
-
 class NewTabMessageHandler : public content::WebUIMessageHandler {
  public:
   NewTabMessageHandler() = default;
@@ -717,25 +474,16 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
         base::BindRepeating(&NewTabMessageHandler::HandleRemoveShortcut,
                             base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
-        "setSearchEngine",
-        base::BindRepeating(&NewTabMessageHandler::HandleSetSearchEngine,
+        "getRecent",
+        base::BindRepeating(&NewTabMessageHandler::HandleGetRecent,
                             base::Unretained(this)));
-    web_ui()->RegisterMessageCallback(
-        "getSearch", base::BindRepeating(&NewTabMessageHandler::HandleGetSearch,
-                                         base::Unretained(this)));
     web_ui()->RegisterMessageCallback(
         "getProtection",
         base::BindRepeating(&NewTabMessageHandler::HandleGetProtection,
                             base::Unretained(this)));
-    web_ui()->RegisterMessageCallback(
-        "showEngineMenu",
-        base::BindRepeating(&NewTabMessageHandler::HandleShowEngineMenu,
-                            base::Unretained(this)));
-    web_ui()->RegisterMessageCallback(
-        "openColours",
-        base::BindRepeating(&NewTabMessageHandler::HandleOpenColours,
-                            base::Unretained(this)));
-    // Test only: nothing a page can ask for without the switch.
+    // Test only: nothing a page can ask for without the switch. Kept with
+    // the search box gone, since it also drives the address bar's engine
+    // menu (smoke_search_menu.py).
     if (base::CommandLine::ForCurrentProcess()->HasSwitch(
             kSearchMenuTestSwitch)) {
       web_ui()->RegisterMessageCallback(
@@ -857,152 +605,35 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
     SendShortcuts(/*added=*/false, /*rejected=*/false);
   }
 
-  // Makes the chosen engine the browser's default, then shows it. The
-  // address bar follows, because this is the same default it reads.
-  void HandleSetSearchEngine(const base::ListValue& args) {
-    if (!args.empty() && args[0].is_string()) {
-      SetDefaultSearchEngine(web_ui()->GetWebContents()->GetBrowserContext(),
-                             args[0].GetString());
-    }
-    HandleGetSearch(args);
-  }
-
-  void HandleGetSearch(const base::ListValue& args) {
-    content::BrowserContext* context =
-        web_ui()->GetWebContents()->GetBrowserContext();
-    base::ListValue engines;
-    std::string name;
-    std::string url;
-    for (const SearchEngine& engine : GetSearchEngines(context)) {
-      base::DictValue item;
-      item.Set("id", engine.id);
-      item.Set("name", engine.name);
-      item.Set("isDefault", engine.is_default);
-      item.Set("canBeDefault", engine.can_be_default);
-      engines.Append(std::move(item));
-      if (engine.is_default) {
-        name = engine.name;
-        url = SearchUrlFromTemplate(engine.url);
-      }
-    }
-    // Whenever there is a list, it is shown, even with no engine to
-    // search with as the default ("No Search" in settings, which the
-    // list leaves out): the page then says search is off and offers
-    // the list, rather than showing nothing.
-    if (!engines.empty()) {
-      base::DictValue out;
-      out.Set("name", name);
-      out.Set("url", url);
-      out.Set("engines", std::move(engines));
-      out.Set("canChange", !context->IsOffTheRecord());
-      AllowJavascript();
-      web_ui()->CallJavascriptFunctionUnsafe("loadSearch", out);
-      return;
-    }
-
-    // The engine list is not loaded yet: fall back to the pref, and ask
-    // again shortly for the list. Once someone has chosen, the choice
-    // stands, even one that turns search off; only a profile that never
-    // chose gets the engine we ship with.
-    name = kDefaultSearchName;
-    url = kDefaultSearchUrl;
-    if (PrefService* prefs = GetPrefs()) {
-      for (const char* pref : kSearchEnginePrefs) {
-        const base::DictValue& engine = prefs->GetDict(pref);
-        if (const std::string* engine_url = engine.FindString("url")) {
-          url = SearchUrlFromTemplate(*engine_url);
-          const std::string* short_name = engine.FindString("short_name");
-          name = short_name ? *short_name : std::string();
-          break;
-        }
-      }
-    }
-    base::DictValue out;
-    out.Set("name", name);
-    out.Set("url", url);
-    out.Set("engines", base::ListValue());
-    out.Set("canChange", false);
-    AllowJavascript();
-    web_ui()->CallJavascriptFunctionUnsafe("loadSearch", out);
-    if (search_retries_ < kMaxSearchRetries) {
-      ++search_retries_;
-      base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
-          FROM_HERE,
-          base::BindOnce(&NewTabMessageHandler::RetryGetSearch,
-                         weak_factory_.GetWeakPtr()),
-          base::Seconds(1));
-    }
-  }
-
-  void RetryGetSearch() { HandleGetSearch(base::ListValue()); }
-
-  // Opens the browser's own colour picker (Customize Chrome), where the
-  // colour schemes and the light or dark mode are chosen.
-  void HandleOpenColours(const base::ListValue& args) {
-    OpenColourPickerForPage(web_ui()->GetWebContents());
-  }
-
-  // [left, top, width, height] of the engine button, in the page's CSS
-  // pixels. The browser shows its own search engine menu under it.
-  void HandleShowEngineMenu(const base::ListValue& args) {
-    AllowJavascript();
-    const bool numbers =
-        std::ranges::all_of(args, [](const base::Value& value) {
-          return value.is_int() || value.is_double();
-        });
-    if (args.size() != 4 || !numbers) {
-      return;
-    }
-    // The page sends doubles: saturate, since a plain cast of one out of
-    // the int range (or NaN) is undefined behaviour.
-    const gfx::Rect anchor(base::saturated_cast<int>(args[0].GetDouble()),
-                           base::saturated_cast<int>(args[1].GetDouble()),
-                           base::saturated_cast<int>(args[2].GetDouble()),
-                           base::saturated_cast<int>(args[3].GetDouble()));
-    const bool shown = ShowSearchEngineMenuForPage(
-        web_ui()->GetWebContents(), anchor,
-        base::BindRepeating(&NewTabMessageHandler::OnEngineMenuPick,
-                            weak_factory_.GetWeakPtr()),
-        base::BindRepeating(&NewTabMessageHandler::OnEngineMenuDefaultChanged,
-                            weak_factory_.GetWeakPtr()),
-        base::BindOnce(&NewTabMessageHandler::OnEngineMenuClosed,
+  // "Pick up where you left off": the last few web pages in history.
+  void HandleGetRecent(const base::ListValue& args) {
+    tracker_.TryCancelAll();
+    GetRecentPagesForPage(
+        web_ui()->GetWebContents(), kMaxRecentPages, &tracker_,
+        base::BindOnce(&NewTabMessageHandler::OnRecentPages,
                        weak_factory_.GetWeakPtr()));
-    if (!shown) {
-      web_ui()->CallJavascriptFunctionUnsafe("engineMenuUnavailable");
-    }
   }
 
-  // An engine chosen to search with once: the page gets its search
-  // address, never a template, and only a web address.
-  void OnEngineMenuPick(const std::string& keyword) {
-    if (!IsJavascriptAllowed()) {
-      return;
-    }
-    for (const SearchEngine& engine :
-         GetSearchEngines(web_ui()->GetWebContents()->GetBrowserContext())) {
-      if (engine.keyword != keyword) {
+  void OnRecentPages(std::vector<RecentPage> pages) {
+    base::ListValue list;
+    for (const RecentPage& page : pages) {
+      // Checked again here: only a web address becomes a link.
+      if (!page.url.SchemeIsHTTPOrHTTPS()) {
         continue;
       }
-      const std::string url = SearchUrlFromTemplate(engine.url);
-      if (!url.empty()) {
-        web_ui()->CallJavascriptFunctionUnsafe(
-            "searchOnce",
-            base::DictValue().Set("name", engine.name).Set("url", url));
+      std::string title = base::UTF16ToUTF8(page.title);
+      if (title.size() > kMaxRecentTitleLength) {
+        title.resize(kMaxRecentTitleLength);
       }
-      return;
+      base::DictValue item;
+      item.Set("title", title);
+      item.Set("url", page.url.spec());
+      item.Set("host", page.url.host());
+      item.Set("when", page.when.InMillisecondsFSinceUnixEpoch());
+      list.Append(std::move(item));
     }
-  }
-
-  void OnEngineMenuDefaultChanged() {
-    if (IsJavascriptAllowed()) {
-      web_ui()->CallJavascriptFunctionUnsafe("defaultChanged");
-    }
-  }
-
-  void OnEngineMenuClosed() {
-    if (IsJavascriptAllowed()) {
-      web_ui()->CallJavascriptFunctionUnsafe("engineMenuClosed");
-    }
+    AllowJavascript();
+    web_ui()->CallJavascriptFunctionUnsafe("loadRecent", list);
   }
 
   void HandleSearchMenuTest(const base::ListValue& args) {
@@ -1027,9 +658,8 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
     web_ui()->CallJavascriptFunctionUnsafe("loadProtection", out);
   }
 
-  // A few more tries for the engine list if it was not loaded yet.
-  static constexpr int kMaxSearchRetries = 5;
-  int search_retries_ = 0;
+  // Cancels a history query still running when the page goes away.
+  base::CancelableTaskTracker tracker_;
   base::WeakPtrFactory<NewTabMessageHandler> weak_factory_{this};
 };
 
