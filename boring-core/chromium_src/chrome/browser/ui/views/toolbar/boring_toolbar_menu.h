@@ -34,6 +34,7 @@ class BoringToolbarMenu : public views::ContextMenuController,
   ~BoringToolbarMenu() override;
 
   // ui::SimpleMenuModel::Delegate:
+  bool IsCommandIdEnabled(int command_id) const override;
   void ExecuteCommand(int command_id, int event_flags) override;
 
  private:
@@ -45,6 +46,8 @@ class BoringToolbarMenu : public views::ContextMenuController,
 
   // Test hook, see the constructor.
   void RunTestStep(const std::string& step);
+  void ReportMenu(std::string report);
+  void WriteTestReport(std::string text);
 
   const raw_ptr<BrowserWindowInterface> browser_;
   const raw_ptr<views::View> toolbar_;

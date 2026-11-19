@@ -54,6 +54,28 @@ index 3c89142..cc04e15 100644
            .Build());
  
    root_action_item_->AddChild(
+diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui/browser_command_controller.cc
+index 82b3966..d485d47 100644
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -2204,6 +2204,17 @@ void BrowserCommandController::UpdateCommandsForIncognitoAvailability() {
+     command_updater_->UpdateCommandEnabled(IDC_IMPORT_SETTINGS, false);
+     command_updater_->UpdateCommandEnabled(IDC_OPTIONS, false);
+   }
++
++  // boring: the pinned Settings and Extensions buttons follow their
++  // commands, so they are off where policy or guest mode turns those off.
++  if (auto* const options_action = FindAction(kActionOptions, browser_)) {
++    options_action->SetEnabled(command_updater_->IsCommandEnabled(IDC_OPTIONS));
++  }
++  if (auto* const extensions_action =
++          FindAction(kActionManageExtensions, browser_)) {
++    extensions_action->SetEnabled(
++        command_updater_->IsCommandEnabled(IDC_MANAGE_EXTENSIONS));
++  }
+ }
+ 
+ void BrowserCommandController::UpdateCommandsForExtensionsMenu() {
 diff --git a/chrome/browser/ui/views/toolbar/BUILD.gn b/chrome/browser/ui/views/toolbar/BUILD.gn
 index 3b919b3..9dc60b7 100644
 --- a/chrome/browser/ui/views/toolbar/BUILD.gn

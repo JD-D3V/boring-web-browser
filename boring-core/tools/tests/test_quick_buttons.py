@@ -34,6 +34,7 @@ VIEW_CC = "chrome/browser/ui/views/toolbar/toolbar_view.cc"
 VIEW_H = "chrome/browser/ui/views/toolbar/toolbar_view.h"
 BUILD = "chrome/browser/ui/views/toolbar/BUILD.gn"
 ID_MAP = "chrome/browser/ui/actions/chrome_actions.cc"
+CONTROLLER = "chrome/browser/ui/browser_command_controller.cc"
 
 
 def sections(text):
@@ -66,8 +67,18 @@ class PatchTest(unittest.TestCase):
     def test_touches_only_the_files_it_should(self):
         self.assertEqual(
             set(self.files),
-            {ACTIONS, HANDLER, MOJOM, VIEW_CC, VIEW_H, BUILD, ID_MAP},
+            {ACTIONS, HANDLER, MOJOM, VIEW_CC, VIEW_H, BUILD, ID_MAP, CONTROLLER},
         )
+
+    def test_pinned_buttons_follow_their_commands(self):
+        # Guest mode and the incognito policy turn the commands off; the
+        # pinned buttons run the actions, so the actions follow.
+        text = added(self.files[CONTROLLER])
+        self.assertIn("FindAction(kActionOptions, browser_)", text)
+        self.assertIn("IsCommandEnabled(IDC_OPTIONS)", text)
+        self.assertIn("FindAction(kActionManageExtensions, browser_)", text)
+        self.assertIn("IsCommandEnabled(IDC_MANAGE_EXTENSIONS)", text)
+        self.assertEqual(removed(self.files[CONTROLLER]), "")
 
     def test_both_ids_get_a_string_both_ways(self):
         # Pinning writes the id's string to the pinned_actions pref and
@@ -80,7 +91,7 @@ class PatchTest(unittest.TestCase):
         self.assertEqual(text.count("E(kActionManageExtensions)"), 2)
 
     def test_it_stays_small(self):
-        self.assertLess(len(self.text.splitlines()), 220)
+        self.assertLess(len(self.text.splitlines()), 250)
 
     def test_settings_and_extensions_become_pinnable(self):
         text = added(self.files[ACTIONS])
@@ -182,8 +193,39 @@ class MenuTest(unittest.TestCase):
     def test_the_test_hook_does_nothing_without_its_switch(self):
         self.assertIn('HasSwitch("boring-toolbar-test")', self.cc)
 
+    def test_the_test_hook_runs_once_per_process(self):
+        self.assertIn("static bool test_step_posted = false;", self.cc)
+        self.assertIn("!test_step_posted && command_line.HasSwitch(", self.cc)
+        self.assertIn("test_step_posted = true;", self.cc)
+
+    def test_the_item_is_off_where_the_panel_cannot_open(self):
+        self.assertIn("BoringToolbarMenu::IsCommandIdEnabled", self.cc)
+        self.assertIn("IsCustomizeChromeEntryAvailable()", self.cc)
+
+    def test_the_menu_steps_send_a_real_right_click(self):
+        # Through the root view, so hit testing and the registered menu
+        # controllers are what the smoke test checks.
+        self.assertIn("root->OnMousePressed(press);", self.cc)
+        self.assertIn("root->OnMouseReleased(release);", self.cc)
+        self.assertIn("EF_RIGHT_MOUSE_BUTTON", self.cc)
+        self.assertNotIn("ShowContextMenuForView(", self.cc)
+
 
 class HelperTest(unittest.TestCase):
+    def test_parse_report_waits_for_the_end_line(self):
+        self.assertIsNone(sqb.parse_report("ours\t1\n"))
+        report = sqb.parse_report(
+            "hit\tToolbarView\nours\t1\nhwnd\t123\nitem\tCustomize toolbar\ton\n"
+            "button\tPinnedActionToolbarButton\tSettings\tSettings\toff\nend\n"
+        )
+        self.assertEqual(report["hit"], "ToolbarView")
+        self.assertEqual(report["ours"], "1")
+        self.assertEqual(report["hwnd"], 123)
+        self.assertEqual(report["items"], [("Customize toolbar", True)])
+        self.assertEqual(
+            report["buttons"], [("PinnedActionToolbarButton", "Settings", "Settings", False)]
+        )
+
     def test_find_key_looks_anywhere(self):
         self.assertEqual(
             sqb.find_key({"a": {"b": [{"pinned_actions": [1]}]}}, "pinned_actions"), [1]
