@@ -37,24 +37,48 @@ def read(p):
     return p.read_text(encoding="utf-8")
 
 
-class NewTabTextTest(unittest.TestCase):
-    def test_tagline_is_looking_for(self):
-        text = read(NEWTAB)
-        self.assertIn("Find what you&rsquo;re looking for.", text)
-        self.assertNotIn("Find what you came for", text)
+class NewTabPageTest(unittest.TestCase):
+    """The page as drawn (screens C01 and C02): no search box."""
 
-    def test_the_smoke_test_checks_the_new_tagline(self):
+    def test_the_drawn_sections_and_words_are_there(self):
+        text = read(NEWTAB)
+        for words in (
+            "Pinned sites",
+            "Pick up where you left off",
+            'id="accounts"',
+            "Protection is on. ",
+            "chrome://settings/protection",
+        ):
+            self.assertIn(words, text)
+
+    def test_the_old_page_is_gone(self):
+        text = read(NEWTAB)
+        for gone in (
+            'type="search"',
+            'id="engine"',
+            'id="colours"',
+            "Just a Browser",
+            "openColours",
+            "showEngineMenu",
+            "Find what you",
+        ):
+            self.assertNotIn(gone, text)
+
+    def test_a_title_only_ever_goes_in_as_text(self):
+        text = read(NEWTAB)
+        self.assertNotIn("innerHTML", text)
+        self.assertIn("node('span', 'title', item.title || item.host)", text)
+
+    def test_the_two_bridges_nothing_calls_are_gone(self):
+        for path in (BRIDGE_H, MENU):
+            text = read(path)
+            self.assertNotIn("OpenColourPickerForPage", text)
+            self.assertNotIn("ShowSearchEngineMenuForPage", text)
+
+    def test_the_smoke_test_checks_the_new_page(self):
         text = read(SMOKE)
-        self.assertNotIn("you came for", text)
-        self.assertIn("looking for", text)
-
-
-class NewTabFitsShortWindowTest(unittest.TestCase):
-    def test_top_spacing_is_trimmed_so_the_footer_fits(self):
-        text = read(NEWTAB)
-        self.assertIn("padding: 36px 24px 16px;", text)
-        self.assertIn("justify-content: center; margin: 32px 0 0;", text)
-        self.assertNotIn("padding: 70px 24px 56px;", text)
+        self.assertIn("no search box", text)
+        self.assertIn("Pick up where you left off", text)
 
 
 class WelcomePageTest(unittest.TestCase):
@@ -70,32 +94,6 @@ class WelcomePageTest(unittest.TestCase):
         text = read(self.WELCOME)
         self.assertRegex(text, r"\.brand \{[^}]*margin: 0 auto 24px")
         self.assertRegex(text, r"h1 \{[^}]*text-align: center")
-
-
-class ColoursLinkTest(unittest.TestCase):
-    def test_page_has_a_colours_button_that_asks_the_browser(self):
-        text = read(NEWTAB)
-        self.assertRegex(text, r'<button[^>]*id="colours"[^>]*>Colours</button>')
-        self.assertIn("chrome.send('openColours')", text)
-
-    def test_handler_is_registered_and_calls_the_bridge(self):
-        text = read(NEWTAB)
-        self.assertRegex(
-            text,
-            r'"openColours",\s*base::BindRepeating\(&NewTabMessageHandler::HandleOpenColours',
-        )
-        self.assertIn("OpenColourPickerForPage(web_ui()->GetWebContents())", text)
-
-    def test_bridge_is_declared_for_the_page_and_defined_in_the_browser_ui(self):
-        self.assertIn(
-            "bool OpenColourPickerForPage(content::WebContents* page);", read(BRIDGE_H)
-        )
-        menu = read(MENU)
-        self.assertIn("bool OpenColourPickerForPage(content::WebContents* page)", menu)
-        self.assertIn("IDC_CUSTOMIZE_CHROME", menu)
-        self.assertIn(
-            "GlobalBrowserCollection::GetInstance()->FindBrowserWithTab(page)", menu
-        )
 
 
 class SearchMenuLookTest(unittest.TestCase):

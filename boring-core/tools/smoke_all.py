@@ -79,6 +79,8 @@ CHECKS = [
     ),
     ("157 fixes (Protection switches, features kept off)", "smoke_r3_fixes.py"),
     ("deleted sessions gone from the encrypted copies", "smoke_session_copies.py"),
+    # Compiled UI pages (ledger items 8 and 10).
+    ("scam warning page as drawn", "smoke_warning_page.py"),
 ]
 
 # Every smoke_*.py that is not a check, with the reason. A new file must

@@ -2,7 +2,9 @@
 """Check the search engine menu on the address bar and the new tab page.
 
 Drives the browser's native menu through the new tab page's test hook
-(--boring-search-menu-test), never through OS input:
+(--boring-search-menu-test), never through OS input. The new tab page has
+no engine button of its own any more (it has no search box), so the menu
+is the address bar's alone:
 
   - the address bar's engine icon is a button on the new tab page, and
     pressing it opens the menu, which lists the browser's engines;
@@ -10,7 +12,6 @@ Drives the browser's native menu through the new tab page's test hook
     and the default does not change;
   - "Make default" changes the default and the address bar placeholder;
   - Escape and Done roll the menu up;
-  - the new tab page's engine button opens the same menu under itself;
   - on a real web page the icon is still Chromium's page info.
 
 Nothing leaves the machine: every host except 127.0.0.1 resolves to
@@ -71,25 +72,17 @@ def open_newtab(b):
     while time.monotonic() < deadline:
         if b.run(
             "return location.host === 'boring-newtab' && "
-            "!document.getElementById('engine').hidden"
+            "typeof window.searchMenuTestResult === 'function'"
         ):
             return True
         time.sleep(0.1)
     return False
 
 
-def open_from_button(b):
-    """Press the new tab page's engine button, as a click on the element."""
-    b.run("document.getElementById('engine').click()")
+def open_from_icon(b):
+    """Press the address bar's engine icon on an empty bar."""
+    hook(b, "openFromOmnibox")
     return wait_state(b, lambda s: s.get("open") and s.get("progress") == 1)
-
-
-def button_rect(b):
-    return b.run(
-        "var r = document.getElementById('engine').getBoundingClientRect();"
-        "return {x: r.left, y: r.top, width: r.width, height: r.height,"
-        " scale: window.devicePixelRatio};"
-    )
 
 
 class _Page(BaseHTTPRequestHandler):
@@ -172,29 +165,12 @@ def main():
         print("one-time search went to:", landed)
 
         open_newtab(b)
-        state = open_from_button(b)
+        state = open_from_icon(b)
         engines = state.get("engines", [])
         still = next((e for e in engines if e.get("isDefault")), {})
         checks["a one-time search leaves the default alone"] = still.get(
             "keyword"
         ) == default.get("keyword")
-
-        # The new tab page's own button: the same menu, under the button.
-        rect = button_rect(b)
-        anchor = state.get("anchor", {})
-        bounds = state.get("bounds", {})
-        checks["new tab button opens the menu under itself"] = (
-            state.get("open") is True
-            and abs(anchor.get("width", 0) - rect["width"]) <= 2
-            and abs(anchor.get("height", 0) - rect["height"]) <= 2
-            and bounds.get("y", 0) >= anchor.get("y", 0) + anchor.get("height", 0) - 8
-        )
-        checks["new tab button says the menu is open"] = (
-            b.run(
-                "return document.getElementById('engine').getAttribute('aria-expanded')"
-            )
-            == "true"
-        )
 
         # Make default.
         before = (hook(b, "iconState") or {}).get("placeholder", "")
@@ -228,21 +204,7 @@ def main():
         hook(b, "escape")
         state = wait_state(b, lambda s: not s.get("open"))
         checks["Escape rolls the menu up"] = state.get("open") is False
-        checks["new tab button says the menu is closed"] = (
-            b.run(
-                "return document.getElementById('engine').getAttribute('aria-expanded')"
-            )
-            == "false"
-        )
-        checks["new tab page follows the new default"] = bool(
-            b.run(
-                "return document.getElementById('q').placeholder === "
-                "'Search ' + arguments[0]",
-                [target.get("name", "?")],
-            )
-        )
-
-        open_from_button(b)
+        open_from_icon(b)
         hook(b, "done")
         state = wait_state(b, lambda s: not s.get("open"))
         checks["Done rolls the menu up"] = state.get("open") is False
