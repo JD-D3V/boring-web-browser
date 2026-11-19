@@ -506,6 +506,9 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   }
   // boring: end cui-tabgroups
   // boring: cui-toolbar
+  // The hairline ahead of the menu button is a ToolbarDivider, which
+  // paints in this id: the line token, as drawn.
+  mixer[kColorToolbarExtensionSeparatorEnabled] = {p.line};
   // boring: end cui-toolbar
   // boring: cui-menu
   // boring: end cui-menu

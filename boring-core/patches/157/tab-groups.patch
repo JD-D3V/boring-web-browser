@@ -1,19 +1,20 @@
 diff --git a/chrome/browser/ui/views/tabs/tab_group_underline.h b/chrome/browser/ui/views/tabs/tab_group_underline.h
 --- a/chrome/browser/ui/views/tabs/tab_group_underline.h
 +++ b/chrome/browser/ui/views/tabs/tab_group_underline.h
-@@ -25,8 +25,10 @@
+@@ -25,7 +25,12 @@ class TabGroupUnderline : public views::View {
    METADATA_HEADER(TabGroupUnderline, views::View)
  
   public:
 -  static constexpr int kStrokeThickness =
--      views::FocusRing::kDefaultHaloThickness;
 +  // boring: the line under a group is 3 DIP, as in the compiled design,
 +  // not the 2 DIP focus halo. The outline Chromium draws round the open
-+  // tab of a group shares it, so the two stay joined.
++  // tab of a group keeps the halo's thickness (a heavier outline is a
++  // parked idea).
 +  static constexpr int kStrokeThickness = 3;
++  static constexpr int kActiveTabOutlineThickness =
+       views::FocusRing::kDefaultHaloThickness;
  
    static int GetStrokeInset();
- 
 diff --git a/chrome/browser/ui/views/tabs/common/tab_group_view_layout.cc b/chrome/browser/ui/views/tabs/common/tab_group_view_layout.cc
 --- a/chrome/browser/ui/views/tabs/common/tab_group_view_layout.cc
 +++ b/chrome/browser/ui/views/tabs/common/tab_group_view_layout.cc
@@ -111,7 +112,7 @@ diff --git a/chrome/browser/ui/views/tabs/common/horizontal_tab_style_views.cc b
  #include "chrome/browser/ui/views/tabs/tab.h"
  #include "chrome/browser/ui/views/tabs/tab/glow_hover_controller.h"
  #include "chrome/browser/ui/views/tabs/tab_group_underline.h"
-@@ -554,7 +555,11 @@
+@@ -554,7 +555,11 @@ float HorizontalTabStyleViews::GetSeparatorOpacity(bool for_layout,
          return delegate->IsActive() || delegate->IsSelected() ||
                 delegate->IsHovering() ||
                 (delegate->IsPinned() &&
@@ -124,7 +125,17 @@ diff --git a/chrome/browser/ui/views/tabs/common/horizontal_tab_style_views.cc b
        };
  
    // These tab states all have visible backgrounds. Separators must not
-@@ -797,9 +802,52 @@
+@@ -673,7 +678,8 @@ float HorizontalTabStyleViews::GetHoverOpacity() const {
+ int HorizontalTabStyleViews::GetStrokeThickness() const {
+   if (delegate_->GetGroup().has_value() && !delegate_->IsInFocusedGroup() &&
+       delegate_->IsActive()) {
+-    return TabGroupUnderline::kStrokeThickness;
++    // boring: the outline keeps its own thickness, not the group line's.
++    return TabGroupUnderline::kActiveTabOutlineThickness;
+   }
+ 
+   if (delegate_->IsActive()) {
+@@ -797,9 +803,52 @@ void HorizontalTabStyleViews::PaintTabBackgroundFill(
    gfx::ScopedCanvas scoped_canvas(canvas);
    const float scale = canvas->UndoDeviceScaleFactor();
  

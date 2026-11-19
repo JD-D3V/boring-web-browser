@@ -153,17 +153,30 @@ diff --git a/chrome/browser/ui/views/bookmarks/bookmark_bar_view.cc b/chrome/bro
    int width = View::width() - x - kBookmarkBarTrailingMargin;
  
    const int button_height =
-@@ -2082,7 +2084,9 @@ void BookmarkBarView::UpdateAppearanceForTheme() {
+@@ -2082,15 +2084,18 @@ void BookmarkBarView::UpdateAppearanceForTheme() {
  
    const SkColor color = color_provider->GetColor(kColorBookmarkBarForeground);
    {
 -    all_bookmarks_button_->SetEnabledTextColors(color);
+-    ui::ImageModel all_bookmarks_icon = chrome::GetBookmarkFolderIcon(
+-        chrome::BookmarkFolderIconType::kNormal, kColorBookmarkFolderIcon);
 +    // boring: All bookmarks in the secondary ink, as drawn.
 +    all_bookmarks_button_->SetEnabledTextColors(
 +        color_provider->GetColor(ui::kColorLabelForegroundSecondary));
-     ui::ImageModel all_bookmarks_icon = chrome::GetBookmarkFolderIcon(
-         chrome::BookmarkFolderIconType::kNormal, kColorBookmarkFolderIcon);
++    // boring: All bookmarks takes the ribbon glyph (compiled-icons.patch).
++    ui::ImageModel all_bookmarks_icon = ui::ImageModel::FromVectorIcon(
++        kBoringMarkIcon, kColorBookmarkFolderIcon);
      all_bookmarks_button_->SetImageModel(views::Button::STATE_NORMAL,
+                                          all_bookmarks_icon);
+     all_bookmarks_button_->SetImageModel(
+         views::Button::STATE_DISABLED,
+-        chrome::GetBookmarkFolderIcon(chrome::BookmarkFolderIconType::kNormal,
+-                                      ui::kColorIconDisabled));
++        ui::ImageModel::FromVectorIcon(kBoringMarkIcon,
++                                       ui::kColorIconDisabled));
+   }
+ 
+   {
 diff --git a/chrome/browser/ui/views/bookmarks/bookmark_button.cc b/chrome/browser/ui/views/bookmarks/bookmark_button.cc
 --- a/chrome/browser/ui/views/bookmarks/bookmark_button.cc
 +++ b/chrome/browser/ui/views/bookmarks/bookmark_button.cc
