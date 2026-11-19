@@ -287,4 +287,23 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   // It is painted over the row, so it has to be see-through or it covers
   // the text: a light wash of the accent.
   mixer[kColorHoverButtonBackgroundHovered] = {SkColorSetA(p.accent, 0x24)};
+
+  // The main menu's cards and tiles (views/boring/boring_app_menu.cc), as
+  // in design/v9-menu: the address bar's field colour in light, a little
+  // of the ink over the paper in dark. A palette whose field is the paper
+  // itself (Beige light) takes the ink wash too, so the cards still show.
+  mixer[kColorAppMenuToolsAndActionsBackground] = {
+      !dark && p.field != p.paper
+          ? p.field
+          : color_utils::AlphaBlend(p.ink, p.paper, 0.058f)};
+  // A row or tile you hover in the main menu takes the mock's wash of the
+  // accent, 14% in light and 20% in dark. The tint above hardly shows on
+  // the card's fill.
+  const SkColor menu_card_hover = SkColorSetA(p.accent, dark ? 0x33 : 0x24);
+  mixer[ui::kColorAppMenuRowBackgroundHovered] = {menu_card_hover};
+  // The zoom row's round buttons sit on a card: paper in light, a faint
+  // ink in dark.
+  mixer[ui::kColorMenuButtonBackground] = {dark ? SkColorSetA(p.ink, 0x1A)
+                                                : p.paper};
+  mixer[ui::kColorMenuButtonBackgroundSelected] = {menu_card_hover};
 }

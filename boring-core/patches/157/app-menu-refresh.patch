@@ -1,0 +1,315 @@
+diff --git a/chrome/app/chrome_command_ids.h b/chrome/app/chrome_command_ids.h
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -297,6 +297,10 @@
+ #define IDC_BORING_PROTECTION 40307
+ // boring: close every window and clear this session's data.
+ #define IDC_BORING_FORGET_SESSION 40308
++// boring: the main menu's tile row (new tab, window, Incognito) and its
++// bottom bar (Settings, Exit). Placeholders, like IDC_ZOOM_MENU.
++#define IDC_BORING_APP_MENU_TILES 40309
++#define IDC_BORING_APP_MENU_BAR 40310
+ 
+ // Spell-check
+ #define IDC_SPELLCHECK_SUGGESTION_0     41000
+diff --git a/chrome/browser/ui/toolbar/app_menu_model.h b/chrome/browser/ui/toolbar/app_menu_model.h
+--- a/chrome/browser/ui/toolbar/app_menu_model.h
++++ b/chrome/browser/ui/toolbar/app_menu_model.h
+@@ -408,6 +408,9 @@
+   // Models for the special menu items with buttons.
+   std::unique_ptr<ui::ButtonMenuItemModel> edit_menu_item_model_;
+   std::unique_ptr<ui::ButtonMenuItemModel> zoom_menu_item_model_;
++  // boring: the tile row at the top and the bar at the bottom.
++  std::unique_ptr<ui::ButtonMenuItemModel> boring_tiles_model_;
++  std::unique_ptr<ui::ButtonMenuItemModel> boring_bar_model_;
+ 
+   // Bookmark submenu.
+   std::unique_ptr<BookmarkSubMenuModel> bookmark_sub_menu_model_;
+diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/toolbar/app_menu_model.cc
+--- a/chrome/browser/ui/toolbar/app_menu_model.cc
++++ b/chrome/browser/ui/toolbar/app_menu_model.cc
+@@ -1999,25 +1999,24 @@
+              !browser_->GetProfile()->IsGuestSession()) {
+     new_tab_string_id = IDS_NEW_INCOGNITO_TAB;
+   }
+-  AddItemWithStringIdAndVectorIcon(
+-      this, IDC_NEW_TAB, new_tab_string_id,
+-      features::IsRoundedIconsEnabled() ? kTabIcon : kNewTabRefreshOldIcon);
+-
+-  AddItemWithStringIdAndVectorIcon(
+-      this, IDC_NEW_WINDOW, IDS_NEW_WINDOW,
+-      features::IsRoundedIconsEnabled() ? kNewWindowIcon : kNewWindowOldIcon);
++  // boring: new tab, new window and Incognito are three tiles in one row
++  // (BoringAppMenuTiles in app_menu.cc), not three rows.
++  boring_tiles_model_ =
++      std::make_unique<ui::ButtonMenuItemModel>(IDS_NEW_TAB, this);
++  boring_tiles_model_->AddGroupItemWithStringId(IDC_NEW_TAB,
++                                                new_tab_string_id);
++  boring_tiles_model_->AddGroupItemWithStringId(IDC_NEW_WINDOW,
++                                                IDS_NEW_WINDOW);
+ 
+   // This menu item is not visible in Guest Mode. If incognito mode is not
+   // available, it will be shown in disabled state. (crbug.com/40703208)
+   if (!browser_->GetProfile()->IsGuestSession()) {
+-    AddItemWithStringIdAndVectorIcon(
+-        this, IDC_NEW_INCOGNITO_WINDOW, IDS_NEW_INCOGNITO_WINDOW,
+-        features::IsRoundedIconsEnabled() ? kIncognitoIcon
+-                                          : kIncognitoRefreshMenuOldIcon);
+-    SetElementIdentifierAt(
+-        GetIndexOfCommandId(IDC_NEW_INCOGNITO_WINDOW).value(),
+-        kIncognitoMenuItem);
+-
++    boring_tiles_model_->AddGroupItemWithStringId(IDC_NEW_INCOGNITO_WINDOW,
++                                                  IDS_NEW_INCOGNITO_WINDOW);
++  }
++  AddButtonItem(IDC_BORING_APP_MENU_TILES, boring_tiles_model_.get());
++
++  if (!browser_->GetProfile()->IsGuestSession()) {
+     bool isolated_mode_enabled =
+         enterprise_isolated_mode::IsolatedModeReplacesIncognito(
+             browser_->GetProfile());
+@@ -2031,7 +2030,8 @@
+     }
+   }
+ 
+-  AddSeparator(ui::NORMAL_SEPARATOR);
++  // boring: the rows below sit in cards under three plain headings.
++  AddTitle(u"Browse");
+ 
+   if (!browser_->GetProfile()->IsGuestSession()) {
+     sub_menus_.push_back(
+@@ -2132,9 +2132,9 @@
+   SetElementIdentifierAt(GetIndexOfCommandId(IDC_CLEAR_BROWSING_DATA).value(),
+                          kClearBrowsingDataMenuItem);
+ 
+-  AddSeparator(ui::NORMAL_SEPARATOR);
++  AddTitle(u"Page");
+   CreateZoomMenu();
+-  AddSeparator(ui::NORMAL_SEPARATOR);
++  AddSeparator(ui::SPACING_SEPARATOR);
+ 
+   AddItemWithStringIdAndVectorIcon(
+       this, IDC_PRINT, IDS_PRINT,
+@@ -2269,7 +2269,23 @@
+   SetElementIdentifierAt(GetIndexOfCommandId(kMoreToolsMenuPlaceholder).value(),
+                          kMoreToolsMenuItem);
+ 
+-  AddSeparator(ui::NORMAL_SEPARATOR);
++  // boring: Protection, Forget this session and About share the last card.
++  AddTitle(u"Browser");
++
++  // boring: whether scam and ad blocking are really working, and the
++  // protection switches. Leads the Browser card so it is easy to find.
++  AddItemWithIcon(IDC_BORING_PROTECTION, u"Protection",
++                  ui::ImageModel::FromVectorIcon(
++                      vector_icons::kShieldIcon, ui::kColorMenuIcon,
++                      ui::SimpleMenuModel::kDefaultIconSize));
++
++  // boring: closes every tab and window and clears this session's
++  // history and site data, after one question.
++  AddItemWithIcon(IDC_BORING_FORGET_SESSION, u"Forget this session",
++                  ui::ImageModel::FromVectorIcon(
++                      kDeleteIcon, ui::kColorMenuIcon,
++                      ui::SimpleMenuModel::kDefaultIconSize));
++
+ // The help submenu is only displayed on official Chrome builds. As the
+ // 'About' item has been moved to this submenu, it's reinstated here for
+ // Chromium builds.
+@@ -2291,35 +2307,12 @@
+ #endif
+ #endif
+ 
+-  // boring: whether scam and ad blocking are really working, and the
+-  // protection switches. Sits next to Settings so it is easy to find.
+-  AddItemWithIcon(IDC_BORING_PROTECTION, u"Protection",
+-                  ui::ImageModel::FromVectorIcon(
+-                      vector_icons::kShieldIcon, ui::kColorMenuIcon,
+-                      ui::SimpleMenuModel::kDefaultIconSize));
+-
+-  // boring: closes every tab and window and clears this session's
+-  // history and site data, after one question.
+-  AddItemWithIcon(IDC_BORING_FORGET_SESSION, u"Forget this session",
+-                  ui::ImageModel::FromVectorIcon(
+-                      kDeleteIcon, ui::kColorMenuIcon,
+-                      ui::SimpleMenuModel::kDefaultIconSize));
+-
+-  AddItemWithStringIdAndVectorIcon(
+-      this, IDC_OPTIONS, IDS_SETTINGS,
+-      features::IsRoundedIconsEnabled() ? kSettingsIcon : kSettingsMenuOldIcon);
+-
+-  if (browser_defaults::kShowExitMenuItem) {
+-    AddItemWithStringIdAndVectorIcon(
+-        this, IDC_EXIT, IDS_EXIT,
+-        features::IsRoundedIconsEnabled() ? kExitToAppIcon : kExitMenuOldIcon);
+-  }
+-
+   // On Chrome OS, similar UI is displayed in the system tray menu, instead of
+   // this menu.
+ #if !BUILDFLAG(IS_CHROMEOS)
+   if (ShouldDisplayManagedUi(browser_->GetProfile())) {
+-    AddSeparator(ui::NORMAL_SEPARATOR);
++    // boring: its own card above the bottom bar.
++    AddSeparator(ui::SPACING_SEPARATOR);
+     AddItemWithIcon(
+         IDC_SHOW_MANAGEMENT_PAGE,
+         GetManagedUiMenuItemLabel(browser_->GetProfile()),
+@@ -2338,6 +2331,16 @@
+ #endif  // BUILDFLAG(IS_LINUX)
+   }
+ #endif  // !BUILDFLAG(IS_CHROMEOS)
++
++  // boring: Settings and Exit are the bar along the bottom (BoringAppMenuBar
++  // in app_menu.cc), not rows.
++  boring_bar_model_ =
++      std::make_unique<ui::ButtonMenuItemModel>(IDS_SETTINGS, this);
++  boring_bar_model_->AddGroupItemWithStringId(IDC_OPTIONS, IDS_SETTINGS);
++  if (browser_defaults::kShowExitMenuItem) {
++    boring_bar_model_->AddGroupItemWithStringId(IDC_EXIT, IDS_EXIT);
++  }
++  AddButtonItem(IDC_BORING_APP_MENU_BAR, boring_bar_model_.get());
+ 
+   uma_action_recorded_ = false;
+ }
+diff --git a/chrome/browser/ui/views/toolbar/app_menu.cc b/chrome/browser/ui/views/toolbar/app_menu.cc
+--- a/chrome/browser/ui/views/toolbar/app_menu.cc
++++ b/chrome/browser/ui/views/toolbar/app_menu.cc
+@@ -55,6 +55,7 @@
+ #include "chrome/browser/ui/toolbar/app_menu_model.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/views/bookmarks/app_menu_bookmark_delegate.h"
++#include "chrome/browser/ui/views/boring/boring_app_menu.h"
+ #include "chrome/browser/ui/views/chrome_layout_provider.h"
+ #include "chrome/browser/ui/views/frame/app_menu_button.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+@@ -1006,6 +1007,8 @@
+   // boring: one width for every colour scheme, so the menu does not shrink
+   // to its widest row.
+   root_->GetSubmenu()->set_minimum_preferred_width(360);
++  // boring: rows in cards under headings, as in design/v9-menu (mockup A).
++  boring::StyleAppMenu(root_);
+ 
+   int32_t types = views::MenuRunner::HAS_MNEMONICS;
+   if (for_drop()) {
+@@ -1074,13 +1077,22 @@
+   size_t index = 0;
+   ui::MenuModel::GetModelAndIndexForCommandId(command_id, &model, &index);
+   if (model->GetTypeAt(index) == ui::MenuModel::TYPE_TITLE) {
+-    return &views::TypographyProvider::Get().GetFont(
+-        views::style::CONTEXT_LABEL, views::style::STYLE_HEADLINE_5);
++    // boring: the small quiet headings of the approved menu.
++    return &boring::AppMenuHeadingFont();
+   }
+   return model->GetLabelFontListAt(index);
+ }
+ 
+ std::optional<SkColor> AppMenu::GetLabelColor(int command_id) const {
++  // boring: headings are quiet, in the colour of the shortcuts.
++  ui::MenuModel* model = model_;
++  size_t index = 0;
++  if (ui::MenuModel::GetModelAndIndexForCommandId(command_id, &model,
++                                                  &index) &&
++      model->GetTypeAt(index) == ui::MenuModel::TYPE_TITLE) {
++    return root_->GetSubmenu()->GetColorProvider()->GetColor(
++        ui::kColorMenuItemForegroundSecondary);
++  }
+   // Only return a color if there's a font list - otherwise this method will
+   // return a color for every recent tab item, not just the header.
+   // Ensure that we call GetColor() using the `root_`'s SubmenuView as this is
+@@ -1233,7 +1245,9 @@
+   // (increment/decrement/reset) and extension toolbar view are always enabled.
+   // The child views of these items enabled state updates appropriately.
+   if (command_id == AppMenuModel::kEditMenuPlaceholder ||
+-      command_id == AppMenuModel::kZoomMenuPlaceholder) {
++      command_id == AppMenuModel::kZoomMenuPlaceholder ||
++      command_id == IDC_BORING_APP_MENU_TILES ||
++      command_id == IDC_BORING_APP_MENU_BAR) {
+     return true;
+   }
+ 
+@@ -1271,7 +1285,9 @@
+   }
+ 
+   if (command_id == AppMenuModel::kEditMenuPlaceholder ||
+-      command_id == AppMenuModel::kZoomMenuPlaceholder) {
++      command_id == AppMenuModel::kZoomMenuPlaceholder ||
++      command_id == IDC_BORING_APP_MENU_TILES ||
++      command_id == IDC_BORING_APP_MENU_BAR) {
+     // These items are represented by child views. If ExecuteCommand is invoked
+     // it means the user clicked on the area around the buttons and we should
+     // not do anyting.
+@@ -1307,7 +1323,9 @@
+   }
+ 
+   if (command_id == AppMenuModel::kEditMenuPlaceholder ||
+-      command_id == AppMenuModel::kZoomMenuPlaceholder) {
++      command_id == AppMenuModel::kZoomMenuPlaceholder ||
++      command_id == IDC_BORING_APP_MENU_TILES ||
++      command_id == IDC_BORING_APP_MENU_BAR) {
+     // These have special child views; don't show the accelerator for them.
+     return false;
+   }
+@@ -1605,6 +1623,16 @@
+         break;
+       }
+ 
++      case IDC_BORING_APP_MENU_TILES:
++      case IDC_BORING_APP_MENU_BAR:
++        // boring: the tile row on top and the bar along the bottom.
++        boring::AddAppMenuButtonRow(
++            item, model->GetButtonMenuItemAt(i),
++            base::BindRepeating(&AppMenu::CancelAndEvaluate,
++                                base::Unretained(this)),
++            model->GetCommandIdAt(i) == IDC_BORING_APP_MENU_BAR);
++        break;
++
+       case AppMenuModel::kBookmarksMenuPlaceholder:
+         DCHECK(!bookmark_menu_);
+         bookmark_menu_ = item;
+diff --git a/chrome/browser/ui/views/toolbar/BUILD.gn b/chrome/browser/ui/views/toolbar/BUILD.gn
+--- a/chrome/browser/ui/views/toolbar/BUILD.gn
++++ b/chrome/browser/ui/views/toolbar/BUILD.gn
+@@ -169,6 +169,8 @@
+ 
+ source_set("impl") {
+   sources = [
++    "../boring/boring_app_menu.cc",
++    "../boring/boring_app_menu.h",
+     "../boring/boring_forget.cc",
+     "../boring/boring_forget.h",
+     "../boring/boring_memory_saver_bridge.cc",
+diff --git a/ui/views/controls/menu/menu_item_view.h b/ui/views/controls/menu/menu_item_view.h
+--- a/ui/views/controls/menu/menu_item_view.h
++++ b/ui/views/controls/menu/menu_item_view.h
+@@ -146,6 +146,11 @@
+     // only the row.
+     int top_padding = 0;
+     int bottom_padding = 0;
++    // boring: when set, the selection highlight is a rounded rect of this
++    // radius, inset `highlight_inset` more from the background's sides,
++    // rather than filling the row from edge to edge.
++    std::optional<int> highlight_radius = std::nullopt;
++    int highlight_inset = 0;
+   };
+ 
+   // Constructor for use with the top level menu item. This menu is never
+diff --git a/ui/views/controls/menu/menu_item_view.cc b/ui/views/controls/menu/menu_item_view.cc
+--- a/ui/views/controls/menu/menu_item_view.cc
++++ b/ui/views/controls/menu/menu_item_view.cc
+@@ -1403,6 +1403,17 @@
+       clip_to_background =
+           (menu_item_background_->top_padding > 0 && top_r > 0) ||
+           (menu_item_background_->bottom_padding > 0 && bot_r > 0);
++      // boring: a rounded highlight inset inside the background.
++      if (menu_item_background_->highlight_radius.has_value()) {
++        highlight_bounds.Inset(
++            gfx::InsetsF::VH(0, menu_item_background_->highlight_inset));
++        const SkScalar r =
++            SkIntToScalar(menu_item_background_->highlight_radius.value());
++        for (SkVector& radius : radii) {
++          radius = {r, r};
++        }
++        clip_to_background = false;
++      }
+     } else {
+       radii[2].set(bottom_rounded_corners_.lower_right(),
+                    bottom_rounded_corners_.lower_right());
