@@ -64,6 +64,20 @@ diff --git a/chrome/browser/ui/color/chrome_color_id.h b/chrome/browser/ui/color
  
  #if BUILDFLAG(IS_CHROMEOS)
  #define CHROME_PLATFORM_SPECIFIC_COLOR_IDS \
+diff --git a/chrome/browser/ui/side_panel/side_panel_entry.cc b/chrome/browser/ui/side_panel/side_panel_entry.cc
+--- a/chrome/browser/ui/side_panel/side_panel_entry.cc
++++ b/chrome/browser/ui/side_panel/side_panel_entry.cc
+@@ -156,6 +156,10 @@
+   }
+ 
+   int preferred_default_width = default_content_width_callback_.Run();
++  // boring: the Shelf is narrower than any other panel.
++  if (key_.id() == SidePanelEntryId::kBoringShelf) {
++    return preferred_default_width;
++  }
+   // The default width must be greater than or equal to the default side panel
+   // width.
+   return preferred_default_width >= kSidePanelDefaultContentWidth
 diff --git a/chrome/browser/ui/side_panel/side_panel_entry_id.h b/chrome/browser/ui/side_panel/side_panel_entry_id.h
 --- a/chrome/browser/ui/side_panel/side_panel_entry_id.h
 +++ b/chrome/browser/ui/side_panel/side_panel_entry_id.h

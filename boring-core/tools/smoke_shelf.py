@@ -175,6 +175,10 @@ def run_main(port, out, captures, dark, checks, full):
             # 1, 2. The toggle, then the Shelf that the hook opens.
             opened = wait_for(lambda: PANE in names_of(frame_under), 20)
             checks(f"{theme}: the Shelf opens (pane named {PANE})", bool(opened))
+            # The pane is named before its sections are built and before the
+            # panel has finished opening: wait for the tiles and the width.
+            wait_for(lambda: shelf_state(names_of(frame_under), titles)["tiles"] == titles, 10)
+            wait_for(lambda: width_taken(b) >= SHELF_WIDTH, 6)
             state = shelf_state(names_of(frame_under), titles)
             checks(f"{theme}: toggle named {TOGGLE}", state["toggle"], str(state))
             checks(f"{theme}: Pinned heading", state["pinned_heading"], str(state))
