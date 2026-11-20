@@ -57,6 +57,21 @@ class PassportSourceTest(unittest.TestCase):
         fields = set(re.findall(r"credential\.(\w+)", consumer))
         self.assertEqual(fields, {"blocked_by_user", "match_type"})
 
+    def test_card_fact_reads_only_predicted_types(self):
+        # Card details: the page asks if a field is predicted to be a card
+        # number or a security code. Nothing a person types is read.
+        helper = code(VIEWS / "boring_passport_tab_helper.cc")
+        start = helper.index("::OnFieldTypesDetermined(")
+        body = helper[start: helper.index("\n}\n", start)]
+        self.assertIn("field->Type().GetTypes()", body)
+        self.assertIn("CREDIT_CARD_NUMBER", body)
+        self.assertIn("CREDIT_CARD_VERIFICATION_CODE", body)
+        # The only thing taken from a field is its predicted type.
+        self.assertEqual(set(re.findall(r"field->(\w+)", body)), {"Type"})
+        for path in PASSPORT:
+            for word in ("LOG(", "DLOG(", "VLOG(", "DVLOG(", "base::debug"):
+                self.assertNotIn(word, code(path), f"{path.name} names {word}")
+
     def test_mark_never_reaches_a_protection(self):
         for folder in ("scam", "adblock", "privacy", "guards"):
             for path in (CORE / "components" / "boring" / folder).rglob("*.cc"):

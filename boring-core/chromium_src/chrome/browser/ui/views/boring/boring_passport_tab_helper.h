@@ -9,6 +9,9 @@
 #include "base/memory/weak_ptr.h"
 #include "base/task/cancelable_task_tracker.h"
 #include "base/time/time.h"
+#include "components/autofill/core/browser/foundations/autofill_manager.h"
+#include "components/autofill/core/browser/foundations/scoped_autofill_managers_observation.h"
+#include "components/autofill/core/common/unique_ids.h"
 #include "components/boring/passport/passport_words.h"
 #include "components/password_manager/core/browser/password_store/password_store_consumer.h"
 #include "components/prefs/pref_change_registrar.h"
@@ -31,7 +34,8 @@ struct DomainInfo;
 class BoringPassportTabHelper
     : public content::WebContentsObserver,
       public content::WebContentsUserData<BoringPassportTabHelper>,
-      public password_manager::PasswordStoreConsumer {
+      public password_manager::PasswordStoreConsumer,
+      public autofill::AutofillManager::Observer {
  public:
   struct Facts {
     // The page these facts are for; empty until the first page is seen.
@@ -88,6 +92,14 @@ class BoringPassportTabHelper
                      password_manager::PasswordStoreBackendError>
           results_or_error) override;
 
+  // autofill::AutofillManager::Observer: "this page asks for card details".
+  // Reads only the predicted type of each field (from the field's
+  // autocomplete word or autofill's own guess), never anything typed.
+  void OnFieldTypesDetermined(autofill::AutofillManager& manager,
+                              autofill::FormGlobalId form,
+                              FieldTypeSource source,
+                              bool small_forms_were_parsed) override;
+
   void StartQueries();
   void OnEngagedSites(int generation,
                       const std::vector<lookalikes::DomainInfo>& sites);
@@ -99,6 +111,8 @@ class BoringPassportTabHelper
   // Bumped per page so a late answer for an earlier page is dropped.
   int generation_ = 0;
   PrefChangeRegistrar marks_;
+  // Every frame's autofill manager of this tab, for the card fact.
+  autofill::ScopedAutofillManagersObservation autofill_managers_{this};
   base::CancelableTaskTracker tracker_;
   base::WeakPtrFactory<BoringPassportTabHelper> weak_factory_{this};
   // The password store answers through this; dropped per page.

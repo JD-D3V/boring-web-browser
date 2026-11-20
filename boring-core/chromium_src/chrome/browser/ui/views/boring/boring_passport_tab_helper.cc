@@ -12,6 +12,11 @@
 #include "chrome/browser/lookalikes/lookalike_url_service_factory.h"
 #include "chrome/browser/password_manager/factories/profile_password_store_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "components/autofill/content/browser/content_autofill_client.h"
+#include "components/autofill/core/browser/autofill_field.h"
+#include "components/autofill/core/browser/autofill_type.h"
+#include "components/autofill/core/browser/field_types.h"
+#include "components/autofill/core/browser/form_structure.h"
 #include "components/boring/core/boring_prefs.h"
 #include "components/boring/scam/lookalike_blocking_page.h"
 #include "components/boring/scam/lookalike_brands.h"
@@ -106,6 +111,14 @@ BoringPassportTabHelper::BoringPassportTabHelper(content::WebContents* contents)
   marks_.Add(boring::prefs::kPassportKnownSites,
              base::BindRepeating(&BoringPassportTabHelper::Changed,
                                  base::Unretained(this)));
+  // Frames that already exist are observed too; later ones are picked up as
+  // they appear. No client (a tab without autofill) means no card row.
+  if (autofill::ContentAutofillClient* client =
+          autofill::ContentAutofillClient::FromWebContents(contents)) {
+    autofill_managers_.Observe(
+        client, autofill::ScopedAutofillManagersObservation::
+                    InitializationPolicy::kObservePreexistingManagers);
+  }
   StartQueries();
 }
 
@@ -193,6 +206,29 @@ boring::passport::ChipInputs BoringPassportTabHelper::Inputs(
 void BoringPassportTabHelper::PrimaryPageChanged(content::Page& page) {
   StartQueries();
   Changed();
+}
+
+void BoringPassportTabHelper::OnFieldTypesDetermined(
+    autofill::AutofillManager& manager,
+    autofill::FormGlobalId form,
+    FieldTypeSource source,
+    bool small_forms_were_parsed) {
+  if (facts_.asks_card) {
+    return;  // Sticky for this page.
+  }
+  const autofill::FormStructure* structure = manager.FindCachedFormById(form);
+  if (!structure) {
+    return;
+  }
+  for (const auto& field : structure->fields()) {
+    const autofill::FieldTypeSet types = field->Type().GetTypes();
+    if (types.contains(autofill::CREDIT_CARD_NUMBER) ||
+        types.contains(autofill::CREDIT_CARD_VERIFICATION_CODE)) {
+      facts_.asks_card = true;
+      Changed();
+      return;
+    }
+  }
 }
 
 void BoringPassportTabHelper::StartQueries() {

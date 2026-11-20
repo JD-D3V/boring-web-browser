@@ -45,12 +45,14 @@ diff --git a/chrome/browser/ui/views/location_bar/BUILD.gn b/chrome/browser/ui/v
        "//chrome/browser/history_embeddings",
        "//chrome/browser/page_info",
        "//chrome/browser/resources/omnibox_popup:resources_grit",
-@@ -181,6 +190,16 @@
+@@ -181,6 +190,18 @@
        "//chrome/browser/web_applications:features",
        "//components/autofill/core/common:features",
        "//components/boring/newtab",
 +      "//components/boring/passport",  # boring: passport
 +      # boring: what the Passport reads.
++      "//components/autofill/content/browser",
++      "//components/autofill/core/browser",
 +      "//components/blocked_content",
 +      "//components/boring/adblock:browser",
 +      "//components/boring/core",

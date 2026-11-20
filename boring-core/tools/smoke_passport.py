@@ -27,9 +27,12 @@ What it asserts:
   9. Not private (http): Chromium's "Not secure" stays, no chip of ours, the
      Passport still opens and says "The connection is not private."
  10. Internal page (the new tab page): no chip, no Passport.
- 11. Captures: PrintWindow of our window with the Passport open on steps 2
+ 11. Card details: a page with cc-number and cc-csc fields gets the row "This
+     page asks for card details."; one with only name fields does not, and
+     the fact does not follow to the next page.
+ 12. Captures: PrintWindow of our window with the Passport open on steps 2
      and 4, light and dark, beside C05 and C04 (--captures).
-Not checked here: card details (not built yet), the Blocked chip (needs the
+Not checked here: the Blocked chip (needs the
 scam list setup of smoke_scam.py), Incognito and guest windows.
 
 Usage: python boring-core/tools/smoke_passport.py [--out DIR] [--captures DIR]
@@ -64,6 +67,17 @@ class _Page(BaseHTTPRequestHandler):
     def do_GET(self):
         # A hostile title: the Passport must never show it.
         body = b"<!doctype html><title>A site you know</title><p>A page.</p>"
+        # Two forms for the card fact: one with card fields named by their
+        # autocomplete words, one with only name fields. Never submitted.
+        if self.path.startswith("/pay"):
+            body = (b"<!doctype html><title>Pay</title><form>"
+                    b"<input autocomplete='cc-name'><input autocomplete='cc-number'>"
+                    b"<input autocomplete='cc-exp'><input autocomplete='cc-csc'>"
+                    b"</form>")
+        elif self.path.startswith("/names"):
+            body = (b"<!doctype html><title>Names</title><form>"
+                    b"<input autocomplete='given-name'><input autocomplete='family-name'>"
+                    b"<input autocomplete='email'></form>")
         self.send_response(200)
         self.send_header("Content-Type", "text/html")
         self.send_header("Content-Length", str(len(body)))
@@ -234,6 +248,33 @@ def run(base, out, captures, dark, checks, full):
         time.sleep(0.5)
         checks("Site settings opens page info", (hook(b, "passportPopup") or {}).get("pageInfoShowing"))
         hook(b, "closePopup")
+
+        # 6a. Card details: a page with card fields says so, one with only
+        # name fields says nothing (absence is never stated as safety).
+        go(b, f"https://royalpost.net:{https}/pay")
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and not (hook(b, "passportState") or {}).get("asksCard"):
+            time.sleep(0.1)
+        checks("card page: the helper saw the card fields",
+               (hook(b, "passportState") or {}).get("asksCard") is True)
+        state = popup(b)
+        checks("card page: the Passport says it asks for card details",
+               "This page asks for card details." in texts(state), str(texts(state)))
+        hook(b, "closePopup")
+        go(b, f"https://royalpost.net:{https}/names")
+        time.sleep(1.5)  # long enough for autofill to have parsed the form
+        checks("name fields only: no card fact",
+               (hook(b, "passportState") or {}).get("asksCard") is False)
+        state = popup(b)
+        checks("name fields only: the Passport has no card row",
+               "This page asks for card details." not in texts(state), str(texts(state)))
+        hook(b, "closePopup")
+        # Sticky per page, reset by the next page.
+        go(b, f"https://royalpost.net:{https}/pay")
+        time.sleep(1)
+        go(b, f"https://royalpost.net:{https}/names")
+        checks("the card fact does not follow to the next page",
+               (hook(b, "passportState") or {}).get("asksCard") is False)
 
         # 3. Look-alike of a site you use.
         go(b, f"https://rnyalpost.net:{https}/")
