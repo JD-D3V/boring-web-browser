@@ -112,7 +112,9 @@ class Wiring(unittest.TestCase):
 
     def test_patch_is_last_in_series(self):
         series = [s for s in read("patches", "series").splitlines() if s.strip()]
-        self.assertEqual(series[-1], "accounts.patch")
+        # Later pieces (the Passport) follow it; it stays after the Bar.
+        self.assertIn("accounts.patch", series)
+        self.assertGreater(series.index("accounts.patch"), series.index("bar.patch"))
         patch = read("patches", "157", "accounts.patch")
         self.assertIn("IsRegularProfile()", patch)
         self.assertIn("BoringAccountsButton", patch)
