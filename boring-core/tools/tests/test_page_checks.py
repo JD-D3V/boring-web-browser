@@ -152,6 +152,12 @@ class NewTabRecentTest(unittest.TestCase):
         self.assertIn("base::TruncateUTF8ToByteSize(title, kMaxRecentTitleLength)", text)
         self.assertNotIn("title.resize(kMaxRecentTitleLength)", text)
 
+    def test_shortcut_titles_are_cut_on_a_character_boundary(self):
+        # Ledger 51 (S-B5).
+        text = NEWTAB.read_text(encoding="utf-8")
+        self.assertIn("base::TruncateUTF8ToByteSize(title, kMaxTitleLength)", text)
+        self.assertNotIn("title.resize(kMaxTitleLength)", text)
+
     def test_the_host_is_never_hidden(self):
         css = page_checks.raw_string(NEWTAB.read_text(encoding="utf-8"), "kPage")
         self.assertIsNotNone(css)

@@ -689,8 +689,9 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
     }
     std::string title(
         base::TrimWhitespaceASCII(args[0].GetString(), base::TRIM_ALL));
+    // Cut on a character boundary, as the recent rows are.
     if (title.size() > kMaxTitleLength) {
-      title.resize(kMaxTitleLength);
+      title.resize(base::TruncateUTF8ToByteSize(title, kMaxTitleLength).size());
     }
     {
       ScopedListPrefUpdate update(prefs, kNewTabShortcutsPref);
