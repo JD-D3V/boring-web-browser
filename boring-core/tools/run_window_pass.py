@@ -72,6 +72,7 @@ ARGPARSE_TOOLS = {
     "smoke_toolbar.py",
     "smoke_customize_toolbar.py",  # boring: cui-menu
     "smoke_icons.py",  # boring: cui-icons
+    "smoke_bar.py",  # boring: cui-bar
     "test_update_local.py",
     "probe_focus.py",
 }
@@ -237,6 +238,16 @@ def build_steps(out, net_seconds):
             "four short browser launches, off screen",
             smoke_lines,
         ),
+        # boring: cui-bar
+        Step(
+            "1n-bar",
+            "the Bar: grouped results, Ctrl+K, Do rows beside screen C06, light and dark",
+            [tool("smoke_bar.py", "--out", str(shots / "bar"), "--captures", str(shots / "bar-captures"))],
+            900,
+            "eight short browser launches, off screen",
+            smoke_lines,
+        ),
+        # boring: end cui-bar
         Step(
             "2-takeover",
             "screen takeover: pointer lock and keyboard lock, real window",
