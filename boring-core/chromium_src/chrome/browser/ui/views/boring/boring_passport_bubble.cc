@@ -7,12 +7,15 @@
 
 #include "base/command_line.h"
 #include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/memory/ptr_util.h"
 #include "base/no_destructor.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/history/history_service_factory.h"
+#include "chrome/browser/lookalikes/lookalike_url_service.h"
+#include "chrome/browser/lookalikes/lookalike_url_service_factory.h"
 #include "chrome/browser/lookalikes/safety_tip_ui_helper.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -674,6 +677,12 @@ base::Value RunPassportTestCommand(content::WebContents* page,
     Profile* profile = Profile::FromBrowserContext(active->GetBrowserContext());
     if (auto* engagement = site_engagement::SiteEngagementService::Get(profile)) {
       engagement->ResetBaseScoreForURL(GURL(arg), args[2].GetInt());
+      // As if the engagement were older than the look-alike service's
+      // 60 second cache of engaged sites: refresh that cache now.
+      if (LookalikeUrlService* lookalikes =
+              LookalikeUrlServiceFactory::GetForProfile(profile)) {
+        lookalikes->ForceUpdateEngagedSites(base::DoNothing());
+      }
       out.Set("engaged", true);
     }
   } else if (command == "knownSites" && active) {
