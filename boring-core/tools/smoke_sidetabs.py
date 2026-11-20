@@ -157,6 +157,11 @@ def run_main(port, out, captures, dark, checks, full):
             for n in range(3):
                 b.run("window.open(arguments[0])", [f"{base}/Page{n}"])
                 time.sleep(0.4)
+            # Measure in the tab a person sees: WebDriver stays on the first
+            # tab, which window.open sent to the background, and a background
+            # tab is not resized when the list narrows. Switching to a tab
+            # makes it the active one.
+            b._req("POST", f"/session/{b.sid}/window", {"handle": handles(b)[-1]})
             under = DRIVER_PID[0]
             # 2. The list and its parts.
             ready = wait_for(lambda: TOGGLE in names_of(under), 20)

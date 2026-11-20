@@ -303,18 +303,25 @@ diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_con
  
    OnCollapseStateChanged(state_controller->GetCollapseState());
    collapsed_state_change_subscription_ =
-@@ -105,6 +107,14 @@
+@@ -105,6 +107,21 @@
    new_tab_button_->SetInsets(GetLayoutInsets(
        collapsed ? LayoutInset::VERTICAL_TAB_STRIP_BOTTOM_BUTTON_COLLAPSED
                  : LayoutInset::VERTICAL_TAB_STRIP_BOTTOM_BUTTON_UNCOLLAPSED));
 +
-+  // boring: wide, the labelled row; narrow, the plain button.
++  // boring: wide, the labelled row; narrow, the plain button. The row is
++  // full width and its own 34 high, at the foot of the list (screen C09).
 +  new_tab_button_->SetVisible(collapsed);
 +  new_tab_row_->SetVisible(!collapsed);
 +  new_tab_row_->SetProperty(
 +      views::kFlexBehaviorKey,
-+      views::FlexSpecification(views::MinimumFlexSizeRule::kScaleToMinimum,
-+                               views::MaximumFlexSizeRule::kUnbounded));
++      views::FlexSpecification(
++          views::LayoutOrientation::kHorizontal,
++          views::MinimumFlexSizeRule::kScaleToMinimum,
++          views::MaximumFlexSizeRule::kUnbounded, false,
++          views::MinimumFlexSizeRule::kPreferred));
++  if (!collapsed) {
++    SetCrossAxisAlignment(views::LayoutAlignment::kEnd);
++  }
  }
  
  BEGIN_METADATA(VerticalTabStripBottomContainer)
