@@ -428,7 +428,7 @@ LOOKS = (
       "rgb(35, 36, 46)", "rgb(79, 70, 229)")),
     ("Dusk dark", "dusk", None, ["--force-dark-mode"],
      ("rgb(20, 21, 32)", "rgb(27, 29, 43)", "rgb(38, 40, 56)",
-      "rgb(220, 221, 230)", "rgb(157, 154, 255)")),
+      "rgb(230, 231, 240)", "rgb(155, 152, 255)")),
     ("Soft white with a teal accent", None, "#12a4b6", [],
      (LIGHT_PAGE, "rgb(255, 255, 255)", "rgb(244, 243, 239)",
       "rgb(31, 30, 28)", "rgb(18, 164, 182)")),
