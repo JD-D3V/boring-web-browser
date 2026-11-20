@@ -36,6 +36,8 @@ struct ShelfItem {
   std::u16string title;
   std::u16string meta;
   const gfx::VectorIcon* icon = nullptr;
+  // A pinned site's tile shows this letter, as on the new tab page.
+  std::u16string mark;
   GURL url;
   ShelfKind kind = ShelfKind::kPinned;
   std::string id;

@@ -60,7 +60,7 @@ class ShelfRow : public views::Button {
   void UpdateBackground();
 };
 
-// A Pinned tile: 40 px high, 8 px corners, a 17 px glyph, no visible text.
+// A Pinned tile: 40 px high, 8 px corners, the site's letter, no other text.
 // The site's title is its accessible name and tooltip.
 class ShelfTile : public views::Button {
   METADATA_HEADER(ShelfTile, views::Button)
@@ -68,8 +68,9 @@ class ShelfTile : public views::Button {
  public:
   static constexpr int kHeight = 40;
 
+  // The mark is the one letter the new tab page shows for the same site.
   ShelfTile(PressedCallback callback,
-            const gfx::VectorIcon& icon,
+            const std::u16string& mark,
             const std::u16string& title);
   ShelfTile(const ShelfTile&) = delete;
   ShelfTile& operator=(const ShelfTile&) = delete;

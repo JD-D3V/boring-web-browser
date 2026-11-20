@@ -265,7 +265,7 @@ std::unique_ptr<views::View> BoringShelfView::BuildPinned() {
     grid->AddChildView(std::make_unique<ShelfTile>(
         base::BindRepeating(&BoringShelfView::ActivateItem,
                             base::Unretained(this), items[i]),
-        *items[i].icon, items[i].title));
+        items[i].mark, items[i].title));
   }
   column->AddChildView(std::move(grid));
   return column;

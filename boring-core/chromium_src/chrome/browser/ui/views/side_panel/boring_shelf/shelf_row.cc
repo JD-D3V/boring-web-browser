@@ -26,7 +26,7 @@ namespace {
 constexpr int kRowRadius = 7;
 constexpr int kTileRadius = 8;
 constexpr int kRowIcon = 15;
-constexpr int kTileIcon = 17;
+constexpr int kTileLetter = 13;  // The site's letter, as on the new tab page.
 constexpr int kRowGap = 10;
 constexpr int kRowSidePadding = 8;
 
@@ -136,17 +136,18 @@ BEGIN_METADATA(ShelfRow)
 END_METADATA
 
 ShelfTile::ShelfTile(PressedCallback callback,
-                     const gfx::VectorIcon& icon,
+                     const std::u16string& mark,
                      const std::u16string& title)
     : views::Button(std::move(callback)) {
   SetFocusBehavior(FocusBehavior::ALWAYS);
   SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kHorizontal))
       ->set_main_axis_alignment(views::BoxLayout::MainAxisAlignment::kCenter);
-  auto* image = AddChildView(std::make_unique<views::ImageView>());
-  image->SetImage(ui::ImageModel::FromVectorIcon(icon, kColorBoringShelfText,
-                                                  kTileIcon));
-  image->SetCanProcessEventsWithinSubtree(false);
+  auto* letter = AddChildView(std::make_unique<views::Label>(mark));
+  letter->SetEnabledColor(kColorBoringShelfText);
+  letter->SetAutoColorReadabilityEnabled(false);
+  letter->SetCanProcessEventsWithinSubtree(false);
+  SetFont(letter, kTileLetter, gfx::Font::Weight::SEMIBOLD);
   SetPreferredSize(gfx::Size(0, kHeight));
   GetViewAccessibility().SetName(title);
   SetTooltipText(title);
