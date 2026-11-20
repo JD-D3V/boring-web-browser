@@ -24,6 +24,10 @@ Several short launches of scratch profiles, started straight from chrome.exe:
      bookmark_bar.show_on_all_tabs off it is hidden; on, the bar shows the
      bookmarks and All bookmarks; photographed light and dark beside the
      compiled screen 14.
+  7. An app window (--app=) and a pop-up (window.open with features): the
+     taller toolbar margin is the tabbed window's only. The app window has
+     its title bar and no toolbar band; the pop-up's slim address bar is
+     whole and the page starts just under it (UI Automation rectangles).
 
 The hook writes what it saw to boring-toolbar-test.txt in the profile.
 Only DevTools, UI Automation and PrintWindow of our own windows; nothing is
@@ -221,6 +225,79 @@ def bookmarks_file(titles):
             "synced": folder(3, "Mobile bookmarks", []),
         },
     }
+
+
+# boring: fix-3b (ledger item 34): an app window and a pop-up, measured by UI
+# Automation on our own windows.
+APP_TITLE = "Boring app window test"
+APP_URL = "data:text/html,%3Ctitle%3EBoring%20app%20window%20test%3C/title%3E%3Ch1%3EApp%3C/h1%3E"
+POPUP_TITLE = "Boring pop-up test"
+POPUP_JS = """(() => {
+  const w = window.open('about:blank', 'boringpop', 'popup,width=520,height=420');
+  if (!w) return 'blocked';
+  w.document.title = '%s';
+  w.document.body.innerHTML = '<h1>Pop-up</h1>';
+  return 'opened';
+})()""" % POPUP_TITLE
+ADDRESS_BAR = "Address and search bar"
+
+
+def rect_of(element):
+    from ctypes import wintypes
+
+    from smoke_siteoff import _call
+
+    r = wintypes.RECT()
+    _call(element, 43, ctypes.addressof(r))  # get_CurrentBoundingRectangle
+    return r
+
+
+def window_band(title, timeout=15):
+    """(hwnd, names, band) for our window whose title holds `title`. band,
+    in DIP from the window's top: content_top (where the page starts),
+    field (the address bar's top and height, or None) and inside (the
+    address bar lies wholly within the window)."""
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    deadline = time.monotonic() + timeout
+    names = []
+    while time.monotonic() < deadline:
+        for hwnd in browser_windows(os.getpid()):
+            try:
+                with Window(hwnd) as w:
+                    if title not in (w.items[0][0] if w.items else ""):
+                        continue
+                    names = w.names()
+                    scale = (user32.GetDpiForWindow(hwnd) or 96) / 96
+                    win = wintypes.RECT()
+                    user32.GetWindowRect(hwnd, ctypes.byref(win))
+                    pages = [rect_of(e) for t, e in w.items if e and t == title]
+                    pages = [r for r in pages if r.bottom > r.top]
+                    if not pages:
+                        continue
+                    page = max(pages, key=lambda r: (r.right - r.left) * (r.bottom - r.top))
+                    fields = [rect_of(e) for t, e in w.items if e and t == ADDRESS_BAR]
+                    fields = [r for r in fields if r.bottom > r.top]
+                    field = fields[0] if fields else None
+                    band = {
+                        "content_top": round((page.top - win.top) / scale, 1),
+                        "field": (round((field.top - win.top) / scale, 1), round((field.bottom - field.top) / scale, 1))
+                        if field
+                        else None,
+                        "inside": bool(field)
+                        and win.left <= field.left
+                        and field.right <= win.right
+                        and win.top <= field.top
+                        and field.bottom <= win.bottom,
+                    }
+                    print("window band:", title, band)
+                    return hwnd, names, band
+            except (OSError, RuntimeError):
+                continue
+        time.sleep(0.5)
+    return None, names, None
+# boring: end fix-3b
 
 
 def main():
@@ -450,6 +527,42 @@ def main():
                     str(m),
                 )
             stop()
+
+        # 7. boring: fix-3b (ledger item 34). The taller toolbar margin is
+        # the tabbed window's: an app window and a pop-up keep their title
+        # bar and their slim address bar as before.
+        other = new_profile("other-windows")
+        start(other, [f"--app={APP_URL}"], urls=())
+        hwnd, names, band = window_band(APP_TITLE)
+        checks("app window: the title bar says the page's title", bool(hwnd), str(names[:20]))
+        checks(
+            "app window: only a title bar above the page (no toolbar band)",
+            band is not None and 20 <= band["content_top"] <= 60,
+            str(band),
+        )
+        stop()
+        start(other)
+        page = next(t for t in cdp.send("Target.getTargets")["targetInfos"] if t["type"] == "page")
+        session = cdp.attach(page["targetId"])
+        opened = cdp.send("Runtime.evaluate", session, expression=POPUP_JS, userGesture=True, returnByValue=True)
+        print("pop-up:", opened.get("result", {}).get("value"))
+        hwnd, names, band = window_band(POPUP_TITLE)
+        checks("pop-up: the title bar says the page's title", bool(hwnd), str(names[:20]))
+        checks(
+            "pop-up: the address bar is whole, inside the window",
+            band is not None and band["field"] is not None and 12 <= band["field"][1] <= 40 and band["inside"],
+            str(band),
+        )
+        # The text field sits centred in the slim bar (at most 34 high), so
+        # the page starts at most 9 DIP under it; the tabbed window's 8 DIP
+        # margins would make that 15 or more.
+        checks(
+            "pop-up: the page starts just under the address bar (no toolbar margins)",
+            band is not None and band["field"] is not None and -1 <= band["content_top"] - band["field"][0] - band["field"][1] <= 10,
+            str(band),
+        )
+        stop()
+        # boring: end fix-3b
         return checks.result("toolbar")
     finally:
         stop()

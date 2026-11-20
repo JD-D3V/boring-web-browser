@@ -240,7 +240,7 @@ diff --git a/chrome/browser/ui/views/toolbar/pinned_action_toolbar_button.cc b/c
 +    SetLabelSideSpacing(7);
 +    const gfx::FontList& font = label()->font_list();
 +    label()->SetFontList(font.DeriveWithSizeDelta(13 - font.GetFontSize())
-+                             .DeriveWithWeight(gfx::Font::Weight::NORMAL));
++                             .DeriveWithWeight(gfx::Font::Weight::MEDIUM));
 +    GetViewAccessibility().SetName(u"Forget this session");
 +  }
 +
