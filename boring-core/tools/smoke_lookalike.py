@@ -21,7 +21,8 @@ Checked:
   "Go back to safety" leaves the warning for the page before it;
   ordinary sites (an unrelated name, appie.com, apple-tree.com, a real
     accented name, paypal-support.com) open with no warning;
-  "Continue anyway" opens the site, and a second visit has no warning;
+  "Continue anyway" stays hidden and out of Tab's reach until "Why was this
+    blocked" is opened; it opens the site, and a second visit has no warning;
   "No way past scam warnings" takes "Continue anyway" away;
   "Warn about scam tricks" off turns the warning off;
   the page follows the window's colours, light and dark.
@@ -39,7 +40,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from drive import Browser
 from smoke_local import wait_for
-from smoke_scam import VARIANTS
+from smoke_scam import CONTINUE, VARIANTS, check_continue_behind_why, press_continue
 
 PAGE = b"<title>Ordinary page</title><p id=ok>ordinary page</p>"
 
@@ -88,7 +89,6 @@ WARNED = (
 BUTTON = (
     "[...document.querySelectorAll('button')].find(b => b.textContent.trim() === %s)"
 )
-CONTINUE = BUTTON % "'Continue anyway, not advised'"
 WARN_LABEL = "return document.querySelector('label[for=warn-scam-tricks]').textContent"
 COLOURS = (
     "return [getComputedStyle(document.body).backgroundColor,"
@@ -222,10 +222,7 @@ def main():
                             b.run("return !!document.querySelector('button.primary')")
                         ),
                     )
-                    check(
-                        f"{host}: Continue anyway is offered",
-                        bool(b.run(f"return !!({CONTINUE})")),
-                    )
+                    check_continue_behind_why(b, check, f"{host}: ")
                     if host == PLAIN[0]:
                         got = b.run(COLOURS)
                         name, _extra, paper, accent = VARIANTS[0]
@@ -315,7 +312,7 @@ def main():
                 heard_before = server.seen.count(RN[0])
                 open_url(b, url(RN[0]))
                 wait_for(b, WARNED)
-                b.run(f"({CONTINUE}).click()")
+                press_continue(b)
                 check(
                     "Continue anyway opens the site",
                     wait_for(b, "!!document.getElementById('ok')", 10000),

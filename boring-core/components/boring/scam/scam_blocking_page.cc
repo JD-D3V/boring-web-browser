@@ -74,6 +74,9 @@ std::string ScamBlockingPage::GetHTMLContents() {
         "Quad9, the secure DNS service this browser uses, lists this site "
         "as dangerous. It was not opened.";
     text.no_bypass = "This site cannot be opened from this warning.";
+    text.calm =
+        "Your computer is fine. Only the site's name went to Quad9, and you "
+        "do not need to call anyone.";
     return BuildWarningPage(web_contents(), text, /*may_continue=*/false);
   }
   text.heading = "This site is not safe";

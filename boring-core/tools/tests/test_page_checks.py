@@ -5,6 +5,7 @@ Usage:
   python -m unittest boring-core/tools/tests/test_page_checks.py -v
 """
 
+import re
 import sys
 import tempfile
 import unittest
@@ -105,10 +106,61 @@ class WarningPageContractTest(unittest.TestCase):
 
     def test_the_calm_line_is_the_drawn_wording(self):
         page = WARNING.read_text(encoding="utf-8")
+        self.assertIn('<p class="calm">%CALM%</p>', page)
+        self.assertIn("base::EscapeForHTML(text.calm)", page)
+        header = re.sub(r'"\s*\n\s*"', "", (SCAM / "warning_page.h").read_text(encoding="utf-8"))
         self.assertIn(
-            "Your computer is fine. Nothing was sent, and you do not need to call anyone.",
-            page,
+            '"Your computer is fine. Nothing was sent, and you do not need to call anyone."',
+            header,
         )
+
+    def test_the_quad9_page_does_not_say_nothing_was_sent(self):
+        # The name did go to Quad9, as its DNS question.
+        text = (SCAM / "scam_blocking_page.cc").read_text(encoding="utf-8")
+        quad9 = text.split("if (quad9_block_) {")[1].split("return BuildWarningPage")[0]
+        quad9 = re.sub(r'"\s*\n\s*"', "", quad9)
+        self.assertIn("text.calm =", quad9)
+        self.assertIn("Only the site's name went to Quad9", quad9)
+        self.assertNotIn("Nothing was sent", quad9)
+
+    def test_continue_is_inside_the_closed_why_part(self):
+        # Two presses past a warning (ledger 36): Continue sits in #why,
+        # which starts hidden, and never in the footer.
+        page = WARNING.read_text(encoding="utf-8")
+        self.assertIn(
+            'kContinueTop[] = "<div class=\\"why\\" id=\\"why\\" hidden><p>";', page
+        )
+        bottom = page.split("kContinueBottom[] =")[1].split(";\n")[0]
+        self.assertIn("proceedAnyway()", bottom)
+        self.assertNotIn("footer", bottom)
+        self.assertTrue(bottom.rstrip().endswith('"</div>"'))
+        self.assertIn("[hidden] { display: none !important; }", page)
+
+    def test_report_a_mistake_is_on_every_warning(self):
+        # Ledger 37: with a way past and without one (no way past, Quad9).
+        page = WARNING.read_text(encoding="utf-8")
+        build = page.split("std::string BuildWarningPage(")[1]
+        self.assertEqual(build.count("kReportButton"), 2)
+        self.assertEqual(page.count("reportMistake()\\\">Report a mistake</button>"), 1)
+
+
+class NewTabRecentTest(unittest.TestCase):
+    """Ledger 38: "Pick up where you left off" rows."""
+
+    def test_titles_are_cut_on_a_character_boundary(self):
+        text = NEWTAB.read_text(encoding="utf-8")
+        self.assertIn("base::TruncateUTF8ToByteSize(title, kMaxRecentTitleLength)", text)
+        self.assertNotIn("title.resize(kMaxRecentTitleLength)", text)
+
+    def test_the_host_is_never_hidden(self):
+        css = page_checks.raw_string(NEWTAB.read_text(encoding="utf-8"), "kPage")
+        self.assertIsNotNone(css)
+        rules = re.findall(r"\.recent-row \.site\s*\{([^}]*)\}", css)
+        self.assertTrue(rules)
+        for rule in rules:
+            self.assertNotIn("display: none", rule)
+            self.assertNotIn("overflow", rule)
+        self.assertIn("flex: none", rules[0])
 
 
 class BesideTest(unittest.TestCase):

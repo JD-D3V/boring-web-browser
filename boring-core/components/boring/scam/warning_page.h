@@ -27,13 +27,20 @@ struct WarningText {
   std::string main_button;  // the safe way out
   std::string why;          // the details: why this was blocked
   std::string no_bypass;    // shown instead of "Continue anyway" when it is off
+  // The calm line under the text. A page that did send something (a Quad9
+  // block sent the name as its DNS lookup) says so instead.
+  std::string calm =
+      "Your computer is fine. Nothing was sent, and you do not need to call "
+      "anyone.";
 };
 
 // The full page for any kind of warning, so every warning looks and reads
 // the same. The colours come from the browser's own theme for this tab
 // (light or dark, and the colour choice, Green included) and are written
 // into the page, because a page from a web address cannot read them from
-// the browser. "Continue anyway" is left out when `may_continue` is false.
+// the browser. "Continue anyway" is left out when `may_continue` is false;
+// otherwise it is inside the closed "Why was this blocked" part, so it takes
+// two presses. "Report a mistake" is on every page.
 //
 // The buttons call the interstitial controller: the main button is
 // CMD_DONT_PROCEED, "Continue anyway" is CMD_PROCEED and "Report a

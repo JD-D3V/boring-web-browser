@@ -4,9 +4,10 @@
 One card: the shield symbol, "This site is not safe", a sentence that
 names the site in bold, the calm line "Your computer is fine. Nothing was
 sent, and you do not need to call anyone.", the main button Go back to
-safety, Why was this blocked, and a footer with Continue anyway, not
-advised. With "No way past scam warnings" on there is no way past: no
-Continue and no Why, and the footer says so. The colours are the TOKENS
+safety, Why was this blocked (which opens the reason and Continue anyway,
+not advised: two presses past a warning), and a footer with Report a
+mistake. With "No way past scam warnings" on there is no way past: no
+Continue and no Why, and the footer says so beside Report a mistake. The colours are the TOKENS
 rows of the compiled design, light and dark; outlines use the edge token.
 
 The setup is smoke_scam.py's: a temporary list of our own and local names
@@ -43,6 +44,7 @@ from drive import Browser, headful_allowed
 from smoke_local import HTML, Pages, list_folder, wait_for
 from smoke_scam import (
     CONTINUE,
+    CONTINUE_REACHABLE,
     GO_BACK,
     LISTED,
     PARENT,
@@ -51,6 +53,7 @@ from smoke_scam import (
     args_for,
     go_back_to,
     open_url,
+    press_continue,
     switch_on,
     wait_until_list_is_loaded,
 )
@@ -108,10 +111,13 @@ def static_checks(checks):
     checks["page source is found"] = bottom is not None
     if bottom is None:
         return
-    checks["the calm line is in the page source"] = (
-        f'<p class="calm">{CALM}</p>' in bottom
-    )
     header = (WARNING_CC.parent / "warning_page.h").read_text(encoding="utf-8")
+    # The calm line is the header's default; adjacent C string pieces joined.
+    joined = re.sub(r'"\s*\n\s*"', "", header)
+    checks["the calm line is in the page source"] = (
+        '<p class="calm">%CALM%</p>' in bottom
+        and re.search(r'calm =\s*"' + re.escape(CALM) + '";', joined) is not None
+    )
     checks["the report address is exactly the issue list, with nothing added"] = (
         f'"{REPORT_URL}";' in header and "?" not in REPORT_URL and "#" not in REPORT_URL
     )
@@ -126,6 +132,7 @@ def static_checks(checks):
             "base::EscapeForHTML(text.heading)",
             "base::EscapeForHTML(text.why)",
             "base::EscapeForHTML(text.no_bypass)",
+            "base::EscapeForHTML(text.calm)",
         )
     ) and "innerHTML" not in text
     blocks = page_checks.script_blocks(bottom)
@@ -157,6 +164,8 @@ FACTS = r"""
     hostBox: !!q('.host-box'),
     why: q('#why') && q('#why').textContent,
     whyHidden: q('#why') ? q('#why').hidden : null,
+    continueLabel: q('[onclick*=proceedAnyway]') && q('[onclick*=proceedAnyway]').textContent.trim(),
+    continueInWhy: !!q('#why [onclick*=proceedAnyway]'),
     primary: primary && primary.textContent.trim(),
     secondary: secondary && secondary.textContent.trim(),
     footer: q('.footer') ? q('.footer').innerText.trim() : null,
@@ -256,8 +265,10 @@ def words_checks(b, checks, f):
     checks["second button says Why was this blocked"] = (
         f["secondary"] == "Why was this blocked"
     )
-    checks["the footer offers Continue anyway, not advised"] = (
-        "Continue anyway, not advised" in f["footerLinks"]
+    checks["Continue anyway, not advised is in Why was this blocked, not the footer"] = (
+        f["continueLabel"] == "Continue anyway, not advised"
+        and f["continueInWhy"]
+        and "Continue anyway, not advised" not in f["footerLinks"]
     )
     font_checks(checks, f)
     checks["the card is 520 px wide with 32 px padding and 12 px corners"] = (
@@ -342,14 +353,20 @@ def press_report(lists, pages, checks):
 
 def why_checks(b, checks, f):
     checks["the reason starts hidden"] = f["whyHidden"] is True
+    checks["while it is closed, Continue anyway is not shown and Tab cannot reach it"] = (
+        not b.run(f"return {CONTINUE_REACHABLE}")
+    )
     b.run("document.querySelector('button.secondary').click()")
     checks["Why was this blocked shows the reason"] = bool(
         b.run(
             "var w=document.getElementById('why');"
-            "return !w.hidden && w.textContent===arguments[0] && "
+            "return !w.hidden && w.querySelector('p').textContent===arguments[0] && "
             "document.querySelector('button.secondary').getAttribute('aria-expanded')==='true'",
             [WHY],
         )
+    )
+    checks["once it is open, Continue anyway is shown and Tab reaches it"] = bool(
+        b.run(f"return {CONTINUE_REACHABLE}")
     )
     b.run("document.querySelector('button.secondary').click()")
     checks["pressing it again hides the reason"] = bool(
@@ -370,7 +387,7 @@ def behaviour_checks(b, pages, checks):
     )
     open_url(b, f"http://{LISTED}:{pages.port}/")
     shown(b)
-    b.run(f"({CONTINUE}).click()")
+    press_continue(b)
     checks["Continue anyway opens the site"] = wait_for(
         b, "!!document.getElementById('ok')", 10000
     )
@@ -394,9 +411,11 @@ def no_way_checks(profile, lists, pages, checks):
             not b.run(f"return !!({CONTINUE})")
             and f["secondary"] is None
             and f["why"] is None
-            and f["footerLinks"] == []
         )
         checks["no way past: the footer says so"] = f["note"] == NO_WAY
+        checks["no way past: Report a mistake is still in the footer"] = (
+            f["footerLinks"] == ["Report a mistake"]
+        )
         checks["no way past: Go back to safety is still the main button"] = (
             f["primary"] == "Go back to safety"
         )

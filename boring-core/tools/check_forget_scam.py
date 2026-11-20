@@ -25,12 +25,12 @@ from drive import CHROME, Browser
 from smoke_forget import QUESTION, names_of, press, safe
 from smoke_local import HTML, Pages, list_folder, wait_for
 from smoke_scam import (
-    CONTINUE,
     LISTED,
     SAFE_PAGE,
     SCAM_LIST,
     args_for,
     open_url,
+    press_continue,
     wait_until_list_is_loaded,
 )
 from smoke_site_panel import find_panel, poll, press_shield
@@ -80,7 +80,7 @@ def main():
             open_url(b, site)
             time.sleep(1)
             check("the listed site shows the scam warning", warned(b))
-            b.run(f"({CONTINUE}).click()")
+            press_continue(b)
             check(
                 "Continue anyway opens the site",
                 wait_for(b, "!!document.getElementById('ok')", 10000),

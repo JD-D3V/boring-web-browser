@@ -15,8 +15,9 @@ its documented test domain, with the name swapped (tools/quad9_wire.py).
 
 Checked:
   a blocked name shows the warning, naming Quad9, with "Go back to safety"
-    as the only action: no "Continue anyway", also with "No way past scam
-    warnings" on or off;
+    as the only way out: no "Continue anyway", also with "No way past scam
+    warnings" on or off; "Report a mistake" is there, and the page does not
+    say nothing was sent (the name went to Quad9);
   the same from a link on a page (a navigation started by the page);
   "Go back to safety" returns to the page before;
   a name that does not exist (NXDOMAIN with an SOA), a server that errors,
@@ -278,13 +279,23 @@ def main():
             )
             check("it shows the address", BLOCKED in body)
             check(
-                "Go back to safety is the only action",
-                b.run(BUTTONS) == ["Go back to safety"]
+                "Go back to safety is the only way out, and Report a mistake is offered",
+                b.run(BUTTONS) == ["Go back to safety", "Report a mistake"]
+                and b.run(
+                    "return document.querySelectorAll('[onclick*=reportMistake]').length"
+                ) == 1
                 and "ontinue" not in body
                 and not b.run(
                     "return document.querySelectorAll('[onclick*=proceedAnyway]').length"
                 ),
                 repr(b.run(BUTTONS)),
+            )
+            # The name did go to Quad9, as the DNS question.
+            check(
+                "it does not say nothing was sent, and says the name went to Quad9",
+                "Nothing was sent" not in body
+                and "Only the site's name went to Quad9" in body,
+                body[:300].replace("\n", " | "),
             )
             check(
                 "the name was asked of Quad9 once",
@@ -326,7 +337,7 @@ def main():
             check(
                 "no way past scam warnings on: the same warning",
                 wait_for(b, WARNED)
-                and b.run(BUTTONS) == ["Go back to safety"],
+                and b.run(BUTTONS) == ["Go back to safety", "Report a mistake"],
             )
 
             # Anything but a clear block leaves the ordinary page.
