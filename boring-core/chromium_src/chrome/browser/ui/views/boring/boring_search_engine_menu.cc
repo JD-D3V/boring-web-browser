@@ -13,6 +13,7 @@
 #include "base/functional/callback_helpers.h"
 #include "base/memory/ptr_util.h"
 #include "base/no_destructor.h"
+#include "base/scoped_observation.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "cc/paint/paint_flags.h"
@@ -35,6 +36,7 @@
 #include "components/boring/newtab/search_engine_menu.h"
 #include "components/boring/search/search_engines.h"
 #include "components/history/core/browser/history_service.h"
+#include "components/history/core/browser/history_service_observer.h"
 #include "components/history/core/browser/history_types.h"
 #include "components/keyed_service/core/service_access_type.h"
 #include "components/omnibox/browser/autocomplete_match.h"
@@ -708,7 +710,49 @@ base::WeakPtr<content::WebContents>& TestTab() {
   return *tab;
 }
 
+class HistoryDeletionWatchImpl : public HistoryDeletionWatch,
+                                 public history::HistoryServiceObserver {
+ public:
+  HistoryDeletionWatchImpl(history::HistoryService* history,
+                           base::RepeatingClosure deleted)
+      : deleted_(std::move(deleted)) {
+    observation_.Observe(history);
+  }
+
+ private:
+  // history::HistoryServiceObserver:
+  void OnHistoryDeletions(history::HistoryService* history,
+                          const history::DeletionInfo& deletion_info) override {
+    deleted_.Run();
+  }
+  void HistoryServiceBeingDeleted(history::HistoryService* history) override {
+    observation_.Reset();
+  }
+
+  base::RepeatingClosure deleted_;
+  base::ScopedObservation<history::HistoryService,
+                          history::HistoryServiceObserver>
+      observation_{this};
+};
+
 }  // namespace
+
+std::unique_ptr<HistoryDeletionWatch> WatchHistoryDeletions(
+    content::WebContents* page,
+    base::RepeatingClosure deleted) {
+  Profile* profile =
+      page ? Profile::FromBrowserContext(page->GetBrowserContext()) : nullptr;
+  history::HistoryService* history =
+      profile && !profile->IsOffTheRecord()
+          ? HistoryServiceFactory::GetForProfile(
+                profile, ServiceAccessType::EXPLICIT_ACCESS)
+          : nullptr;
+  if (!history) {
+    return nullptr;
+  }
+  return std::make_unique<HistoryDeletionWatchImpl>(history,
+                                                    std::move(deleted));
+}
 
 void GetRecentPagesForPage(
     content::WebContents* page,
