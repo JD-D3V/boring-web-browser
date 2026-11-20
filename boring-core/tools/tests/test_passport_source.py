@@ -57,6 +57,43 @@ class PassportSourceTest(unittest.TestCase):
         fields = set(re.findall(r"credential\.(\w+)", consumer))
         self.assertEqual(fields, {"blocked_by_user", "match_type"})
 
+    def test_card_question_is_fixed_isolated_and_one_way(self):
+        # Item 56: with autofill's parser off, the page is asked one fixed
+        # yes or no question in an isolated world. The answer may only add
+        # the card row; it never clears a fact or touches the chip.
+        helper = code(VIEWS / "boring_passport_tab_helper.cc")
+        script = re.search(r"kAsksCardScript\[\] =\s*((?:u\"(?:[^\"\\]|\\.)*\"\s*)+);", helper)
+        self.assertIsNotNone(script, "the question is one fixed constant")
+        joined = "".join(re.findall(r"u\"((?:[^\"\\]|\\.)*)\"", script.group(1)))
+        self.assertEqual(
+            joined.replace('\\"', '"'),
+            "!!document.querySelector('input[autocomplete*=\"cc-number\" i],"
+            "input[autocomplete*=\"cc-csc\" i]')")
+        # Only the isolated world call, once, with the fixed text.
+        self.assertEqual(len(re.findall(r"ExecuteJavaScript\w*\(", helper)), 1)
+        call = helper[helper.index("ExecuteJavaScriptInIsolatedWorld("):]
+        call = call[: call.index("ISOLATED_WORLD_ID_CHROME_INTERNAL)")]
+        self.assertIn("kAsksCardScript,", call)
+        # The answer: a bool that can only set the fact, never clear it.
+        self.assertEqual(set(re.findall(r"result\.(\w+)", call)), {"is_bool", "GetBool"})
+        self.assertIn("facts_.asks_card = true;", call)
+        self.assertNotIn("asks_card = false", helper)
+        for word in ("LOG(", "VLOG(", "DVLOG("):
+            self.assertNotIn(word, helper)
+        # Only http and https frames, only when the parser is not running.
+        ask = helper[helper.index("::AskFrameForCardFields("):]
+        ask = ask[: ask.index("\n}\n")]
+        self.assertIn("SchemeIsHTTPOrHTTPS()", ask)
+        self.assertIn("AutofillParsesForms()", ask)
+        page = helper[helper.index("::AskPageForCardFields("):]
+        page = page[: page.index("\n}\n")]
+        self.assertIn("AutofillParsesForms()", page)
+        self.assertIn("GetPrimaryPage()", page)
+        # The chip's inputs never read the card fact.
+        inputs = helper[helper.index("::Inputs("):]
+        inputs = inputs[: inputs.index("\n}\n")]
+        self.assertNotIn("asks_card", inputs)
+
     def test_card_fact_reads_only_predicted_types(self):
         # Card details: the page asks if a field is predicted to be a card
         # number or a security code. Nothing a person types is read.
@@ -97,8 +134,13 @@ class PassportSourceTest(unittest.TestCase):
         self.assertIn("ELIDE_HEAD", bubble)
         for path in PASSPORT:
             body = code(path)
-            for word in ("GetTitle(", "GetFavicon", "ExecuteJavaScript", "GetVisibleURL()"
-                         if path.name != "boring_passport_tab_helper.cc" else "GetTitle("):
+            helper = path.name == "boring_passport_tab_helper.cc"
+            if helper:
+                # Item 56: the one fixed isolated-world question, whose bool
+                # answer is pinned by test_card_question_is_fixed_isolated_and_one_way.
+                body = body.replace("ExecuteJavaScriptInIsolatedWorld(", "")
+            for word in ("GetTitle(", "GetFavicon", "ExecuteJavaScript",
+                         "GetTitle(" if helper else "GetVisibleURL()"):
                 self.assertNotIn(word, body, f"{path.name} names {word}")
 
     def test_chip_only_for_the_committed_page(self):

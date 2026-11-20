@@ -12,6 +12,7 @@
 #include "chrome/browser/lookalikes/lookalike_url_service_factory.h"
 #include "chrome/browser/password_manager/factories/profile_password_store_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/common/chrome_isolated_world_ids.h"
 #include "components/autofill/content/browser/content_autofill_client.h"
 #include "components/autofill/core/browser/autofill_field.h"
 #include "components/autofill/core/browser/autofill_type.h"
@@ -91,6 +92,13 @@ bool LookalikeCandidate(const GURL& url) {
       domain.empty() ? lookalikes::GetETLDPlusOne(host) : domain);
 }
 
+// The one question the card fact asks a page's frame when autofill does not
+// parse forms. Fixed text, run in an isolated world (never the page's own),
+// and its only answer is true or false: no value, no other attribute.
+constexpr char16_t kAsksCardScript[] =
+    u"!!document.querySelector('input[autocomplete*=\"cc-number\" i],"
+    u"input[autocomplete*=\"cc-csc\" i]')";
+
 bool IsSiteEngagementMatch(lookalikes::LookalikeUrlMatchType type) {
   using Type = lookalikes::LookalikeUrlMatchType;
   return type == Type::kSkeletonMatchSiteEngagement ||
@@ -128,6 +136,8 @@ BoringPassportTabHelper::BoringPassportTabHelper(content::WebContents* contents)
                     InitializationPolicy::kObservePreexistingManagers);
   }
   StartQueries();
+  // Made after the page loaded (the chip asks late): ask what is there now.
+  AskPageForCardFields();
 }
 
 BoringPassportTabHelper::~BoringPassportTabHelper() = default;
@@ -256,6 +266,58 @@ void BoringPassportTabHelper::OnFieldTypesDetermined(
       return;
     }
   }
+}
+
+void BoringPassportTabHelper::DidFinishLoad(
+    content::RenderFrameHost* render_frame_host,
+    const GURL& validated_url) {
+  if (&render_frame_host->GetPage() == &web_contents()->GetPrimaryPage()) {
+    AskFrameForCardFields(render_frame_host);
+  }
+}
+
+bool BoringPassportTabHelper::AutofillParsesForms() const {
+  // BrowserAutofillManager::ShouldParseForms() uses the same two settings.
+  autofill::ContentAutofillClient* client =
+      autofill::ContentAutofillClient::FromWebContents(web_contents());
+  return client &&
+         (client->IsAutofillEnabled() || client->IsPasswordManagerEnabled());
+}
+
+void BoringPassportTabHelper::AskPageForCardFields() {
+  if (facts_.asks_card || AutofillParsesForms()) {
+    return;
+  }
+  web_contents()->GetPrimaryPage().GetMainDocument().ForEachRenderFrameHost(
+      [this](content::RenderFrameHost* frame) {
+        AskFrameForCardFields(frame);
+      });
+}
+
+void BoringPassportTabHelper::AskFrameForCardFields(
+    content::RenderFrameHost* frame) {
+  if (facts_.asks_card || AutofillParsesForms() || !frame->IsRenderFrameLive() ||
+      !frame->GetLastCommittedURL().SchemeIsHTTPOrHTTPS()) {
+    return;
+  }
+  // The answer comes from a renderer, so it is untrusted: it can only add
+  // the cautionary row (sticky for this page), never take a warning away
+  // or change the chip. Nothing of it is kept or logged but that one bit.
+  frame->ExecuteJavaScriptInIsolatedWorld(
+      kAsksCardScript,
+      base::BindOnce(
+          [](base::WeakPtr<BoringPassportTabHelper> self, int generation,
+             base::Value result) {
+            if (!self || generation != self->generation_ ||
+                self->facts_.asks_card || !result.is_bool() ||
+                !result.GetBool()) {
+              return;
+            }
+            self->facts_.asks_card = true;
+            self->Changed();
+          },
+          weak_factory_.GetWeakPtr(), generation_),
+      ISOLATED_WORLD_ID_CHROME_INTERNAL);
 }
 
 void BoringPassportTabHelper::StartQueries() {

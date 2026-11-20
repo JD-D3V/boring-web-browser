@@ -263,6 +263,8 @@ bool BoringPassportBubble::Show(LocationIconView* icon) {
     Current()->Close();
     return true;
   }
+  // Card fields a page added after it loaded count from here on (item 56).
+  BoringPassportTabHelper::GetOrCreate(contents)->AskPageForCardFields();
   Current() = base::WrapUnique(new BoringPassportBubble(icon, contents, layout));
   BoringPassportBubble* bubble = Current().get();
 

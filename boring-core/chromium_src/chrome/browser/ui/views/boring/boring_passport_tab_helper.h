@@ -80,6 +80,12 @@ class BoringPassportTabHelper
   boring::passport::ChipInputs Inputs(bool editing_or_empty,
                                       bool chromium_text) const;
 
+  // The card fact when autofill does not parse forms for this profile (our
+  // defaults turn autofill and password saving off): asks every http or
+  // https frame of the page, in an isolated world, one fixed yes or no
+  // question. Called at each frame's load and when the Passport opens.
+  void AskPageForCardFields();
+
   // Test only: the facts as a dictionary.
   base::DictValue StateForTesting() const;
 
@@ -89,6 +95,8 @@ class BoringPassportTabHelper
 
   // content::WebContentsObserver:
   void PrimaryPageChanged(content::Page& page) override;
+  void DidFinishLoad(content::RenderFrameHost* render_frame_host,
+                     const GURL& validated_url) override;
 
   // password_manager::PasswordStoreConsumer:
   void OnGetPasswordStoreResultsOrErrorFrom(
@@ -104,6 +112,11 @@ class BoringPassportTabHelper
                               autofill::FormGlobalId form,
                               FieldTypeSource source,
                               bool small_forms_were_parsed) override;
+
+  // Whether autofill parses this tab's forms (then OnFieldTypesDetermined
+  // gives the card fact and the page is not asked).
+  bool AutofillParsesForms() const;
+  void AskFrameForCardFields(content::RenderFrameHost* frame);
 
   void StartQueries();
   void OnEngagedSites(int generation,
