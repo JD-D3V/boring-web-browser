@@ -16,9 +16,12 @@ page calls chrome.tabs.group and chrome.tabGroups.update, and WebDriver
 drives that page. The window is drawn with PrintWindow of our own browser
 window only; nothing is sent to the OS as input. Each photograph is put
 beside the matching compiled screen in compare.html in the output folder.
+With --captures (or BORING_CAPTURES) the top tabs and side tabs pictures are
+also saved as <folder>/tabgroups/c01-light.png, c09-light.png and the dark
+pair: the real capture on the left, the compiled screen on the right.
 
     python smoke_tabgroups.py                    # wired: smoke_all
-    python smoke_tabgroups.py --out E:/tmp/tg --only dark
+    python smoke_tabgroups.py --out E:/tmp/tg --only dark [--captures FOLDER]
 
 Needs the built browser (BORING_OUT / BORING_CHROME as for the smoke tests)
 and BORING_ALLOW_HEADFUL=1.
@@ -38,10 +41,12 @@ import zlib
 from collections import Counter
 from pathlib import Path
 
+import page_checks
+
 TOOLS = Path(__file__).resolve().parent
 CORE = TOOLS.parent
 MIXER = CORE / "chromium_src/chrome/browser/ui/color/boring_color_mixer.cc"
-DESIGN = CORE.parent / "design/v12-compiled/shots-final"
+DESIGN = page_checks.SHOTS
 
 # (scene, extra switches, matching compiled screens: top tabs, side tabs)
 SCENES = [
@@ -355,7 +360,7 @@ def call(b, fn):
     )
 
 
-def run_scene(name, extra, design, out, size, binary):
+def run_scene(name, extra, design, out, size, binary, captures=None):
     from capture_native import frame_window, grab, user32
     from drive import OFFSCREEN, Browser
     from smoke_vtabs import set_pref
@@ -388,6 +393,11 @@ def run_scene(name, extra, design, out, size, binary):
                 path = out / f"tabgroups-{label}-{name}.png"
                 grab(hwnd, str(path))
                 shots.append((path, DESIGN / against))
+                screen = {"top": "c01", "side": "c09"}.get(label)
+                if screen:
+                    saved = page_checks.save_capture(path, "tabgroups", screen, dark=dark, folder=captures)
+                    if saved:
+                        print("saved", saved)
                 return read_png(path)[2]
 
             run_page(b)
@@ -452,6 +462,7 @@ def main():
     )
     ap.add_argument("--only", help="one scene name: light or dark")
     ap.add_argument("--size", default="1404x800")
+    page_checks.add_captures_option(ap)
     args = ap.parse_args()
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
     from drive import CHROME
@@ -464,7 +475,7 @@ def main():
     for name, extra, design in SCENES:
         if args.only and args.only != name:
             continue
-        res, taken = run_scene(name, extra, design, out, size, binary)
+        res, taken = run_scene(name, extra, design, out, size, binary, args.captures)
         shots += taken
         for k, v in res.items():
             print("ok  " if v else "FAIL", name, k)

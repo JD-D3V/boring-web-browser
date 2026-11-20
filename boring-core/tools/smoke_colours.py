@@ -28,13 +28,15 @@ the accent is changed to Teal the way the Settings control writes it and
 must follow at once (NOT CHECKED until Settings lists the pref, item 9).
 
 With BORING_ALLOW_HEADFUL=1 it also photographs the new tab page of each
-Look, light and dark, by PrintWindow of our own window, and puts the
-matching compiled screen beside each picture (design/v12-compiled/
-shots-final: c01 for light, c02 for dark). Sends no mouse or keys to the
-desktop.
+Look, light and dark, by PrintWindow of our own window. With --captures (or
+BORING_CAPTURES) each picture is also saved as
+<folder>/colours/c01-<look>-light.png and c02-<look>-dark.png, the real
+capture on the left and the compiled screen (c01 for light, c02 for dark)
+on the right. Sends no mouse or keys to the desktop.
 
     python smoke_colours.py            # expects "PASS: colours"
     python smoke_colours.py --no-live  # skip the live changes
+    python smoke_colours.py --captures E:/tmp/cui-captures
 
 Needs the built browser (BORING_OUT / BORING_CHROME as for the smoke tests).
 """
@@ -43,22 +45,20 @@ import argparse
 import json
 import os
 import re
-import shutil
 import sys
 import tempfile
 import time
 from pathlib import Path
 
+import page_checks
 from drive import CHROME, Browser, headful_allowed
 
 PREF = "boring.appearance.look"
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "artifacts" / "cui-colours"
-# design/ is not in git: run from the main checkout, or point BORING_DESIGN
-# at the shots-final folder.
-DESIGN = Path(os.environ.get(
-    "BORING_DESIGN", ROOT / "design" / "v12-compiled" / "shots-final"))
-SCREEN = {False: "c01-newtab.png", True: "c02-newtabdark.png"}
+# The compiled screen of the new tab page, light and dark. design/ is not in
+# git: page_checks finds the main checkout's, or BORING_DESIGN names it.
+SCREEN = {False: "c01", True: "c02"}
 
 # Look, dark -> colour as boring_color_mixer.cc sets it. Dusk in light is
 # Slate's light palette. Slate, and Dusk, have no edge of their own: their
@@ -274,7 +274,7 @@ def check_accent_live(checks):
 # boring: end cui-accent
 
 
-def capture(look, dark):
+def capture(look, dark, captures=None):
     from capture_native import frame_window, grab, user32
     from drive import OFFSCREEN
 
@@ -295,15 +295,16 @@ def capture(look, dark):
             user32.MoveWindow(hwnd, px, py, w, h, True)
             time.sleep(1.0)
             grab(hwnd, str(OUT / f"{name}.png"))
-    screen = DESIGN / SCREEN[dark]
-    if screen.is_file():
-        shutil.copyfile(screen, OUT / f"{name}-design.png")
-    print("saved", OUT / f"{name}.png", "beside", screen.name)
+    both = page_checks.save_capture(
+        OUT / f"{name}.png", "colours", SCREEN[dark], dark=dark, folder=captures,
+        label=f"{SCREEN[dark]}-{look.replace('_', '-')}")
+    print("saved", OUT / f"{name}.png", "and", both or "no capture beside the design")
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--no-live", action="store_true")
+    page_checks.add_captures_option(parser)
     opts = parser.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
     checks = {}
@@ -320,7 +321,7 @@ def main():
     if headful_allowed():
         for look in ("soft_white", "slate", "dusk"):
             for dark in (False, True):
-                capture(look, dark)
+                capture(look, dark, opts.captures)
     else:
         print("pictures: not taken (set BORING_ALLOW_HEADFUL=1)")
 

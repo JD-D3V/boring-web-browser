@@ -163,5 +163,98 @@ class BesideTest(unittest.TestCase):
         self.assertIsNotNone(page_checks.reference("C12", dark=True))
 
 
+class SaveCaptureTest(unittest.TestCase):
+    """The shared capture folder (compiled UI ledger item 30)."""
+
+    def shots(self, folder):
+        shots = Path(folder) / "shots"
+        (shots / "dark").mkdir(parents=True)
+        return shots
+
+    def test_the_option_is_named_captures(self):
+        import argparse
+
+        ap = argparse.ArgumentParser()
+        page_checks.add_captures_option(ap)
+        self.assertEqual(ap.parse_args(["--captures", "x"]).captures, "x")
+        self.assertIsNone(ap.parse_args([]).captures)
+
+    def test_the_folder_comes_from_the_option_then_the_environment(self):
+        with mock.patch.dict("os.environ", {page_checks.CAPTURES_ENV: "from-env"}):
+            self.assertEqual(page_checks.captures_folder("from-option"), Path("from-option"))
+            self.assertEqual(page_checks.captures_folder(), Path("from-env"))
+        with mock.patch.dict("os.environ", {}, clear=True):
+            self.assertIsNone(page_checks.captures_folder())
+
+    def test_the_design_folder_can_be_named(self):
+        with mock.patch.dict("os.environ", {page_checks.DESIGN_ENV: "somewhere"}):
+            self.assertEqual(page_checks.shots_folder(), Path("somewhere"))
+
+    def test_a_screen_is_found_by_its_number_in_light_and_dark(self):
+        with tempfile.TemporaryDirectory() as folder:
+            shots = self.shots(folder)
+            (shots / "c10-settings.png").write_bytes(b"l")
+            (shots / "dark" / "c10-settings.png").write_bytes(b"d")
+            with mock.patch.object(page_checks, "SHOTS", shots):
+                self.assertEqual(page_checks.screen_picture("C10").parent, shots)
+                self.assertEqual(page_checks.screen_picture("c10", dark=True).parent, shots / "dark")
+                self.assertIsNone(page_checks.screen_picture("c99"))
+
+    def test_no_folder_means_nothing_is_written(self):
+        with tempfile.TemporaryDirectory() as folder:
+            ours = Path(folder) / "ours.png"
+            ours.write_bytes(b"x")
+            with mock.patch.dict("os.environ", {}, clear=True):
+                self.assertIsNone(page_checks.save_capture(ours, "menu", "c07"))
+
+    def test_no_compiled_screen_or_no_capture_means_none(self):
+        with tempfile.TemporaryDirectory() as folder:
+            shots = self.shots(folder)
+            with mock.patch.object(page_checks, "SHOTS", shots):
+                missing = Path(folder) / "none.png"
+                self.assertIsNone(page_checks.save_capture(missing, "menu", "c07", folder=folder))
+                ours = Path(folder) / "ours.png"
+                ours.write_bytes(b"x")
+                self.assertIsNone(page_checks.save_capture(ours, "menu", "c07", folder=folder))
+
+    def test_one_image_per_screen_and_theme_ours_on_the_left(self):
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest("PIL is not installed")
+        with tempfile.TemporaryDirectory() as folder:
+            shots = self.shots(folder)
+            Image.new("RGB", (40, 40), (0, 0, 255)).save(shots / "c07-menuopen.png")
+            Image.new("RGB", (40, 40), (0, 255, 0)).save(shots / "dark" / "c07-menuopen.png")
+            ours = Path(folder) / "ours.png"
+            Image.new("RGB", (100, 80), (255, 0, 0)).save(ours)
+            out = Path(folder) / "caps"
+            with mock.patch.object(page_checks, "SHOTS", shots):
+                light = page_checks.save_capture(ours, "menu", "c07", folder=out)
+                dark = page_checks.save_capture(ours, "menu", "c07", dark=True, folder=out, label="c07-x")
+            self.assertEqual(light, out / "menu" / "c07-light.png")
+            self.assertEqual(dark, out / "menu" / "c07-x-dark.png")
+            with Image.open(light) as sheet:
+                self.assertEqual(sheet.getpixel((10, 10)), (255, 0, 0))
+                self.assertEqual(sheet.getpixel((sheet.width - 5, 10)), (0, 0, 255))
+            with Image.open(dark) as sheet:
+                self.assertEqual(sheet.getpixel((sheet.width - 5, 10)), (0, 255, 0))
+
+    def test_without_pil_both_files_are_kept_side_by_side(self):
+        with tempfile.TemporaryDirectory() as folder:
+            shots = self.shots(folder)
+            (shots / "c07-menuopen.png").write_bytes(b"design")
+            ours = Path(folder) / "ours.png"
+            ours.write_bytes(b"real")
+            out = Path(folder) / "caps"
+            with (
+                mock.patch.object(page_checks, "SHOTS", shots),
+                mock.patch.dict(sys.modules, {"PIL": None}),
+            ):
+                dest = page_checks.save_capture(ours, "menu", "c07", folder=out)
+            self.assertEqual(dest.read_bytes(), b"real")
+            self.assertEqual((out / "menu" / "c07-light-design.png").read_bytes(), b"design")
+
+
 if __name__ == "__main__":
     unittest.main()

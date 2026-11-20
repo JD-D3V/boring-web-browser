@@ -29,7 +29,12 @@ Only DevTools, UI Automation and PrintWindow of our own windows; nothing is
 sent to the OS as input. Not checked here: sizes in pixels (compare the
 pictures), and Forget itself (smoke_forget.py).
 
-    python smoke_toolbar.py [--out E:\\tmp\\cui-toolbar\\shots]
+    python smoke_toolbar.py [--out E:\\tmp\\cui-toolbar\\shots] [--captures FOLDER]
+
+With --captures (or BORING_CAPTURES) each photograph is also saved beside its
+compiled screen as <folder>/toolbar/c01-light.png, c01-dark.png, c14-light.png
+and c14-dark.png: the real capture on the left, the compiled screen on the
+right.
 
 Needs the built browser (BORING_OUT / BORING_CHROME as for the smoke tests).
 """
@@ -45,6 +50,7 @@ import tempfile
 import time
 from pathlib import Path
 
+import page_checks
 from capture_native import frame_window, grab
 from drive import CHROME
 from smoke_local import Checks
@@ -65,7 +71,6 @@ UNPINNED_ROW = ["Protected", "Downloads", "hairline", "menu"]
 # Buttons that come before the drawn row, or show only now and then.
 LEADING = {"BackForwardButton", "ReloadButton", "HomeButton", "ExtensionsToolbarButton", "BoringReaderButton"}
 BOOKMARKS = ["Mail", "Bank", "Council", "Recipes"]
-SHOTS = r"E:\WEBBrowser\design\v12-compiled\shots-final"
 
 
 def read_report(profile, timeout=20):
@@ -220,7 +225,7 @@ def bookmarks_file(titles):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=r"E:\tmp\cui-toolbar\shots", help="folder for the photographs")
-    ap.add_argument("--shots", default=SHOTS, help="the compiled screens, to copy beside ours")
+    page_checks.add_captures_option(ap)
     args = ap.parse_args()
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
     out = Path(args.out)
@@ -259,18 +264,16 @@ def main():
             (where / "Default" / "Bookmarks").write_text(json.dumps(bookmarks), encoding="utf-8")
         return where
 
-    def shoot(name, compiled):
-        """PrintWindow of our own window, with the compiled screen copied
-        beside it under the same name."""
+    def shoot(name, screen, dark):
+        """PrintWindow of our own window; with --captures it is also saved
+        beside the compiled screen as toolbar/<screen>-<light|dark>.png."""
         hwnd = frame_window(CHROME, under=os.getpid())
         time.sleep(0.8)
         grab(hwnd, str(out / f"{name}.png"))
-        source = Path(args.shots) / compiled
-        if source.is_file():
-            shutil.copyfile(source, out / f"{name}-compiled.png")
-        else:
-            print("no compiled screen at", source)
         print("saved", out / f"{name}.png")
+        both = page_checks.save_capture(out / f"{name}.png", "toolbar", screen, dark=dark, folder=args.captures)
+        if both:
+            print("saved", both)
 
     def frame_names():
         with Window(frame_window(CHROME, under=os.getpid())) as w:
@@ -327,7 +330,7 @@ def main():
             not any(e[0] == "button" and "Avatar" in e[1] for e in report),
             str(report),
         )
-        shoot("toolbar-light", "c01-newtab.png")
+        shoot("toolbar-light", "c01", False)
         check_toolbar_picture(checks, "light", out / "toolbar-light.png")
         check_icon_files(checks)
         stop()
@@ -382,7 +385,7 @@ def main():
         dark = new_profile("dark")
         row = drawn_row(hook(dark, ["--force-dark-mode"]))
         checks("dark: the same row", row == EXPECTED_ROW, str(row))
-        shoot("toolbar-dark", "dark/c01-newtab.png")
+        shoot("toolbar-dark", "c01", True)
         check_toolbar_picture(checks, "dark", out / "toolbar-dark.png")
         stop()
 
@@ -399,7 +402,7 @@ def main():
             .get("bookmark_bar", {})
             .get("show_on_all_tabs", False),
         )
-        for theme, extra, compiled in (("light", [], "c14-bookmarkstop.png"), ("dark", ["--force-dark-mode"], "dark/c14-bookmarkstop.png")):
+        for theme, extra in (("light", []), ("dark", ["--force-dark-mode"])):
             on = new_profile(f"bookmarks-{theme}", {"bookmark_bar": {"show_on_all_tabs": True}}, marks)
             start(on, extra)
             names = frame_names()
@@ -414,7 +417,7 @@ def main():
                 str([n for n in names if "bookmark" in n.lower()]),
             )
             checks(f"{theme}: no Tab groups button on the bar", "Tab groups" not in names, str(names))
-            shoot(f"bookmarks-{theme}", compiled)
+            shoot(f"bookmarks-{theme}", "c14", theme == "dark")
             m = measure(out / f"bookmarks-{theme}.png", theme)
             if m:
                 checks(

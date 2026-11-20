@@ -15,11 +15,13 @@ smoke_quick_buttons.py opens it, and its computed styles read over DevTools:
   - the separators between the categories are gone, the one between the
     cards is a 1px hairline.
 
-Then the browser's window is photographed with PrintWindow and the compiled
-screen (design/v12-compiled/shots-final c11, light or dark) is copied beside
-it. Only DevTools and PrintWindow of our own window; no input to the OS.
+Then the browser's window is photographed with PrintWindow. With --captures
+(or BORING_CAPTURES) each picture is also saved as
+<folder>/customize/c11-light.png and c11-dark.png: the real capture on the
+left, the compiled screen c11 on the right. Only DevTools and PrintWindow of
+our own window; no input to the OS.
 
-    python smoke_customize_toolbar.py [--out E:\\tmp\\cui-menu\\shots]
+    python smoke_customize_toolbar.py [--out E:\\tmp\\cui-menu\\shots] [--captures FOLDER]
 
 Needs the built browser (BORING_OUT / BORING_CHROME as for the smoke tests).
 """
@@ -35,6 +37,7 @@ import tempfile
 import time
 from pathlib import Path
 
+import page_checks
 from smoke_local import Checks
 from smoke_memory import close, launch
 from smoke_quick_buttons import CHROME, TOOLBAR_JS, open_picker, rows, shoot
@@ -47,8 +50,6 @@ EDGE = {"light": "rgb(138, 134, 125)", "dark": "rgb(119, 117, 109)"}
 BAR = {"light": "rgb(255, 255, 255)", "dark": "rgb(28, 28, 26)"}
 FRAME = {"light": "rgb(236, 234, 230)", "dark": "rgb(17, 17, 16)"}
 INK = {"light": "rgb(31, 30, 28)", "dark": "rgb(236, 235, 231)"}
-DESIGN = Path(__file__).resolve().parents[2] / "design" / "v12-compiled" / "shots-final"
-DESIGN_SHOT = "c11-customizetoolbar.png"
 
 # The computed styles the checks read, in one go.
 STYLES = (
@@ -137,18 +138,10 @@ def panel_pixels(checks, scheme, shot):
     checks(f"{scheme}: the panel is painted in the bar colour", near, f"{colour} in {count} pixels")
 
 
-def beside(out, scheme):
-    """Copies the compiled screen next to this run's picture."""
-    design = DESIGN / ("dark" if scheme == "dark" else "") / DESIGN_SHOT
-    if design.exists():
-        shutil.copyfile(design, out / f"compiled-c11-{scheme}.png")
-    else:
-        print("no compiled screen to put beside it:", design)
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=r"E:\tmp\cui-menu\shots", help="folder for the pictures")
+    page_checks.add_captures_option(ap)
     args = ap.parse_args()
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
     out = Path(args.out)
@@ -171,7 +164,10 @@ def main():
                 check_styles(checks, scheme, cdp.evaluate(panel, STYLES))
                 shoot(out / f"customize-toolbar-{scheme}.png")
                 panel_pixels(checks, scheme, out / f"customize-toolbar-{scheme}.png")
-                beside(out, scheme)
+                both = page_checks.save_capture(
+                    out / f"customize-toolbar-{scheme}.png", "customize", "c11", dark=scheme == "dark", folder=args.captures
+                )
+                print("saved", both or "no capture beside the design")
             close(proc, cdp)
             proc = cdp = None
         return checks.result("customize toolbar")

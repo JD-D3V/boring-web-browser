@@ -16,9 +16,11 @@ Checks, on chrome://settings/appearance in a fresh profile:
 - in dark, the dots under 3 to 1 on the card carry an edge ring; in light
   they do not.
 Then it photographs the window in light and dark (PrintWindow of our own
-window, which sits off screen) beside the compiled screen.
+window, which sits off screen). With --captures (or BORING_CAPTURES) each
+picture is also saved as <folder>/settings/c10-light.png and c10-dark.png:
+the real capture on the left, the compiled screen on the right.
 
-    python smoke_settings_appearance.py
+    python smoke_settings_appearance.py [--captures FOLDER]
 
 Needs the built browser (BORING_OUT as for the other smokes) with
 cui-colours.patch and the Accent work applied (they register the two
@@ -28,22 +30,20 @@ main checkout or point BORING_DESIGN at design/v12-compiled/shots-final.
 Sends no mouse or keys to the desktop.
 """
 
+import argparse
 import json
 import os
-import shutil
 import sys
 import tempfile
 import time
 from pathlib import Path
 
+import page_checks
 from drive import CHROME, Browser, headful_allowed
 from smoke_r3_fixes import FIND
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "artifacts" / "cui-settings"
-DESIGN = Path(os.environ.get(
-    "BORING_DESIGN", ROOT / "design" / "v12-compiled" / "shots-final"))
-SCREEN = {False: DESIGN / "c10-settings.png", True: DESIGN / "dark" / "c10-settings.png"}
 EDGE_DARK = "rgb(119, 117, 109)"  # the edge token, dark TOKENS row
 # The page and the card on it (TOKENS page and surface), light and dark.
 PAGE_BG = {False: "rgb(248, 247, 244)", True: "rgb(21, 21, 20)"}
@@ -248,7 +248,7 @@ def check_writes(b, check):
     check("Toolbar buttons: Customize opens the Customize toolbar panel", panel_open(b))
 
 
-def capture(b, dark):
+def capture(b, dark, captures=None):
     from capture_native import frame_window, grab, user32
     from drive import OFFSCREEN
 
@@ -258,13 +258,11 @@ def capture(b, dark):
     user32.MoveWindow(hwnd, px, py, 1280, 800, True)
     time.sleep(1.0)
     grab(hwnd, str(OUT / f"{name}.png"))
-    screen = SCREEN[dark]
-    if screen.is_file():
-        shutil.copyfile(screen, OUT / f"{name}-design.png")
-    print("saved", OUT / f"{name}.png", "beside", screen)
+    both = page_checks.save_capture(OUT / f"{name}.png", "settings", "c10", dark=dark, folder=captures)
+    print("saved", OUT / f"{name}.png", "and", both or "no capture beside the design")
 
 
-def run(dark, check, shoot):
+def run(dark, check, shoot, captures=None):
     args = ["--window-size=1280,800",
             "--disable-backgrounding-occluded-windows",
             "--disable-features=CalculateNativeWinOcclusion"]
@@ -275,19 +273,22 @@ def run(dark, check, shoot):
                      keep_switches=["enable-automation"]) as b:
             check_page(b, check, dark)
             if shoot:
-                capture(b, dark)
+                capture(b, dark, captures)
             if not dark:
                 check_writes(b, check)
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    page_checks.add_captures_option(ap)
+    opts = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
     check = Checks()
     shoot = headful_allowed()
     if not shoot:
         print("pictures: not taken (set BORING_ALLOW_HEADFUL=1)")
     for dark in (False, True):
-        run(dark, check, shoot)
+        run(dark, check, shoot, opts.captures)
     failed = [n for n, (ok, _) in check.items.items() if not ok]
     (OUT / "results.json").write_text(json.dumps(check.items, indent=1), encoding="utf-8")
     print(f"\n{'FAIL' if failed else 'PASS'}: settings appearance, "

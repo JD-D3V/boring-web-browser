@@ -20,13 +20,16 @@ address and no request before the press; the page uses the system font and
 requests none (no web font, no @import).
 
 Light and dark photographs of our own window (PrintWindow) are written to
-artifacts/ui-implemented next to the compiled design's picture C12. They
-need a native window: set BORING_ALLOW_HEADFUL=1, otherwise that part is
-skipped and said so.
+artifacts/ui-implemented. With --captures (or BORING_CAPTURES) each is also
+saved as <folder>/warning/c12-light.png and c12-dark.png: the real capture
+on the left, the compiled screen C12 on the right. They need a native
+window: set BORING_ALLOW_HEADFUL=1, otherwise that part is skipped and said
+so.
 
-Usage: python smoke_warning_page.py
+Usage: python smoke_warning_page.py [--captures FOLDER]
 """
 
+import argparse
 import json
 import os
 import re
@@ -402,7 +405,7 @@ def no_way_checks(profile, lists, pages, checks):
         )
 
 
-def capture(lists, pages, checks):
+def capture(lists, pages, checks, captures=None):
     """Light and dark photographs of our own window, beside C12."""
     if not headful_allowed():
         print("SKIP: light and dark captures (set BORING_ALLOW_HEADFUL=1)")
@@ -429,11 +432,14 @@ def capture(lists, pages, checks):
             hwnd = frame_window(CHROME, under=b.proc.pid)
             shot = OUT / f"scam-warning-{name}.png"
             grab(hwnd, str(shot))
-            both = page_checks.beside(shot, "C12", OUT, dark=dark)
-            print(f"saved {shot}" + (f" and {both}" if both else ", no design picture"))
+            both = page_checks.save_capture(shot, "warning", "C12", dark=dark, folder=captures)
+            print(f"saved {shot}" + (f" and {both}" if both else ", no capture beside the design"))
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    page_checks.add_captures_option(ap)
+    opts = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
     checks = {}
     static_checks(checks)
@@ -465,7 +471,7 @@ def main():
                 shown(b)
                 look_checks(b, checks, "dark", DARK, b.run(FACTS))
             look_runs(lists, pages, checks)
-            capture(lists, pages, checks)
+            capture(lists, pages, checks, opts.captures)
     finally:
         pages.close()
 

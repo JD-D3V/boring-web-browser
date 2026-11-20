@@ -13,13 +13,16 @@ TOKENS rows of the compiled design, and the font is the system's (no
 Inter, no web font).
 
 Light and dark photographs of the real window (PrintWindow, never the
-screen) are written to artifacts/ui-implemented next to the compiled
-design's pictures C01 and C02. They need a native window: set
-BORING_ALLOW_HEADFUL=1, otherwise that part is skipped and said so.
+screen) are written to artifacts/ui-implemented. With --captures (or
+BORING_CAPTURES) each is also saved as <folder>/newtab/c01-light.png and
+c02-dark.png: the real capture on the left, the compiled screen on the
+right. They need a native window: set BORING_ALLOW_HEADFUL=1, otherwise
+that part is skipped and said so.
 
-Usage: python smoke_newtab.py
+Usage: python smoke_newtab.py [--captures FOLDER]
 """
 
+import argparse
 import json
 import os
 import re
@@ -435,7 +438,7 @@ def look_checks(checks):
         checks[f"{label}: page, tiles, field, text and focus ring follow the Look and accent"] = got == want
 
 
-def capture(profile, checks):
+def capture(profile, checks, captures=None):
     """Light and dark photographs of our own window, beside C01 and C02."""
     if not headful_allowed():
         print("SKIP: light and dark captures (set BORING_ALLOW_HEADFUL=1)")
@@ -465,11 +468,14 @@ def capture(profile, checks):
             hwnd = frame_window(CHROME, under=b.proc.pid)
             shot = OUT / f"newtab-{name}.png"
             grab(hwnd, str(shot))
-            both = page_checks.beside(shot, screen, OUT, dark=dark)
-            print(f"saved {shot}" + (f" and {both}" if both else ", no design picture"))
+            both = page_checks.save_capture(shot, "newtab", screen, dark=dark, folder=captures)
+            print(f"saved {shot}" + (f" and {both}" if both else ", no capture beside the design"))
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    page_checks.add_captures_option(ap)
+    opts = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
     checks = {}
     static_checks(checks)
@@ -488,7 +494,7 @@ def main():
     try:
         with tempfile.TemporaryDirectory(prefix="newtab-hist-", dir=os.environ.get("TMP") or None) as profile:
             recent_checks(profile, pages, checks)
-            capture(profile, checks)
+            capture(profile, checks, opts.captures)
     finally:
         pages.close()
 

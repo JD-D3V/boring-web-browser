@@ -18,6 +18,7 @@ Sends no mouse or keys to the desktop.
     python smoke_app_menu.py --save before.json        # on the old build
                                     (its layout check fails there; the file is what counts)
     python smoke_app_menu.py --compare before.json     # on the new build
+    python smoke_app_menu.py [--dark] --captures DIR   # DIR/menu/c07-light.png or c07-dark.png
 
 It always checks the mockup A layout (design/v9-menu): exactly the entries of
 LAYOUT in that order (an extra, repeated or moved one fails), and the menu's
@@ -34,13 +35,12 @@ import itertools
 import json
 import os
 import re
-import shutil
 import sys
 import tempfile
 import time
-from pathlib import Path
 
 from capture_app_menu import shoot_popup
+import page_checks
 from capture_native import frame_window
 from drive import CHROME, Browser
 from smoke_site_panel import COLLAPSE, Window, browser_windows
@@ -55,9 +55,6 @@ TOLERANCE = 6
 # whole menu must clear an 800 DIP tall window (screen C07).
 MENU_TOP = 94
 WINDOW_HEIGHT = 800
-# The compiled screen this menu is drawn on, light and dark.
-DESIGN_SHOTS = Path(__file__).resolve().parents[2] / "design" / "v12-compiled" / "shots-final"
-DESIGN_SHOT = "c07-menuopen.png"
 
 # The new menu, top to bottom: tiles, headings with their rows, the bar.
 LAYOUT = [
@@ -464,20 +461,8 @@ def main():
     ap.add_argument("--compare", help="a file --save wrote on the old build")
     ap.add_argument("--dark", action="store_true")
     ap.add_argument("--shot", help="keep the picture of the open menu here")
-    ap.add_argument(
-        "--captures",
-        help="folder for the picture beside the compiled screen (C07) it matches",
-    )
+    page_checks.add_captures_option(ap)
     opts = ap.parse_args()
-    if opts.captures and not opts.shot:
-        scheme = "dark" if opts.dark else "light"
-        os.makedirs(opts.captures, exist_ok=True)
-        opts.shot = os.path.join(opts.captures, f"app-menu-{scheme}.png")
-        design = DESIGN_SHOTS / ("dark" if opts.dark else "") / DESIGN_SHOT
-        if design.exists():
-            shutil.copyfile(design, os.path.join(opts.captures, f"compiled-c07-{scheme}.png"))
-        else:
-            print("no compiled screen to put beside it:", design)
     ctypes.windll.shcore.SetProcessDpiAwareness(2)
 
     args = [
@@ -498,6 +483,11 @@ def main():
         b.get("chrome://boring-newtab")
         frame = frame_window(CHROME, under=b.proc.pid)
         menu = read_menu(b, frame, opts.shot or os.path.join(profile, "menu.png"))
+        both = page_checks.save_capture(
+            opts.shot or os.path.join(profile, "menu.png"), "menu", "c07", dark=opts.dark, folder=opts.captures
+        )
+        if both:
+            print("saved", both)
         for name, prefix in (
             ("New tab", "chrome://"),
             ("Settings", "chrome://settings"),
