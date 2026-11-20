@@ -1,0 +1,27 @@
+# Copyright 2026 boring. BSD style license.
+
+# Accounts (ledger item 11): shortcuts to each company's own pages. The
+# list and its checks, and the handler the Settings page and the new tab
+# page talk to. The toolbar button lives in
+# chrome/browser/ui/views/toolbar/boring_accounts_button.cc.
+static_library("accounts") {
+  sources = [
+    "accounts_handler.cc",
+    "accounts_handler.h",
+    "accounts_rules.cc",
+    "accounts_rules.h",
+    "accounts_store.cc",
+    "accounts_store.h",
+  ]
+  deps = [
+    "//base",
+    "//base:i18n",
+    "//components/pref_registry",
+    "//components/prefs",
+    "//components/url_formatter",
+    "//components/user_prefs",
+    "//content/public/browser",
+    "//net",
+    "//url",
+  ]
+}

@@ -1,0 +1,33 @@
+diff --git a/chrome/browser/BUILD.gn b/chrome/browser/BUILD.gn
+--- a/chrome/browser/BUILD.gn
++++ b/chrome/browser/BUILD.gn
+@@ -1287,6 +1287,8 @@
+     "//components/actor/public/mojom:mojo_bindings",
+     "//components/application_locale_storage",
+     "//components/blocked_content",
++    # boring: Accounts.
++    "//components/boring/accounts",
+     "//components/boring/adblock:browser",
+     "//components/boring/adblock/mojom",
+     "//components/boring/ai",
+diff --git a/chrome/browser/prefs/browser_prefs.cc b/chrome/browser/prefs/browser_prefs.cc
+--- a/chrome/browser/prefs/browser_prefs.cc
++++ b/chrome/browser/prefs/browser_prefs.cc
+@@ -109,6 +109,8 @@
+ #include "chrome/common/secure_origin_allowlist.h"
+ #include "components/autofill/core/common/autofill_prefs.h"
+ #include "components/blocked_content/safe_browsing_triggered_popup_blocker.h"
++// boring: Accounts.
++#include "components/boring/accounts/accounts_store.h"
+ #include "components/boring/ai/ai_prefs.h"
+ #include "components/boring/core/boring_prefs.h"
+ #include "components/boring/newtab/newtab_ui.h"
+@@ -2002,6 +2004,8 @@
+   AnnouncementNotificationService::RegisterProfilePrefs(registry);
+   autofill::prefs::RegisterProfilePrefs(registry);
+   boring::RegisterProfilePrefs(registry);
++  // boring: Accounts, the list of shortcuts (not syncable).
++  boring::accounts::RegisterProfilePrefs(registry);
+   boring::ai::RegisterProfilePrefs(registry);
+   boring::RegisterNewTabPrefs(registry);
+   boring::webstore::RegisterProfilePrefs(registry);
