@@ -63,7 +63,14 @@ std::vector<url::Origin> OriginsOf(const GURL& url) {
   swap.SetHostStr(twin);
   const GURL twin_url = url.ReplaceComponents(swap);
   std::vector<url::Origin> out = {origin};
-  if (twin_url.is_valid() && !twin.empty()) {
+  // Only within one registrable domain: www.netlify.app's twin would be the
+  // public suffix itself, and its visits are not the tenant's.
+  using net::registry_controlled_domains::GetDomainAndRegistry;
+  using net::registry_controlled_domains::INCLUDE_PRIVATE_REGISTRIES;
+  const std::string domain =
+      GetDomainAndRegistry(host, INCLUDE_PRIVATE_REGISTRIES);
+  if (twin_url.is_valid() && !twin.empty() && !domain.empty() &&
+      domain == GetDomainAndRegistry(twin, INCLUDE_PRIVATE_REGISTRIES)) {
     out.push_back(url::Origin::Create(twin_url));
   }
   return out;
