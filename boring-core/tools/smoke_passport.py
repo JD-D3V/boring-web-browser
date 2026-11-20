@@ -200,6 +200,7 @@ def run(base, out, captures, dark, checks, full):
         checks(f"{theme}: new site chip says New to you", chip.get("text") == "New to you", str(chip))
         checks(f"{theme}: new site chip is in the warn tone", chip.get("textColor") == "warn", str(chip))
         checks(f"{theme}: chip's accessible name is its word", chip.get("a11yName") == "New to you", str(chip))
+        checks(f"{theme}: chip is drawn 28 high", chip.get("height") == 28, str(chip))
         if full:
             try:
                 with Window(frame_window(CHROME, under=os.getpid())) as w:

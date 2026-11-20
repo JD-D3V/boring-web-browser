@@ -6,6 +6,7 @@
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/views/boring/boring_passport_bubble.h"
 #include "chrome/browser/ui/views/boring/boring_passport_tab_helper.h"
+#include "chrome/browser/ui/views/chrome_typography.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/browser/ui/views/location_bar/location_icon_state_helper.h"
 #include "chrome/browser/ui/views/location_bar/location_icon_view.h"
@@ -19,6 +20,8 @@
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/views/background.h"
 #include "ui/views/painter.h"
+#include "ui/views/style/typography.h"
+#include "ui/views/style/typography_provider.h"
 #include "ui/views/view_utils.h"
 
 namespace {
@@ -27,12 +30,23 @@ using boring::passport::Chip;
 
 constexpr int kDotSize = 7;
 constexpr float kChipRadius = 6;
+// The design: 28 high, padding 0 10, 7px between the dot and the word,
+// 12.5px semibold (a whole 13 here: font sizes are whole pixels).
+constexpr int kChipHeight = 28;
+constexpr int kChipPadding = 10;
+constexpr int kChipGap = 7;
+constexpr int kChipFontSize = 13;
+// Chromium puts 4px between the icon and the label; the dot's image carries
+// the rest, as clear space on its right.
+constexpr int kDotGapShare = kChipGap - 4;
 
-// The chip's dot: a 7px circle in the tone's colour.
+// The chip's dot: a 7px circle in the tone's colour, with clear space to its
+// right so the gap to the word is the drawn 7px.
 class DotSource : public gfx::CanvasImageSource {
  public:
   explicit DotSource(SkColor color)
-      : gfx::CanvasImageSource(gfx::Size(kDotSize, kDotSize)), color_(color) {}
+      : gfx::CanvasImageSource(gfx::Size(kDotSize + kDotGapShare, kDotSize)),
+        color_(color) {}
 
   void Draw(gfx::Canvas* canvas) override {
     cc::PaintFlags flags;
@@ -128,8 +142,22 @@ std::optional<SkColor> PassportChip::Foreground(const LocationIconView* icon) {
 }
 
 // static
-void PassportChip::StyleBackground(LocationIconView* icon) {
+void PassportChip::StyleBackground(LocationIconView* icon,
+                                   const gfx::FontList& font) {
   const Chip chip = ChipFor(icon);
+  // The word's weight and size: the chip's where one applies, the address
+  // field's own text style otherwise. Set only on a change.
+  const gfx::FontList& base = views::TypographyProvider::Get().GetFont(
+      CONTEXT_OMNIBOX_PRIMARY, views::style::STYLE_PRIMARY);
+  const gfx::FontList want =
+      chip == Chip::kNone
+          ? base
+          : base.DeriveWithSizeDelta(kChipFontSize - base.GetFontSize())
+                .DeriveWithWeight(gfx::Font::Weight::SEMIBOLD);
+  if (font.GetFontSize() != want.GetFontSize() ||
+      font.GetFontWeight() != want.GetFontWeight()) {
+    icon->SetFontList(want);
+  }
   const ui::ColorProvider* colors = icon->GetColorProvider();
   if (chip == Chip::kNone || !colors) {
     return;
@@ -143,6 +171,20 @@ void PassportChip::StyleBackground(LocationIconView* icon) {
       views::Painter::CreateRoundRectWith1PxBorderPainter(
           fill, tone.outline ? colors->GetColor(*tone.outline) : fill,
           kChipRadius)));
+}
+
+// static
+int PassportChip::HeightFor(const LocationIconView* icon, int height) {
+  return height < kChipHeight && Applies(icon) ? kChipHeight : height;
+}
+
+// static
+void PassportChip::AdjustInsets(const LocationIconView* icon,
+                                gfx::Insets* insets) {
+  // Before the icon has a parent there is no tab and so no chip.
+  if (icon->parent() && Applies(icon)) {
+    *insets = gfx::Insets::VH(0, kChipPadding);
+  }
 }
 
 // static

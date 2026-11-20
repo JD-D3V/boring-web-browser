@@ -64,6 +64,31 @@ diff --git a/chrome/browser/ui/views/location_bar/BUILD.gn b/chrome/browser/ui/v
        "//components/boring/search",
        "//components/commerce/core:feature_list",
        "//components/contextual_search:public",
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -41,6 +41,7 @@
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/color/chrome_color_id.h"
+ #include "chrome/browser/ui/views/boring/boring_bar_test.h"  // boring: the Bar
++#include "chrome/browser/ui/views/boring/boring_passport_chip.h"  // boring: passport
+ #include "chrome/browser/ui/content_settings/content_setting_bubble_model.h"
+ #include "chrome/browser/ui/layout_constants.h"
+ #include "chrome/browser/ui/lens/lens_overlay_entry_point_controller.h"
+@@ -932,8 +933,12 @@
+   } else if (location_icon_view_->GetShowText() &&
+              !ShouldChipOverrideLocationIcon()) {
+     location_icon_view_->SetVisible(true);
++    // boring: the Passport chip is drawn 28 high, centred in the field.
++    const int chip_height =
++        PassportChip::HeightFor(location_icon_view_, location_height);
+     leading_decorations.AddDecoration(
+-        vertical_padding, location_height, false, kLeadingDecorationMaxFraction,
++        vertical_padding - (chip_height - location_height) / 2, chip_height,
++        false, kLeadingDecorationMaxFraction,
+         /*intra_item_padding=*/0, icon_left, location_icon_view_);
+   } else if (!ShouldChipOverrideLocationIcon()) {
+     location_icon_view_->SetVisible(true);
 diff --git a/chrome/browser/ui/views/location_bar/location_icon_view.cc b/chrome/browser/ui/views/location_bar/location_icon_view.cc
 --- a/chrome/browser/ui/views/location_bar/location_icon_view.cc
 +++ b/chrome/browser/ui/views/location_bar/location_icon_view.cc
@@ -151,7 +176,15 @@ diff --git a/chrome/browser/ui/views/location_bar/location_icon_view.cc b/chrome
      ConfigureInkDropForRefresh2023(this, kColorOmniboxIconHover,
                                     kColorOmniboxIconPressed);
    }
-+  PassportChip::StyleBackground(this);  // boring: passport
++  PassportChip::StyleBackground(this, font_list());  // boring: passport
  }
  
  void LocationIconView::OnIconFetched(const gfx::Image& image) {
+@@ -465,6 +490,7 @@
+       insets.set_right(insets.right() + kExtraRightPadding);
+     }
+   }
++  PassportChip::AdjustInsets(this, &insets);  // boring: the chip's 0 10
+   SetBorder(views::CreateEmptyBorder(insets));
+ }
+ 

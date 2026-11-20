@@ -72,6 +72,14 @@ class PassportSourceTest(unittest.TestCase):
             for word in ("LOG(", "DLOG(", "VLOG(", "DVLOG(", "base::debug"):
                 self.assertNotIn(word, code(path), f"{path.name} names {word}")
 
+    def test_chip_is_drawn_to_the_design_size(self):
+        # Window.dc.html: 28 high, padding 0 10, 7px dot, 7px gap, radius 6.
+        chip = text(VIEWS / "boring_passport_chip.cc")
+        for line in ("kChipHeight = 28;", "kChipPadding = 10;", "kChipGap = 7;",
+                     "kDotSize = 7;", "kChipRadius = 6;"):
+            self.assertIn(line, chip)
+        self.assertIn("SEMIBOLD", chip)
+
     def test_mark_never_reaches_a_protection(self):
         for folder in ("scam", "adblock", "privacy", "guards"):
             for path in (CORE / "components" / "boring" / folder).rglob("*.cc"):
