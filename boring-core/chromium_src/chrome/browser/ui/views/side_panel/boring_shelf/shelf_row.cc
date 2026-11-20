@@ -27,7 +27,6 @@ constexpr int kRowRadius = 7;
 constexpr int kTileRadius = 8;
 constexpr int kRowIcon = 15;
 constexpr int kTileLetter = 13;  // The site's letter, as on the new tab page.
-constexpr int kRowGap = 10;
 constexpr int kRowSidePadding = 8;
 
 // A label with the font at an exact pixel size (the design draws 11.5, 12
@@ -73,12 +72,14 @@ END_METADATA
 ShelfRow::ShelfRow(PressedCallback callback,
                    const gfx::VectorIcon& icon,
                    const std::u16string& title,
-                   const std::u16string& meta)
+                   const std::u16string& meta,
+                   int height,
+                   int gap)
     : views::Button(std::move(callback)) {
   SetFocusBehavior(FocusBehavior::ALWAYS);
   auto* layout = SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kHorizontal,
-      gfx::Insets::VH(0, kRowSidePadding), kRowGap));
+      gfx::Insets::VH(0, kRowSidePadding), gap));
   layout->set_cross_axis_alignment(
       views::BoxLayout::CrossAxisAlignment::kCenter);
 
@@ -105,7 +106,7 @@ ShelfRow::ShelfRow(PressedCallback callback,
     SetFont(meta_label, 12, gfx::Font::Weight::NORMAL);
   }
 
-  SetPreferredSize(gfx::Size(0, kHeight));
+  SetPreferredSize(gfx::Size(0, height));
   GetViewAccessibility().SetName(title);
   SetTooltipText(title);
 }

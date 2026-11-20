@@ -35,6 +35,9 @@ constexpr int kWidth = 340;
 constexpr int kMargin = 6;
 // The newest rows shown; "Show all" has the rest.
 constexpr size_t kMaxRows = 5;
+// Screen C08 draws its rows 34 high with a 12px gap (the Shelf's are 32, 10).
+constexpr int kRowHeight = 34;
+constexpr int kRowGap = 12;
 
 void SetFont(views::Label* label, int size, gfx::Font::Weight weight) {
   const gfx::FontList base = label->font_list();
@@ -57,19 +60,29 @@ views::Label* AddLabel(views::View* parent,
   return label;
 }
 
+// A text button with the weight it is drawn in: LabelButton has no public
+// font setting, but its label is ours to restyle in a subclass. Only the
+// weight changes, never the size (LabelButton checks the size).
+class TextButton : public views::LabelButton {
+ public:
+  TextButton(PressedCallback callback,
+             const std::u16string& text,
+             gfx::Font::Weight weight)
+      : views::LabelButton(std::move(callback), text) {
+    label()->SetFontList(label()->font_list().DeriveWithWeight(weight));
+  }
+};
+
 std::unique_ptr<views::LabelButton> MakeTextButton(
     views::Button::PressedCallback callback,
     const std::u16string& text,
     ui::ColorId color,
     gfx::Font::Weight weight) {
   auto button =
-      std::make_unique<views::LabelButton>(std::move(callback), text);
+      std::make_unique<TextButton>(std::move(callback), text, weight);
   button->SetEnabledTextColors(color);
   button->SetHorizontalAlignment(gfx::ALIGN_LEFT);
   button->SetPreferredSize(gfx::Size(button->GetPreferredSize().width(), 32));
-  // LabelButton has no public font setting: the weight drawn for Show all
-  // (500) is the button's normal one here.
-  (void)weight;
   return button;
 }
 
@@ -190,7 +203,8 @@ void BoringEarlierPopup::Rebuild() {
                               base::Unretained(this), entry.id),
           kBoringDocIcon, boring::shelf::ShelfTitle(entry.title, entry.url),
           url_formatter::FormatUrlForSecurityDisplay(
-              entry.url, url_formatter::SchemeDisplay::OMIT_HTTP_AND_HTTPS)));
+              entry.url, url_formatter::SchemeDisplay::OMIT_HTTP_AND_HTTPS),
+          kRowHeight, kRowGap));
     }
   }
 

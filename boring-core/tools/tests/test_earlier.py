@@ -83,6 +83,21 @@ class PatchTests(unittest.TestCase):
         self.assertIn('boring.earlier.enabled', PATCH.read_text())
 
 
+class LookTests(unittest.TestCase):
+    def test_popup_rows_and_show_all_are_drawn_to_the_design(self):
+        # Window.dc.html: rows 34 high with a 12px gap, "Show all" weight 500.
+        popup = (VIEWS / "boring/boring_earlier_popup.cc").read_text(encoding="utf-8")
+        self.assertIn("kRowHeight = 34;", popup)
+        self.assertIn("kRowGap = 12;", popup)
+        self.assertIn("kRowHeight, kRowGap", popup)
+        show_all = popup[popup.index("OnShowAll,"):]
+        self.assertIn("gfx::Font::Weight::MEDIUM", show_all[:300])
+        # The Shelf's own rows keep 32 and 10.
+        row_h = (VIEWS / "side_panel/boring_shelf/shelf_row.h").read_text(encoding="utf-8")
+        self.assertIn("kHeight = 32;", row_h)
+        self.assertIn("kGap = 10;", row_h)
+
+
 class SafetyTests(unittest.TestCase):
     def test_off_by_default(self):
         self.assertRegex(PREFS, r"RegisterBooleanPref\(prefs::kEarlierEnabled, false\)")

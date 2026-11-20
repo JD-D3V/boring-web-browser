@@ -37,17 +37,21 @@ class ShelfSectionHeading : public views::View {
 };
 
 // One row: a 15 px icon, a one-line title that elides, and a meta on the
-// right. 32 px high, 7 px corners, a wash behind it on hover.
+// right. 32 px high with a 10 px gap (the Earlier pop-up draws 34 and 12),
+// 7 px corners, a wash behind it on hover.
 class ShelfRow : public views::Button {
   METADATA_HEADER(ShelfRow, views::Button)
 
  public:
   static constexpr int kHeight = 32;
+  static constexpr int kGap = 10;
 
   ShelfRow(PressedCallback callback,
            const gfx::VectorIcon& icon,
            const std::u16string& title,
-           const std::u16string& meta);
+           const std::u16string& meta,
+           int height = kHeight,
+           int gap = kGap);
   ShelfRow(const ShelfRow&) = delete;
   ShelfRow& operator=(const ShelfRow&) = delete;
   ~ShelfRow() override;
