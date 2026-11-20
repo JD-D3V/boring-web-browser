@@ -155,6 +155,12 @@ void EarlierTabsService::OnFileRead(LoadedFile file) {
     file_runner_->PostTask(
         FROM_HERE, base::BindOnce(&EarlierTabsService::DeleteFiles, path_));
   }
+  for (const HistoryDeletion& deletion : pending_deletions_) {
+    if (!read_only_) {
+      ApplyDeletion(deletion);
+    }
+  }
+  pending_deletions_.clear();
   std::stable_sort(entries_.begin(), entries_.end(),
                    [](const EarlierEntry& a, const EarlierEntry& b) {
                      return a.moved > b.moved;
@@ -493,35 +499,55 @@ void EarlierTabsService::OnHistoryDeletions(
     }
     return;
   }
-  if (!loaded_ || read_only_) {
+  HistoryDeletion deletion;
+  deletion.all = info.IsAllHistory();
+  if (!deletion.all) {
+    deletion.range_valid = info.time_range().IsValid();
+    if (deletion.range_valid) {
+      deletion.begin = info.time_range().begin();
+      deletion.end = info.time_range().end();
+    }
+    deletion.restricted = info.restrict_urls().has_value();
+    if (deletion.restricted) {
+      deletion.restrict = *info.restrict_urls();
+    }
+    for (const history::URLRow& row : info.deleted_rows()) {
+      deletion.urls.insert(WithoutCredentials(row.url()));
+    }
+  }
+  if (!loaded_) {
+    // The list is still being read (a clear right after start can come
+    // first): keep what was deleted and apply it once the list is here.
+    pending_deletions_.push_back(std::move(deletion));
     return;
   }
-  if (info.IsAllHistory()) {
+  if (read_only_) {
+    return;
+  }
+  ApplyDeletion(deletion);
+}
+
+void EarlierTabsService::ApplyDeletion(const HistoryDeletion& deletion) {
+  if (deletion.all) {
     file_runner_->PostTask(
         FROM_HERE, base::BindOnce(&EarlierTabsService::DeleteFiles, path_));
   }
-  const history::DeletionTimeRange& range = info.time_range();
-  const std::set<GURL>* restrict = info.restrict_urls().has_value()
-                                       ? &*info.restrict_urls()
-                                       : nullptr;
   // Any page of the entry counts, its back and forward list too: a page
   // deleted from History must not stay on disk or come back on Reopen.
   auto deleted = [&](const GURL& url) {
-    if (range.IsValid() && restrict && restrict->contains(url)) {
+    if (deletion.range_valid && deletion.restricted &&
+        deletion.restrict.contains(url)) {
       return true;
     }
-    return std::ranges::any_of(info.deleted_rows(),
-                               [&](const history::URLRow& row) {
-                                 return WithoutCredentials(row.url()) == url;
-                               });
+    return deletion.urls.contains(WithoutCredentials(url));
   };
   const size_t before = entries_.size();
   std::erase_if(entries_, [&](const EarlierEntry& e) {
-    if (info.IsAllHistory()) {
+    if (deletion.all) {
       return true;
     }
-    if (range.IsValid() && !restrict && e.last_used >= range.begin() &&
-        e.last_used <= range.end()) {
+    if (deletion.range_valid && !deletion.restricted &&
+        e.last_used >= deletion.begin && e.last_used <= deletion.end) {
       return true;
     }
     return deleted(e.url) ||

@@ -4,6 +4,7 @@
 #define CHROME_BROWSER_UI_VIEWS_BORING_BORING_EARLIER_TABS_SERVICE_H_
 
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -15,7 +16,9 @@
 #include "base/scoped_observation.h"
 #include "base/supports_user_data.h"
 #include "base/task/sequenced_task_runner.h"
+#include "base/time/time.h"
 #include "base/timer/timer.h"
+#include "url/gurl.h"
 #include "components/boring/earlier/earlier_store.h"
 #include "components/history/core/browser/history_service.h"
 #include "components/history/core/browser/history_service_observer.h"
@@ -119,6 +122,19 @@ class EarlierTabsService : public base::SupportsUserData::Data,
   void RemoveEntries(const std::vector<std::string>& ids);
   void NotifyChanged();
 
+  // What a history deletion removed, kept as plain values so one that comes
+  // before the list is read can be applied after.
+  struct HistoryDeletion {
+    bool all = false;
+    bool range_valid = false;
+    base::Time begin;
+    base::Time end;
+    bool restricted = false;
+    std::set<GURL> restrict;
+    std::set<GURL> urls;
+  };
+  void ApplyDeletion(const HistoryDeletion& deletion);
+
   // history::HistoryServiceObserver:
   void OnHistoryDeletions(history::HistoryService* history_service,
                           const history::DeletionInfo& deletion_info) override;
@@ -137,6 +153,8 @@ class EarlierTabsService : public base::SupportsUserData::Data,
   // All of history was deleted before the file was read: the list goes as
   // soon as it is.
   bool clear_when_loaded_ = false;
+  // History deletions that came before the list was read.
+  std::vector<HistoryDeletion> pending_deletions_;
   std::vector<EarlierEntry> entries_;
 
   base::OneShotTimer settle_timer_;
