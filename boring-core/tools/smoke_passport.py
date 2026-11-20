@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Smoke test: the Passport (ledger item 13, compiled screens C04, C05, C12).
 
 Runs the real browser with --boring-passport-test and a temp profile under
@@ -25,11 +25,15 @@ What it asserts:
   6. Forget this site: the question, Cancel keeps the mark, Forget drops it.
   7. Leave this site: the tab shows the new tab page, no extra history entry.
   8. Site settings: Chromium's page info opens.
-  9. Not private (http): Chromium's "Not secure" stays, no chip of ours, the
-     Passport still opens and says "The connection is not private."
-     An https page with a form posting to http (not SECURE) and an error
-     page: no chip of ours either (item 52). The test certificate is trusted
-     by its key hash, so the other https pages are plainly SECURE.
+  9. Not private (http, HTTPS-First off in this profile): Chromium's "Not
+     secure" stays, no chip of ours, the Passport still opens and says "The
+     connection is not private." Item 52, the chip only ever where Chromium
+     says SECURE: an https page with a form posting to http (Chromium 157
+     keeps it SECURE at load and after typing; sending it brings Chromium's
+     insecure-form warning page, with no chip), an http image on an https
+     page (not SECURE, no chip), and an error page (no chip). The test
+     certificate is trusted by its key hash, so the other https pages are
+     plainly SECURE.
  10. Internal page (the new tab page): no chip, no Passport.
  11. Card details: a page with cc-number and cc-csc fields gets the row "This
      page asks for card details."; one with only name fields does not, and
@@ -38,8 +42,8 @@ What it asserts:
      and 4, light and dark, beside C05 and C04 (--captures).
  13. Warning pages and other windows (run_warnings, run_windows): the Blocked
      chip on a scam-listed host (a test list like smoke_scam.py's) with no
-     Passport pop-up; no chip of ours on a certificate warning page, a file
-     page or a data page; the chip in a private window, a guest window and a
+     Passport pop-up; no chip of ours on a certificate warning page, the
+     HTTPS-First warning page, a file page or a data page; the chip in a private window, a guest window and a
      pop-up, none in an app window (which has no address field).
 Not checked here: the Scam list chip (after "Continue anyway"), the
 registration date (left out).
@@ -52,6 +56,7 @@ import base64
 import contextlib
 import datetime
 import hashlib
+import json
 import os
 import ssl
 import subprocess
@@ -61,6 +66,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 import page_checks
 from capture_native import frame_window, grab
@@ -82,6 +88,9 @@ OPENSSL = r"C:\Program Files\Git\usr\bin\openssl.exe"
 NAMES = ["citylibrary.net", "parcel-redelivery.net", "royalpost.net", "rnyalpost.net", "plain.net"]
 NEW, KNOWN = 2, 1
 SECURE = 3  # security_state::SECURE
+# A 1x1 PNG for the mixed content page.
+DOT_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
 
 
 class _Page(BaseHTTPRequestHandler):
@@ -96,11 +105,38 @@ class _Page(BaseHTTPRequestHandler):
                     b"<input autocomplete='cc-exp'><input autocomplete='cc-csc'>"
                     b"</form>")
         elif self.path.startswith("/mixedform"):
-            # An https page whose form posts to http: Chromium's "not fully
-            # secure" state, which no chip of ours may cover. Never submitted.
+            # An https page whose form posts to http (?to=the http port).
+            # Chromium 157 keeps such a page SECURE (the mixed-forms warning
+            # pref is on by default, chrome_security_state_util.cc) and stops
+            # the submission with its own insecure-form warning page instead.
+            # ?edit=1 types into the field, ?submit=1 sends the form.
+            query = parse_qs(urlparse(self.path).query)
+            to = query.get("to", ["80"])[0]
+            script = b""
+            if "edit" in query:
+                script += (b"var f=document.querySelector('input');f.focus();f.value='x';"
+                           b"f.dispatchEvent(new Event('input',{bubbles:true}));")
+            if "submit" in query:
+                script += b"setTimeout(function(){document.forms[0].submit();},500);"
             body = (b"<!doctype html><title>A site you know</title>"
-                    b"<form action='http://plain.net/send' method='post'>"
-                    b"<input name='q'></form>")
+                    b"<form action='http://plain.net:" + to.encode("ascii") + b"/send' method='post'>"
+                    b"<input name='q'></form><script>" + script + b"</script>")
+        elif self.path.startswith("/mixedimage"):
+            # An https page showing an http image: Chromium's displayed mixed
+            # content state (the profile allows insecure content, or Chromium
+            # would fetch it over https). Not 127.0.0.1: a loopback address
+            # counts as trustworthy, so it would not be mixed content.
+            to = parse_qs(urlparse(self.path).query).get("to", ["80"])[0]
+            body = (b"<!doctype html><title>A site you know</title><p>A page.</p>"
+                    b"<img src='http://plain.net:" + to.encode("ascii") + b"/river-photo.png' width='40' height='40'>")
+        elif self.path.startswith("/river-photo.png"):
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(DOT_PNG)))
+            self.end_headers()
+            self.wfile.write(DOT_PNG)
+            self.server.hosts.add(self.headers.get("Host", "").split(":")[0])
+            return
         elif self.path.startswith("/replace"):
             # The page rewrites its own address after load, the way a
             # look-alike would try to drop the Passport's warnings.
@@ -118,8 +154,17 @@ class _Page(BaseHTTPRequestHandler):
         self.wfile.write(body)
         self.server.hosts.add(self.headers.get("Host", "").split(":")[0])
 
+    def do_POST(self):
+        # Only the http form would post here; Chromium's warning must stop it.
+        POSTS.append(self.path)
+        self.send_response(204)
+        self.end_headers()
+
     def log_message(self, *args):
         pass
+
+
+POSTS = []
 
 
 def serve(cert_dir, tls):
@@ -234,8 +279,31 @@ def run(base, out, captures, dark, checks, full):
     if dark:
         args.append("--force-dark-mode")
     https, http = base[:2]
-    with tempfile.TemporaryDirectory(prefix="passport-", dir=r"E:\tmp") as profile, \
-            Browser(headful=True, user_data_dir=profile, args=args) as b:
+    with tempfile.TemporaryDirectory(prefix="passport-", dir=r"E:\tmp") as profile:
+        seed_profile(profile)
+        run_in(b_args=args, profile=profile, base=base, out=out, captures=captures, dark=dark,
+               checks=checks, full=full)
+
+
+def seed_profile(profile):
+    """HTTPS-First (on by default) puts Chromium's own warning page in front
+    of every http page; step 9 is about the http page a person reaches past
+    it, so this profile has it off, the way smoke_lookalike.py seeds it. The
+    warning page itself is checked in run_warnings.
+    It also allows insecure content (Site settings, "Insecure content"),
+    which is what stops Chromium upgrading an http image to https: step 9c
+    needs real mixed content on the page."""
+    folder = Path(profile) / "Default"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "Preferences").write_text(json.dumps(
+        {"https_only_mode_enabled": False, "https_first_balanced_mode_enabled": False,
+         "profile": {"default_content_setting_values": {"mixed_script": 1}}}), encoding="utf-8")
+
+
+def run_in(b_args, profile, base, out, captures, dark, checks, full):
+    theme = "dark" if dark else "light"
+    https, http = base[:2]
+    with Browser(headful=True, user_data_dir=profile, args=b_args) as b:
         UNDER[0] = b.proc.pid  # chromedriver starts Chrome
         checks(f"{theme}: new tab page hook is ready", open_newtab(b))
         hook(b, "engage", f"https://royalpost.net:{https}/", 50)
@@ -364,6 +432,7 @@ def run(base, out, captures, dark, checks, full):
 
         # 7. Leave this site.
         before = (hook(b, "passportState") or {}).get("entries")
+        popup(b)  # the button is the Passport's own
         hook(b, "pressButton", "Leave this site")
         time.sleep(1.5)
         after = hook(b, "passportState") or {}
@@ -409,14 +478,52 @@ def run(base, out, captures, dark, checks, full):
                "The connection is not private." in texts(state), str(texts(state)))
         hook(b, "closePopup")
 
-        # 9a. An https page of a known site with a form that posts to http:
-        # not SECURE, so Chromium's own icon shows and no word of ours.
-        go(b, f"https://citylibrary.net:{https}/mixedform")
+        # 9a. An https page of a known site with a form that posts to http.
+        # Chromium 157 keeps it SECURE, at load and after typing (the
+        # mixed-forms warning pref is on by default), so the chip may show
+        # exactly as it does beside Chromium's lock. The chip follows the
+        # level, whatever it is. Chromium marks the form when it is sent: its
+        # insecure-form warning page, where no chip of ours may show.
+        def chip_follows_level(label, chip):
+            level = chip.get("securityLevel")
+            ours = chip.get("chip") not in (None, 0)
+            checks(f"{label}: a chip of ours only on a SECURE page", level == SECURE or not ours, str(chip))
+        go(b, f"https://citylibrary.net:{https}/mixedform?to={http}")
         time.sleep(1)
         chip = hook(b, "chipState") or {}
-        checks("http form on https: the page is not SECURE", chip.get("securityLevel") not in (None, SECURE),
+        checks("http form on https: Chromium keeps it SECURE at load", chip.get("securityLevel") == SECURE,
                str(chip))
-        checks("http form on https: no chip of ours", chip.get("chip") == 0 and chip.get("text") == "", str(chip))
+        chip_follows_level("http form on https, at load", chip)
+        go(b, f"https://citylibrary.net:{https}/mixedform?to={http}&edit=1")
+        time.sleep(1)
+        chip = hook(b, "chipState") or {}
+        checks("http form on https: Chromium keeps it SECURE after typing", chip.get("securityLevel") == SECURE,
+               str(chip))
+        chip_follows_level("http form on https, after typing", chip)
+        hook(b, "navigate", f"https://citylibrary.net:{https}/mixedform?to={http}&submit=1")
+        deadline = time.monotonic() + 8
+        state = {}
+        while time.monotonic() < deadline:
+            state = hook(b, "passportState") or {}
+            if state.get("activeUrl", "").startswith(f"http://plain.net:{http}/send"):
+                break
+            time.sleep(0.2)
+        time.sleep(1)
+        state = hook(b, "passportState") or {}
+        chip = hook(b, "chipState") or {}
+        checks("http form sent: Chromium's warning page is up",
+               state.get("activeUrl", "").startswith(f"http://plain.net:{http}/send")
+               and state.get("eligible") is False, str(state))
+        checks("http form sent: no chip of ours", chip.get("chip") == 0 and chip.get("layout") == 0, str(chip))
+        checks("http form sent: nothing was posted to http", "/send" not in POSTS, str(POSTS))
+        # 9c. Real mixed content (an http image on an https page of a known
+        # site): Chromium's not-fully-secure state, its icon, no chip of ours.
+        go(b, f"https://citylibrary.net:{https}/mixedimage?to={http}")
+        time.sleep(1.5)
+        chip = hook(b, "chipState") or {}
+        checks("mixed content: the page is not SECURE", chip.get("securityLevel") not in (None, SECURE), str(chip))
+        checks("mixed content: no chip of ours", chip.get("chip") == 0 and chip.get("text") == "", str(chip))
+        chip_follows_level("mixed content", chip)
         # 9b. An error page (the name goes nowhere): Chromium's icon, no chip.
         go(b, f"https://gone-passport.net:{https}/")
         time.sleep(1)
@@ -504,6 +611,17 @@ def run_warnings(base, checks):
         time.sleep(1)
         chip = hook(b, "chipState") or {}
         checks("certificate warning page: no chip of ours", chip.get("chip") == 0 and chip.get("text") in ("", None),
+               str(chip))
+
+        # HTTPS-First (on by default here): an http address gets Chromium's
+        # own warning page first. Chromium's icon, no chip, no Passport.
+        go(b, f"http://plain.net:{http}/")
+        time.sleep(1)
+        state = hook(b, "passportState") or {}
+        chip = hook(b, "chipState") or {}
+        checks("HTTPS-First warning page: it is Chromium's page, not ours",
+               state.get("eligible") is False and state.get("blockedPage") is False, str(state))
+        checks("HTTPS-First warning page: no chip of ours", chip.get("chip") == 0 and chip.get("layout") == 0,
                str(chip))
 
         # File and data pages are not the web: no chip.
