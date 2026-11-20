@@ -288,6 +288,37 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   ui::ColorMixer& ids = provider->AddMixer();
   ids[kColorBoringEdge] = {ui::kColorButtonBorder};
   ids[kColorBoringOk] = {ui::kColorSysPrimary};
+  // boring: cui-passport
+  // The Passport's chip and pop-up (screens C04, C05, C12): the warn and
+  // bad tones and the solid button from the TOKENS rows, the same in every
+  // Look and under any theme, since they say something. Its lines and
+  // footer follow whatever the separators and bubble footers are.
+  {
+    const bool passport_dark =
+        key.color_mode == ui::ColorProviderKey::ColorMode::kDark;
+    auto tone = [passport_dark](SkColor light, SkColor dark) {
+      return passport_dark ? dark : light;
+    };
+    ids[kColorBoringPassportWarnText] = {
+        tone(SkColorSetRGB(0x7a, 0x4a, 0x00), SkColorSetRGB(0xf0, 0xc3, 0x6a))};
+    ids[kColorBoringPassportWarnTint] = {
+        tone(SkColorSetRGB(0xfb, 0xef, 0xd2), SkColorSetRGB(0x37, 0x2d, 0x14))};
+    ids[kColorBoringPassportWarnLine] = {
+        tone(SkColorSetRGB(0xec, 0xd9, 0xa8), SkColorSetRGB(0x5a, 0x4a, 0x1e))};
+    ids[kColorBoringPassportWarnDot] = {
+        tone(SkColorSetRGB(0xc7, 0x77, 0x00), SkColorSetRGB(0xe0, 0xa0, 0x30))};
+    ids[kColorBoringPassportBad] = {
+        tone(SkColorSetRGB(0xa3, 0x27, 0x1c), SkColorSetRGB(0xff, 0x9a, 0x8f))};
+    ids[kColorBoringPassportBadTint] = {
+        tone(SkColorSetRGB(0xfb, 0xe6, 0xe3), SkColorSetRGB(0x3b, 0x1c, 0x1a))};
+    ids[kColorBoringPassportSolid] = {
+        tone(SkColorSetRGB(0x1a, 0x1c, 0x22), SkColorSetRGB(0xe8, 0xe9, 0xed))};
+    ids[kColorBoringPassportSolidText] = {
+        tone(SkColorSetRGB(0xff, 0xff, 0xff), SkColorSetRGB(0x14, 0x15, 0x1a))};
+    ids[kColorBoringPassportLine] = {ui::kColorSeparator};
+    ids[kColorBoringPassportFooter] = {ui::kColorBubbleFooterBackground};
+  }
+  // boring: end cui-passport
   if (!UsingOurTheme(key)) {
     return;
   }

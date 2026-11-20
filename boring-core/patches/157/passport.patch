@@ -1,0 +1,155 @@
+diff --git a/chrome/browser/ui/color/chrome_color_id.h b/chrome/browser/ui/color/chrome_color_id.h
+--- a/chrome/browser/ui/color/chrome_color_id.h
++++ b/chrome/browser/ui/color/chrome_color_id.h
+@@ -1184,6 +1184,17 @@
+   E_CPONLY(kColorBoringEdge) \
+   /* boring: the compiled UI's ok token (the toolbar's Protected shield). */ \
+   E_CPONLY(kColorBoringOk) \
++  /* boring: the Passport's tones (boring_color_mixer.cc, cui-passport). */ \
++  E_CPONLY(kColorBoringPassportWarnText) \
++  E_CPONLY(kColorBoringPassportWarnTint) \
++  E_CPONLY(kColorBoringPassportWarnLine) \
++  E_CPONLY(kColorBoringPassportWarnDot) \
++  E_CPONLY(kColorBoringPassportBad) \
++  E_CPONLY(kColorBoringPassportBadTint) \
++  E_CPONLY(kColorBoringPassportSolid) \
++  E_CPONLY(kColorBoringPassportSolidText) \
++  E_CPONLY(kColorBoringPassportLine) \
++  E_CPONLY(kColorBoringPassportFooter) \
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
+ #define CHROME_PLATFORM_SPECIFIC_COLOR_IDS \
+diff --git a/chrome/browser/ui/views/location_bar/BUILD.gn b/chrome/browser/ui/views/location_bar/BUILD.gn
+--- a/chrome/browser/ui/views/location_bar/BUILD.gn
++++ b/chrome/browser/ui/views/location_bar/BUILD.gn
+@@ -95,6 +95,14 @@
+       "../boring/boring_bar_test.cc",
+       "../boring/boring_bar_test.h",
+ 
++      # boring: the Passport (chip, pop-up, facts, test hook).
++      "../boring/boring_passport_bubble.cc",
++      "../boring/boring_passport_bubble.h",
++      "../boring/boring_passport_chip.cc",
++      "../boring/boring_passport_chip.h",
++      "../boring/boring_passport_tab_helper.cc",
++      "../boring/boring_passport_tab_helper.h",
++
+       "../boring/boring_search_engine_menu.cc",
+       "../boring/boring_search_engine_menu.h",
+       "content_setting_image_view.cc",
+@@ -130,6 +138,7 @@
+       "//chrome/browser/extensions/api/omnibox",
+       "//chrome/browser/glic",
+       "//chrome/browser/history",
++      "//chrome/browser/lookalikes",  # boring: passport
+       "//chrome/browser/history_embeddings",
+       "//chrome/browser/page_info",
+       "//chrome/browser/resources/omnibox_popup:resources_grit",
+@@ -181,6 +190,16 @@
+       "//chrome/browser/web_applications:features",
+       "//components/autofill/core/common:features",
+       "//components/boring/newtab",
++      "//components/boring/passport",  # boring: passport
++      # boring: what the Passport reads.
++      "//components/blocked_content",
++      "//components/boring/adblock:browser",
++      "//components/boring/core",
++      "//components/boring/scam",
++      "//components/lookalikes/core",
++      "//components/password_manager/core/browser",
++      "//components/site_engagement/content",
++      "//components/url_formatter",
+       "//components/boring/search",
+       "//components/commerce/core:feature_list",
+       "//components/contextual_search:public",
+diff --git a/chrome/browser/ui/views/location_bar/location_icon_view.cc b/chrome/browser/ui/views/location_bar/location_icon_view.cc
+--- a/chrome/browser/ui/views/location_bar/location_icon_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_icon_view.cc
+@@ -18,6 +18,8 @@
+ #include "chrome/browser/ui/page_info/page_info_dialog.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/view_ids.h"
++#include "chrome/browser/ui/views/boring/boring_passport_bubble.h"  // boring: passport
++#include "chrome/browser/ui/views/boring/boring_passport_chip.h"  // boring: passport
+ #include "chrome/browser/ui/views/boring/boring_search_engine_menu.h"
+ #include "chrome/browser/ui/views/location_bar/icon_label_bubble_view.h"
+ #include "chrome/browser/ui/views/location_bar/location_bar_util.h"
+@@ -95,6 +97,10 @@
+ }
+ 
+ SkColor LocationIconView::GetForegroundColor() const {
++  // boring: the Passport chip's text colour where it shows.
++  if (auto color = PassportChip::Foreground(this)) {
++    return *color;
++  }
+   const std::u16string& display_text = GetText();
+   const bool is_text_dangerous =
+       display_text == l10n_util::GetStringUTF16(IDS_DANGEROUS_VERBOSE_STATE);
+@@ -126,6 +132,11 @@
+   if (delegate_->IsEditingOrEmpty()) {
+     return BoringSearchEngineMenu::ShowForLocationIcon(this);
+   }
++  // boring: on a web page with a Passport it opens; elsewhere, and on
++  // our warnings (Blocked), page info as before.
++  if (BoringPassportBubble::Show(this)) {
++    return true;
++  }
+   const bool success = delegate_->ShowPageInfoDialog();
+   if (success) {
+     MaybeAnimateIcon(true);
+@@ -136,7 +147,8 @@
+ bool LocationIconView::IsBubbleShowing() const {
+   content::WebContents* const web_contents = delegate_->GetWebContents();
+   return (web_contents && PageInfoBubbleViewBase::IsShowing(web_contents)) ||
+-         BoringSearchEngineMenu::IsShowingFor(this);
++         BoringSearchEngineMenu::IsShowingFor(this) ||
++         BoringPassportBubble::IsShowingFor(this);  // boring: passport
+ }
+ 
+ void LocationIconView::OnGestureEvent(ui::GestureEvent* event) {
+@@ -201,6 +213,9 @@
+ }
+ 
+ bool LocationIconView::GetShowText() const {
++  if (PassportChip::Applies(this)) {
++    return true;  // boring: the Passport chip always has its word.
++  }
+   return location_bar::ShouldShowSecurityChipText(
+       delegate_->GetLocationBarModel(), delegate_->GetWebContents(),
+       delegate_->IsEditingOrEmpty());
+@@ -253,6 +268,10 @@
+ }
+ 
+ std::u16string LocationIconView::GetText() const {
++  // boring: Known site, New to you, Blocked or Scam list.
++  if (std::u16string chip = PassportChip::Text(this); !chip.empty()) {
++    return chip;
++  }
+   return location_bar::GetSecurityChipText(delegate_->GetLocationBarModel(),
+                                            delegate_->GetWebContents(),
+                                            delegate_->IsEditingOrEmpty());
+@@ -298,11 +317,16 @@
+       GetViewAccessibility().SetDescription(state.description);
+     }
+   }
++  PassportChip::UpdateAccessibility(this);  // boring: passport
+ }
+ 
+ void LocationIconView::UpdateIcon() {
+   // Cancel any previous outstanding icon requests, as they are now outdated.
+   icon_fetch_weak_ptr_factory_.InvalidateWeakPtrs();
++  if (auto dot = PassportChip::Dot(this)) {
++    SetImageModel(*dot);  // boring: the Passport chip's dot.
++    return;
++  }
+ 
+   ui::ImageModel icon = delegate_->GetLocationIcon(
+       base::BindOnce(&LocationIconView::OnIconFetched,
+@@ -361,6 +385,7 @@
+     ConfigureInkDropForRefresh2023(this, kColorOmniboxIconHover,
+                                    kColorOmniboxIconPressed);
+   }
++  PassportChip::StyleBackground(this);  // boring: passport
+ }
+ 
+ void LocationIconView::OnIconFetched(const gfx::Image& image) {
