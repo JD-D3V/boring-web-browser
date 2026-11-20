@@ -376,6 +376,9 @@ def run_scene(name, extra, design, out, size, binary, captures=None):
             f"--window-size={w},{h}",
             "--window-position=" + OFFSCREEN,
             "--load-extension=" + write_extension(ext),
+            # The pixels are matched to the mixer's colours within a few
+            # steps; the display's own colour profile would shift them.
+            "--force-color-profile=srgb",
         ] + extra
         with Browser(
             user_data_dir=str(Path(work) / "profile"),
