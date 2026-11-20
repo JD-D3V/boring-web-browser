@@ -170,7 +170,12 @@ void PassportChip::StyleBackground(LocationIconView* icon,
   }
   const Tone tone = ToneFor(chip);
   const SkColor fill = colors->GetColor(tone.fill);
-  icon->SetCornerRadii(gfx::RoundedCornersF(kChipRadius));
+  // SetCornerRadii calls UpdateBackground, which calls this again: set it
+  // only on a change, or the two recurse until the stack runs out.
+  const gfx::RoundedCornersF radii(kChipRadius);
+  if (icon->GetCornerRadii() != radii) {
+    icon->SetCornerRadii(radii);
+  }
   // A 1px inset outline where the design draws one; the fill alone where
   // it does not (stroke the same as the fill).
   icon->SetBackground(views::CreateBackgroundFromPainter(
