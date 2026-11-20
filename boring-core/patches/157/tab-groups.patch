@@ -135,7 +135,7 @@ diff --git a/chrome/browser/ui/views/tabs/common/horizontal_tab_style_views.cc b
    }
  
    if (delegate_->IsActive()) {
-@@ -797,9 +803,52 @@ void HorizontalTabStyleViews::PaintTabBackgroundFill(
+@@ -797,9 +803,53 @@ void HorizontalTabStyleViews::PaintTabBackgroundFill(
    gfx::ScopedCanvas scoped_canvas(canvas);
    const float scale = canvas->UndoDeviceScaleFactor();
  
@@ -155,8 +155,9 @@ diff --git a/chrome/browser/ui/views/tabs/common/horizontal_tab_style_views.cc b
 +        inset * scale,
 +        GetLayoutConstant(LayoutConstant::kTabStripPadding) * scale,
 +        (delegate_->GetView()->width() - inset) * scale,
-+        (GetLayoutConstant(LayoutConstant::kTabHeight) -
-+         GetLayoutConstant(LayoutConstant::kTabstripToolbarOverlap)) *
++        (delegate_->GetView()->height() -
++         GetLayoutConstant(LayoutConstant::kTabstripToolbarOverlap) -
++         TabGroupUnderline::kStrokeThickness) *
 +            scale);
 +    const TabStyleViewDelegate* const next_tab =
 +        delegate_->GetAdjacentTab(/*leading=*/false);
