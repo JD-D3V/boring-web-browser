@@ -15,6 +15,7 @@ static_library("newtab") {
     "//components/boring/adblock:browser",
     "//components/boring/branding",
     "//components/boring/core",
+    "//components/boring/passport",  # cui-passport: its test hook
     "//components/boring/scam",
     "//components/pref_registry",
     "//components/prefs",

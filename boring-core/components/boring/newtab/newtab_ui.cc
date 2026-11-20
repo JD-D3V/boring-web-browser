@@ -21,6 +21,8 @@
 #include "components/boring/branding/brand_mark.h"
 #include "components/boring/core/boring_capabilities.h"
 #include "components/boring/newtab/search_engine_menu.h"
+#include "components/boring/passport/passport_test.h"   // cui-passport
+#include "components/boring/passport/passport_words.h"  // cui-passport
 #include "components/boring/scam/scam_service.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_change_registrar.h"
@@ -493,6 +495,10 @@ window.loadProtection = showProtection;
 window.searchMenuTestResult = function(result) {
   window.lastSearchMenuTest = result;
 };
+// Test only, see kPassportTestSwitch (cui-passport).
+window.passportTestResult = function(result) {
+  window.lastPassportTest = result;
+};
 chrome.send('getAccounts');
 chrome.send('getShortcuts');
 chrome.send('getRecent');
@@ -588,6 +594,14 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
       web_ui()->RegisterMessageCallback(
           "searchMenuTest",
           base::BindRepeating(&NewTabMessageHandler::HandleSearchMenuTest,
+                              base::Unretained(this)));
+    }
+    // cui-passport: test only, the same way as the search menu above.
+    if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+            boring::passport::kPassportTestSwitch)) {
+      web_ui()->RegisterMessageCallback(
+          "passportTest",
+          base::BindRepeating(&NewTabMessageHandler::HandlePassportTest,
                               base::Unretained(this)));
     }
   }
@@ -749,6 +763,15 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
     web_ui()->CallJavascriptFunctionUnsafe(
         "searchMenuTestResult",
         RunSearchEngineMenuTestCommand(web_ui()->GetWebContents(), args));
+  }
+
+  // cui-passport.
+  void HandlePassportTest(const base::ListValue& args) {
+    AllowJavascript();
+    web_ui()->CallJavascriptFunctionUnsafe(
+        "passportTestResult",
+        boring::passport::RunPassportTestCommand(web_ui()->GetWebContents(),
+                                                 args));
   }
 
   void HandleGetProtection(const base::ListValue& args) {

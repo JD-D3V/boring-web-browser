@@ -38,6 +38,13 @@ inline constexpr char kNoScamBypass[] = "boring.protection.no_scam_bypass";
 inline constexpr char kLookalikeAllowedSites[] =
     "boring.protection.lookalike_allowed_sites";
 
+// boring: cui-passport. Sites (keys from GetBlockingSite()) the person
+// marked "I know this site" on the Passport. Only changes the chip and the
+// Passport's layout; never skips a warning or turns off any blocking. Per
+// profile, never synced and never sent anywhere. In a private window the
+// marks are read through and new ones stay in memory.
+inline constexpr char kPassportKnownSites[] = "boring.passport.known_sites";
+
 // "Hide sponsored results": hide sponsored results on search pages
 // instead of only labeling them. On by default.
 inline constexpr char kHideSponsoredResults[] = "boring.hide_sponsored_results";

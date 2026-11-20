@@ -1,0 +1,14 @@
+# Copyright 2026 boring. BSD style license.
+
+# The Passport's decisions and words. Plain standard C++ (no deps), so
+# tools/tests/test_passport_words.py builds passport_words.cc alone. The
+# browser side (facts, chip, pop-up) lives in
+# chrome/browser/ui/views/boring/ and is built into the location bar.
+static_library("passport") {
+  sources = [
+    "passport_test.h",
+    "passport_words.cc",
+    "passport_words.h",
+  ]
+  deps = [ "//base" ]
+}

@@ -83,6 +83,10 @@ class ScamService {
   // ordinary window must not also wave it through in an incognito one.
   bool ShouldBlock(content::BrowserContext* context, const GURL& url) const;
 
+  // True when this page's host is on the scam list, whatever "continue
+  // anyway" choices were made. For the Passport. Main thread.
+  bool IsListed(const GURL& url) const;
+
   // Remembers that the user chose to continue to this host, for the
   // rest of this run, in this profile only. Main thread.
   void AllowHostForSession(content::BrowserContext* context,

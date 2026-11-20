@@ -240,6 +240,19 @@ bool ScamService::ShouldBlock(content::BrowserContext* context,
   return lib->scamlist_contains(list->handle(), host.c_str()) == 1;
 }
 
+bool ScamService::IsListed(const GURL& url) const {
+  scoped_refptr<ScamBlocklist> list = current();
+  if (!list || !url.SchemeIsHTTPOrHTTPS() || !url.has_host()) {
+    return false;
+  }
+  const BoringLibrary* lib = GetBoringLibrary();
+  if (!lib) {
+    return false;
+  }
+  const std::string host(url.host());
+  return lib->scamlist_contains(list->handle(), host.c_str()) == 1;
+}
+
 void ScamService::AllowHostForSession(content::BrowserContext* context,
                                       const std::string& host) {
   if (AllowedHosts* allowed = GetAllowedHosts(context, /*create=*/true)) {
