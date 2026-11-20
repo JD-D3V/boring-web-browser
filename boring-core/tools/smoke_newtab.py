@@ -392,6 +392,49 @@ def recent_checks(profile, pages, checks):
         )
 
 
+# The page takes the window's colours (item 25): each Look, light or dark,
+# and a custom accent recolour it. Values are the mixer's palettes
+# (boring_color_mixer.cc): page token, toolbar, field, ink, accent.
+LOOKS = (
+    ("Slate light", "slate", None, [],
+     ("rgb(245, 246, 248)", "rgb(255, 255, 255)", "rgb(238, 240, 246)",
+      "rgb(35, 36, 46)", "rgb(79, 70, 229)")),
+    ("Dusk dark", "dusk", None, ["--force-dark-mode"],
+     ("rgb(20, 21, 32)", "rgb(27, 29, 43)", "rgb(38, 40, 56)",
+      "rgb(220, 221, 230)", "rgb(157, 154, 255)")),
+    ("Soft white with a teal accent", None, "#12a4b6", [],
+     (LIGHT_PAGE, "rgb(255, 255, 255)", "rgb(244, 243, 239)",
+      "rgb(31, 30, 28)", "rgb(18, 164, 182)")),
+)
+LOOK_NAMES = ("page", "surface", "field", "ink", "accent")
+LOOK_PROBE = """
+  var d = document.createElement('div');
+  document.body.appendChild(d);
+  var r = {};
+  for (var k of arguments[0]) {
+    d.style.color = 'var(--' + k + ')';
+    r[k] = getComputedStyle(d).color;
+  }
+  d.remove();
+  return r;
+"""
+
+
+def look_checks(checks):
+    from smoke_colours import seed_profile
+
+    for label, look, accent, extra, values in LOOKS:
+        want = dict(zip(LOOK_NAMES, values))
+        with tempfile.TemporaryDirectory(prefix="newtab-look-", dir=os.environ.get("TMP") or None) as prof:
+            seed_profile(prof, look, accent)
+            with Browser(user_data_dir=prof, args=[TEST_SWITCH, *extra]) as b:
+                b.get("chrome://newtab")
+                wait_for(b, f"getComputedStyle(document.body).backgroundColor==='{want['page']}'", 5000)
+                got = b.run(LOOK_PROBE, [list(LOOK_NAMES)])
+        print(f"  {label}: {got}")
+        checks[f"{label}: page, tiles, field, text and focus ring follow the Look and accent"] = got == want
+
+
 def capture(profile, checks):
     """Light and dark photographs of our own window, beside C01 and C02."""
     if not headful_allowed():
@@ -440,6 +483,7 @@ def main():
         ) as b,
     ):
         shape_checks(b, checks)
+    look_checks(checks)
     pages = Pages(PAGES)
     try:
         with tempfile.TemporaryDirectory(prefix="newtab-hist-", dir=os.environ.get("TMP") or None) as profile:

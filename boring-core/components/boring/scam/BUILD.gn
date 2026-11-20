@@ -37,6 +37,7 @@ static_library("scam") {
   ]
   deps = [
     "//base",
+    "//chrome/browser/ui/color:color_headers",
     "//components/boring/adblock:browser",
     "//components/boring/core",
     "//components/boring/lists",

@@ -61,18 +61,18 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
 <link rel="icon" type="image/svg+xml" href="brand.svg">
 <link rel="stylesheet" href="chrome://theme/colors.css?sets=ui,chrome">
 <style>
-  /* The colours are the TOKENS rows of the compiled design, light and
-     dark. Only the accent is the window's own, so the page follows the
-     accent the person chose. */
+  /* The colours are the window's own (chrome://theme/colors.css), so the
+     page follows the Look and the accent the person chose. The TOKENS
+     rows of the compiled design, light and dark, are the fallbacks. */
   :root { color-scheme: light dark;
-    --page: light-dark(#f8f7f4, #151514);
-    --surface: light-dark(#ffffff, #1c1c1a);
-    --field: light-dark(#f4f3ef, #121211);
+    --page: var(--color-new-tab-page-background, light-dark(#f8f7f4, #151514));
+    --surface: var(--color-toolbar, light-dark(#ffffff, #1c1c1a));
+    --field: var(--color-location-bar-background, light-dark(#f4f3ef, #121211));
     --hover: light-dark(#ebe9e4, #333330);
-    --line: light-dark(#e2dfd9, #2d2d2a);
-    --edge: light-dark(#8a867d, #77756d);
-    --ink: light-dark(#1f1e1c, #ecebe7);
-    --ink2: light-dark(#5d5a54, #a9a79f);
+    --line: var(--color-toolbar-separator, light-dark(#e2dfd9, #2d2d2a));
+    --edge: var(--color-boring-edge, light-dark(#8a867d, #77756d));
+    --ink: var(--color-toolbar-text, light-dark(#1f1e1c, #ecebe7));
+    --ink2: var(--color-toolbar-button-icon-inactive, light-dark(#5d5a54, #a9a79f));
     --ok: light-dark(#1a7f55, #4cc38a);
     --bad: light-dark(#a3271c, #ff9a8f);
     --bad-tint: light-dark(#fbe6e3, #3b1c1a);

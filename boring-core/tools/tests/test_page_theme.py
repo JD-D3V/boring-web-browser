@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Our pages take their colours from the compiled design.
 
-The new tab page carries the TOKENS rows of the design (light and dark)
-and takes only its accent from the window (boring_color_mixer.cc sets it
-from chrome://theme/colors.css), so it follows the colour picker's accent.
+The new tab page reads its surfaces, lines, text and accent from the
+window (chrome://theme/colors.css, set by boring_color_mixer.cc), so it
+follows the Look and the accent; the TOKENS rows of the design (light and
+dark) are the fallbacks and the colours no Look changes.
 
 Usage:
   python -m unittest boring-core/tools/tests/test_page_theme.py -v
@@ -25,12 +26,23 @@ MIXER = (
     / "boring_color_mixer.cc"
 )
 
-# The page's own palette is the TOKENS rows of the compiled design, light
-# and dark, written into the page. Only the accent is the window's.
-PALETTE = ("page", "surface", "field", "hover", "line", "edge", "ink", "ink2",
-           "ok", "bad", "bad-tint", "solid", "solid-ink")
+# Colours no Look changes: the TOKENS rows of the compiled design, light
+# and dark, written into the page.
+PALETTE = ("hover", "ok", "bad", "bad-tint", "solid", "solid-ink")
+# The window's colours the page reads, with the TOKENS rows as fallbacks:
+# token -> (CSS variable, colour id, what the mixer sets it from).
 TOKENS = {
-    "--accent": ("--color-sys-primary", "kColorSysPrimary", "accent"),
+    "--page": ("--color-new-tab-page-background", "kColorNewTabPageBackground",
+               "page"),
+    "--surface": ("--color-toolbar", "kColorToolbar", "p.toolbar"),
+    "--field": ("--color-location-bar-background",
+                "kColorLocationBarBackground", "p.field"),
+    "--line": ("--color-toolbar-separator", "kColorToolbarSeparator", "p.line"),
+    "--edge": ("--color-boring-edge", "kColorBoringEdge", "p.edge"),
+    "--ink": ("--color-toolbar-text", "kColorToolbarText", "p.ink"),
+    "--ink2": ("--color-toolbar-button-icon-inactive",
+               "kColorToolbarButtonIconInactive", "p.muted"),
+    "--accent": ("--color-sys-primary", "kColorSysPrimary", "p.accent"),
 }
 
 
@@ -54,18 +66,21 @@ class PageThemeTest(unittest.TestCase):
                 name,
             )
 
-    def test_the_accent_is_the_windows_with_a_fallback(self):
-        self.assertRegex(
-            page_css(),
-            r"--accent:\s*var\(--color-sys-primary,\s*light-dark\(#[0-9a-f]{6},\s*#[0-9a-f]{6}\)\);",
-        )
+    def test_the_look_and_accent_are_the_windows_with_fallbacks(self):
+        css = page_css()
+        for token, (var, _, _) in TOKENS.items():
+            self.assertRegex(
+                css,
+                rf"{re.escape(token)}:\s*var\({re.escape(var)},\s*light-dark\(#[0-9a-f]{{6}},\s*#[0-9a-f]{{6}}\)\);",
+                token,
+            )
 
     def test_the_mixer_sets_every_colour_the_page_reads(self):
         src = MIXER.read_text(encoding="utf-8")
         for token, (_, color_id, field) in TOKENS.items():
             self.assertRegex(
                 src,
-                rf"mixer\[ui::{color_id}\]\s*=\s*\{{p\.{field}\}}|mixer\[{color_id}\]\s*=\s*\{{p\.{field}\}}",
+                rf"mixer\[(ui::)?{color_id}\]\s*=\s*\{{{re.escape(field)}\}}",
                 token,
             )
 

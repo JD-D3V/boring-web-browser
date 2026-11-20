@@ -187,6 +187,36 @@ FACTS = r"""
 """
 
 
+# The page and its card take the window's colours (item 25): each Look,
+# light or dark, recolours them; a custom accent leaves them as they are
+# (nothing on the page is drawn in the accent). Values are the mixer's
+# palettes (boring_color_mixer.cc): the page token and the toolbar.
+LOOK_RUNS = (
+    ("Slate light", "slate", None, [],
+     {"page": "rgb(245, 246, 248)", "surface": "rgb(255, 255, 255)"}),
+    ("Dusk dark", "dusk", None, ["--force-dark-mode"],
+     {"page": "rgb(20, 21, 32)", "surface": "rgb(27, 29, 43)"}),
+    ("Soft white with a teal accent", None, "#12a4b6", [],
+     {"page": LIGHT["page"], "surface": LIGHT["surface"]}),
+)
+
+
+def look_runs(lists, pages, checks):
+    from smoke_colours import seed_profile
+
+    for label, look, accent, extra, want in LOOK_RUNS:
+        with tempfile.TemporaryDirectory(prefix="warn-look-", dir=os.environ.get("TMP") or None) as prof:
+            seed_profile(prof, look, accent)
+            with Browser(user_data_dir=prof, args=args_for(lists, pages, extra)) as b:
+                wait_until_list_is_loaded(b)
+                open_url(b, f"http://{LISTED}:{pages.port}/")
+                shown(b)
+                f = b.run(FACTS)
+        got = {"page": f["page"], "surface": f["surface"]}
+        print(f"  {label}: {got}")
+        checks[f"{label}: the page and its card follow the Look"] = got == want
+
+
 def look_checks(b, checks, label, tokens, facts):
     f = facts
     checks[f"{label}: page, card and main button are the TOKENS colours"] = (
@@ -434,6 +464,7 @@ def main():
                 open_url(b, f"http://{LISTED}:{pages.port}/")
                 shown(b)
                 look_checks(b, checks, "dark", DARK, b.run(FACTS))
+            look_runs(lists, pages, checks)
             capture(lists, pages, checks)
     finally:
         pages.close()

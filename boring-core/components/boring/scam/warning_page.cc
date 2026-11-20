@@ -4,6 +4,8 @@
 
 #include "base/strings/escape.h"
 #include "base/strings/strcat.h"
+#include "base/strings/stringprintf.h"
+#include "chrome/browser/ui/color/chrome_color_id.h"
 #include "content/public/browser/web_contents.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/color/color_id.h"
@@ -139,25 +141,39 @@ constexpr char kContinueBottom[] =
 // Where a text names the site: the address goes there, in bold.
 constexpr char kHostMarker[] = "%HOST%";
 
+std::string Hex(SkColor colour) {
+  return base::StringPrintf("#%02x%02x%02x", SkColorGetR(colour),
+                            SkColorGetG(colour), SkColorGetB(colour));
+}
+
 // The page is not a chrome:// page, so it cannot load the theme's
-// colors.css. Light or dark is told from the tab's own colour provider
-// (its dialog background), so it cannot disagree with the window; the
-// colours themselves are the design's TOKENS rows.
+// colors.css. Its surfaces, lines and text are read from the tab's own
+// colour provider, the same ids the new tab page reads, so they follow
+// the Look; they are numbers written as #rrggbb, never page text. Light
+// or dark is told from the dialog background, so it cannot disagree with
+// the window; the warning colours and the solid button are the design's
+// TOKENS rows.
 std::string ColourVariables(content::WebContents* contents) {
-  const bool dark = color_utils::IsDark(
-      contents->GetColorProvider().GetColor(ui::kColorDialogBackground));
-  return dark ? ":root { color-scheme: dark;\n"
-                "    --page: #151514; --surface: #1c1c1a; --field: #121211;\n"
-                "    --line: #2d2d2a; --edge: #77756d; --ink: #ecebe7;\n"
-                "    --ink2: #a9a79f; --bad: #ff9a8f; --bad-tint: #3b1c1a;\n"
-                "    --solid: #e8e9ed; --solid-ink: #14151a;\n"
-                "    --shadow: rgba(0,0,0,0.55); }"
-              : ":root { color-scheme: light;\n"
-                "    --page: #f8f7f4; --surface: #ffffff; --field: #f4f3ef;\n"
-                "    --line: #e2dfd9; --edge: #8a867d; --ink: #1f1e1c;\n"
-                "    --ink2: #5d5a54; --bad: #a3271c; --bad-tint: #fbe6e3;\n"
-                "    --solid: #1a1c22; --solid-ink: #ffffff;\n"
-                "    --shadow: rgba(16,24,40,0.16); }";
+  const ui::ColorProvider& provider = contents->GetColorProvider();
+  const bool dark =
+      color_utils::IsDark(provider.GetColor(ui::kColorDialogBackground));
+  const std::string looks = base::StrCat(
+      {"    --page: ", Hex(provider.GetColor(kColorNewTabPageBackground)),
+       "; --surface: ", Hex(provider.GetColor(kColorToolbar)),
+       "; --field: ", Hex(provider.GetColor(kColorLocationBarBackground)),
+       ";\n    --line: ", Hex(provider.GetColor(kColorToolbarSeparator)),
+       "; --edge: ", Hex(provider.GetColor(kColorBoringEdge)),
+       "; --ink: ", Hex(provider.GetColor(kColorToolbarText)),
+       ";\n    --ink2: ",
+       Hex(provider.GetColor(kColorToolbarButtonIconInactive)), ";\n"});
+  return dark ? base::StrCat({":root { color-scheme: dark;\n", looks,
+                              "    --bad: #ff9a8f; --bad-tint: #3b1c1a;\n"
+                              "    --solid: #e8e9ed; --solid-ink: #14151a;\n"
+                              "    --shadow: rgba(0,0,0,0.55); }"})
+              : base::StrCat({":root { color-scheme: light;\n", looks,
+                              "    --bad: #a3271c; --bad-tint: #fbe6e3;\n"
+                              "    --solid: #1a1c22; --solid-ink: #ffffff;\n"
+                              "    --shadow: rgba(16,24,40,0.16); }"});
 }
 
 void ReplaceFirst(std::string& text,
