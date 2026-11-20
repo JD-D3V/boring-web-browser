@@ -75,6 +75,7 @@ ARGPARSE_TOOLS = {
     "smoke_bar.py",  # boring: cui-bar
     "smoke_shelf.py",  # boring: cui-shelf
     "smoke_sidetabs.py",  # boring: cui-sidetabs
+    "smoke_earlier.py",  # boring: cui-earlier
     "test_update_local.py",
     "probe_focus.py",
 }
@@ -326,6 +327,25 @@ def build_steps(out, net_seconds):
             smoke_lines,
         ),
         # boring: end cui-sidetabs
+        # boring: cui-earlier
+        Step(
+            "1q-earlier",
+            "Earlier tabs: tabs move after a shortened day, the pop-up beside screen C08",
+            [
+                tool(
+                    "smoke_earlier.py",
+                    "--out",
+                    str(shots / "earlier"),
+                    "--captures",
+                    str(shots / "earlier"),
+                )
+            ],
+            1200,
+            "seven browser launches on temp profiles; timers are shortened with "
+            "switches and a local server on 127.0.0.1 serves the pages; no input",
+            smoke_lines,
+        ),
+        # boring: end cui-earlier
         Step(
             "2-takeover",
             "screen takeover: pointer lock and keyboard lock, real window",

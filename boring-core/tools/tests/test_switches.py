@@ -117,7 +117,9 @@ class MigrationTest(unittest.TestCase):
 class EveryPrefHasASwitchTest(unittest.TestCase):
     # Not set by a handler here: bookkeeping the browser keeps itself, or
     # a pref the folder copy service sets on the page's behalf.
-    INTERNAL = {"kNativeHostsDecided", "kBoringFolderCopyArmed"}
+    # kEarlierEnabled (cui-earlier) is set from Settings, Appearance, and the
+    # first-run page, not from Protection.
+    INTERNAL = {"kNativeHostsDecided", "kBoringFolderCopyArmed", "kEarlierEnabled"}
 
     def test_every_yes_or_no_pref_is_set_from_the_protection_page(self):
         registered = re.findall(r"RegisterBooleanPref\(prefs::(k\w+),", read(PREFS_CC))

@@ -52,8 +52,8 @@ class StateTests(unittest.TestCase):
 class PatchTests(unittest.TestCase):
     def test_last_in_series_after_shelf(self):
         names = series()
-        self.assertEqual(names[-1], "sidetabs.patch")
-        self.assertEqual(names[-2], "shelf.patch")
+        self.assertEqual(names[-2], "sidetabs.patch")
+        self.assertEqual(names[-3], "shelf.patch")
 
     def test_top_tabs_stay_the_default(self):
         text = PATCH.read_text()

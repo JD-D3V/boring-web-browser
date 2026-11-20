@@ -48,8 +48,9 @@ class ShelfStateTests(unittest.TestCase):
 class PatchTests(unittest.TestCase):
     def test_shelf_patch_follows_passport_and_precedes_side_tabs(self):
         names = series()
-        # Side tabs (item 14) go after the Shelf.
-        self.assertEqual(names[-2:], ["shelf.patch", "sidetabs.patch"])
+        # Side tabs (item 14) go right after the Shelf; Earlier tabs (item 16)
+        # come after them.
+        self.assertEqual(names[-3:], ["shelf.patch", "sidetabs.patch", "earlier.patch"])
         self.assertLess(names.index("passport.patch"), names.index("shelf.patch"))
         self.assertTrue(SHELF_PATCH.exists())
 
