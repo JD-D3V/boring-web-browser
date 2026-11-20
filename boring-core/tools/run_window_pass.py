@@ -248,6 +248,25 @@ def build_steps(out, net_seconds):
             smoke_lines,
         ),
         # boring: end cui-bar
+        # boring: cui-accounts
+        Step(
+            "1n-accounts",
+            "accounts: toolbar panel, new tab chips, Settings, beside screen C13",
+            [
+                tool(
+                    "smoke_accounts.py",
+                    "--out",
+                    str(shots / "accounts"),
+                    "--captures",
+                    str(shots / "accounts"),
+                )
+            ],
+            900,
+            "eight short browser launches, off screen; every web address is "
+            "mapped to nowhere, so nothing is loaded",
+            smoke_lines,
+        ),
+        # boring: end cui-accounts
         Step(
             "2-takeover",
             "screen takeover: pointer lock and keyboard lock, real window",

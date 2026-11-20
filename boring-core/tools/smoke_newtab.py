@@ -194,10 +194,12 @@ def shape_checks(b, checks):
         " && getComputedStyle(document.getElementById('add-form')).display==='none'"
     )
 
-    # The empty reserved row for the account chips (Accounts, a later piece).
-    checks["account row is there, 56 px high and empty"] = b.run(
+    # The row for the account chips (Accounts): a fresh profile has no
+    # accounts, so it holds Add account alone (smoke_accounts.py has more).
+    checks["account row is there, 56 px high, Add account only"] = b.run(
         "var a=document.getElementById('accounts');"
-        "return !!a && a.childElementCount===0 && a.textContent.trim()===''"
+        "return !!a && a.childElementCount===1"
+        " && a.textContent.trim()==='Add account'"
         " && Math.round(a.getBoundingClientRect().height)===56"
     )
 

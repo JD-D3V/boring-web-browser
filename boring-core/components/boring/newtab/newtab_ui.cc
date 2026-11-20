@@ -3,6 +3,7 @@
 #include "components/boring/newtab/newtab_ui.h"
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -15,21 +16,27 @@
 #include "base/task/cancelable_task_tracker.h"
 #include "base/time/time.h"
 #include "base/values.h"
+#include "components/boring/accounts/accounts_store.h"
 #include "components/boring/adblock/adblock_service.h"
 #include "components/boring/branding/brand_mark.h"
 #include "components/boring/core/boring_capabilities.h"
 #include "components/boring/newtab/search_engine_menu.h"
 #include "components/boring/scam/scam_service.h"
 #include "components/pref_registry/pref_registry_syncable.h"
+#include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
 #include "components/user_prefs/user_prefs.h"
 #include "content/public/browser/browser_context.h"
+#include "content/public/browser/page_navigator.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_data_source.h"
 #include "content/public/browser/web_ui_message_handler.h"
+#include "content/public/common/referrer.h"
 #include "content/public/common/url_constants.h"
+#include "ui/base/page_transition_types.h"
+#include "ui/base/window_open_disposition.h"
 #include "url/gurl.h"
 
 namespace boring {
@@ -89,10 +96,37 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   [hidden] { display: none !important; }
   button { font: inherit; color: inherit; border: 0; background: none;
            padding: 0; cursor: pointer; text-align: start; }
-  /* Kept empty for the account chips (Accounts, a later piece). */
+  /* The account chips (Accounts, below). */
   .top { align-self: stretch; height: 56px; flex: none; display: flex;
          align-items: center; justify-content: flex-end; gap: 6px;
          padding: 0 20px; }
+  /* boring: Accounts. A chip per account, as drawn (PageNewTab), then Add
+     account. The circle colours are set from the script. */
+  .chip { height: 34px; display: flex; align-items: center; gap: 9px;
+          padding: 0 12px 0 5px; border-radius: 17px; min-width: 0;
+          background: var(--surface); box-shadow: inset 0 0 0 1px var(--line);
+          color: var(--ink); text-decoration: none; white-space: nowrap;
+          transition: background-color 150ms ease-out,
+                      transform 120ms ease-out; }
+  .chip:active { transform: scale(0.98); }
+  @media (hover: hover) { .chip:hover { background: var(--hover); } }
+  .chip-mark { width: 24px; height: 24px; flex: none; display: grid;
+               place-items: center; border-radius: 12px; font-size: 12px;
+               font-weight: 600; color: var(--solid-ink); }
+  .chip .name { font-weight: 500; max-width: 160px; overflow: hidden;
+                text-overflow: ellipsis; }
+  .chip .provider { color: var(--ink2); }
+  .chip.add { gap: 6px; padding: 0 12px; background: transparent;
+              color: var(--ink2); box-shadow: inset 0 0 0 1px var(--edge); }
+  @media (prefers-reduced-motion: reduce) {
+    .chip { transition: none; }
+    .chip:active { transform: none; }
+  }
+  @media (forced-colors: active) {
+    .chip { border: 1px solid ButtonText; }
+    .chip-mark { border: 1px solid CanvasText; }
+  }
+  /* boring: end Accounts. */
   .home { width: 640px; max-width: calc(100% - 40px); margin-top: 44px;
           display: flex; flex-direction: column; gap: 32px; }
   section { display: flex; flex-direction: column; gap: 12px; }
@@ -397,6 +431,54 @@ function showProtection(p) {
   }
 }
 
+// boring: Accounts. Chips for the accounts the person keeps (Settings,
+// Accounts), in their order. Names are the person's own text, so they only
+// ever go in as text. A chip asks the browser to open that account's mail
+// in this tab by id; the address never reaches the page. null means this
+// window shows none (Incognito, guest).
+var ACCOUNT_COLOURS = [
+  'var(--accent)',
+  'var(--color-tab-group-tab-strip-frame-active-cyan, light-dark(#0f6f66, #6fcfc4))',
+  'var(--color-tab-group-tab-strip-frame-active-blue, light-dark(#2f5fb3, #8ab4f8))',
+  'var(--color-tab-group-tab-strip-frame-active-red, light-dark(#b3261e, #f28b82))',
+  'var(--color-tab-group-tab-strip-frame-active-yellow, light-dark(#835c00, #f2c35b))',
+  'var(--color-tab-group-tab-strip-frame-active-green, light-dark(#1e7a3c, #7fcf96))',
+  'var(--color-tab-group-tab-strip-frame-active-pink, light-dark(#ad2f69, #f48fb9))',
+  'var(--color-tab-group-tab-strip-frame-active-purple, light-dark(#6b45b8, #c3a6f5))',
+  'var(--color-tab-group-tab-strip-frame-active-orange, light-dark(#9c4700, #f5a35c))'
+];
+var PLUS_ICON = 'M12 5v14M5 12h14';
+window.loadAccounts = function(list) {
+  var row = el('accounts');
+  row.replaceChildren();
+  if (!list) return;
+  list.forEach(function(item, index) {
+    var chip = node('button', 'chip');
+    chip.type = 'button';
+    var mark = node('span', 'chip-mark', item.initial);
+    mark.setAttribute('aria-hidden', 'true');
+    var colour = index === 0 ? 0 : 1 + (index - 1) % (ACCOUNT_COLOURS.length - 1);
+    mark.style.background = ACCOUNT_COLOURS[colour];
+    if (colour === 0) {
+      mark.style.color = 'var(--color-sys-on-primary, var(--solid-ink))';
+    }
+    chip.append(mark, node('span', 'name', item.name),
+                node('span', 'provider', item.provider));
+    chip.setAttribute('aria-label', item.name + ', ' + item.provider + ' mail');
+    chip.addEventListener('click', function() {
+      chrome.send('openAccount', [item.id]);
+    });
+    row.append(chip);
+  });
+  var add = node('a', 'chip add');
+  add.href = 'chrome://settings/accounts';
+  var plus = glyph(PLUS_ICON, 14);
+  plus.setAttribute('stroke-width', '1.7');
+  add.append(plus, 'Add account');
+  row.append(add);
+};
+// boring: end Accounts.
+
 window.loadShortcuts = function(list, added, rejected) {
   showShortcuts(list);
   if (rejected) {
@@ -411,6 +493,7 @@ window.loadProtection = showProtection;
 window.searchMenuTestResult = function(result) {
   window.lastSearchMenuTest = result;
 };
+chrome.send('getAccounts');
 chrome.send('getShortcuts');
 chrome.send('getRecent');
 chrome.send('getProtection');
@@ -481,6 +564,15 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
     web_ui()->RegisterMessageCallback(
         "getProtection",
         base::BindRepeating(&NewTabMessageHandler::HandleGetProtection,
+                            base::Unretained(this)));
+    // boring: Accounts.
+    web_ui()->RegisterMessageCallback(
+        "getAccounts",
+        base::BindRepeating(&NewTabMessageHandler::HandleGetAccounts,
+                            base::Unretained(this)));
+    web_ui()->RegisterMessageCallback(
+        "openAccount",
+        base::BindRepeating(&NewTabMessageHandler::HandleOpenAccount,
                             base::Unretained(this)));
     // Forget this session, or any other history deletion, empties the rows
     // of a page that is already open, not only of the next one.
@@ -673,6 +765,72 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
     AllowJavascript();
     web_ui()->CallJavascriptFunctionUnsafe("loadProtection", out);
   }
+
+  // boring: Accounts. The chips: id, initial, name and provider for each
+  // account the person keeps, never an address. None in Incognito or guest
+  // windows (both are off the record), where nobody is signed in.
+  bool ShowsAccounts() {
+    return !web_ui()->GetWebContents()->GetBrowserContext()->IsOffTheRecord();
+  }
+
+  void SendAccounts() {
+    base::Value list;
+    if (PrefService* prefs = GetPrefs(); prefs && ShowsAccounts()) {
+      base::ListValue chips;
+      for (const accounts::Account& account : accounts::GetAccounts(*prefs)) {
+        base::DictValue chip;
+        chip.Set("id", account.id);
+        chip.Set("initial", accounts::Initial(account));
+        chip.Set("name", account.name);
+        chip.Set("provider", accounts::ProviderName(account));
+        chips.Append(std::move(chip));
+      }
+      list = base::Value(std::move(chips));
+    }
+    AllowJavascript();
+    web_ui()->CallJavascriptFunctionUnsafe("loadAccounts", list);
+  }
+
+  void OnAccountsChanged() {
+    if (IsJavascriptAllowed()) {
+      SendAccounts();
+    }
+  }
+
+  void HandleGetAccounts(const base::ListValue& args) {
+    // Chips follow the list as it changes in the panel or in Settings.
+    if (!accounts_registrar_.prefs() && GetPrefs()) {
+      accounts_registrar_.Init(GetPrefs());
+      accounts_registrar_.Add(
+          accounts::kAccountsPref,
+          base::BindRepeating(&NewTabMessageHandler::SendAccounts,
+                              base::Unretained(this)));
+    }
+    SendAccounts();
+  }
+
+  // [id]. Opens that account's mail in this tab. The page names an account;
+  // the address comes from the store, checked again as it is read.
+  void HandleOpenAccount(const base::ListValue& args) {
+    PrefService* prefs = GetPrefs();
+    if (!prefs || !ShowsAccounts() || args.size() != 1 || !args[0].is_string()) {
+      return;
+    }
+    std::optional<accounts::Account> account =
+        accounts::FindAccount(*prefs, args[0].GetString());
+    if (!account || !account->links.mail.is_valid()) {
+      return;
+    }
+    web_ui()->GetWebContents()->OpenURL(
+        content::OpenURLParams(account->links.mail, content::Referrer(),
+                               WindowOpenDisposition::CURRENT_TAB,
+                               ui::PAGE_TRANSITION_AUTO_BOOKMARK,
+                               /*is_renderer_initiated=*/false),
+        /*navigation_handle_callback=*/{});
+  }
+
+  PrefChangeRegistrar accounts_registrar_;
+  // boring: end Accounts.
 
   // Cancels a history query still running when the page goes away.
   base::CancelableTaskTracker tracker_;

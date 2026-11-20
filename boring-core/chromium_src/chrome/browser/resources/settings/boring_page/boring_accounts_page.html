@@ -1,0 +1,218 @@
+    <style include="cr-shared-style settings-shared">
+      :host {
+        display: block;
+        --boring-muted: var(--color-label-foreground-secondary, #5d5a54);
+        --boring-line: var(--color-bubble-border, #e2dfd9);
+        --boring-edge: var(--color-boring-edge, #8a867d);
+        --boring-bad: #a3271c;
+        --boring-accounts-group: #0f6f66;
+        --boring-circle-ink: #ffffff;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :host {
+          --boring-muted: var(--color-label-foreground-secondary, #a9a79f);
+          --boring-line: var(--color-bubble-border, #2d2d2a);
+          --boring-edge: var(--color-boring-edge, #77756d);
+          --boring-bad: #ff9a8f;
+          --boring-accounts-group: #6fcfc4;
+          --boring-circle-ink: #14151a;
+        }
+      }
+
+      .boring-subline,
+      .footer {
+        color: var(--boring-muted);
+        font-size: 13px;
+        margin: 0 0 4px;
+        padding-block-start: 4px;
+        padding-inline: var(--cr-section-padding);
+      }
+
+      .footer {
+        font-size: 12px;
+        padding-block: 12px 14px;
+      }
+
+      .account {
+        align-items: center;
+        border-top: 1px solid var(--boring-line);
+        display: flex;
+        gap: 12px;
+        min-height: 56px;
+        padding-inline: var(--cr-section-padding);
+      }
+
+      .circle {
+        align-items: center;
+        border-radius: 16px;
+        color: var(--boring-circle-ink);
+        display: flex;
+        flex: none;
+        font-weight: 600;
+        height: 32px;
+        justify-content: center;
+        width: 32px;
+      }
+
+      .text {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        min-width: 0;
+      }
+
+      .name {
+        font-weight: 500;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .provider {
+        color: var(--boring-muted);
+        font-size: 12.5px;
+      }
+
+      .actions,
+      .rename {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .rename {
+        align-items: center;
+        flex: 1;
+      }
+
+      .rename cr-input {
+        flex: 1;
+        min-width: 160px;
+      }
+
+      .add {
+        border-top: 1px solid var(--boring-line);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 12px var(--cr-section-padding) 14px;
+      }
+
+      .add-label {
+        color: var(--boring-muted);
+        font-size: 11.5px;
+        font-weight: 600;
+      }
+
+      .providers {
+        display: grid;
+        gap: 6px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .other {
+        display: grid;
+        gap: 10px;
+      }
+
+      .error {
+        color: var(--boring-bad);
+        font-size: 13px;
+        margin: 0;
+      }
+
+      .buttons {
+        display: flex;
+        gap: 10px;
+      }
+    </style>
+    <settings-section page-title="Accounts" class="cr-centered-card-container">
+      <div class="boring-subline">
+        Shortcuts to the mail and other accounts you are signed in to.
+      </div>
+      <template is="dom-repeat" items="[[accounts_]]">
+        <div class="account">
+          <span class="circle" aria-hidden="true"
+              style$="[[circleStyle_(index)]]">[[item.initial]]</span>
+          <template is="dom-if"
+              if="[[isNotRenaming_(item.id, renamingId_)]]" restamp>
+            <div class="text">
+              <span class="name">[[item.name]]</span>
+              <span class="provider">[[item.providerLine]]</span>
+            </div>
+            <div class="actions">
+              <cr-button on-click="onRenameClick_">Rename</cr-button>
+              <cr-button on-click="onRemoveClick_">Remove</cr-button>
+              <cr-button on-click="onMoveUp_" disabled="[[isFirst_(index)]]">
+                Move up
+              </cr-button>
+              <cr-button on-click="onMoveDown_"
+                  disabled="[[isLast_(index, accounts_)]]">
+                Move down
+              </cr-button>
+            </div>
+          </template>
+          <template is="dom-if"
+              if="[[isRenaming_(item.id, renamingId_)]]" restamp>
+            <div class="rename">
+              <cr-input id="renameInput" label="Name" value="{{renameValue_}}"
+                  maxlength="40" spellcheck="false"></cr-input>
+              <cr-button class="action-button" on-click="onRenameSave_">
+                Save
+              </cr-button>
+              <cr-button on-click="onRenameCancel_">Cancel</cr-button>
+            </div>
+          </template>
+        </div>
+      </template>
+      <div class="add">
+        <span class="add-label">Add an account</span>
+        <div class="providers">
+          <template is="dom-repeat" items="[[providers_]]">
+            <cr-button on-click="onAddKnown_" disabled="[[full_]]">
+              [[item.name]]
+            </cr-button>
+          </template>
+          <cr-button id="addOther" on-click="onAddOtherOpen_"
+              disabled="[[full_]]">
+            Other
+          </cr-button>
+        </div>
+        <template is="dom-if" if="[[full_]]">
+          <p class="error">
+            You have 12 accounts. Remove one to add another.
+          </p>
+        </template>
+        <template is="dom-if" if="[[showOther_]]">
+          <div class="other" id="otherForm">
+            <cr-input id="otherName" label="Name" value="{{otherName_}}" maxlength="40"
+                spellcheck="false"></cr-input>
+            <cr-input id="otherMail" label="Mail address" value="{{otherMail_}}"
+                placeholder="https://" spellcheck="false"
+                invalid="[[isField_(otherField_, 'mail')]]"></cr-input>
+            <cr-input id="otherCalendar" label="Calendar address"
+                value="{{otherCalendar_}}"
+                placeholder="https://" spellcheck="false"
+                invalid="[[isField_(otherField_, 'calendar')]]"></cr-input>
+            <cr-input id="otherFiles" label="Files address" value="{{otherFiles_}}"
+                placeholder="https://" spellcheck="false"
+                invalid="[[isField_(otherField_, 'files')]]"></cr-input>
+            <template is="dom-if" if="[[otherError_]]">
+              <p class="error" id="otherError" role="alert">[[otherError_]]</p>
+            </template>
+            <div class="buttons">
+              <cr-button class="action-button" id="otherAdd"
+                  on-click="onOtherAdd_" disabled="[[full_]]">
+                Add
+              </cr-button>
+              <cr-button on-click="onOtherCancel_">Cancel</cr-button>
+            </div>
+          </div>
+        </template>
+      </div>
+      <div class="footer">
+        You sign in on each company's own page. Boring Browser never sees your
+        password and sends nothing to us.
+      </div>
+    </settings-section>

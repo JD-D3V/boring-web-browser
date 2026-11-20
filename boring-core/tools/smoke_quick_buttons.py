@@ -86,7 +86,7 @@ EXPECTED_SECTIONS = ["appearance", "toolbarButton"]
 EXPECTED_FRESH = [
     "BackForwardButton", "BackForwardButton", "ReloadButton", "ExtensionsToolbarButton",
     "PinnedActionToolbarButton", "BoringProtectionButton", "PinnedActionToolbarButton",
-    "BrowserAppMenuButton",
+    "BoringAccountsButton", "BrowserAppMenuButton",
 ]  # fmt: skip
 # The pinned buttons' tooltips. Extensions keeps its action's own text.
 TOOLTIPS = {SETTINGS: "Settings", EXTENSIONS: "Manage extensions"}

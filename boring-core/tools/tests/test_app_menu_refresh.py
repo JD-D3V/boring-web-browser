@@ -238,6 +238,15 @@ class PatchTest(unittest.TestCase):
                 path = CORE / "patches" / name
             text = path.read_text(encoding="utf-8", errors="replace")
             touched = set(re.findall(r"^\+\+\+ b/(\S+)", text, re.M))
+            # A later piece (cui-accounts) lists its own toolbar sources in
+            # views/toolbar/BUILD.gn. Lines added there leave this patch's
+            # lines as they are; removing or changing any is still refused.
+            build = "chrome/browser/ui/views/toolbar/BUILD.gn"
+            if build in touched:
+                section = text.split(f"+++ b/{build}\n", 1)[1].split("\ndiff --git ", 1)[0]
+                changed = [ln for ln in section.splitlines() if ln.startswith("-")]
+                self.assertEqual(changed, [], f"{name} changes lines in {build}")
+                touched.discard(build)
             self.assertEqual(touched & PATCHED_FILES, set(), name)
 
     def test_no_command_the_patch_removes_is_lost(self):

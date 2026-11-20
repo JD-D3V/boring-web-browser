@@ -11,6 +11,7 @@ static_library("newtab") {
   ]
   deps = [
     "//base",
+    "//components/boring/accounts",
     "//components/boring/adblock:browser",
     "//components/boring/branding",
     "//components/boring/core",
@@ -20,6 +21,7 @@ static_library("newtab") {
     "//components/user_prefs",
     "//content/public/browser",
     "//content/public/common",
+    "//ui/base",
     "//ui/gfx/geometry",
     "//url",
   ]
