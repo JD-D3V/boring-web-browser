@@ -43,8 +43,8 @@ struct ShelfItem {
   std::string id;
 };
 
-// The Earlier section's data. Item 16 fills this in; until then the section
-// is off and empty, and the Shelf draws nothing for it.
+// The Earlier section's data (item 16): what the profile's Earlier list holds.
+// Off and empty for a private or guest window.
 struct EarlierState {
   bool enabled = false;
   size_t total = 0;
@@ -66,7 +66,7 @@ std::u16string ShowAllText(size_t count);
 // "Today", a weekday for the last six days, else a short date.
 std::u16string AgeText(base::Time now, base::Time then);
 
-// The profile's Earlier tabs. The default is off and empty (item 16).
+// The profile's Earlier tabs (item 16).
 EarlierState GetEarlierState(Profile* profile);
 
 // The Pinned sites, newest first as pinned, at most eight. Reads the new tab
@@ -74,6 +74,8 @@ EarlierState GetEarlierState(Profile* profile);
 std::vector<ShelfItem> PinnedItems(Profile* profile);
 
 inline constexpr size_t kMaxPinned = 8;
+// The most Earlier rows the Shelf holds when it is opened out.
+inline constexpr size_t kMaxEarlierRows = 50;
 // The newest rows shown in "Saved and downloaded", all kinds together.
 inline constexpr size_t kMaxSaved = 3;
 // Pref: also list the bookmark bar's top-level bookmarks in the Shelf.

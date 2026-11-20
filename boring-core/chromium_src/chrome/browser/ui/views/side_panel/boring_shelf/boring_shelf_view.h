@@ -12,6 +12,7 @@
 #include "base/scoped_observation.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
+#include "chrome/browser/ui/views/boring/boring_earlier_tabs_service.h"
 #include "chrome/browser/ui/views/side_panel/boring_shelf/shelf_data.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/reading_list/core/reading_list_model_observer.h"
@@ -34,6 +35,7 @@ namespace boring::shelf {
 class BoringShelfView : public views::ScrollView,
                         public TabStripModelObserver,
                         public ReadingListModelObserver,
+                        public boring::earlier::EarlierTabsService::Observer,
                         public content::DownloadManager::Observer,
                         public download::DownloadItem::Observer {
   METADATA_HEADER(BoringShelfView, views::ScrollView)
@@ -43,6 +45,13 @@ class BoringShelfView : public views::ScrollView,
   BoringShelfView(const BoringShelfView&) = delete;
   BoringShelfView& operator=(const BoringShelfView&) = delete;
   ~BoringShelfView() override;
+
+  // Opens the Earlier section out to every entry, in this window's Shelf (now,
+  // or when it is next built).
+  static void ExpandEarlierFor(BrowserWindowInterface* browser);
+
+  // boring::earlier::EarlierTabsService::Observer:
+  void OnEarlierTabsChanged() override;
 
   // Runs the rebuild now instead of after the current task (tests).
   void RebuildForTesting() { Rebuild(); }
@@ -103,6 +112,7 @@ class BoringShelfView : public views::ScrollView,
   raw_ptr<BrowserWindowInterface> browser_;
   bool rebuild_pending_ = false;
   bool earlier_expanded_ = false;
+  raw_ptr<boring::earlier::EarlierTabsService> earlier_service_ = nullptr;
 
   PrefChangeRegistrar pref_registrar_;
   raw_ptr<TabStripModel> tabs_ = nullptr;

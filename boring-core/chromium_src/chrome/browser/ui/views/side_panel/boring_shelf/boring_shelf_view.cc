@@ -3,11 +3,14 @@
 #include "chrome/browser/ui/views/side_panel/boring_shelf/boring_shelf_view.h"
 
 #include <algorithm>
+#include <map>
+#include <set>
 #include <utility>
 #include <vector>
 
 #include "base/functional/bind.h"
 #include "base/i18n/rtl.h"
+#include "base/no_destructor.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
@@ -77,6 +80,18 @@ std::unique_ptr<views::View> Section(const std::u16string& heading,
   return column;
 }
 
+// The Shelf of each window, and the windows whose Shelf is to open Earlier out
+// when it is built (the command can arrive before the panel exists).
+std::map<BrowserWindowInterface*, BoringShelfView*>& LiveShelves() {
+  static base::NoDestructor<std::map<BrowserWindowInterface*, BoringShelfView*>>
+      shelves;
+  return *shelves;
+}
+std::set<BrowserWindowInterface*>& PendingExpand() {
+  static base::NoDestructor<std::set<BrowserWindowInterface*>> pending;
+  return *pending;
+}
+
 struct SavedRow {
   base::Time when;
   ShelfItem item;
@@ -106,7 +121,16 @@ BoringShelfView::BoringShelfView(BrowserWindowInterface* browser)
 
   tabs_ = browser_->GetTabStripModel();
   tabs_->AddObserver(this);
+  LiveShelves()[browser_] = this;
+  if (PendingExpand().erase(browser_)) {
+    earlier_expanded_ = true;
+  }
   if (IsRegular()) {
+    // boring: item 16. Earlier tabs changing rebuilds the section.
+    earlier_service_ = boring::earlier::EarlierTabsService::Get(profile);
+    if (earlier_service_) {
+      earlier_service_->AddObserver(this);
+    }
     if (ReadingListModel* model =
             ReadingListModelFactory::GetForBrowserContext(profile)) {
       reading_list_.Observe(model);
@@ -119,6 +143,13 @@ BoringShelfView::BoringShelfView(BrowserWindowInterface* browser)
 }
 
 BoringShelfView::~BoringShelfView() {
+  auto it = LiveShelves().find(browser_);
+  if (it != LiveShelves().end() && it->second == this) {
+    LiveShelves().erase(it);
+  }
+  if (earlier_service_) {
+    earlier_service_->RemoveObserver(this);
+  }
   // TabStripModel takes plain AddObserver, not a ScopedObservation.
   if (tabs_) {
     tabs_->RemoveObserver(this);
@@ -476,6 +507,14 @@ void BoringShelfView::OpenUrl(const GURL& url, bool switch_to_open_tab) {
 }
 
 void BoringShelfView::ActivateItem(const ShelfItem& item) {
+  if (item.kind == ShelfKind::kEarlier) {
+    // A tab that was moved to Earlier comes back as a tab at the end of this
+    // window's strip. The address was checked when the list was read.
+    if (earlier_service_) {
+      earlier_service_->Reopen(item.id, browser_);
+    }
+    return;
+  }
   OpenUrl(item.url, item.kind == ShelfKind::kPinned);
 }
 
@@ -504,6 +543,20 @@ void BoringShelfView::ActivateDownload(const std::string& guid) {
   if (download::DownloadItem* item = manager->GetDownloadByGuid(guid)) {
     item->OpenDownload();
   }
+}
+
+// static
+void BoringShelfView::ExpandEarlierFor(BrowserWindowInterface* browser) {
+  auto it = LiveShelves().find(browser);
+  if (it != LiveShelves().end()) {
+    it->second->ShowAllEarlier();
+  } else {
+    PendingExpand().insert(browser);
+  }
+}
+
+void BoringShelfView::OnEarlierTabsChanged() {
+  ScheduleRebuild();
 }
 
 void BoringShelfView::ShowAllEarlier() {

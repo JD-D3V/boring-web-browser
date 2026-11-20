@@ -12,6 +12,7 @@
 #include "base/values.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/views/boring/boring_earlier_tabs_service.h"
 #include "components/boring/newtab/newtab_ui.h"
 #include "components/prefs/pref_service.h"
 #include "components/url_formatter/elide_url.h"
@@ -106,9 +107,31 @@ std::u16string AgeText(base::Time now, base::Time then) {
 }
 
 EarlierState GetEarlierState(Profile* profile) {
-  // boring: seam for item 16 (Earlier tabs). Nothing is kept yet, so the
-  // section shows nothing. The store replaces this body.
-  return EarlierState();
+  // boring: item 16. The profile's Earlier list; off and empty for a private
+  // or guest window, which have none.
+  EarlierState state;
+  boring::earlier::EarlierTabsService* service =
+      boring::earlier::EarlierTabsService::Get(profile);
+  if (!service) {
+    return state;
+  }
+  state.enabled = service->IsEnabled();
+  state.total = service->count();
+  const base::Time now = base::Time::Now();
+  for (const boring::earlier::EarlierEntry& entry : service->entries()) {
+    if (state.newest.size() >= kMaxEarlierRows) {
+      break;
+    }
+    ShelfItem item;
+    item.title = ShelfTitle(entry.title, entry.url);
+    item.meta = AgeText(now, entry.last_used);
+    item.icon = &kBoringDocIcon;
+    item.url = entry.url;
+    item.kind = ShelfKind::kEarlier;
+    item.id = entry.id;
+    state.newest.push_back(std::move(item));
+  }
+  return state;
 }
 
 std::vector<ShelfItem> PinnedItems(Profile* profile) {

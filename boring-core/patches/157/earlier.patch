@@ -1,0 +1,217 @@
+diff --git a/chrome/app/chrome_command_ids.h b/chrome/app/chrome_command_ids.h
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -304,6 +304,10 @@
+ // boring: open or close the Shelf. 40321 to 40329 are kept for the side
+ // tabs and Earlier tabs.
+ #define IDC_BORING_TOGGLE_SHELF 40320
++// boring: Earlier tabs. The pop-up under the chip, and the Shelf with
++// Earlier opened out. 40323 to 40329 are free.
++#define IDC_BORING_SHOW_EARLIER 40321
++#define IDC_BORING_EARLIER_SHOW_ALL 40322
+ 
+ // Spell-check
+ #define IDC_SPELLCHECK_SUGGESTION_0     41000
+diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui/browser_command_controller.cc
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -95,6 +95,7 @@
+ #include "chrome/browser/ui/toolbar/chrome_labs/chrome_labs_utils.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
++#include "chrome/browser/ui/views/boring/boring_earlier_chip.h"  // boring: Earlier tabs
+ #include "chrome/browser/ui/views/boring/boring_forget.h"
+ #include "chrome/browser/ui/views/side_panel/boring_shelf/boring_shelf_coordinator.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+@@ -1335,6 +1336,14 @@
+     case IDC_BORING_FORGET_SESSION:
+       boring::ShowForgetSessionDialog(browser_);
+       break;
++    case IDC_BORING_SHOW_EARLIER:
++      // boring: the Earlier pop-up under the chip.
++      BoringEarlierChip::ShowPopupFor(browser_);
++      break;
++    case IDC_BORING_EARLIER_SHOW_ALL:
++      // boring: the Shelf with Earlier opened out.
++      boring::shelf::ShowShelfWithEarlier(browser_);
++      break;
+     case IDC_BORING_TOGGLE_SHELF:
+       // boring: the Shelf side panel (screen C03).
+       boring::shelf::ToggleShelf(browser_);
+@@ -1801,6 +1810,14 @@
+   if (IsInLockedFullscreenMode(/*allow_ontask=*/false)) {
+     return;
+   }
++
++  // boring: Earlier tabs, like the Shelf, only in a normal window.
++  command_updater_->UpdateCommandEnabled(
++      IDC_BORING_SHOW_EARLIER,
++      browser_->GetType() == BrowserWindowInterface::TYPE_NORMAL);
++  command_updater_->UpdateCommandEnabled(
++      IDC_BORING_EARLIER_SHOW_ALL,
++      browser_->GetType() == BrowserWindowInterface::TYPE_NORMAL);
+ 
+   // boring: only a normal window has a Shelf.
+   command_updater_->UpdateCommandEnabled(
+diff --git a/chrome/browser/ui/views/frame/BUILD.gn b/chrome/browser/ui/views/frame/BUILD.gn
+--- a/chrome/browser/ui/views/frame/BUILD.gn
++++ b/chrome/browser/ui/views/frame/BUILD.gn
+@@ -489,6 +489,14 @@
+     # boring: the Shelf toggle (screen C03).
+     "boring_shelf_toggle.cc",
+     "boring_shelf_toggle.h",
++    # boring: Earlier tabs (cui-earlier): the chip, the pop-up and the
++    # service that moves tabs and keeps the list.
++    "../boring/boring_earlier_chip.cc",
++    "../boring/boring_earlier_chip.h",
++    "../boring/boring_earlier_popup.cc",
++    "../boring/boring_earlier_popup.h",
++    "../boring/boring_earlier_tabs_service.cc",
++    "../boring/boring_earlier_tabs_service.h",
+     "horizontal_tab_strip_region_view.cc",
+   ]
+   public_deps = [
+@@ -521,6 +529,15 @@
+     "//chrome/browser/ui/immersive:immersive_mode_controller",
+     # boring: the toggle reads the side panel and runs a command.
+     "//chrome/browser/ui/side_panel",
++    # boring: Earlier tabs.
++    "//chrome/browser/history",
++    "//chrome/browser/performance_manager",
++    "//components/boring/core",
++    "//components/boring/earlier",
++    "//components/history/core/browser",
++    "//components/performance_manager",
++    "//components/sessions",
++    "//components/url_formatter",
+     "//chrome/browser/ui/tabs:features",
+     "//chrome/browser/ui/tabs:tab_strip",
+     "//chrome/browser/ui/views:tab_search_bubble_host",
+diff --git a/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.h b/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.h
+--- a/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.h
++++ b/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.h
+@@ -26,6 +26,7 @@
+ class Button;
+ class Separator;
+ }
++class BoringEarlierChip;
+ class BoringShelfToggle;
+ class NewTabButton;
+ class TabStripActionContainer;
+@@ -139,6 +140,8 @@
+   // boring: the Shelf toggle and the divider after it, first in the strip.
+   raw_ptr<BoringShelfToggle> shelf_toggle_ = nullptr;
+   raw_ptr<views::Separator> shelf_divider_ = nullptr;
++  // boring: the Earlier chip, just before the New tab button.
++  raw_ptr<BoringEarlierChip> earlier_chip_ = nullptr;
+ 
+   std::unique_ptr<views::ActionViewController> action_view_controller_;
+   base::CallbackListSubscription unfocus_button_subscription_;
+diff --git a/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.cc b/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.cc
+--- a/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.cc
+@@ -25,6 +25,7 @@
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/tabs/tab_strip_prefs.h"
+ #include "chrome/browser/ui/ui_features.h"
++#include "chrome/browser/ui/views/boring/boring_earlier_chip.h"
+ #include "chrome/browser/ui/views/frame/boring_shelf_toggle.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/frame/safe_invoke/safe_invoke.h"
+@@ -272,6 +273,15 @@
+     new_tab_button_->SetTriggerableEventFlags(
+         new_tab_button_->GetTriggerableEventFlags() |
+         ui::EF_MIDDLE_MOUSE_BUTTON);
++
++    // boring: the Earlier chip (screen C08), just before the New tab
++    // button. It hides itself while there is nothing in Earlier. Laid out
++    // by hand in Layout(), like the New tab button.
++    if (browser && browser->GetType() == BrowserWindowInterface::TYPE_NORMAL) {
++      earlier_chip_ =
++          AddChildView(std::make_unique<BoringEarlierChip>(browser));
++      earlier_chip_->SetProperty(views::kViewIgnoredByLayoutKey, true);
++    }
+   }
+ 
+   reserved_grab_handle_space_ =
+@@ -312,6 +322,11 @@
+     const gfx::Point& point) {
+   // boring: a press on the Shelf toggle is a press, not a window drag.
+   if (shelf_toggle_ && IsHitInView(shelf_toggle_, point)) {
++    return false;
++  }
++  // boring: a press on the Earlier chip is a press, not a window drag.
++  if (earlier_chip_ && earlier_chip_->GetVisible() &&
++      IsHitInView(earlier_chip_, point)) {
+     return false;
+   }
+ 
+@@ -376,6 +391,10 @@
+   if (shelf_divider_) {
+     children.emplace_back(shelf_divider_.get());
+   }
++  // boring: the Earlier chip.
++  if (earlier_chip_ && earlier_chip_->GetVisible()) {
++    children.emplace_back(earlier_chip_.get());
++  }
+ 
+   if (tab_strip_action_container_) {
+     children.emplace_back(tab_strip_action_container_.get());
+@@ -436,6 +455,18 @@
+             TabStyle::Get()->GetBottomCornerRadius() +
+             GetLayoutConstant(LayoutConstant::kTabStripPadding) +
+             GetLayoutConstant(LayoutConstant::kNewTabButtonLeadingMargin);
++
++    // boring: the Earlier chip takes the place next to the last tab and
++    // the New tab button moves after it. 8 DIP before the chip, 4 DIP
++    // under it, as drawn.
++    if (earlier_chip_ && earlier_chip_->GetVisible()) {
++      earlier_chip_->SetBoundsRect(gfx::Rect(
++          gfx::Point(x + BoringEarlierChip::kLeftMargin,
++                     std::max(0, height() - BoringEarlierChip::kBottomMargin -
++                                     BoringEarlierChip::kHeight)),
++          earlier_chip_->GetPreferredSize()));
++      x += earlier_chip_->LayoutWidth();
++    }
+ 
+     gfx::Point button_new_position = gfx::Point(x, GetInsets().top());
+     gfx::Rect button_new_bounds = gfx::Rect(button_new_position, button_size);
+@@ -721,6 +752,10 @@
+     tab_strip_right_margin =
+         button_to_paint_to_layer->GetPreferredSize().width() +
+         GetLayoutConstant(LayoutConstant::kTabStripPadding);
++    // boring: and room for the Earlier chip while it shows.
++    if (earlier_chip_) {
++      *tab_strip_right_margin += earlier_chip_->LayoutWidth();
++    }
+   }
+ 
+   // If the tab search button is before the tab strip, it also overlaps the
+diff --git a/chrome/browser/extensions/api/settings_private/prefs_util.cc b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+--- a/chrome/browser/extensions/api/settings_private/prefs_util.cc
++++ b/chrome/browser/extensions/api/settings_private/prefs_util.cc
+@@ -240,6 +240,9 @@
+   (*s_allowlist)["boring.hide_sponsored_results"] =
+       settings_api::PrefType::kBoolean;
+   (*s_allowlist)["boring.list_updates"] = settings_api::PrefType::kBoolean;
++  // boring: Earlier tabs (must match components/boring/core/boring_prefs.h).
++  (*s_allowlist)["boring.earlier.enabled"] =
++      settings_api::PrefType::kBoolean;
+   (*s_allowlist)["boring.ai.provider"] = settings_api::PrefType::kString;
+   // boring: cui-settings, the Look on Settings, Appearance ("soft_white",
+   // "slate" or "dusk"). components/boring/core/boring_prefs.h's
+diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts b/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
+--- a/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
+@@ -120,6 +120,11 @@
+         </settings-toggle-button>
+       </div>
+     ` : ''}
++    <settings-toggle-button id="earlierTabsToggle"
++        pref-key="boring.earlier.enabled"
++        label="Earlier tabs"
++        sub-label="Move tabs you have not used for a day to Earlier. They are kept for 30 days.">
++    </settings-toggle-button>
+     <div id="bookmarksRow" class="cr-row"
+         ?hidden="${!this.pageVisibility_.bookmarksBar}">
+       <div class="flex cr-padded-text" aria-hidden="true">

@@ -23,6 +23,10 @@ void ToggleShelf(BrowserWindowInterface* browser);
 
 bool IsShelfShowing(BrowserWindowInterface* browser);
 
+// "Show all" in the Earlier pop-up: opens the Shelf with Earlier out to every
+// entry. With side tabs the strip is the Shelf and is left as it is.
+void ShowShelfWithEarlier(BrowserWindowInterface* browser);
+
 // True when this kind of window has a Shelf.
 bool WindowHasShelf(BrowserWindowInterface* browser);
 

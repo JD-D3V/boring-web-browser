@@ -71,6 +71,18 @@ void ToggleShelf(BrowserWindowInterface* browser) {
   }
 }
 
+void ShowShelfWithEarlier(BrowserWindowInterface* browser) {
+  if (!WindowHasShelf(browser) ||
+      browser->GetProfile()->GetPrefs()->GetBoolean(
+          prefs::kVerticalTabsEnabled)) {
+    return;
+  }
+  BoringShelfView::ExpandEarlierFor(browser);
+  if (SidePanelUI* ui = SidePanelUI::From(browser)) {
+    ui->Show(ShelfKey());
+  }
+}
+
 bool IsShelfShowing(BrowserWindowInterface* browser) {
   SidePanelUI* ui = browser ? SidePanelUI::From(browser) : nullptr;
   return ui && ui->IsSidePanelEntryShowing(ShelfKey());
