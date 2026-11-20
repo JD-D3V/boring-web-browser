@@ -223,7 +223,6 @@ views::LabelButton* AddProviderButton(views::View* parent,
   button->SetPreferredSize(gfx::Size(1, kAddButtonHeight));
   button->SetBorder(
       views::CreateRoundedRectBorder(1, kSmallCorner, kColorBoringEdge));
-  button->GetViewAccessibility().SetName(u"Add " + name + u" account");
   views::InkDrop::Get(button)->SetMode(views::InkDropHost::InkDropMode::ON);
   button->SetHasInkDropActionOnClick(true);
   views::InstallRoundRectHighlightPathGenerator(button, gfx::Insets(),

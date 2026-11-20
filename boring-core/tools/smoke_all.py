@@ -94,6 +94,9 @@ CHECKS = [
     ("scam warning page as drawn", "smoke_warning_page.py"),
     # boring: cui-settings
     ("Settings, Appearance as drawn", "smoke_settings_appearance.py"),
+    # boring: cui-accounts
+    ("accounts: toolbar panel, new tab chips, Settings", "smoke_accounts.py"),
+    # boring: end cui-accounts
 ]
 
 # Every smoke_*.py that is not a check, with the reason. A new file must
@@ -121,6 +124,9 @@ NATIVE_CHECKS = {
     "smoke_toolbar.py",
     # boring: cui-menu
     "smoke_customize_toolbar.py",
+    # boring: cui-accounts
+    "smoke_accounts.py",
+    # boring: end cui-accounts
 }
 
 

@@ -153,6 +153,28 @@ SCENARIOS = {
         "urls": ["chrome://boring-newtab"],
         "first_run": False,
     },
+    # boring: cui-accounts. Accounts are shortcuts: having some, opening
+    # the toolbar panel, the new tab page's chips and Settings, Accounts
+    # must reach no host. Everything else that may reach out on its own is
+    # off (the all-off seed), so any host here is Accounts' doing.
+    "accounts": {
+        "args": ["--no-first-run", "--boring-accounts-test=open"],
+        "urls": ["chrome://boring-newtab", "chrome://settings/accounts"],
+        "first_run": False,
+        "seed_all_off": True,
+        "seed_prefs": {
+            "boring": {
+                "accounts": {
+                    "list": [
+                        {"id": "audit-1", "provider": "google", "name": "Personal"},
+                        {"id": "audit-2", "provider": "proton", "name": "Private mail"},
+                    ]
+                }
+            }
+        },
+        "must_reach_nothing": True,
+    },
+    # boring: end cui-accounts
 }
 
 
@@ -206,6 +228,13 @@ def run_scenario(name: str, seconds: int, keep: bool) -> dict:
     profile = Path(tempfile.mkdtemp(prefix=f"netaudit-{name}-", dir=TMP))
     if spec.get("seed_all_off"):
         prefs, local_state = all_off_seed()
+        # boring: cui-accounts. More prefs a scenario seeds, merged in.
+        for key, value in spec.get("seed_prefs", {}).items():
+            if isinstance(value, dict):
+                prefs.setdefault(key, {}).update(value)
+            else:
+                prefs[key] = value
+        # boring: end cui-accounts
         (profile / "Default").mkdir()
         (profile / "Default" / "Preferences").write_text(json.dumps(prefs), "utf-8")
         (profile / "Local State").write_text(json.dumps(local_state), "utf-8")
