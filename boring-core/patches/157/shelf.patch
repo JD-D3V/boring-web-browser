@@ -397,3 +397,18 @@ diff --git a/chrome/browser/ui/views/side_panel/side_panel_helper.cc b/chrome/br
  
    if (webui_browser::IsWebUIBrowserEnabled()) {
      // TODO(webium): Consider supporting additional side panels beyond reading
+diff --git a/chrome/browser/ui/views/side_panel/side_panel_toolbar_pinning_controller.cc b/chrome/browser/ui/views/side_panel/side_panel_toolbar_pinning_controller.cc
+--- a/chrome/browser/ui/views/side_panel/side_panel_toolbar_pinning_controller.cc
++++ b/chrome/browser/ui/views/side_panel/side_panel_toolbar_pinning_controller.cc
+@@ -201,6 +201,11 @@
+ 
+     std::optional<actions::ActionId> action_id =
+         SidePanelEntryIdToActionId(target_id);
++    // boring: the Shelf has no toolbar action (its toggle is in the tab
++    // strip), so there is nothing to mark active.
++    if (target_id == SidePanelEntryId::kBoringShelf) {
++      return;
++    }
+     CHECK(action_id.has_value());
+     toolbar_container->UpdateActionState(*action_id, show_active_in_toolbar);
+ 
