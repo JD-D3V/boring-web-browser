@@ -212,8 +212,10 @@ def shape_checks(b, checks):
     )
     checks["tiles sit in one row, 52 px high"] = b.run(
         "var t=[...document.querySelectorAll('#shortcuts a.shortcut')];"
-        "return t.length===2 && t[0].getBoundingClientRect().top===t[1].getBoundingClientRect().top"
-        " && t.every(x=>Math.round(x.getBoundingClientRect().height)===52)"
+        # Layout boxes, not getBoundingClientRect: the tiles' arrival motion
+        # moves each one by a pixel or so for a moment after load.
+        "return t.length===2 && t[0].offsetTop===t[1].offsetTop"
+        " && t.every(x=>x.offsetHeight===52)"
     )
     checks["outlines use the edge colour"] = b.run(
         "return getComputedStyle(document.querySelector('#shortcuts a.shortcut'))"
