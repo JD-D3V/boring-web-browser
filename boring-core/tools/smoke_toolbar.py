@@ -6,9 +6,9 @@ Several short launches of scratch profiles, started straight from chrome.exe:
 
   1. A new profile, light. The test hook --boring-toolbar-test=buttons lists
      the toolbar in order. After the address bar it reads Forget, Protected,
-     Downloads, a hairline, the menu: Forget is a pinned button with its
-     word, the shield says "Protected", the accounts slot shows nothing (no
-     avatar), and the hairline sits right before the menu. Photographed
+     Downloads, the accounts button, a hairline, the menu: Forget is a
+     pinned button with its word, the shield says "Protected", Chromium's own
+     avatar is not shown, and the hairline sits right before the menu. Photographed
      beside the compiled screen 1.
   2. Same profile. Forget is pressed through UI Automation on our own
      window: the "Forget this session?" question comes up, Cancel keeps
@@ -66,9 +66,9 @@ FORGET_TITLE = "Forget this session?"
 REPORT = "boring-toolbar-test.txt"
 PINNED = "PinnedActionToolbarButton"
 # What the toolbar reads after the address bar on a new profile, as drawn.
-EXPECTED_ROW = ["Forget", "Protected", "Downloads", "hairline", "menu"]
+EXPECTED_ROW = ["Forget", "Protected", "Downloads", "accounts", "hairline", "menu"]
 # The same once Forget is unpinned.
-UNPINNED_ROW = ["Protected", "Downloads", "hairline", "menu"]
+UNPINNED_ROW = ["Protected", "Downloads", "accounts", "hairline", "menu"]
 # Buttons that come before the drawn row, or show only now and then.
 LEADING = {"BackForwardButton", "ReloadButton", "HomeButton", "ExtensionsToolbarButton", "BoringReaderButton"}
 BOOKMARKS = ["Mail", "Bank", "Council", "Recipes"]
@@ -109,6 +109,8 @@ def tag(entry):
         return "Protected"
     if cls == "BrowserAppMenuButton":
         return "menu"
+    if cls == "BoringAccountsButton":
+        return "accounts"
     return cls
 
 
@@ -316,7 +318,7 @@ def main():
         profile = new_profile("profile")
         report = hook(profile)
         row = drawn_row(report)
-        checks("the toolbar reads Forget, Protected, Downloads, hairline, menu", row == EXPECTED_ROW, str(row))
+        checks("the toolbar reads Forget, Protected, Downloads, accounts, hairline, menu", row == EXPECTED_ROW, str(row))
         forget = find(report, "Forget")
         checks("Forget is a pinned button with the word Forget", bool(forget) and forget[4] == "Forget", str(forget))
         checks(
@@ -327,8 +329,9 @@ def main():
         shield = find(report, "Protected")
         checks("the shield says Protected", bool(shield) and shield[4] == "Protected", str(shield))
         checks(
-            "no avatar or accounts button (the slot is empty)",
-            not any(e[0] == "button" and "Avatar" in e[1] for e in report),
+            "Chromium's avatar is not shown; ours is named Your accounts",
+            not any(e[0] == "button" and "Avatar" in e[1] for e in report)
+            and (find(report, "accounts") or ())[2:3] == ("Your accounts",),
             str(report),
         )
         # Ledger item 43 (JD, Q16): Chromium's own Extensions button stays.

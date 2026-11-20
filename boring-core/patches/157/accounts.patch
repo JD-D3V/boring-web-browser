@@ -88,3 +88,144 @@ diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.cc b/chrome/browser/ui
  
    // Only manage the overflow button when there are at least some views
    // controls. If there aren't any, the WebUIToolbarWebView will handle all
+diff --git a/chrome/browser/ui/webui/settings/BUILD.gn b/chrome/browser/ui/webui/settings/BUILD.gn
+--- a/chrome/browser/ui/webui/settings/BUILD.gn
++++ b/chrome/browser/ui/webui/settings/BUILD.gn
+@@ -307,6 +307,7 @@
+     "//chrome/browser/webauthn",
+     "//chrome/browser/webauthn:local_credential_management",
+     "//chrome/common",
++    "//components/boring/accounts",
+     "//components/boring/protection",
+     "//components/browsing_data/content",
+     "//components/browsing_data/core",
+diff --git a/chrome/browser/ui/webui/settings/settings_ui.cc b/chrome/browser/ui/webui/settings/settings_ui.cc
+--- a/chrome/browser/ui/webui/settings/settings_ui.cc
++++ b/chrome/browser/ui/webui/settings/settings_ui.cc
+@@ -114,6 +114,7 @@
+ #include "components/autofill/core/browser/permissions/autofill_ai/autofill_ai_permission_util.h"
+ #include "components/autofill/core/common/autofill_features.h"
+ #include "components/autofill/core/common/autofill_payments_features.h"
++#include "components/boring/accounts/accounts_handler.h"
+ #include "components/boring/protection/site_rules_handler.h"
+ #include "components/browsing_data/core/features.h"
+ #include "components/commerce/core/commerce_feature_list.h"
+@@ -295,6 +296,9 @@
+   AddSettingsPageUIHandler(std::make_unique<SecureDnsHandler>());
+   AddSettingsPageUIHandler(std::make_unique<SiteSettingsHandler>(profile));
+   AddSettingsPageUIHandler(std::make_unique<boring::SiteRulesHandler>());
++  // boring: Accounts.
++  AddSettingsPageUIHandler(
++      std::make_unique<boring::accounts::AccountsHandler>());
+   AddSettingsPageUIHandler(std::make_unique<StartupPagesHandler>(web_ui));
+   AddSettingsPageUIHandler(std::make_unique<SettingsTelemetryHandler>());
+   AddSettingsPageUIHandler(std::make_unique<SecurityKeysPINHandler>());
+diff --git a/chrome/browser/resources/settings/BUILD.gn b/chrome/browser/resources/settings/BUILD.gn
+--- a/chrome/browser/resources/settings/BUILD.gn
++++ b/chrome/browser/resources/settings/BUILD.gn
+@@ -51,6 +51,7 @@
+ 
+   # -----------------web_component_files start ---------------------------------
+   web_component_files = [
++    "boring_page/boring_accounts_page.ts",
+     "boring_page/boring_protection_page.ts",
+     "boring_page/boring_reading_page.ts",
+     "boring_page/boring_summaries_page.ts",
+diff --git a/chrome/browser/resources/settings/page_visibility.ts b/chrome/browser/resources/settings/page_visibility.ts
+--- a/chrome/browser/resources/settings/page_visibility.ts
++++ b/chrome/browser/resources/settings/page_visibility.ts
+@@ -20,6 +20,9 @@
+   people?: boolean;
+   performance?: boolean;
+   privacy?: boolean|PrivacyPageVisibility;
++  // boring: Accounts. Hidden in a guest session (below): nobody is
++  // signed in to anything there.
++  accounts?: boolean;
+   // boring: our own pages. Left out of the guest-mode overrides below on
+   // purpose, so Protection, Reading and Page summaries stay reachable even
+   // in a guest session.
+@@ -56,6 +59,8 @@
+   // <if expr="not is_chromeos">
+   const pageVisibility = {
+     a11y: false,
++    // boring: Accounts.
++    accounts: false,
+     ai: false,
+     appearance: false,
+     autofill: false,
+diff --git a/chrome/browser/resources/settings/route.ts b/chrome/browser/resources/settings/route.ts
+--- a/chrome/browser/resources/settings/route.ts
++++ b/chrome/browser/resources/settings/route.ts
+@@ -238,6 +238,12 @@
+     r.READING = r.BASIC.createSection('/reading', 'reading', 'Reading');
+   }
+ 
++  // boring: Accounts, shortcuts to the mail and other accounts the
++  // person keeps. Placed with Passwords in the nav.
++  if (visibility.accounts !== false) {
++    r.ACCOUNTS = r.BASIC.createSection('/accounts', 'accounts', 'Accounts');
++  }
++
+   if (visibility.yourSavedInfo !== false) {
+     r.AUTOFILL = r.BASIC.createSection(
+         '/autofill', 'yourSavedInfo',
+diff --git a/chrome/browser/resources/settings/router.ts b/chrome/browser/resources/settings/router.ts
+--- a/chrome/browser/resources/settings/router.ts
++++ b/chrome/browser/resources/settings/router.ts
+@@ -16,6 +16,7 @@
+ export interface SettingsRoutes {
+   ABOUT: Route;
+   ACCESSIBILITY: Route;
++  ACCOUNTS: Route;  // boring
+   ADDRESSES: Route;
+   ADVANCED: Route;
+   AI: Route;
+diff --git a/chrome/browser/resources/settings/settings_main/settings_main.html b/chrome/browser/resources/settings/settings_main/settings_main.html
+--- a/chrome/browser/resources/settings/settings_main/settings_main.html
++++ b/chrome/browser/resources/settings/settings_main/settings_main.html
+@@ -110,6 +110,16 @@
+     </div>
+   </template>
+ 
++  <!-- boring: Accounts. -->
++  <template is="dom-if" if="[[showPage_(pageVisibility_.accounts)]]">
++    <div slot="view" id="accounts">
++      <template is="dom-if" if="[[renderPlugin_(
++          routes_.ACCOUNTS, lastRoute_, inSearchMode_)]]">
++        <boring-accounts-page></boring-accounts-page>
++      </template>
++    </div>
++  </template>
++
+   <template is="dom-if" if="[[showPage_(pageVisibility_.summaries)]]">
+     <div slot="view" id="summaries">
+       <template is="dom-if" if="[[renderPlugin_(
+diff --git a/chrome/browser/resources/settings/settings_main/settings_main.ts b/chrome/browser/resources/settings/settings_main/settings_main.ts
+--- a/chrome/browser/resources/settings/settings_main/settings_main.ts
++++ b/chrome/browser/resources/settings/settings_main/settings_main.ts
+@@ -14,6 +14,7 @@
+ import '../ai_page/ai_page_index.js';
+ import '../appearance_page/appearance_page_index.js';
+ import '../autofill_page/autofill_page_index.js';
++import '../boring_page/boring_accounts_page.js';
+ import '../boring_page/boring_protection_page.js';
+ import '../boring_page/boring_reading_page.js';
+ import '../boring_page/boring_summaries_page.js';
+diff --git a/chrome/browser/resources/settings/settings_menu/settings_menu.html b/chrome/browser/resources/settings/settings_menu/settings_menu.html
+--- a/chrome/browser/resources/settings/settings_menu/settings_menu.html
++++ b/chrome/browser/resources/settings/settings_menu/settings_menu.html
+@@ -53,6 +53,14 @@
+             ?hidden="${this.shouldHideMenuItem_(this.pageVisibility_?.yourSavedInfo)}">
+           <cr-icon icon="settings:password-manager"></cr-icon>
+           <span class="menu-label">$i18n{autofillPageTitle}</span>
++          <cr-ripple></cr-ripple>
++        </a>
++        <!-- boring: Accounts, after Passwords as drawn. Hidden in a
++             guest session. -->
++        <a role="menuitem" id="accounts" href="/accounts"
++            class="cr-nav-menu-item"
++            ?hidden="${!!this.pageVisibility_ && !this.pageVisibility_.accounts}">
++          <span class="menu-label">Accounts</span>
+           <cr-ripple></cr-ripple>
+         </a>
+         <a role="menuitem" id="privacy" href="/privacy"
