@@ -103,7 +103,7 @@ class EarlierTabsService : public base::SupportsUserData::Data,
 
   static LoadedFile ReadFile(const base::FilePath& path);
   static bool WriteFile(const base::FilePath& path, std::string text);
-  static void MoveAside(const base::FilePath& path);
+  static void DeleteFiles(const base::FilePath& path);
 
   void OnFileRead(LoadedFile file);
   void StartTimers();
@@ -132,8 +132,11 @@ class EarlierTabsService : public base::SupportsUserData::Data,
 
   bool loaded_ = false;
   bool read_only_ = false;
-  // A corrupt file was set aside this run: no tab moves until the next run.
+  // A corrupt file was deleted this run: no tab moves until the next run.
   bool paused_ = false;
+  // All of history was deleted before the file was read: the list goes as
+  // soon as it is.
+  bool clear_when_loaded_ = false;
   std::vector<EarlierEntry> entries_;
 
   base::OneShotTimer settle_timer_;

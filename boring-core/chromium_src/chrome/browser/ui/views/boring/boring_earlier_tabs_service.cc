@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <set>
 #include <utility>
 
 #include "base/files/file_util.h"
@@ -98,6 +99,8 @@ bool EarlierTabsService::IsEnabled() const {
 // static
 EarlierTabsService::LoadedFile EarlierTabsService::ReadFile(
     const base::FilePath& path) {
+  // The ".bad" copy an earlier build set aside is never kept.
+  base::DeleteFile(path.AddExtension(FILE_PATH_LITERAL("bad")));
   LoadedFile file;
   file.exists = base::PathExists(path);
   if (file.exists &&
@@ -117,9 +120,11 @@ bool EarlierTabsService::WriteFile(const base::FilePath& path,
 }
 
 // static
-void EarlierTabsService::MoveAside(const base::FilePath& path) {
-  // Kept, never deleted by us.
-  base::Move(path, path.AddExtension(FILE_PATH_LITERAL("bad")));
+void EarlierTabsService::DeleteFiles(const base::FilePath& path) {
+  // Deleted, never set aside: a kept copy would hold addresses and titles
+  // that Clear, Forget, history deletion and the 30 days cannot reach.
+  base::DeleteFile(path);
+  base::DeleteFile(path.AddExtension(FILE_PATH_LITERAL("bad")));
 }
 
 void EarlierTabsService::OnFileRead(LoadedFile file) {
@@ -139,10 +144,16 @@ void EarlierTabsService::OnFileRead(LoadedFile file) {
         break;
       case ParseStatus::kCorrupt:
         file_runner_->PostTask(
-            FROM_HERE, base::BindOnce(&EarlierTabsService::MoveAside, path_));
+            FROM_HERE, base::BindOnce(&EarlierTabsService::DeleteFiles, path_));
         paused_ = true;
         break;
     }
+  }
+  if (clear_when_loaded_) {
+    clear_when_loaded_ = false;
+    entries_.clear();
+    file_runner_->PostTask(
+        FROM_HERE, base::BindOnce(&EarlierTabsService::DeleteFiles, path_));
   }
   std::stable_sort(entries_.begin(), entries_.end(),
                    [](const EarlierEntry& a, const EarlierEntry& b) {
@@ -273,7 +284,7 @@ EarlierEntry EarlierTabsService::MakeEntry(content::WebContents* contents,
   entry.id = base::Uuid::GenerateRandomV4().AsLowercaseString();
   entry.moved = now;
   entry.last_used = contents->GetLastActiveTime();
-  entry.url = contents->GetLastCommittedURL();
+  entry.url = WithoutCredentials(contents->GetLastCommittedURL());
   entry.title = CleanTitle(contents->GetTitle());
   content::NavigationController& controller = contents->GetController();
   const int current = controller.GetCurrentEntryIndex();
@@ -289,7 +300,8 @@ EarlierEntry EarlierTabsService::MakeEntry(content::WebContents* contents,
     if (i == current) {
       selected = static_cast<int>(entry.navigations.size());
     }
-    entry.navigations.push_back({nav->GetURL(), CleanTitle(nav->GetTitle())});
+    entry.navigations.push_back(
+        {WithoutCredentials(nav->GetURL()), CleanTitle(nav->GetTitle())});
   }
   if (entry.navigations.empty()) {
     entry.navigations.push_back({entry.url, entry.title});
@@ -455,6 +467,8 @@ void EarlierTabsService::ClearAll() {
     return;
   }
   entries_.clear();
+  file_runner_->PostTask(
+      FROM_HERE, base::BindOnce(&EarlierTabsService::DeleteFiles, path_));
   WriteList(base::NullCallback());
   NotifyChanged();
 }
@@ -463,26 +477,57 @@ void EarlierTabsService::OnHistoryDeletions(
     history::HistoryService* history_service,
     const history::DeletionInfo& info) {
   // History expiring by age does not touch this list: it has its own 30 days.
-  if (!loaded_ || read_only_ || info.is_from_expiration()) {
+  if (info.is_from_expiration()) {
     return;
   }
+  if (info.IsAllHistory() && (!loaded_ || read_only_)) {
+    // Not read yet, or a file this build may not rewrite: the whole list
+    // goes all the same (on reading, or now).
+    if (!loaded_) {
+      clear_when_loaded_ = true;
+    } else {
+      entries_.clear();
+      file_runner_->PostTask(
+          FROM_HERE, base::BindOnce(&EarlierTabsService::DeleteFiles, path_));
+      NotifyChanged();
+    }
+    return;
+  }
+  if (!loaded_ || read_only_) {
+    return;
+  }
+  if (info.IsAllHistory()) {
+    file_runner_->PostTask(
+        FROM_HERE, base::BindOnce(&EarlierTabsService::DeleteFiles, path_));
+  }
+  const history::DeletionTimeRange& range = info.time_range();
+  const std::set<GURL>* restrict = info.restrict_urls().has_value()
+                                       ? &*info.restrict_urls()
+                                       : nullptr;
+  // Any page of the entry counts, its back and forward list too: a page
+  // deleted from History must not stay on disk or come back on Reopen.
+  auto deleted = [&](const GURL& url) {
+    if (range.IsValid() && restrict && restrict->contains(url)) {
+      return true;
+    }
+    return std::ranges::any_of(info.deleted_rows(),
+                               [&](const history::URLRow& row) {
+                                 return WithoutCredentials(row.url()) == url;
+                               });
+  };
   const size_t before = entries_.size();
   std::erase_if(entries_, [&](const EarlierEntry& e) {
     if (info.IsAllHistory()) {
       return true;
     }
-    const history::DeletionTimeRange& range = info.time_range();
-    if (range.IsValid() && e.last_used >= range.begin() &&
-        e.last_used <= range.end() &&
-        (!info.restrict_urls() || info.restrict_urls()->contains(e.url))) {
+    if (range.IsValid() && !restrict && e.last_used >= range.begin() &&
+        e.last_used <= range.end()) {
       return true;
     }
-    for (const history::URLRow& row : info.deleted_rows()) {
-      if (row.url() == e.url) {
-        return true;
-      }
-    }
-    return false;
+    return deleted(e.url) ||
+           std::ranges::any_of(e.navigations, [&](const EarlierNav& nav) {
+             return deleted(nav.url);
+           });
   });
   if (entries_.size() != before) {
     WriteList(base::NullCallback());

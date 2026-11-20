@@ -43,7 +43,7 @@ std::optional<EarlierEntry> ReadEntry(const base::DictValue& dict) {
     return std::nullopt;
   }
   entry.id = *id;
-  entry.url = GURL(*url_text);
+  entry.url = WithoutCredentials(GURL(*url_text));
   if (!IsKeepableUrl(entry.url) || !ReadTime(dict, "moved", &entry.moved) ||
       !ReadTime(dict, "last_used", &entry.last_used)) {
     return std::nullopt;
@@ -64,7 +64,7 @@ std::optional<EarlierEntry> ReadEntry(const base::DictValue& dict) {
         continue;
       }
       EarlierNav item;
-      item.url = GURL(*nav_url);
+      item.url = WithoutCredentials(GURL(*nav_url));
       if (!IsKeepableUrl(item.url)) {
         continue;
       }
@@ -101,18 +101,20 @@ EarlierLimits LimitsFromSwitchValues(const std::string* idle,
                                      const std::string* keep,
                                      const std::string* check,
                                      const std::string* settle) {
+  // The switches can only shorten a timer: each is clamped to the shipped
+  // limit, so no flag keeps data longer than 30 days.
   EarlierLimits limits;
   if (auto s = SecondsFromSwitch(idle)) {
-    limits.idle = base::Seconds(*s);
+    limits.idle = std::min(limits.idle, base::Seconds(*s));
   }
   if (auto s = SecondsFromSwitch(keep)) {
-    limits.keep = base::Seconds(*s);
+    limits.keep = std::min(limits.keep, base::Seconds(*s));
   }
   if (auto s = SecondsFromSwitch(check)) {
-    limits.check = base::Seconds(*s);
+    limits.check = std::min(limits.check, base::Seconds(*s));
   }
   if (auto s = SecondsFromSwitch(settle)) {
-    limits.settle = base::Seconds(*s);
+    limits.settle = std::min(limits.settle, base::Seconds(*s));
   }
   return limits;
 }
@@ -137,6 +139,16 @@ EarlierLimits GetLimits() {
 
 bool IsKeepableUrl(const GURL& url) {
   return url.is_valid() && url.SchemeIsHTTPOrHTTPS();
+}
+
+GURL WithoutCredentials(const GURL& url) {
+  if (!url.has_username() && !url.has_password()) {
+    return url;
+  }
+  GURL::Replacements strip;
+  strip.ClearUsername();
+  strip.ClearPassword();
+  return url.ReplaceComponents(strip);
 }
 
 std::u16string CleanTitle(std::u16string_view title) {
@@ -214,8 +226,11 @@ size_t RemoveExpired(std::vector<EarlierEntry>* entries,
                      base::Time now,
                      base::TimeDelta keep) {
   const size_t before = entries->size();
-  std::erase_if(*entries,
-                [&](const EarlierEntry& e) { return now - e.moved >= keep; });
+  // A time after now (a clock set ahead, an edited file) counts as expired,
+  // or the entry would outlive its 30 days.
+  std::erase_if(*entries, [&](const EarlierEntry& e) {
+    return e.moved > now || e.last_used > now || now - e.moved >= keep;
+  });
   return before - entries->size();
 }
 

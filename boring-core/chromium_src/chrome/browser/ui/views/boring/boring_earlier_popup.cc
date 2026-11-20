@@ -27,6 +27,7 @@
 #include "ui/views/controls/separator.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/view.h"
+#include "url/origin.h"
 
 namespace {
 
@@ -202,8 +203,11 @@ void BoringEarlierPopup::Rebuild() {
           base::BindRepeating(&BoringEarlierPopup::OnRow,
                               base::Unretained(this), entry.id),
           kBoringDocIcon, boring::shelf::ShelfTitle(entry.title, entry.url),
-          url_formatter::FormatUrlForSecurityDisplay(
-              entry.url, url_formatter::SchemeDisplay::OMIT_HTTP_AND_HTTPS),
+          // The site only, like the Shelf's rows: a full path would push
+          // the title out and show query tokens.
+          url_formatter::FormatOriginForSecurityDisplay(
+              url::Origin::Create(entry.url),
+              url_formatter::SchemeDisplay::OMIT_HTTP_AND_HTTPS),
           kRowHeight, kRowGap));
     }
   }

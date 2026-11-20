@@ -77,10 +77,32 @@ TEST(EarlierStoreTest, Expiry) {
   EXPECT_EQ(list[0].id, "b");
 }
 
+TEST(EarlierStoreTest, FutureTimesExpire) {
+  const base::Time now = base::Time::Now();
+  std::vector<EarlierEntry> list = {Make("a", "https://x.example/"),
+                                    Make("b", "https://y.example/"),
+                                    Make("c", "https://z.example/")};
+  list[0].moved = now + base::Days(2);
+  list[1].moved = now - base::Days(1);
+  list[1].last_used = now + base::Hours(1);
+  list[2].moved = now - base::Days(1);
+  list[2].last_used = now - base::Days(2);
+  EXPECT_EQ(RemoveExpired(&list, now, base::Days(30)), 2u);
+  ASSERT_EQ(list.size(), 1u);
+  EXPECT_EQ(list[0].id, "c");
+}
+
 TEST(EarlierStoreTest, SwitchesOnlyShortenWithWholeSeconds) {
   std::string five = "5", bad = "abc", zero = "0";
   EarlierLimits l = LimitsFromSwitchValues(&five, &bad, &zero, nullptr);
   EXPECT_EQ(l.idle, base::Seconds(5));
+  EXPECT_EQ(l.keep, base::Days(30));
+  EXPECT_EQ(l.check, base::Minutes(10));
+  EXPECT_EQ(l.settle, base::Minutes(10));
+  // Longer than shipped is clamped to the shipped limit.
+  std::string long_time = "100000000";
+  l = LimitsFromSwitchValues(&long_time, &long_time, &long_time, &long_time);
+  EXPECT_EQ(l.idle, base::Days(1));
   EXPECT_EQ(l.keep, base::Days(30));
   EXPECT_EQ(l.check, base::Minutes(10));
   EXPECT_EQ(l.settle, base::Minutes(10));

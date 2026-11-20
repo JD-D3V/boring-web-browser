@@ -166,5 +166,42 @@ class SafetyTests(unittest.TestCase):
                     self.assertNotRegex(line, r'u?"[^"]*\b(Chrome|Chromium)\b[^"]*"', p.name)
 
 
+class PromiseTests(unittest.TestCase):
+    """Item 54: the 30-day and deletion promises."""
+
+    def deletions(self):
+        at = SERVICE.index("void EarlierTabsService::OnHistoryDeletions(")
+        return SERVICE[at:SERVICE.index("void EarlierTabsService::HistoryServiceBeingDeleted(")]
+
+    def test_history_deletion_checks_the_back_and_forward_list(self):
+        body = self.deletions()
+        self.assertIn("e.navigations", body)
+        self.assertIn("deleted(nav.url)", body)
+
+    def test_corrupt_file_is_deleted_never_kept(self):
+        self.assertNotIn("base::Move(", SERVICE)
+        self.assertNotIn("MoveAside", SERVICE + SERVICE_H)
+        clear = SERVICE[SERVICE.index("void EarlierTabsService::ClearAll()"):]
+        self.assertIn("DeleteFiles", clear[:clear.index("\n}\n")])
+        self.assertIn("DeleteFiles", self.deletions())
+        read = SERVICE[SERVICE.index("EarlierTabsService::ReadFile("):]
+        self.assertIn('AddExtension(FILE_PATH_LITERAL("bad"))', read[:read.index("\n}\n")])
+
+    def test_clear_all_before_the_file_is_read_is_kept(self):
+        self.assertIn("clear_when_loaded_ = true", self.deletions())
+        self.assertIn("if (clear_when_loaded_)", SERVICE)
+
+    def test_switches_only_shorten_and_future_times_expire(self):
+        for name in ("idle", "keep", "check", "settle"):
+            self.assertIn(f"limits.{name} = std::min(limits.{name}, ", STORE)
+        self.assertRegex(STORE, r"e\.moved > now \|\| e\.last_used > now")
+
+    def test_no_credentials_are_kept(self):
+        self.assertIn("ClearPassword()", STORE)
+        self.assertIn("WithoutCredentials(GURL(*url_text))", STORE)
+        self.assertIn("WithoutCredentials(contents->GetLastCommittedURL())", SERVICE)
+        self.assertIn("WithoutCredentials(nav->GetURL())", SERVICE)
+
+
 if __name__ == "__main__":
     unittest.main()

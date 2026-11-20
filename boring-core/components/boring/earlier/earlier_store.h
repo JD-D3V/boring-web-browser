@@ -100,6 +100,9 @@ std::string SerializeEarlierFile(const std::vector<EarlierEntry>& entries);
 
 // True for the only addresses that are ever kept or reopened.
 bool IsKeepableUrl(const GURL& url);
+// The address with any user name and password taken out, so a
+// user:pass@ address never lands in the file.
+GURL WithoutCredentials(const GURL& url);
 
 // One line of plain text from a page title: control characters and runs of
 // white space become one space, at most kMaxTitleLength characters.
