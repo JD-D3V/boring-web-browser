@@ -62,6 +62,11 @@ class BoringPassportTabHelper
   ~BoringPassportTabHelper() override;
 
   const Facts& facts() const { return facts_; }
+  // The facts are this document's: held per origin, since a new document
+  // starts them over (PrimaryPageChanged) and a same-document change
+  // (history.pushState, replaceState, a fragment) can only keep the origin.
+  // Comparing whole addresses let a page drop its own warnings.
+  bool FactsAreFor(const GURL& url) const;
 
   // The page is one the Passport speaks about: http or https, a public
   // name, and the page the address field shows is the committed one.

@@ -28,8 +28,13 @@ struct ChipInputs {
   bool blocked_page = false;
   // The page's host is on the scam list (shown after "Continue anyway").
   bool scam_listed = false;
-  // The field already says "Not secure" or "Dangerous" in its own words.
+  // The field already says "Not secure" or "Dangerous" in its own words, or
+  // the security level is anything but SECURE (a mixed form, mixed content,
+  // a certificate or policy state): Chromium's own indicator stays.
   bool chromium_text = false;
+  // An answer Known site rests on (history, site engagement, the scam list)
+  // is still on its way: neither soft chip shows until all are in.
+  bool pending = false;
   // The person pressed "I know this site" for this site.
   bool marked_known = false;
   // History has a visit to this site on an earlier day.
@@ -39,8 +44,9 @@ struct ChipInputs {
 };
 
 // The chip to draw, first match wins: nothing, Blocked, Scam list, nothing
-// where the field has words of its own, Known site, New to you. The mark
-// beats the look-alike rule, never Blocked or the scam list.
+// where the field has words of its own, nothing while answers are pending,
+// Known site, New to you. The mark beats the look-alike rule, never Blocked
+// or the scam list.
 Chip DecideChip(const ChipInputs& in);
 
 // The Passport layout pressing the field's icon opens. The same as the

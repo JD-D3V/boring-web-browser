@@ -108,6 +108,33 @@ class PassportSourceTest(unittest.TestCase):
                       "SchemeIsHTTPOrHTTPS"):
             self.assertIn(check, helper)
 
+    def test_chip_steps_aside_unless_secure_and_normal(self):
+        # Item 52: anything but SECURE keeps Chromium's own indicator, and an
+        # error page or Chromium's interstitial is never eligible.
+        chip = code(VIEWS / "boring_passport_chip.cc")
+        inputs = chip[chip.index("InputsFor("):]
+        inputs = inputs[:inputs.index("helper->Inputs(")]
+        self.assertRegex(inputs, r"GetSecurityLevel\(\)\s*!=\s*security_state::SECURE")
+        helper = code(VIEWS / "boring_passport_tab_helper.cc")
+        eligible = helper[helper.index("::Eligible() const"):]
+        eligible = eligible[:eligible.index("\n}\n")]
+        self.assertRegex(eligible, r"GetPageType\(\)\s*!=\s*content::PAGE_TYPE_NORMAL\s*&&\s*!BlockedPage\(\)")
+        words = code(CORE / "components" / "boring" / "passport" / "passport_words.cc")
+        decide = words[words.index("Chip DecideChip("):words.index("Chip DecideLayout(")]
+        # The field's own state is checked before either soft chip is chosen.
+        self.assertLess(decide.index("in.chromium_text"), decide.index("Chip::kKnown"))
+        self.assertLess(decide.index("in.pending"), decide.index("Chip::kKnown"))
+
+    def test_facts_are_held_per_origin_not_per_address(self):
+        # Item 53: replaceState, pushState or a fragment cannot drop facts.
+        for name in ("boring_passport_tab_helper.cc", "boring_passport_bubble.cc"):
+            body = code(VIEWS / name)
+            self.assertNotRegex(body, r"facts_?\.url\s*==", name)
+            self.assertIn("FactsAreFor(", body, name)
+        helper = code(VIEWS / "boring_passport_tab_helper.cc")
+        self.assertRegex(helper, r"IsSameOriginWith\(url\)")
+        self.assertRegex(helper, r"in\.pending\s*=\s*!same_page\s*\|\|\s*facts_\.pending > 0")
+
     def test_test_hook_needs_its_switch(self):
         newtab = text(CORE / "components" / "boring" / "newtab" / "newtab_ui.cc")
         at = newtab.index('"passportTest"')

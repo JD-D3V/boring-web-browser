@@ -35,6 +35,11 @@ Chip DecideChip(const ChipInputs& in) {
   if (in.chromium_text) {
     return Chip::kNone;
   }
+  // The neutral state (the browser's own icon) until every answer is in, so
+  // "Known site" never shows on history alone before the look-alike answer.
+  if (in.pending) {
+    return Chip::kNone;
+  }
   if (in.marked_known || (in.visited_before_today && !in.lookalike)) {
     return Chip::kKnown;
   }

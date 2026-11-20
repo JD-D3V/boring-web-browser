@@ -10,6 +10,8 @@
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/browser/ui/views/location_bar/location_icon_state_helper.h"
 #include "chrome/browser/ui/views/location_bar/location_icon_view.h"
+#include "components/omnibox/browser/location_bar_model.h"
+#include "components/security_state/core/security_state.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/base/models/image_model.h"
 #include "ui/color/color_id.h"
@@ -96,10 +98,14 @@ boring::passport::ChipInputs InputsFor(const LocationIconView* icon) {
   }
   const bool editing = bar->IsEditingOrEmpty();
   // Chromium's own words in the field ("Not secure") stay where it has
-  // them; the Passport still opens there.
-  const bool chromium_text = !location_bar::GetSecurityChipText(
-                                  bar->GetLocationBarModel(), contents, editing)
-                                  .empty();
+  // them; the Passport still opens there. So does its icon in every state
+  // that is not plainly SECURE, words or none: a mixed form, mixed or
+  // bad-certificate content, a policy certificate, a danger status.
+  const bool chromium_text =
+      !location_bar::GetSecurityChipText(bar->GetLocationBarModel(), contents,
+                                         editing)
+           .empty() ||
+      bar->GetLocationBarModel()->GetSecurityLevel() != security_state::SECURE;
   return helper->Inputs(editing, chromium_text);
 }
 

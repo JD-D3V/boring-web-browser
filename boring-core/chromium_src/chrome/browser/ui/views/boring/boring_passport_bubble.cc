@@ -177,9 +177,10 @@ BoringPassportBubble::BoringPassportBubble(LocationIconView* icon,
   host_ = url_formatter::FormatUrlForSecurityDisplay(
       url_, url_formatter::SchemeDisplay::OMIT_HTTP_AND_HTTPS);
 
-  const BoringPassportTabHelper::Facts& facts =
-      BoringPassportTabHelper::GetOrCreate(contents)->facts();
-  const bool same_page = facts.url == url_;
+  BoringPassportTabHelper* helper =
+      BoringPassportTabHelper::GetOrCreate(contents);
+  const BoringPassportTabHelper::Facts& facts = helper->facts();
+  const bool same_page = helper->FactsAreFor(url_);
   boring::passport::FactInputs in;
   in.lookalike = same_page && facts.lookalike;
   in.asks_card = same_page && facts.asks_card;
@@ -630,6 +631,8 @@ base::Value RunPassportTestCommand(content::WebContents* page,
     out.Set("width", icon->width());
     out.Set("height", icon->height());
     out.Set("expanded", BoringPassportBubble::IsShowingFor(icon));
+    out.Set("securityLevel",
+            static_cast<int>(bar->GetLocationBarModel()->GetSecurityLevel()));
   } else if (command == "pressChip" && icon) {
     // What a keyboard press on the chip does.
     const ui::KeyEvent press(ui::EventType::kKeyPressed, ui::VKEY_RETURN,

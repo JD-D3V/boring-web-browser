@@ -49,7 +49,7 @@ int main() {
     if (op == "chip" || op == "layout") {
       ChipInputs c;
       in >> c.eligible >> c.blocked_page >> c.scam_listed >> c.chromium_text >>
-          c.marked_known >> c.visited_before_today >> c.lookalike;
+          c.marked_known >> c.visited_before_today >> c.lookalike >> c.pending;
       const Chip chip = op == "chip" ? DecideChip(c) : DecideLayout(c);
       std::cout << static_cast<int>(chip) << "|" << Narrow(ChipText(chip))
                 << "|" << Narrow(Verdict(chip)) << "|";

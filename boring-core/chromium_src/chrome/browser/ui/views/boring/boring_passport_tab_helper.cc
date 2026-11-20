@@ -41,6 +41,7 @@
 #include "content/public/browser/page.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/common/page_type.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "net/base/url_util.h"
 #include "url/gurl.h"
@@ -134,6 +135,11 @@ bool BoringPassportTabHelper::Eligible() const {
       !url.SchemeIsHTTPOrHTTPS() || !url.has_host()) {
     return false;
   }
+  // Error pages and Chromium's own interstitials keep Chromium's icon; our
+  // scam and look-alike warnings carry the Blocked chip.
+  if (entry->GetPageType() != content::PAGE_TYPE_NORMAL && !BlockedPage()) {
+    return false;
+  }
   const std::string host(url.host());
   return !net::HostStringIsLocalhost(host) && !url.HostIsIPAddress() &&
          !net::IsHostnameNonUnique(host);
@@ -193,14 +199,22 @@ boring::passport::ChipInputs BoringPassportTabHelper::Inputs(
     return in;
   }
   const GURL url = web_contents()->GetLastCommittedURL();
+  boring::ScamService* scam = boring::ScamService::GetInstance();
   in.blocked_page = BlockedPage();
-  in.scam_listed = boring::ScamService::GetInstance()->IsListed(url);
+  in.scam_listed = scam->IsListed(url);
   in.chromium_text = chromium_text;
   in.marked_known = MarkedKnown();
-  const bool same_page = facts_.url == url;
+  const bool same_page = FactsAreFor(url);
   in.visited_before_today = same_page && facts_.days_before_today > 0;
   in.lookalike = same_page && facts_.lookalike;
+  in.pending = !same_page || facts_.pending > 0 ||
+               scam->status() == boring::ScamService::Status::kLoading;
   return in;
+}
+
+bool BoringPassportTabHelper::FactsAreFor(const GURL& url) const {
+  return facts_.url.is_valid() &&
+         url::Origin::Create(facts_.url).IsSameOriginWith(url);
 }
 
 void BoringPassportTabHelper::PrimaryPageChanged(content::Page& page) {

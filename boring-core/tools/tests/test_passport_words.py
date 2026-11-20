@@ -27,8 +27,8 @@ VCVARS = (
 NONE, KNOWN, NEW, BLOCKED, SCAM = range(5)
 
 
-def inputs(eligible=1, blocked=0, scam=0, text=0, marked=0, visited=0, lookalike=0):
-    return f"{eligible} {blocked} {scam} {text} {marked} {visited} {lookalike}"
+def inputs(eligible=1, blocked=0, scam=0, text=0, marked=0, visited=0, lookalike=0, pending=0):
+    return f"{eligible} {blocked} {scam} {text} {marked} {visited} {lookalike} {pending}"
 
 
 class PassportWordsTest(unittest.TestCase):
@@ -98,6 +98,16 @@ class PassportWordsTest(unittest.TestCase):
     def test_lookalike_is_new_even_with_history_unless_marked(self):
         self.assertEqual(self.chip(visited=1, lookalike=1)[0], NEW)
         self.assertEqual(self.chip(visited=1, lookalike=1, marked=1)[0], KNOWN)
+
+    def test_pending_answers_show_no_soft_chip(self):
+        # History is in, the look-alike answer is not: never "Known site".
+        self.assertEqual(self.chip(visited=1, pending=1)[0], NONE)
+        self.assertEqual(self.chip(marked=1, pending=1)[0], NONE)
+        self.assertEqual(self.chip(pending=1)[0], NONE)
+        self.assertEqual(self.chip(op="layout", visited=1, pending=1)[0], NONE)
+        # The red chips do not wait.
+        self.assertEqual(self.chip(blocked=1, pending=1)[0], BLOCKED)
+        self.assertEqual(self.chip(scam=1, pending=1)[0], SCAM)
 
     def test_new_to_you(self):
         n, text, verdict, buttons = self.chip()

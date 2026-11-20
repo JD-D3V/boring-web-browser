@@ -17,7 +17,8 @@ What it asserts:
      (never the page's title, which says "A site you know" here), the
      first-visit row first, no "connection is private" row, Leave this site
      and I know this site, a footer.
-  3. Look-alike: royalpost.net engaged, rnyalpost.net says it looks like it.
+  3. Look-alike: royalpost.net engaged, rnyalpost.net says it looks like it;
+     after the page's own history.replaceState the row and chip stay (53).
   4. Known by history: two earlier visits, then "Known site", "A site you
      know", "3 times since <month>", Site settings and Forget this site.
   5. I know this site: the mark is kept, the chip says Known site at once.
@@ -26,6 +27,9 @@ What it asserts:
   8. Site settings: Chromium's page info opens.
   9. Not private (http): Chromium's "Not secure" stays, no chip of ours, the
      Passport still opens and says "The connection is not private."
+     An https page with a form posting to http (not SECURE) and an error
+     page: no chip of ours either (item 52). The test certificate is trusted
+     by its key hash, so the other https pages are plainly SECURE.
  10. Internal page (the new tab page): no chip, no Passport.
  11. Card details: a page with cc-number and cc-csc fields gets the row "This
      page asks for card details."; one with only name fields does not, and
@@ -44,8 +48,10 @@ Usage: python boring-core/tools/smoke_passport.py [--out DIR] [--captures DIR]
 """
 
 import argparse
+import base64
 import contextlib
 import datetime
+import hashlib
 import os
 import ssl
 import subprocess
@@ -67,6 +73,7 @@ TEST_SWITCH = "--boring-passport-test"
 OPENSSL = r"C:\Program Files\Git\usr\bin\openssl.exe"
 NAMES = ["citylibrary.net", "parcel-redelivery.net", "royalpost.net", "rnyalpost.net", "plain.net"]
 NEW, KNOWN = 2, 1
+SECURE = 3  # security_state::SECURE
 
 
 class _Page(BaseHTTPRequestHandler):
@@ -80,6 +87,18 @@ class _Page(BaseHTTPRequestHandler):
                     b"<input autocomplete='cc-name'><input autocomplete='cc-number'>"
                     b"<input autocomplete='cc-exp'><input autocomplete='cc-csc'>"
                     b"</form>")
+        elif self.path.startswith("/mixedform"):
+            # An https page whose form posts to http: Chromium's "not fully
+            # secure" state, which no chip of ours may cover. Never submitted.
+            body = (b"<!doctype html><title>A site you know</title>"
+                    b"<form action='http://plain.net/send' method='post'>"
+                    b"<input name='q'></form>")
+        elif self.path.startswith("/replace"):
+            # The page rewrites its own address after load, the way a
+            # look-alike would try to drop the Passport's warnings.
+            body = (b"<!doctype html><title>A site you know</title><p>A page.</p>"
+                    b"<script>setTimeout(function () {"
+                    b"history.replaceState(null, '', '/replaced?x=1#top');}, 300);</script>")
         elif self.path.startswith("/names"):
             body = (b"<!doctype html><title>Names</title><form>"
                     b"<input autocomplete='given-name'><input autocomplete='family-name'>"
@@ -108,8 +127,25 @@ def serve(cert_dir, tls):
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ctx.load_cert_chain(str(crt), str(key))
         server.socket = ctx.wrap_socket(server.socket, server_side=True)
+        server.spki = spki_hash(crt)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
+
+
+def spki_hash(crt):
+    """The certificate's public key hash, for --ignore-certificate-errors-spki-list.
+    That switch makes the page plainly SECURE; the blanket
+    --ignore-certificate-errors keeps the error bits, so Chromium (rightly)
+    marks the page not secure and no chip of ours shows (item 52)."""
+    pub = subprocess.run([OPENSSL, "x509", "-in", str(crt), "-pubkey", "-noout"],
+                         check=True, capture_output=True).stdout
+    der = subprocess.run([OPENSSL, "pkey", "-pubin", "-outform", "der"], input=pub,
+                         check=True, capture_output=True).stdout
+    return base64.b64encode(hashlib.sha256(der).digest()).decode("ascii")
+
+
+def trust_flag(base):
+    return f"--ignore-certificate-errors-spki-list={base[2]}"
 
 
 def hook(b, *command, timeout=5.0):
@@ -185,11 +221,11 @@ def shoot(out, name, screen, dark, folder, checks):
 def run(base, out, captures, dark, checks, full):
     theme = "dark" if dark else "light"
     rules = ", ".join(f"MAP {n} 127.0.0.1" for n in NAMES) + ", MAP * ~NOTFOUND"
-    args = [TEST_SWITCH, f"--host-resolver-rules={rules}", "--ignore-certificate-errors",
+    args = [TEST_SWITCH, f"--host-resolver-rules={rules}", trust_flag(base),
             "--window-size=1280,800"]
     if dark:
         args.append("--force-dark-mode")
-    https, http = base
+    https, http = base[:2]
     with tempfile.TemporaryDirectory(prefix="passport-", dir=r"E:\tmp") as profile, \
             Browser(user_data_dir=profile, args=args) as b:
         checks(f"{theme}: new tab page hook is ready", open_newtab(b))
@@ -203,6 +239,8 @@ def run(base, out, captures, dark, checks, full):
         new_url = f"https://parcel-redelivery.net:{https}/track"
         go(b, new_url)
         chip = hook(b, "chipState") or {}
+        checks(f"{theme}: the test certificate leaves the page SECURE",
+               chip.get("securityLevel") == SECURE, str(chip))
         checks(f"{theme}: new site chip says New to you", chip.get("text") == "New to you", str(chip))
         checks(f"{theme}: new site chip is in the warn tone", chip.get("textColor") == "warn", str(chip))
         checks(f"{theme}: chip's accessible name is its word", chip.get("a11yName") == "New to you", str(chip))
@@ -289,6 +327,30 @@ def run(base, out, captures, dark, checks, full):
         checks("look-alike row names the site you use",
                "It looks like royalpost.net, a site you use, but it is not the same." in texts(state),
                str(texts(state)))
+        hook(b, "closePopup")
+
+        # 3a. The look-alike rewrites its own address (history.replaceState):
+        # the facts are the document's, so the warning row and the chip stay.
+        go(b, f"https://rnyalpost.net:{https}/replace")
+        deadline = time.monotonic() + 5
+        state = {}
+        while time.monotonic() < deadline:
+            state = hook(b, "passportState") or {}
+            if "/replaced?x=1#top" in state.get("activeUrl", ""):
+                break
+            time.sleep(0.1)
+        time.sleep(0.3)
+        checks("replaceState: the page did rewrite its address",
+               "/replaced?x=1#top" in state.get("activeUrl", ""), str(state.get("activeUrl")))
+        checks("replaceState: the look-alike fact is kept", state.get("lookalike") is True, str(state))
+        chip = hook(b, "chipState") or {}
+        checks("replaceState: the chip still says New to you", chip.get("text") == "New to you", str(chip))
+        state = popup(b)
+        checks("replaceState: the look-alike row stays",
+               "It looks like royalpost.net, a site you use, but it is not the same." in texts(state),
+               str(texts(state)))
+        hook(b, "closePopup")
+        go(b, f"https://rnyalpost.net:{https}/")
 
         # 7. Leave this site.
         before = (hook(b, "passportState") or {}).get("entries")
@@ -337,6 +399,20 @@ def run(base, out, captures, dark, checks, full):
                "The connection is not private." in texts(state), str(texts(state)))
         hook(b, "closePopup")
 
+        # 9a. An https page of a known site with a form that posts to http:
+        # not SECURE, so Chromium's own icon shows and no word of ours.
+        go(b, f"https://citylibrary.net:{https}/mixedform")
+        time.sleep(1)
+        chip = hook(b, "chipState") or {}
+        checks("http form on https: the page is not SECURE", chip.get("securityLevel") not in (None, SECURE),
+               str(chip))
+        checks("http form on https: no chip of ours", chip.get("chip") == 0 and chip.get("text") == "", str(chip))
+        # 9b. An error page (the name goes nowhere): Chromium's icon, no chip.
+        go(b, f"https://gone-passport.net:{https}/")
+        time.sleep(1)
+        chip = hook(b, "chipState") or {}
+        checks("error page: no chip of ours", chip.get("chip") == 0 and chip.get("layout") == 0, str(chip))
+
         # 10. Internal page.
         hook(b, "navigate", "chrome://version")
         time.sleep(1)
@@ -381,7 +457,7 @@ def run_warnings(base, checks):
     """The Blocked chip on a scam-listed host, a certificate warning page, and
     file and data pages. No --ignore-certificate-errors here: the certificate
     page is the point, and the scam warning comes before any connection."""
-    https, http = base
+    https, http = base[:2]
     rules = ", ".join(f"MAP {n} 127.0.0.1" for n in NAMES + [SCAM_HOST]) + ", MAP * ~NOTFOUND"
     FILE_URL.write_text("<!doctype html><title>A file</title><p>A file.</p>", encoding="utf-8")
     with list_folder({"scamlist.txt": scam_list_text()}) as lists, \
@@ -437,9 +513,9 @@ def run_windows(base, checks):
     windows: a private window and a guest window show it (the Passport reads
     the normal profile's history and writes nothing), an app window has no
     address field and so no chip, a pop-up has its slim address bar."""
-    https, http = base
+    https, http = base[:2]
     rules = ", ".join(f"MAP {n} 127.0.0.1" for n in NAMES) + ", MAP * ~NOTFOUND"
-    flags = [f"--host-resolver-rules={rules}", "--ignore-certificate-errors", "--window-size=1280,800"]
+    flags = [f"--host-resolver-rules={rules}", trust_flag(base), "--window-size=1280,800"]
     site = f"https://parcel-redelivery.net:{https}/track"
     for label, extra in (("private window", ["--incognito"]), ("guest window", ["--guest"])):
         with tempfile.TemporaryDirectory(prefix="passport-", dir=r"E:\tmp") as profile, \
@@ -487,7 +563,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="passport-cert-", dir=r"E:\tmp") as certs:
         https = serve(certs, tls=True)
         http = serve(certs, tls=False)
-        base = (https.server_address[1], http.server_address[1])
+        base = (https.server_address[1], http.server_address[1], https.spki)
         try:
             run(base, args.out, args.captures, False, checks, full=True)
             run(base, args.out, args.captures, True, checks, full=False)
