@@ -15,9 +15,11 @@ is sent to the OS as input; windows are placed off screen; every launch has
      hostile title shows only under Open tabs as plain text; "Appearance:
      light or dark" is under Settings; no row says Chrome. The results page
      (chrome://omnibox-popup.top-chrome, read through DevTools) shows the
-     same headers in order and the title as text, not markup. Its picture
-     goes beside C06. The net log of the run holds no address but our own
-     local server.
+     same headers in order and the title as text, not markup, then the two
+     key hints; its rows are 38px with 7px corners, the selected one on the
+     sel token with the moon glyph and "Enter" (no other row says Enter),
+     and headers are 11.5px at 600. Its picture goes beside C06. The net log
+     of the run holds no address but our own local server.
   2. Same profile: switching to the hostile tab from Open tabs keeps the
      tab count and the colour scheme.
   3. Same profile: "dark" then Settings opens chrome://settings/appearance.
@@ -25,8 +27,8 @@ is sent to the OS as input; windows are placed off screen; every launch has
      browser.theme.color_scheme2 becomes 2), the field shows the page's
      address again, nothing navigated and history has no chrome://boring-bar
      or search entry. "forget" lists Forget but does not select it.
-  5. Dark: "dark" offers "Turn on light mode"; its picture goes beside C06
-     dark.
+  5. Dark: "dark" offers "Turn on light mode", with the same look on the
+     dark sel token; its picture goes beside C06 dark.
   6. Under the Dusk look there is no dark or light row.
   7. --boring-bar-test=keys: Ctrl+K focuses the field with the whole address
      selected and no keyword, and the hint changes from "Ctrl+K" to "Esc to
@@ -86,6 +88,44 @@ POPUP_TEXT = r"""(() => {
   };
   walk(document.documentElement);
   return {texts: out, markup};
+})()"""
+
+# The look of the results (screen C06): the selected row, a group header,
+# the glyph each Bar row masks its icon with, and whether "Enter" shows.
+FOOTER = ["Enter to choose", "Up and Down to move"]
+SEL = {False: "rgb(240, 238, 234)", True: "rgb(41, 41, 39)"}  # TOKENS sel
+POPUP_LOOK = r"""(() => {
+  const all = [];
+  const walk = (root) => {
+    for (const el of root.querySelectorAll('*')) {
+      all.push(el); if (el.shadowRoot) walk(el.shadowRoot);
+    }
+  };
+  walk(document);
+  const look = {rows: [], header: null};
+  for (const m of all.filter(e => e.localName === 'cr-searchbox-match')) {
+    const box = m.shadowRoot.querySelector('.container');
+    const icon = m.shadowRoot.querySelector('#icon');
+    const iconBox = icon && icon.shadowRoot &&
+        icon.shadowRoot.querySelector('#icon');
+    const enter = m.shadowRoot.querySelector('#boringEnter');
+    const style = getComputedStyle(box);
+    look.rows.push({
+      selected: m.hasAttribute('selected'),
+      height: box.getBoundingClientRect().height,
+      background: style.backgroundColor,
+      radius: style.borderTopLeftRadius,
+      mask: iconBox ? getComputedStyle(iconBox).webkitMaskImage : '',
+      enter: !!enter && getComputedStyle(enter).display !== 'none',
+    });
+  }
+  const h = all.find(e => e.localName === 'h3' && e.classList.contains('header'));
+  if (h) {
+    const t = h.querySelector('.text') || h;
+    const s = getComputedStyle(t);
+    look.header = {size: s.fontSize, weight: s.fontWeight};
+  }
+  return look;
 })()"""
 
 
@@ -263,6 +303,28 @@ def main():
             grab(hwnd, str(out / f"bar-window-{name}.png"))
         return session
 
+    def check_look(session, dark):
+        """Row height, corners, the selected row's sel colour, the header,
+        the moon glyph and "Enter" on the selected Do row only."""
+        mode = "dark" if dark else "light"
+        look = cdp.evaluate(session, POPUP_LOOK) or {"rows": [], "header": None}
+        print(f"results look, {mode}:", look)
+        rows = look["rows"]
+        checks(f"{mode}: every row is 38px high with 7px corners",
+               bool(rows) and all(r["height"] == 38 and r["radius"] == "7px" for r in rows),
+               str([(r["height"], r["radius"]) for r in rows]))
+        selected = [r for r in rows if r["selected"]]
+        checks(f"{mode}: one row is selected, on the sel colour",
+               len(selected) == 1 and selected[0]["background"] == SEL[dark], str(selected))
+        checks(f"{mode}: the selected Do row draws the moon glyph",
+               bool(selected) and "boring_bar_moon.svg" in selected[0]["mask"], str(selected))
+        checks(f"{mode}: Enter shows on the selected Do row only",
+               [r["enter"] for r in rows] == [True] + [False] * (len(rows) - 1),
+               str([r["enter"] for r in rows]))
+        header = look["header"] or {}
+        checks(f"{mode}: group headers are 11.5px at weight 600",
+               header.get("size") == "11.5px" and header.get("weight") == "600", str(header))
+
     def no_banned(rows, label):
         bad = [r for r in rows if BANNED.search(" ".join(r[:3]))]
         checks(f"{label}: no row says Chrome or has an em dash", not bad, str(bad))
@@ -302,6 +364,9 @@ def main():
                    HOSTILE in seen["texts"] and not seen["markup"])
             bad = [t for t in seen["texts"] if BANNED.search(t)]
             checks("no text on the results page says Chrome", not bad, str(bad))
+            checks("the results page shows both key hints under the rows",
+                   all(f in seen["texts"] for f in FOOTER), str(seen["texts"][-4:]))
+            check_look(session, dark=False)
         stop()
         hosts = net_log_hosts(net_log)
         print("hosts in the net log:", hosts)
@@ -356,7 +421,9 @@ def main():
                bool(rows) and rows[0][:2] == ("Do", "Turn on light mode") and rows[0][3], str(rows[:1]))
         checks("dark: the groups are in the same order", group_order(rows) == GROUPS, str(group_order(rows)))
         no_banned(rows, "dark")
-        photograph("dark", dark=True)
+        session = photograph("dark", dark=True)
+        if session:
+            check_look(session, dark=True)
         stop()
 
         # 6. Dusk is always dark: no dark or light row.
