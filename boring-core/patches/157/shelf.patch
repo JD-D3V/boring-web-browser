@@ -1,0 +1,399 @@
+diff --git a/chrome/app/chrome_command_ids.h b/chrome/app/chrome_command_ids.h
+--- a/chrome/app/chrome_command_ids.h
++++ b/chrome/app/chrome_command_ids.h
+@@ -301,6 +301,9 @@
+ // bottom bar (Settings, Exit). Placeholders, like IDC_ZOOM_MENU.
+ #define IDC_BORING_APP_MENU_TILES 40309
+ #define IDC_BORING_APP_MENU_BAR 40310
++// boring: open or close the Shelf. 40321 to 40329 are kept for the side
++// tabs and Earlier tabs.
++#define IDC_BORING_TOGGLE_SHELF 40320
+ 
+ // Spell-check
+ #define IDC_SPELLCHECK_SUGGESTION_0     41000
+diff --git a/chrome/browser/ui/browser_command_controller.cc b/chrome/browser/ui/browser_command_controller.cc
+--- a/chrome/browser/ui/browser_command_controller.cc
++++ b/chrome/browser/ui/browser_command_controller.cc
+@@ -96,6 +96,7 @@
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/user_education/browser_user_education_interface.h"
+ #include "chrome/browser/ui/views/boring/boring_forget.h"
++#include "chrome/browser/ui/views/side_panel/boring_shelf/boring_shelf_coordinator.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/web_applications/app_browser_controller.h"
+ #include "chrome/browser/ui/web_applications/web_app_dialog_utils.h"
+@@ -1334,6 +1335,10 @@
+     case IDC_BORING_FORGET_SESSION:
+       boring::ShowForgetSessionDialog(browser_);
+       break;
++    case IDC_BORING_TOGGLE_SHELF:
++      // boring: the Shelf side panel (screen C03).
++      boring::shelf::ToggleShelf(browser_);
++      break;
+     case IDC_EDIT_SEARCH_ENGINES:
+       ShowSearchEngineSettings(webui::GetBrowserForOpeningWebUi(browser_));
+       break;
+@@ -1796,6 +1801,11 @@
+   if (IsInLockedFullscreenMode(/*allow_ontask=*/false)) {
+     return;
+   }
++
++  // boring: only a normal window has a Shelf.
++  command_updater_->UpdateCommandEnabled(
++      IDC_BORING_TOGGLE_SHELF,
++      browser_->GetType() == BrowserWindowInterface::TYPE_NORMAL);
+ 
+   // Navigation commands
+   const bool can_reload = CanReload(browser_);
+diff --git a/chrome/browser/ui/color/chrome_color_id.h b/chrome/browser/ui/color/chrome_color_id.h
+--- a/chrome/browser/ui/color/chrome_color_id.h
++++ b/chrome/browser/ui/color/chrome_color_id.h
+@@ -1195,6 +1195,15 @@
+   E_CPONLY(kColorBoringPassportSolidText) \
+   E_CPONLY(kColorBoringPassportLine) \
+   E_CPONLY(kColorBoringPassportFooter) \
++  /* boring: the Shelf's tones (boring_color_mixer.cc, cui-shelf). */ \
++  E_CPONLY(kColorBoringShelfBackground) \
++  E_CPONLY(kColorBoringShelfEdge) \
++  E_CPONLY(kColorBoringShelfHeading) \
++  E_CPONLY(kColorBoringShelfText) \
++  E_CPONLY(kColorBoringShelfTile) \
++  E_CPONLY(kColorBoringShelfTileRing) \
++  E_CPONLY(kColorBoringShelfRowHover) \
++  E_CPONLY(kColorBoringShelfToggleOn) \
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
+ #define CHROME_PLATFORM_SPECIFIC_COLOR_IDS \
+diff --git a/chrome/browser/ui/side_panel/side_panel_entry_id.h b/chrome/browser/ui/side_panel/side_panel_entry_id.h
+--- a/chrome/browser/ui/side_panel/side_panel_entry_id.h
++++ b/chrome/browser/ui/side_panel/side_panel_entry_id.h
+@@ -25,6 +25,8 @@
+   V(kReadAnything, kActionSidePanelShowReadAnything, "ReadAnything")          \
+   V(kFeed, kActionSidePanelShowFeed, "Feed")                                  \
+   V(kWebView, std::nullopt, "WebView")                                        \
++  /* boring: the Shelf. No header, so it needs no action item. */            \
++  V(kBoringShelf, std::nullopt, "BoringShelf")                                \
+   V(kContextualTasks, kActionSidePanelShowContextualTasks, "ContextualTasks") \
+   /* Contextual Entries */                                                    \
+   V(kSideSearch, kActionSidePanelShowSideSearch, "SideSearch")                \
+diff --git a/chrome/browser/ui/side_panel/side_panel_prefs.cc b/chrome/browser/ui/side_panel/side_panel_prefs.cc
+--- a/chrome/browser/ui/side_panel/side_panel_prefs.cc
++++ b/chrome/browser/ui/side_panel/side_panel_prefs.cc
+@@ -45,6 +45,13 @@
+   base::DictValue alignment_overrides;
+   alignment_overrides.Set(SidePanelEntryIdToString(SidePanelEntryId::kGlic),
+                           !base::i18n::IsRTL());
++  // boring: the Shelf sits on the leading side (left in a left-to-right
++  // language), as screen C03 draws it.
++  alignment_overrides.Set(
++      SidePanelEntryIdToString(SidePanelEntryId::kBoringShelf),
++      base::i18n::IsRTL());
++  // boring: also list bookmarks in the Shelf (Settings, Appearance).
++  registry->RegisterBooleanPref("boring.shelf.show_bookmarks", false);
+   const bool contextual_tasks_alignment =
+       base::FeatureList::IsEnabled(
+           contextual_tasks::kContextualTasksSidePanelDefaultRight)
+diff --git a/chrome/browser/ui/views/frame/BUILD.gn b/chrome/browser/ui/views/frame/BUILD.gn
+--- a/chrome/browser/ui/views/frame/BUILD.gn
++++ b/chrome/browser/ui/views/frame/BUILD.gn
+@@ -485,7 +485,12 @@
+ 
+ source_set("horizontal_tab_strip_region_view") {
+   public = [ "horizontal_tab_strip_region_view.h" ]
+-  sources = [ "horizontal_tab_strip_region_view.cc" ]
++  sources = [
++    # boring: the Shelf toggle (screen C03).
++    "boring_shelf_toggle.cc",
++    "boring_shelf_toggle.h",
++    "horizontal_tab_strip_region_view.cc",
++  ]
+   public_deps = [
+     ":base_tab_strip_region_view",
+     ":frame",
+@@ -509,10 +514,13 @@
+     "//chrome/browser/ui:browser_element_identifiers",
+     "//chrome/browser/ui:layout_constants",
+     "//chrome/browser/ui:ui_features",
++    "//chrome/app/vector_icons",
+     "//chrome/browser/ui/actions:actions_headers",
+     "//chrome/browser/ui/browser_window",
+     "//chrome/browser/ui/frame",
+     "//chrome/browser/ui/immersive:immersive_mode_controller",
++    # boring: the toggle reads the side panel and runs a command.
++    "//chrome/browser/ui/side_panel",
+     "//chrome/browser/ui/tabs:features",
+     "//chrome/browser/ui/tabs:tab_strip",
+     "//chrome/browser/ui/views:tab_search_bubble_host",
+diff --git a/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.cc b/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.cc
+--- a/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.cc
+@@ -12,6 +12,7 @@
+ #include "build/buildflag.h"
+ #include "chrome/browser/glic/public/glic_enabling.h"
+ #include "chrome/browser/ui/actions/chrome_action_id.h"
++#include "chrome/browser/ui/color/chrome_color_id.h"
+ #include "chrome/browser/ui/browser_actions.h"
+ #include "chrome/browser/ui/browser_commands.h"
+ #include "chrome/browser/ui/browser_element_identifiers.h"
+@@ -24,6 +25,7 @@
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/tabs/tab_strip_prefs.h"
+ #include "chrome/browser/ui/ui_features.h"
++#include "chrome/browser/ui/views/frame/boring_shelf_toggle.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/frame/safe_invoke/safe_invoke.h"
+ #include "chrome/browser/ui/views/tab_search_bubble_host.h"
+@@ -67,6 +69,7 @@
+ #include "ui/views/layout/flex_layout.h"
+ #include "ui/views/layout/flex_layout_types.h"
+ #include "ui/views/view.h"
++#include "ui/views/controls/separator.h"
+ #include "ui/views/view_class_properties.h"
+ #include "ui/views/view_utils.h"
+ 
+@@ -205,6 +208,19 @@
+ 
+     unfocus_button_->SetProperty(views::kCrossAxisAlignmentKey,
+                                  views::LayoutAlignment::kCenter);
++  }
++
++  // boring: the Shelf toggle and a divider, before the first tab. Only a
++  // normal window has them. Laid out by hand in Layout(), like the tab
++  // search button, and their room is part of the tab strip's left margin.
++  if (browser && browser->GetType() == BrowserWindowInterface::TYPE_NORMAL) {
++    shelf_toggle_ =
++        AddChildView(std::make_unique<BoringShelfToggle>(browser));
++    shelf_toggle_->SetProperty(views::kViewIgnoredByLayoutKey, true);
++    shelf_divider_ = AddChildView(std::make_unique<views::Separator>());
++    shelf_divider_->SetColorId(kColorBoringShelfToggleOn);
++    shelf_divider_->SetPreferredSize(gfx::Size(1, 16));
++    shelf_divider_->SetProperty(views::kViewIgnoredByLayoutKey, true);
+   }
+ 
+   // Add and configure the TabStripComboButton.
+@@ -294,6 +310,11 @@
+ 
+ bool HorizontalTabStripRegionViewOld::IsPositionInWindowCaption(
+     const gfx::Point& point) {
++  // boring: a press on the Shelf toggle is a press, not a window drag.
++  if (shelf_toggle_ && IsHitInView(shelf_toggle_, point)) {
++    return false;
++  }
++
+   if (new_tab_button_ && IsHitInView(new_tab_button_, point)) {
+     return false;
+   }
+@@ -348,6 +369,14 @@
+     children.emplace_back(unfocus_button_.get());
+   }
+ 
++  // boring: the Shelf toggle and its divider.
++  if (shelf_toggle_) {
++    children.emplace_back(shelf_toggle_.get());
++  }
++  if (shelf_divider_) {
++    children.emplace_back(shelf_divider_.get());
++  }
++
+   if (tab_strip_action_container_) {
+     children.emplace_back(tab_strip_action_container_.get());
+   }
+@@ -379,6 +408,19 @@
+ 
+   if (combo_button_) {
+     AdjustViewBoundsRect(combo_button_, leading_offset);
++  }
++
++  // boring: the Shelf toggle sits 8 DIP in from the window edge, bottom
++  // aligned 2 DIP up; the divider is 16 DIP tall, 8 DIP up, 8 DIP after.
++  if (shelf_toggle_) {
++    shelf_toggle_->SetBoundsRect(gfx::Rect(
++        gfx::Point(BoringShelfToggle::kLeadingPadding,
++                   std::max(0, height() - 2 - BoringShelfToggle::kHeight)),
++        shelf_toggle_->GetPreferredSize()));
++    shelf_divider_->SetBoundsRect(gfx::Rect(
++        BoringShelfToggle::kLeadingPadding + BoringShelfToggle::kWidth +
++            BoringShelfToggle::kDividerGap,
++        std::max(0, height() - 8 - 16), 1, 16));
+   }
+ 
+   views::View* button_to_paint_to_layer = new_tab_button_;
+@@ -729,6 +771,12 @@
+   }
+ 
+   UpdateButtonBorders();
++
++  // boring: room for the Shelf toggle and its divider.
++  if (shelf_toggle_) {
++    tab_strip_left_margin =
++        tab_strip_left_margin.value_or(0) + BoringShelfToggle::kLeadingWidth;
++  }
+ 
+   if (tab_strip_left_margin.has_value() || tab_strip_right_margin.has_value()) {
+     tab_strip_->SetProperty(
+diff --git a/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.h b/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.h
+--- a/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.h
++++ b/chrome/browser/ui/views/frame/horizontal_tab_strip_region_view.h
+@@ -24,7 +24,9 @@
+ namespace views {
+ class ActionViewController;
+ class Button;
++class Separator;
+ }
++class BoringShelfToggle;
+ class NewTabButton;
+ class TabStripActionContainer;
+ class TabStripComboButton;
+@@ -134,6 +136,9 @@
+   raw_ptr<TabStripComboButton> combo_button_ = nullptr;
+   raw_ptr<views::Button> new_tab_button_ = nullptr;
+   raw_ptr<TabStripControlButton> unfocus_button_ = nullptr;
++  // boring: the Shelf toggle and the divider after it, first in the strip.
++  raw_ptr<BoringShelfToggle> shelf_toggle_ = nullptr;
++  raw_ptr<views::Separator> shelf_divider_ = nullptr;
+ 
+   std::unique_ptr<views::ActionViewController> action_view_controller_;
+   base::CallbackListSubscription unfocus_button_subscription_;
+diff --git a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+@@ -525,8 +525,11 @@
+         std::max(min_side_panel_width, preferred_side_panel_width);
+ 
+     // Add additional padding.
++    // boring: the Shelf is flush with the window and the page, no gap.
+     layout.side_panel_padding =
+-        GetLayoutConstant(LayoutConstant::kSidePanelInset);
++        panel->IsBoringShelf()
++            ? 0
++            : GetLayoutConstant(LayoutConstant::kSidePanelInset);
+ 
+     // See if the toolbar-height side panel can fit next to the toolbar. If not,
+     // it is forced into content height.
+diff --git a/chrome/browser/ui/views/side_panel/BUILD.gn b/chrome/browser/ui/views/side_panel/BUILD.gn
+--- a/chrome/browser/ui/views/side_panel/BUILD.gn
++++ b/chrome/browser/ui/views/side_panel/BUILD.gn
+@@ -9,6 +9,15 @@
+ 
+ source_set("side_panel") {
+   sources = [
++    # boring: the Shelf (screen C03).
++    "boring_shelf/boring_shelf_coordinator.cc",
++    "boring_shelf/boring_shelf_coordinator.h",
++    "boring_shelf/boring_shelf_view.cc",
++    "boring_shelf/boring_shelf_view.h",
++    "boring_shelf/shelf_data.cc",
++    "boring_shelf/shelf_data.h",
++    "boring_shelf/shelf_row.cc",
++    "boring_shelf/shelf_row.h",
+     "bookmarks/bookmarks_side_panel_coordinator.cc",
+     "bookmarks/bookmarks_side_panel_coordinator.h",
+     "comments/comments_side_panel_coordinator.cc",
+@@ -90,6 +99,18 @@
+   ]
+   deps = [
+     "//base:i18n",
++    # boring: the Shelf reads the new tab page list, bookmarks, the reading
++    # list, downloads and saved groups, and opens pages.
++    "//chrome/browser/bookmarks",
++    "//chrome/browser/reading_list",
++    "//chrome/browser/ui/navigator",
++    "//components/bookmarks/browser",
++    "//components/boring/newtab",
++    "//components/download/public/common:public",
++    "//components/reading_list/core",
++    "//components/saved_tab_groups/public",
++    "//components/url_formatter",
++    "//third_party/icu",
+     "//chrome/app:generated_resources",
+     "//chrome/app:generated_resources_grit",
+     "//chrome/app/vector_icons",
+diff --git a/chrome/browser/ui/views/side_panel/side_panel.cc b/chrome/browser/ui/views/side_panel/side_panel.cc
+--- a/chrome/browser/ui/views/side_panel/side_panel.cc
++++ b/chrome/browser/ui/views/side_panel/side_panel.cc
+@@ -24,6 +24,7 @@
+ #include "chrome/browser/ui/side_panel/side_panel_enums.h"
+ #include "chrome/browser/ui/side_panel/side_panel_metrics.h"
+ #include "chrome/browser/ui/side_panel/side_panel_ui.h"
++#include "chrome/browser/ui/views/side_panel/boring_shelf/boring_shelf_coordinator.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/views/animations/side_panel_animations.h"
+ #include "chrome/browser/ui/views/chrome_layout_provider.h"
+@@ -378,11 +379,18 @@
+   return horizontal_alignment() == HorizontalAlignment::kRight;
+ }
+ 
++// boring: the card border, but none for the Shelf.
++gfx::Insets SidePanel::GetBorderInsets() const {
++  return boring_shelf_ ? gfx::Insets() : ::GetBorderInsets();
++}
++
+ gfx::Size SidePanel::GetMinimumSize() const {
+   const int min_height = 0;
+-  return gfx::Size(
+-      SidePanelEntry::kSidePanelDefaultContentWidth + GetBorderInsets().width(),
+-      min_height);
++  // boring: the Shelf is narrower than any other panel.
++  const int content_width = boring_shelf_
++                                ? boring::shelf::kShelfWidth
++                                : SidePanelEntry::kSidePanelDefaultContentWidth;
++  return gfx::Size(content_width + GetBorderInsets().width(), min_height);
+ }
+ 
+ bool SidePanel::IsClosing() {
+@@ -699,6 +707,10 @@
+   horizontal_alignment_ =
+       GetHorizontalAlignment(browser_view_->GetProfile()->GetPrefs(), entry_id);
+ 
++  // boring: the Shelf has no card border and no resize handle.
++  boring_shelf_ = entry_id == SidePanelEntryId::kBoringShelf;
++  resize_area_->SetVisible(!boring_shelf_);
++
+   InvalidateLayout();
+ }
+ 
+diff --git a/chrome/browser/ui/views/side_panel/side_panel.h b/chrome/browser/ui/views/side_panel/side_panel.h
+--- a/chrome/browser/ui/views/side_panel/side_panel.h
++++ b/chrome/browser/ui/views/side_panel/side_panel.h
+@@ -55,6 +55,8 @@
+     return horizontal_alignment_;
+   }
+   bool IsRightAligned() const;
++  // boring: the Shelf is flush with the window and 248 DIP wide.
++  bool IsBoringShelf() const { return boring_shelf_; }
+   gfx::Size GetMinimumSize() const override;
+   bool IsClosing();
+   void DisableAnimationsForTesting() { animations_disabled_ = true; }
+@@ -170,6 +172,11 @@
+ 
+   // Keeps track of the side the side panel will appear on (left or right).
+   HorizontalAlignment horizontal_alignment_;
++  // boring: true while the Shelf is the entry showing.
++  bool boring_shelf_ = false;
++  // boring: hides the file-local GetBorderInsets() in this class: no
++  // card border around the Shelf.
++  gfx::Insets GetBorderInsets() const;
+ 
+   // Observes and listens to side panel alignment changes.
+   PrefChangeRegistrar pref_change_registrar_;
+diff --git a/chrome/browser/ui/views/side_panel/side_panel_helper.cc b/chrome/browser/ui/views/side_panel/side_panel_helper.cc
+--- a/chrome/browser/ui/views/side_panel/side_panel_helper.cc
++++ b/chrome/browser/ui/views/side_panel/side_panel_helper.cc
+@@ -13,6 +13,7 @@
+ #include "chrome/browser/ui/side_panel/side_panel_ui.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/views/side_panel/bookmarks/bookmarks_side_panel_coordinator.h"
++#include "chrome/browser/ui/views/side_panel/boring_shelf/boring_shelf_coordinator.h"
+ #include "chrome/browser/ui/views/side_panel/comments/comments_side_panel_coordinator.h"
+ #include "chrome/browser/ui/views/side_panel/history/history_side_panel_coordinator.h"
+ #include "chrome/browser/ui/views/side_panel/history_clusters/history_clusters_side_panel_coordinator.h"
+@@ -33,6 +34,9 @@
+   // Add bookmarks.
+   BookmarksSidePanelCoordinator::From(browser)->CreateAndRegisterEntry(
+       window_registry);
++
++  // boring: the Shelf (screen C03).
++  boring::shelf::RegisterShelfEntry(browser, window_registry);
+ 
+   if (webui_browser::IsWebUIBrowserEnabled()) {
+     // TODO(webium): Consider supporting additional side panels beyond reading

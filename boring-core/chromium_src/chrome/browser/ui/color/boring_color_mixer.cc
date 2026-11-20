@@ -319,6 +319,18 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
     ids[kColorBoringPassportFooter] = {ui::kColorBubbleFooterBackground};
   }
   // boring: end cui-passport
+  // boring: cui-shelf
+  // The Shelf's colours under any theme: Chromium's own side panel tones.
+  // Under our theme they are the TOKENS rows (below).
+  ids[kColorBoringShelfBackground] = {kColorSidePanelBackground};
+  ids[kColorBoringShelfEdge] = {ui::kColorSeparator};
+  ids[kColorBoringShelfHeading] = {ui::kColorSecondaryForeground};
+  ids[kColorBoringShelfText] = {ui::kColorPrimaryForeground};
+  ids[kColorBoringShelfTile] = {kColorSidePanelContentBackground};
+  ids[kColorBoringShelfTileRing] = {ui::kColorSeparator};
+  ids[kColorBoringShelfRowHover] = {ui::kColorMenuItemBackgroundHighlighted};
+  ids[kColorBoringShelfToggleOn] = {ui::kColorSeparator};
+  // boring: end cui-shelf
   if (!UsingOurTheme(key)) {
     return;
   }
@@ -597,6 +609,28 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   mixer[kColorOmniboxResultsTextDimmed] = {p.muted};
   mixer[kColorOmniboxResultsTextDimmedSelected] = {p.muted};
   // boring: end cui-bar
+  // boring: cui-shelf
+  // The Shelf (screen C03) and its toggle, from the TOKENS rows: the page
+  // token behind it, the line on its edge, ink2 for headings and metas, the
+  // surface for the Pinned tiles, the row hover wash, and line2 behind the
+  // toggle when the Shelf is open. Soft white takes the design's values;
+  // another Look takes the page and a wash of its ink.
+  mixer[kColorBoringShelfBackground] = {page};
+  mixer[kColorBoringShelfEdge] = {p.line};
+  mixer[kColorBoringShelfHeading] = {p.muted};
+  mixer[kColorBoringShelfText] = {p.ink};
+  mixer[kColorBoringShelfTile] = {p.toolbar};
+  mixer[kColorBoringShelfTileRing] = {p.line};
+  mixer[kColorBoringShelfRowHover] = {
+      &look == &kSoftWhiteLight  ? SkColorSetRGB(0xeb, 0xe9, 0xe4)
+      : &look == &kSoftWhiteDark ? SkColorSetRGB(0x33, 0x33, 0x30)
+                                 : color_utils::AlphaBlend(p.ink, page,
+                                                           hover_wash)};
+  mixer[kColorBoringShelfToggleOn] = {
+      &look == &kSoftWhiteLight  ? SkColorSetRGB(0xd0, 0xcc, 0xc4)
+      : &look == &kSoftWhiteDark ? SkColorSetRGB(0x3b, 0x3b, 0x37)
+                                 : color_utils::AlphaBlend(p.ink, page, 0.18f)};
+  // boring: end cui-shelf
 
   // Windows high contrast: menus keep the system colours Chromium maps
   // them to (ui/color/win/native_color_mixers_win.cc), as the stock menu
