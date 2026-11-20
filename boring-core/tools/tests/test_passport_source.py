@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""Source checks for the Passport's safety rules (ledger item 13).
+
+The Passport shows facts about a page's site. These read the real files and
+check what a review would: nothing in it can send anything, it never touches
+password or card values, the mark it keeps never reaches a protection, the
+host it shows is the committed origin's, and its test hook needs a switch.
+No Chromium tree and no browser.
+"""
+
+import re
+import unittest
+from pathlib import Path
+
+CORE = Path(__file__).resolve().parents[2]
+VIEWS = CORE / "chromium_src" / "chrome" / "browser" / "ui" / "views" / "boring"
+PASSPORT = [
+    VIEWS / "boring_passport_tab_helper.cc",
+    VIEWS / "boring_passport_tab_helper.h",
+    VIEWS / "boring_passport_chip.cc",
+    VIEWS / "boring_passport_bubble.cc",
+    CORE / "components" / "boring" / "passport" / "passport_words.cc",
+]
+PATCH = CORE / "patches" / "157" / "passport.patch"
+
+
+def text(path):
+    return path.read_text(encoding="utf-8")
+
+
+def code(path):
+    """The file without // comments, so a word in a comment does not count."""
+    return re.sub(r"//[^\n]*", "", text(path))
+
+
+class PassportSourceTest(unittest.TestCase):
+    def test_nothing_is_sent(self):
+        for path in PASSPORT:
+            body = code(path)
+            for word in ("URLLoader", "SimpleURLLoader", "NetworkTrafficAnnotation",
+                         "url_loader_factory", "UMA_HISTOGRAM", "base::UmaHistogram"):
+                self.assertNotIn(word, body, f"{path.name} names {word}")
+
+    def test_no_password_or_card_values(self):
+        for path in PASSPORT:
+            body = code(path)
+            for word in ("password_value", "username_value", "FormFieldData",
+                         "FormData", ".value()", "GetLoginsWithAffiliations"):
+                if word == ".value()" and path.name == "boring_passport_tab_helper.cc":
+                    # base::expected's value(): the list of entries, of which
+                    # only two flags are read below.
+                    continue
+                self.assertNotIn(word, body, f"{path.name} names {word}")
+        helper = code(VIEWS / "boring_passport_tab_helper.cc")
+        consumer = helper[helper.index("OnGetPasswordStoreResultsOrErrorFrom("):]
+        consumer = consumer[: consumer.index("\n}\n")]
+        fields = set(re.findall(r"credential\.(\w+)", consumer))
+        self.assertEqual(fields, {"blocked_by_user", "match_type"})
+
+    def test_mark_never_reaches_a_protection(self):
+        for folder in ("scam", "adblock", "privacy", "guards"):
+            for path in (CORE / "components" / "boring" / folder).rglob("*.cc"):
+                self.assertNotIn("kPassportKnownSites", text(path), path.name)
+        for path in (CORE / "components" / "boring" / "scam").rglob("*.h"):
+            self.assertNotIn("kPassportKnownSites", text(path), path.name)
+        bubble = code(VIEWS / "boring_passport_bubble.cc")
+        for word in ("AllowHostForSession", "AllowLookalike", "kLookalikeAllowedSites"):
+            self.assertNotIn(word, bubble)
+
+    def test_host_is_the_committed_origin_never_page_text(self):
+        bubble = code(VIEWS / "boring_passport_bubble.cc")
+        self.assertIn("FormatUrlForSecurityDisplay", bubble)
+        self.assertIn("GetLastCommittedURL", bubble)
+        self.assertIn("ELIDE_HEAD", bubble)
+        for path in PASSPORT:
+            body = code(path)
+            for word in ("GetTitle(", "GetFavicon", "ExecuteJavaScript", "GetVisibleURL()"
+                         if path.name != "boring_passport_tab_helper.cc" else "GetTitle("):
+                self.assertNotIn(word, body, f"{path.name} names {word}")
+
+    def test_chip_only_for_the_committed_page(self):
+        helper = code(VIEWS / "boring_passport_tab_helper.cc")
+        self.assertRegex(helper, r"GetVisibleURL\(\) != url")
+        for check in ("HostStringIsLocalhost", "HostIsIPAddress", "IsHostnameNonUnique",
+                      "SchemeIsHTTPOrHTTPS"):
+            self.assertIn(check, helper)
+
+    def test_test_hook_needs_its_switch(self):
+        newtab = text(CORE / "components" / "boring" / "newtab" / "newtab_ui.cc")
+        at = newtab.index('"passportTest"')
+        self.assertIn("kPassportTestSwitch", newtab[at - 300: at])
+        bubble = code(VIEWS / "boring_passport_bubble.cc")
+        run = bubble[bubble.index("base::Value RunPassportTestCommand("):]
+        self.assertIn("HasSwitch(kPassportTestSwitch)", run[:400])
+
+    def test_scam_list_offers_no_mark(self):
+        words = text(CORE / "components" / "boring" / "passport" / "passport_words.cc")
+        scam = words[words.index("case Chip::kScamList:\n      // Not"):]
+        self.assertIn("return {kLeaveThisSite};", scam[:200])
+
+    def test_patch_hunks_are_marked(self):
+        hunks = text(PATCH).split("\n@@")[1:]
+        self.assertTrue(hunks)
+        for hunk in hunks:
+            added = [l for l in hunk.splitlines() if l.startswith("+")]
+            if added:
+                self.assertTrue(any("boring" in l for l in added), hunk[:200])
+
+    def test_no_em_dashes_or_browser_names_in_words(self):
+        for path in PASSPORT:
+            for literal in re.findall(r'u"([^"]*)"', text(path)):
+                self.assertNotIn("—", literal)
+                self.assertNotIn("Chrom", literal)
+
+
+if __name__ == "__main__":
+    unittest.main()

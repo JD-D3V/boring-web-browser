@@ -267,6 +267,25 @@ def build_steps(out, net_seconds):
             smoke_lines,
         ),
         # boring: end cui-accounts
+        # boring: cui-passport
+        Step(
+            "1n-passport",
+            "the Passport: chip and Site passport beside screens C04 and C05, light and dark",
+            [
+                tool(
+                    "smoke_passport.py",
+                    "--out",
+                    str(shots / "passport"),
+                    "--captures",
+                    str(shots / "passport"),
+                )
+            ],
+            600,
+            "two browser launches; five test names go to a local server, every "
+            "other address is mapped to nowhere",
+            smoke_lines,
+        ),
+        # boring: end cui-passport
         Step(
             "2-takeover",
             "screen takeover: pointer lock and keyboard lock, real window",
