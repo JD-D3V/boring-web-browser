@@ -32,8 +32,13 @@ What it asserts:
      the fact does not follow to the next page.
  12. Captures: PrintWindow of our window with the Passport open on steps 2
      and 4, light and dark, beside C05 and C04 (--captures).
-Not checked here: the Blocked chip (needs the
-scam list setup of smoke_scam.py), Incognito and guest windows.
+ 13. Warning pages and other windows (run_warnings, run_windows): the Blocked
+     chip on a scam-listed host (a test list like smoke_scam.py's) with no
+     Passport pop-up; no chip of ours on a certificate warning page, a file
+     page or a data page; the chip in a private window, a guest window and a
+     pop-up, none in an app window (which has no address field).
+Not checked here: the Scam list chip (after "Continue anyway"), the
+registration date (left out).
 
 Usage: python boring-core/tools/smoke_passport.py [--out DIR] [--captures DIR]
 """
@@ -54,8 +59,9 @@ from pathlib import Path
 import page_checks
 from capture_native import frame_window, grab
 from drive import CHROME, Browser
-from smoke_local import Checks
-from smoke_site_panel import Window
+from smoke_local import Checks, list_folder, wait_for
+from smoke_memory import close, launch
+from smoke_site_panel import Window, browser_windows
 
 TEST_SWITCH = "--boring-passport-test"
 OPENSSL = r"C:\Program Files\Git\usr\bin\openssl.exe"
@@ -339,6 +345,138 @@ def run(base, out, captures, dark, checks, full):
         hook(b, "closeTab")
 
 
+CHIP_NAMES = {"Known site", "New to you", "Blocked", "Scam list"}
+SCAM_HOST = "scam-passport.net"
+FILE_URL = Path(r"E:\tmp\passport-file-page.html")
+
+
+def chip_names_of_ours(timeout=0.0):
+    """The Passport chip names found on any window of ours, by UI Automation."""
+    found = set()
+    windows = 0
+    deadline = time.monotonic() + timeout
+    while True:
+        windows = 0
+        for hwnd in browser_windows(os.getpid()):
+            try:
+                with Window(hwnd) as w:
+                    windows += 1
+                    found |= CHIP_NAMES & set(w.names())
+            except (OSError, RuntimeError):
+                continue
+        if found or time.monotonic() >= deadline:
+            return found, windows
+        time.sleep(0.5)
+
+
+def scam_list_text():
+    """A scam list holding SCAM_HOST. The browser refuses one with fewer than
+    10 hosts (kMinHosts), so it is padded the way smoke_scam.py pads it."""
+    return ("# boring scam blocklist, test copy\n" + SCAM_HOST + "\n"
+            "# --- test entries below this line, not protection ---\n"
+            + "".join(f"boring-scam-pad-{i:02d}.invalid\n" for i in range(1, 12)))
+
+
+def run_warnings(base, checks):
+    """The Blocked chip on a scam-listed host, a certificate warning page, and
+    file and data pages. No --ignore-certificate-errors here: the certificate
+    page is the point, and the scam warning comes before any connection."""
+    https, http = base
+    rules = ", ".join(f"MAP {n} 127.0.0.1" for n in NAMES + [SCAM_HOST]) + ", MAP * ~NOTFOUND"
+    FILE_URL.write_text("<!doctype html><title>A file</title><p>A file.</p>", encoding="utf-8")
+    with list_folder({"scamlist.txt": scam_list_text()}) as lists, \
+            tempfile.TemporaryDirectory(prefix="passport-", dir=r"E:\tmp") as profile, \
+            Browser(user_data_dir=profile, args=[
+                TEST_SWITCH, f"--boring-list-dir={lists}", "--disable-boring-list-updates",
+                f"--host-resolver-rules={rules}", "--window-size=1280,800"]) as b:
+        checks("warnings: new tab page hook is ready", open_newtab(b))
+        b.get("chrome://boring-protection")
+        checks("warnings: the scam list loads", wait_for(
+            b, "document.body.innerText.includes('blocked before they open')", 20000))
+        open_newtab(b)
+        checks("warnings: test tab opens",
+               (hook(b, "openTab", f"https://{SCAM_HOST}:{https}/") or {}).get("opened"))
+
+        # The scam warning page: the Blocked chip, in the bad tones, and no
+        # Passport behind it (the chip opens Chromium's page info).
+        go(b, f"https://{SCAM_HOST}:{https}/")
+        time.sleep(1)
+        state = hook(b, "passportState") or {}
+        chip = hook(b, "chipState") or {}
+        checks("scam warning page: it is our warning", state.get("blockedPage") is True, str(state))
+        checks("scam warning page: chip says Blocked", chip.get("text") == "Blocked", str(chip))
+        checks("scam warning page: chip is in the bad tone", chip.get("textColor") == "bad", str(chip))
+        checks("scam warning page: chip is drawn 28 high", chip.get("height") == 28, str(chip))
+        popup(b)
+        shown = hook(b, "passportPopup") or {}
+        checks("scam warning page: no Passport pop-up of ours", not shown.get("open"), str(shown))
+        hook(b, "closePopup")
+
+        # A certificate warning page: Chromium's own words stay, no chip of ours.
+        go(b, f"https://plain.net:{https}/")
+        time.sleep(1)
+        chip = hook(b, "chipState") or {}
+        checks("certificate warning page: no chip of ours", chip.get("chip") == 0 and chip.get("text") in ("", None),
+               str(chip))
+
+        # File and data pages are not the web: no chip.
+        for label, url in (("file page", FILE_URL.as_uri()),
+                           ("data page", "data:text/html,%3Ctitle%3Eplain%3C/title%3E%3Cp%3Ehi")):
+            hook(b, "navigate", url)
+            time.sleep(1.5)
+            state = hook(b, "passportState") or {}
+            chip = hook(b, "chipState") or {}
+            checks(f"{label}: it is the page that opened", state.get("activeUrl", "").startswith(url[:8]),
+                   str(state.get("activeUrl")))
+            checks(f"{label}: no chip", chip.get("chip") == 0 and chip.get("layout") == 0, str(chip))
+        hook(b, "closeTab")
+
+
+def run_windows(base, checks):
+    """Where the chip shows and where it does not, by UI Automation on our own
+    windows: a private window and a guest window show it (the Passport reads
+    the normal profile's history and writes nothing), an app window has no
+    address field and so no chip, a pop-up has its slim address bar."""
+    https, http = base
+    rules = ", ".join(f"MAP {n} 127.0.0.1" for n in NAMES) + ", MAP * ~NOTFOUND"
+    flags = [f"--host-resolver-rules={rules}", "--ignore-certificate-errors", "--window-size=1280,800"]
+    site = f"https://parcel-redelivery.net:{https}/track"
+    for label, extra in (("private window", ["--incognito"]), ("guest window", ["--guest"])):
+        with tempfile.TemporaryDirectory(prefix="passport-", dir=r"E:\tmp") as profile, \
+                Browser(user_data_dir=profile, args=flags + extra) as b:
+            b.get(site)
+            found, windows = chip_names_of_ours(timeout=10)
+            checks(f"{label}: our window was found", windows > 0)
+            checks(f"{label}: a new public site gets its chip", "New to you" in found, str(found))
+    with tempfile.TemporaryDirectory(prefix="passport-", dir=r"E:\tmp") as tmp:
+        where = Path(tmp) / "app"
+        (where / "Default").mkdir(parents=True)
+        proc, cdp = launch(CHROME, where, flags + [f"--app={site}"], urls=())
+        try:
+            time.sleep(4)
+            found, windows = chip_names_of_ours()
+            checks("app window: our window was found", windows > 0)
+            checks("app window: no chip", not found, str(found))
+        finally:
+            close(proc, cdp)
+        where = Path(tmp) / "popup"
+        (where / "Default").mkdir(parents=True)
+        proc, cdp = launch(CHROME, where, flags)
+        try:
+            time.sleep(3)
+            page = next(t for t in cdp.send("Target.getTargets")["targetInfos"] if t["type"] == "page")
+            session = cdp.attach(page["targetId"])
+            opened = cdp.send(
+                "Runtime.evaluate", session, userGesture=True, returnByValue=True,
+                expression=f"window.open({site!r}, 'passportpop', 'popup,width=520,height=420') ? 'opened' : 'blocked'")
+            checks("pop-up: it opened", opened.get("result", {}).get("value") == "opened", str(opened))
+            found, windows = chip_names_of_ours(timeout=12)
+            checks("pop-up: a second window exists", windows >= 2, str(windows))
+            checks("pop-up: its slim address bar carries the chip", "New to you" in found, str(found))
+        finally:
+            close(proc, cdp)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=r"E:\tmp\passport-shots")
@@ -353,6 +491,8 @@ def main():
         try:
             run(base, args.out, args.captures, False, checks, full=True)
             run(base, args.out, args.captures, True, checks, full=False)
+            run_warnings(base, checks)
+            run_windows(base, checks)
         finally:
             https.shutdown()
             http.shutdown()
