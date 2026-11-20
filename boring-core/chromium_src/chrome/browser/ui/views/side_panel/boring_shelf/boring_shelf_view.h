@@ -89,6 +89,10 @@ class BoringShelfView : public views::ScrollView,
  private:
   // Asks for a rebuild after the current task. Many events in a row cost one.
   void ScheduleRebuild();
+
+  // Side tabs turned on: the list is the Shelf now, so this panel closes
+  // (one Shelf at a time, item 14).
+  void OnSideTabsChanged();
   void Rebuild();
 
   // Builds one section: its heading and its rows, or nothing.

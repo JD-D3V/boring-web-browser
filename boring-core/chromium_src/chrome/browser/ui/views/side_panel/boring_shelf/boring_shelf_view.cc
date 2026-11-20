@@ -3,6 +3,7 @@
 #include "chrome/browser/ui/views/side_panel/boring_shelf/boring_shelf_view.h"
 
 #include <algorithm>
+#include <limits>
 #include <map>
 #include <set>
 #include <utility>
@@ -26,7 +27,9 @@
 #include "chrome/browser/ui/tabs/saved_tab_groups/saved_tab_group_utils.h"
 #include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
+#include "chrome/browser/ui/views/side_panel/boring_shelf/boring_shelf_coordinator.h"
 #include "chrome/browser/ui/views/side_panel/boring_shelf/shelf_row.h"
+#include "chrome/common/pref_names.h"
 #include "components/boring/newtab/newtab_ui.h"
 #include "components/bookmarks/browser/bookmark_model.h"
 #include "components/bookmarks/browser/bookmark_node.h"
@@ -104,6 +107,10 @@ BoringShelfView::BoringShelfView(BrowserWindowInterface* browser)
   SetBackgroundColor(kColorBoringShelfBackground);
   SetDrawOverflowIndicator(false);
   SetHorizontalScrollBarMode(views::ScrollView::ScrollBarMode::kDisabled);
+  // Bounded, so the scroll view sizes its contents to the panel's width and
+  // their own height. Unbounded, it leaves them 0 by 0: nothing is drawn and
+  // no tile or row can be pressed.
+  ClipHeightTo(0, std::numeric_limits<int>::max());
   // The Shelf's edge on the side next to the page: a 1 px line, as drawn.
   const bool rtl = base::i18n::IsRTL();
   SetBorder(views::CreateSolidSidedBorder(
@@ -118,6 +125,9 @@ BoringShelfView::BoringShelfView(BrowserWindowInterface* browser)
                                      base::Unretained(this));
   pref_registrar_.Add(boring::kNewTabShortcutsPref, rebuild);
   pref_registrar_.Add(kShowBookmarksPref, rebuild);
+  pref_registrar_.Add(prefs::kVerticalTabsEnabled,
+                      base::BindRepeating(&BoringShelfView::OnSideTabsChanged,
+                                          base::Unretained(this)));
 
   tabs_ = browser_->GetTabStripModel();
   tabs_->AddObserver(this);
@@ -250,6 +260,22 @@ void BoringShelfView::ScheduleRebuild() {
                      [](base::WeakPtr<BoringShelfView> view) {
                        if (view) {
                          view->Rebuild();
+                       }
+                     },
+                     weak_factory_.GetWeakPtr()));
+}
+
+void BoringShelfView::OnSideTabsChanged() {
+  if (!browser_->GetProfile()->GetPrefs()->GetBoolean(
+          prefs::kVerticalTabsEnabled)) {
+    return;
+  }
+  // After the current task: closing the panel can delete this view.
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      FROM_HERE, base::BindOnce(
+                     [](base::WeakPtr<BoringShelfView> view) {
+                       if (view) {
+                         CloseShelf(view->browser_);
                        }
                      },
                      weak_factory_.GetWeakPtr()));

@@ -88,4 +88,12 @@ bool IsShelfShowing(BrowserWindowInterface* browser) {
   return ui && ui->IsSidePanelEntryShowing(ShelfKey());
 }
 
+void CloseShelf(BrowserWindowInterface* browser) {
+  if (!IsShelfShowing(browser)) {
+    return;
+  }
+  // The Shelf is the entry showing, so this closes the Shelf only.
+  SidePanelUI::From(browser)->Close();
+}
+
 }  // namespace boring::shelf

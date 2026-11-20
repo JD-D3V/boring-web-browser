@@ -18,6 +18,9 @@ What it asserts (nothing is asserted that was not looked at):
      opens it.
   5. Pressing a pinned tile opens that site in a new tab (WebDriver window
      handles grow by one, the new tab's address is the tile's address).
+  5b. One Shelf at a time: turning side tabs on with the Shelf open closes
+     the panel; the side list's toggle is there; the page gives up about
+     248 DIP, not two Shelves' worth.
   6. Private window: the toggle and Pinned are there, "Saved and downloaded"
      and "Earlier" are not.
   7. App window (--app): no toggle at all.
@@ -221,6 +224,35 @@ def run_main(port, out, captures, dark, checks, full):
             handles = b_handles(b)
             checks("a pinned tile opens a new tab", len(handles) == handles_before + 1,
                    f"{handles_before} -> {len(handles)}")
+
+            # 6. One Shelf at a time: side tabs turned on while the Shelf is
+            # open close the panel; the side list is the Shelf from then on.
+            # WebDriver follows the tab it switches to, which becomes the
+            # active one (a background tab is not resized, so its width
+            # would say nothing).
+            b._req("POST", f"/session/{b.sid}/window", {"handle": handles[-1]})
+            checks("the Shelf is open before side tabs", PANE in names_of(frame_under))
+            ok = set_side_tabs(b, True)
+            checks("side tabs turned on", ok == [True, True], str(ok))
+            gone = wait_for(lambda: PANE not in names_of(frame_under), 8)
+            checks("side tabs close the Shelf panel", bool(gone))
+            checks("the side list's toggle is there", TOGGLE in names_of(frame_under))
+            taken = width_taken(b)
+            checks("one Shelf: the page gives up the side list only",
+                   SHELF_WIDTH <= taken <= SHELF_WIDTH + 24, str(taken))
+
+
+def set_side_tabs(b, value):
+    """Write vertical_tabs.enabled the way the Settings row does."""
+    b.get("chrome://settings/appearance")
+    time.sleep(1.5)
+    return b.run_async(
+        "const done = arguments[arguments.length - 1];"
+        "chrome.settingsPrivate.setPref(arguments[0], arguments[1], '', ok => {"
+        "  chrome.settingsPrivate.getPref(arguments[0], p => done([ok, p.value]));"
+        "});",
+        ["vertical_tabs.enabled", value],
+    )
 
 
 def b_handles(b):
