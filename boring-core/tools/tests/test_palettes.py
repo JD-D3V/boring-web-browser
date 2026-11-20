@@ -379,7 +379,9 @@ class PaletteTest(unittest.TestCase):
         patch = COLOURS_PATCH.read_text(encoding="utf-8")
         self.assertIn('+constexpr char kBoringLookPref[] = "boring.appearance.look";', patch)
         # Repaints when the pref changes, and carries it in the key.
-        self.assertRegex(patch, r"\+\s+kBoringLookPref, base::BindRepeating\(&ThemeService::NotifyThemeChanged")
+        # (UseDefaultTheme repaints too, when it first drops a theme: item 46.)
+        self.assertRegex(patch, r"\+\s+kBoringLookPref,\n\+\s+base::BindRepeating\(")
+        self.assertIn("+              service->NotifyThemeChanged();", patch)
         self.assertIn("+  key.boring_look =", patch)
         self.assertIn("+  BoringLook boring_look = BoringLook::kSoftWhite;", patch)
         # The key compares it, or a new Look would reuse the old colours.

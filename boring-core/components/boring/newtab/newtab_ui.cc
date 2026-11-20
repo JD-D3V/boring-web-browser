@@ -574,6 +574,12 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
         "openAccount",
         base::BindRepeating(&NewTabMessageHandler::HandleOpenAccount,
                             base::Unretained(this)));
+    // Forget this session, or any other history deletion, empties the rows
+    // of a page that is already open, not only of the next one.
+    history_watch_ = WatchHistoryDeletions(
+        web_ui()->GetWebContents(),
+        base::BindRepeating(&NewTabMessageHandler::OnHistoryDeleted,
+                            weak_factory_.GetWeakPtr()));
     // Test only: nothing a page can ask for without the switch. Kept with
     // the search box gone, since it also drives the address bar's engine
     // menu (smoke_search_menu.py).
@@ -732,6 +738,12 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
     web_ui()->CallJavascriptFunctionUnsafe("loadRecent", list);
   }
 
+  void OnHistoryDeleted() {
+    if (IsJavascriptAllowed()) {
+      HandleGetRecent(base::ListValue());
+    }
+  }
+
   void HandleSearchMenuTest(const base::ListValue& args) {
     AllowJavascript();
     web_ui()->CallJavascriptFunctionUnsafe(
@@ -822,6 +834,7 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
 
   // Cancels a history query still running when the page goes away.
   base::CancelableTaskTracker tracker_;
+  std::unique_ptr<HistoryDeletionWatch> history_watch_;
   base::WeakPtrFactory<NewTabMessageHandler> weak_factory_{this};
 };
 

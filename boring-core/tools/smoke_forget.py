@@ -24,7 +24,9 @@ each once. Run two is the session under test, on the same profile:
   - Forget this session asks once, closes every tab, clears what this
     session made on both sites, its history included, keeps what was there
     before the session started (the earlier cookie, the earlier history
-    entry) and leaves one new tab
+    entry) and leaves one new tab, whose recent rows hold nothing of it
+  - a new tab page that is already open drops its recent rows when history
+    is deleted, without a reload
 
 Usage: python smoke_forget.py [--shots DIR] [--dark]
   --shots photographs the panel row, the question in the panel and the
@@ -146,6 +148,31 @@ function texts(root, out) {
 }
 return document.body.textContent + '\\n' + texts(document, []).join('\\n');
 """
+
+
+# The new tab page's "Pick up where you left off" rows, and when the page
+# loaded, so a check can tell an update from a reload.
+RECENT_JS = """
+var rows = [...document.querySelectorAll('#recent-list a.recent-row')];
+return {host: location.host, loaded: performance.timeOrigin,
+        hidden: document.getElementById('recent').hidden,
+        titles: rows.map(r => r.textContent)};
+"""
+
+# What Settings' own "Delete browsing data" sends for the history of the
+# last hour (TimePeriod LAST_HOUR is 0): the browsing data remover, the
+# same history deletion Forget this session makes.
+CLEAR_HISTORY_JS = """
+const done = arguments[arguments.length - 1];
+import('chrome://resources/js/cr.js')
+  .then(m => m.sendWithPromise('clearBrowsingData',
+                               ['browser.clear_data.browsing_history'], 0))
+  .then(() => done(true), e => done('error: ' + e));
+"""
+
+
+def recent(b):
+    return safe(lambda: b.run(RECENT_JS)) or {}
 
 
 def safe(fn, default=None):
@@ -571,6 +598,18 @@ def main():
                         big_windows(b) == 1,
                         str(big_windows(b)),
                     )
+                    # Item 45: the new tab Forget leaves, as it is, not reloaded.
+                    poll(lambda: recent(b).get("host") == "boring-newtab", timeout=10)
+                    left_rows = recent(b).get("titles") or []
+                    check(
+                        "the new tab left by Forget lists nothing from this session",
+                        not any(
+                            w in t
+                            for t in left_rows
+                            for w in ("during", "second-tab")
+                        ),
+                        str(left_rows),
+                    )
 
                     text = history_text(b, "Forget test alpha before")
                     check(
@@ -611,6 +650,44 @@ def main():
                         "beta: this session's cache is gone",
                         Handler.count(BETA) == 2,
                         str(Handler.count(BETA)),
+                    )
+
+                    # -- Item 45: a new tab page that is already open drops
+                    # its rows when history is deleted, without a reload.
+                    # Forget this session closes every tab, so the open page
+                    # here meets the same deletion through Settings' own
+                    # message in another tab.
+                    new_tab(b)
+                    ntp = b._req("GET", f"/session/{b.sid}/window")["value"]
+                    b.get("chrome://newtab")
+                    shown = poll(
+                        lambda: (lambda r: r if r.get("titles") else None)(recent(b)),
+                        timeout=20,
+                    ) or recent(b)
+                    check(
+                        "an open new tab page lists this session's pages",
+                        any("after" in t for t in shown.get("titles") or []),
+                        str(shown.get("titles")),
+                    )
+                    new_tab(b)
+                    b.get("chrome://settings/clearBrowserData")
+                    poll(
+                        lambda: safe(lambda: b.run("return typeof chrome.send"))
+                        == "function"
+                    )
+                    cleared = safe(lambda: b.run_async(CLEAR_HISTORY_JS), "no answer")
+                    switch_to(b, ntp)
+                    gone = poll(
+                        lambda: (lambda r: r if r.get("hidden") else None)(recent(b)),
+                        timeout=10,
+                    ) or recent(b)
+                    check(
+                        "after a history deletion its rows are gone without a reload",
+                        cleared is True
+                        and gone.get("hidden") is True
+                        and not gone.get("titles")
+                        and gone.get("loaded") == shown.get("loaded"),
+                        f"clear: {cleared}; {gone}",
                     )
 
             # What the browser said about the steps of Forget this session.
