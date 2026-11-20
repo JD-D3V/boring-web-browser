@@ -4,7 +4,8 @@
 The page has no search box. It shows the Pinned sites grid (four
 columns) with Edit and Done, "Pick up where you left off" (the three
 newest web pages from history, none in Incognito, a page title with
-markup in it shown as plain text), the Protection line with its Details
+markup in it shown as plain text, a long title cut on a character, and the
+host beside every title even below 560 px), the Protection line with its Details
 link, and an empty reserved row on top for the account chips. A fresh
 profile starts with the Reading and Wikipedia pinned sites; a person can
 add and remove sites, with removed defaults staying removed, and only web
@@ -55,6 +56,8 @@ PAGES = {
         "<title>&lt;b&gt;Four&lt;/b&gt; &lt;img src=x onerror=alert(1)&gt;</title><p>four</p>",
         HTML,
     ),
+    # 199 letters then a 4-byte character: a cut at byte 200 would split it.
+    "/long": ("<title>" + "a" * 199 + "&#x1F600;</title><p>long</p>", HTML),
 }
 RESOLVE = f"--host-resolver-rules=MAP {TEST_SITE} 127.0.0.1"
 
@@ -380,6 +383,27 @@ def recent_checks(profile, pages, checks):
             " && document.getElementById('protection').getBoundingClientRect().bottom"
             "<=window.innerHeight",
         )
+        # Below 560 px the host still shows beside the title (ledger 38):
+        # a page's own title never stands alone inside a trusted page.
+        b._req(
+            "POST",
+            f"/session/{b.sid}/window/rect",
+            {"x": -32000, "y": -32000, "width": 520, "height": 800},
+        )
+        wait_for(b, "window.innerWidth<560")
+        narrow = b.run(
+            "var rows=[...document.querySelectorAll('#recent-list a.recent-row')];"
+            "return {width: window.innerWidth, ok: rows.length===3 && rows.every(a => {"
+            " var s=a.querySelector('.site'), t=a.querySelector('.title');"
+            " var sr=s.getBoundingClientRect(), tr=t.getBoundingClientRect(), ar=a.getBoundingClientRect();"
+            f" return {VISIBLE}(s) && s.textContent===arguments[0] && sr.width>0"
+            " && sr.right<=ar.right && tr.right<=sr.left; })}",
+            [TEST_SITE],
+        )
+        print("  narrow window:", narrow)
+        checks["below 560 px every row still shows its host beside the title"] = bool(
+            narrow["width"] < 560 and narrow["ok"]
+        )
     # The same profile as a private window: none of its past.
     with Browser(
         user_data_dir=profile,
@@ -472,6 +496,23 @@ def capture(profile, checks, captures=None):
             print(f"saved {shot}" + (f" and {both}" if both else ", no capture beside the design"))
 
 
+def long_title_check(pages, checks):
+    """A title is cut on a character, never inside one (ledger 38). Its own
+    profile, so the captures keep the drawn rows."""
+    long_url = pages.url(TEST_SITE, "/long")
+    with (
+        tempfile.TemporaryDirectory(prefix="newtab-long-", dir=os.environ.get("TMP") or None) as profile,
+        Browser(user_data_dir=profile, args=[RESOLVE, "--window-size=1360,900"]) as b,
+    ):
+        b.get(long_url)
+        got = read_recent(b, 1)
+    rows = got["rows"] if got else []
+    print("  long title row:", json.dumps(rows)[:300])
+    checks["a long title is cut before a character it would split, not inside it"] = bool(
+        rows and rows[0]["href"] == long_url and rows[0]["title"] == "a" * 199
+    )
+
+
 def main():
     ap = argparse.ArgumentParser()
     page_checks.add_captures_option(ap)
@@ -495,6 +536,7 @@ def main():
         with tempfile.TemporaryDirectory(prefix="newtab-hist-", dir=os.environ.get("TMP") or None) as profile:
             recent_checks(profile, pages, checks)
             capture(profile, checks, opts.captures)
+        long_title_check(pages, checks)
     finally:
         pages.close()
 
