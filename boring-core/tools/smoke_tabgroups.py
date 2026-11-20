@@ -55,11 +55,12 @@ DARKEST = (0x20, 0x21, 0x24)
 LINE_DIP = 3
 TOLERANCE = 4
 
+EXTENSION_NAME = "Tab group smoke"
 EXTENSION = {
     "manifest.json": json.dumps(
         {
             "manifest_version": 3,
-            "name": "Tab group smoke",
+            "name": EXTENSION_NAME,
             "version": "1",
             "permissions": ["tabs", "tabGroups"],
             "background": {"service_worker": "bg.js"},
@@ -307,15 +308,42 @@ def write_extension(folder):
     return str(folder)
 
 
+def extension_id(b):
+    """The test extension's id, read from chrome://extensions-internals."""
+    b.get("chrome://extensions-internals")
+    deadline = time.time() + 10
+    while time.time() < deadline:
+        text = b.run("return document.body.innerText") or ""
+        try:
+            for ext in json.loads(text):
+                if ext.get("name") == EXTENSION_NAME:
+                    return ext["id"]
+        except ValueError:
+            pass
+        time.sleep(0.5)
+    return None
+
+
 def run_page(b, timeout=20):
-    """Switch WebDriver to the extension's page and return its handle."""
+    """Switch WebDriver to the extension's page and return its handle.
+
+    The extension opens run.html itself when it is installed, but in this
+    build onInstalled does not open the tab for an extension loaded from
+    the command line, so the page is opened by its address instead.
+    """
     deadline = time.time() + timeout
+    opened = False
     while time.time() < deadline:
         for hd in b._req("GET", f"/session/{b.sid}/window/handles")["value"]:
             b._req("POST", f"/session/{b.sid}/window", {"handle": hd})
             url = b.current_url()
             if url.startswith("chrome-extension://") and url.endswith("/run.html"):
                 return hd
+        if not opened and time.time() > deadline - timeout + 3:
+            opened = True
+            ext = extension_id(b)
+            if ext:
+                b.get(f"chrome-extension://{ext}/run.html")
         time.sleep(0.5)
     raise RuntimeError("the test extension's page did not open")
 
