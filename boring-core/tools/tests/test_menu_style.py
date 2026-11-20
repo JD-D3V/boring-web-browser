@@ -121,6 +121,14 @@ class MenuStyleTest(unittest.TestCase):
         self.assertIn("DeriveWithSizeDelta(13 - current_font.GetFontSize())", src)
         self.assertIn("DeriveWithWeight(gfx::Font::Weight::NORMAL)", src)
 
+    def test_forget_label_is_the_protection_chips_weight(self):
+        # Ledger item 35: Forget and Protected side by side in one weight.
+        patch = (CORE / "patches" / "157" / "cui-toolbar.patch").read_text(encoding="utf-8")
+        forget = patch[patch.index('+    SetText(u"Forget");'):]
+        forget = forget[:forget.index("+  }")]
+        self.assertIn("DeriveWithWeight(gfx::Font::Weight::NORMAL)", forget)
+        self.assertNotIn("MEDIUM", forget)
+
     def test_menu_colours_come_from_the_palette(self):
         src = MIXER.read_text(encoding="utf-8")
         for name, field in (

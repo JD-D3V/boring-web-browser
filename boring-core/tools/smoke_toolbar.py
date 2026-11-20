@@ -20,9 +20,10 @@ Several short launches of scratch profiles, started straight from chrome.exe:
      gets Forget pinned once, first; one where that already happened and
      Forget was unpinned keeps it unpinned.
   5. A new profile, dark, photographed beside the compiled screen 1, dark.
-  6. Bookmarks bar: off on a new profile. With Chromium's own setting
-     bookmark_bar.show_on_all_tabs on, the bar shows the bookmarks and All
-     bookmarks; photographed light and dark beside the compiled screen 14.
+  6. Bookmarks bar: on for a new profile. With Chromium's own setting
+     bookmark_bar.show_on_all_tabs off it is hidden; on, the bar shows the
+     bookmarks and All bookmarks; photographed light and dark beside the
+     compiled screen 14.
 
 The hook writes what it saw to boring-toolbar-test.txt in the profile.
 Only DevTools, UI Automation and PrintWindow of our own windows; nothing is
@@ -330,6 +331,12 @@ def main():
             not any(e[0] == "button" and "Avatar" in e[1] for e in report),
             str(report),
         )
+        # Ledger item 43 (JD, Q16): Chromium's own Extensions button stays.
+        checks(
+            "Chromium's own Extensions button stays on the toolbar",
+            any(e[0] == "button" and e[1] == "ExtensionsToolbarButton" for e in report or []),
+            str(report),
+        )
         shoot("toolbar-light", "c01", False)
         check_toolbar_picture(checks, "light", out / "toolbar-light.png")
         check_icon_files(checks)
@@ -389,19 +396,36 @@ def main():
         check_toolbar_picture(checks, "dark", out / "toolbar-dark.png")
         stop()
 
-        # 6. The bookmarks bar: off by default, on with its own setting.
+        # 6. The bookmarks bar: on by default (ledger item 42), and its own
+        # setting hides and shows it.
         marks = bookmarks_file(BOOKMARKS)
-        off = new_profile("bookmarks-off", bookmarks=marks)
-        start(off)
+        fresh = new_profile("bookmarks-default", bookmarks=marks)
+        start(fresh)
         names = frame_names()
-        checks("a new profile shows no bookmarks bar", not any(n.startswith(t) for t in BOOKMARKS for n in names), str(names))
+        checks("a new profile shows the bookmarks bar", all(any(n.startswith(t) for n in names) for t in BOOKMARKS), str(names))
         stop()
         checks(
-            "the setting is off by default",
-            not json.loads((off / "Default" / "Preferences").read_text(encoding="utf-8"))
+            "the setting is on by default (nothing turned it off)",
+            json.loads((fresh / "Default" / "Preferences").read_text(encoding="utf-8"))
             .get("bookmark_bar", {})
-            .get("show_on_all_tabs", False),
+            .get("show_on_all_tabs", True)
+            is not False,
         )
+        off = new_profile("bookmarks-off", {"bookmark_bar": {"show_on_all_tabs": False}}, marks)
+        start(off)
+        names = frame_names()
+        checks("the setting off hides the bar", not any(n.startswith(t) for t in BOOKMARKS for n in names), str(names))
+        stop()
+        # Ledger item 32 (JD, Q18): the saved tab groups button is off the
+        # bar by default (checked below on every bar); the bar menu's switch
+        # writes bookmark_bar.show_tab_groups, and with it on the button is back.
+        groups = new_profile(
+            "bookmarks-groups", {"bookmark_bar": {"show_on_all_tabs": True, "show_tab_groups": True}}, marks
+        )
+        start(groups)
+        names = frame_names()
+        checks("the Tab groups switch on puts the button back on the bar", "Tab groups" in names, str(names))
+        stop()
         for theme, extra in (("light", []), ("dark", ["--force-dark-mode"])):
             on = new_profile(f"bookmarks-{theme}", {"bookmark_bar": {"show_on_all_tabs": True}}, marks)
             start(on, extra)
