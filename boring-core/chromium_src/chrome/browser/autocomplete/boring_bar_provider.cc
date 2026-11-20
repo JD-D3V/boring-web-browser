@@ -99,7 +99,10 @@ constexpr SettingsRow kSettingsRows[] = {
 
 constexpr int kDoDefaultRelevance = 1350;
 constexpr int kDoRelevance = 700;
-constexpr int kOpenTabRelevance = 800;
+// Above what history gives a page matched by its title, so when the same
+// page is both an open tab and a history row, deduplication keeps the Open
+// tabs row (bar.md Q3). Below the Do row that takes Enter; never default.
+constexpr int kOpenTabRelevance = 1300;
 constexpr int kSettingsRelevance = 650;
 constexpr size_t kMaxOpenTabRows = 3;
 constexpr size_t kMinInputLength = 2;
