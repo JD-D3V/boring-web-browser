@@ -99,10 +99,10 @@ constexpr SettingsRow kSettingsRows[] = {
 
 constexpr int kDoDefaultRelevance = 1350;
 constexpr int kDoRelevance = 700;
-// Above what history gives a page matched by its title, so when the same
-// page is both an open tab and a history row, deduplication keeps the Open
-// tabs row (bar.md Q3). Below the Do row that takes Enter; never default.
-constexpr int kOpenTabRelevance = 1300;
+// Never default, and below what the person typed as an address. When the
+// same page is also a history row, deduplication keeps the Open tabs row
+// by its type (AutocompleteMatch::BetterDuplicate prefers kOpenTab).
+constexpr int kOpenTabRelevance = 800;
 constexpr int kSettingsRelevance = 650;
 constexpr size_t kMaxOpenTabRows = 3;
 constexpr size_t kMinInputLength = 2;
@@ -127,8 +127,11 @@ bool IsAddressFieldPage(metrics::OmniboxEventProto::PageClassification page) {
   }
 }
 
+// Split at spaces and at every ASCII punctuation mark, so a title such as
+// "<b>Turn on dark mode</b>" has the word "turn" like its visible text.
 std::vector<std::u16string> Words(std::u16string_view text) {
-  return base::SplitString(base::i18n::ToLower(text), u" \t.,:/-_",
+  return base::SplitString(base::i18n::ToLower(text),
+                           u" \t!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~",
                            base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
 }
 
