@@ -80,8 +80,8 @@ def rgb(triple):
 def resolved_colours(scheme, dark, profile):
     """The scheme's colours as the colour provider resolves them."""
     args = ["--window-size=1200,700"]
-    if scheme != "cool":
-        args.append("--boring-scheme=" + scheme)
+    # Cool is the Slate look; a fresh profile now starts on Soft white.
+    args.append("--boring-scheme=" + ("slate" if scheme == "cool" else scheme))
     if dark:
         args.append("--force-dark-mode")
     with Browser(user_data_dir=profile, args=args) as b:
