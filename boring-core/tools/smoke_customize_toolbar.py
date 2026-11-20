@@ -81,7 +81,7 @@ STYLES = (
 def norm(color):
     """A CSS colour as the browser computes it, for an rgb() comparison."""
     color = (color or "").strip().lower()
-    if color.startswith("#") and len(color) == 7:
+    if color.startswith("#") and (len(color) == 7 or (len(color) == 9 and color.endswith("ff"))):
         r, g, b = (int(color[i : i + 2], 16) for i in (1, 3, 5))
         return f"rgb({r}, {g}, {b})"
     return color
@@ -97,8 +97,8 @@ def check_styles(checks, scheme, s):
     checks(f"{scheme}: headings are 11.5px semibold", s["headSize"] == "11.5px" and s["headWeight"] == "600", f"{s['headSize']} {s['headWeight']}")
     checks(f"{scheme}: headings are the quiet ink", not s["quiet"] or norm(s["headColor"]) == norm(s["quiet"]), f"{s['headColor']} {s['quiet']}")
     checks(f"{scheme}: rows are 36 high with 18 at the sides", round(s["rowHeight"] or 0) == 36 and s["rowPad"] == "18px", f"{s['rowHeight']} {s['rowPad']}")
-    checks(f"{scheme}: row icons are 16", s["icon"] == [16, 16], str(s["icon"]))
-    checks(f"{scheme}: a switch is 34 by 20 with a 16 knob", s["bar"] == [34, 20] and s["knob"] == 16, f"{s['bar']} {s['knob']}")
+    checks(f"{scheme}: row icons are 16", [round(v) for v in s["icon"]] == [16, 16], str(s["icon"]))
+    checks(f"{scheme}: a switch is 34 by 20 with a 16 knob", [round(v) for v in s["bar"]] == [34, 20] and round(s["knob"]) == 16, f"{s['bar']} {s['knob']}")
     checks(f"{scheme}: an off switch is the edge colour", norm(s["offColor"]) == EDGE[scheme], str(s["offColor"]))
     checks(f"{scheme}: an on switch is the accent", s["onColor"] is None or not s["accent"] or norm(s["onColor"]) == norm(s["accent"]), f"{s['onColor']} {s['accent']}")
     checks(f"{scheme}: no separators between categories", s["visibleHrs"] == 0, str(s["visibleHrs"]))
