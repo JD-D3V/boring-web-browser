@@ -353,7 +353,17 @@ def main():
         text = cdp.evaluate(s, "(() => { " + DEEP + " const p = deep(document, 'boring-accounts-page');"
                             " return p ? p.shadowRoot.textContent : ''; })()") or ""
         checks("the page has the footer sentence", FOOTER in " ".join(text.split()))
-        checks("no page text says Chrome or has a dash", not bad_text(text))
+        # Text nodes only: the shadow root's <style> sheets name
+        # chrome:// resource addresses, which nobody sees.
+        shown = cdp.evaluate(s, "(() => { " + DEEP + " const p = deep(document, 'boring-accounts-page');"
+                             " if (!p) return ''; const out = [];"
+                             " const w = document.createTreeWalker(p.shadowRoot, NodeFilter.SHOW_TEXT);"
+                             " while (w.nextNode()) { const t = w.currentNode;"
+                             "   if (!t.parentElement || !['STYLE', 'SCRIPT'].includes(t.parentElement.tagName))"
+                             "     out.push(t.textContent); }"
+                             " return out.join(' '); })()") or ""
+        bad = re.findall(r".{0,30}(?:chrom(?:e|ium)|—|–).{0,30}", shown, re.I)
+        checks("no page text says Chrome or has a dash", bool(shown) and not bad, str(bad))
         menu = cdp.evaluate(s, "(() => { " + DEEP + " const a = deep(document, 'a#accounts');"
                             " return a ? a.textContent.trim() + '|' + a.getAttribute('href') : ''; })()")
         checks("the nav has Accounts", menu == "Accounts|/accounts", str(menu))

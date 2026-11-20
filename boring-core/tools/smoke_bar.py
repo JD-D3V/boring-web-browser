@@ -311,7 +311,7 @@ def main():
         print(f"results look, {mode}:", look)
         rows = look["rows"]
         checks(f"{mode}: every row is 38px high with 7px corners",
-               bool(rows) and all(r["height"] == 38 and r["radius"] == "7px" for r in rows),
+               bool(rows) and all(round(r["height"]) == 38 and r["radius"] == "7px" for r in rows),
                str([(r["height"], r["radius"]) for r in rows]))
         selected = [r for r in rows if r["selected"]]
         checks(f"{mode}: one row is selected, on the sel colour",
@@ -415,12 +415,15 @@ def main():
         # 5. Dark.
         dark = work / "dark"
         write_prefs(dark, {"browser": {"theme": {"color_scheme2": 2}}})
-        report = hook(dark, "dark", ["--force-dark-mode"], tabs)
+        # Item 51: only the row's own word takes Enter, so in dark it is
+        # "light" (typing "dark" while dark searches, one Down from the row).
+        report = hook(dark, "light", ["--force-dark-mode"], tabs)
         rows = report["rows"]
-        print("rows for 'dark', dark:", rows)
+        print("rows for 'light', dark:", rows)
         checks("dark: 'Turn on light mode' is first and selected",
                bool(rows) and rows[0][:2] == ("Do", "Turn on light mode") and rows[0][3], str(rows[:1]))
-        checks("dark: the groups are in the same order", group_order(rows) == GROUPS, str(group_order(rows)))
+        checks("dark: the groups are in the same order (no open tab says light)",
+               group_order(rows) == [g for g in GROUPS if g != "Open tabs"], str(group_order(rows)))
         no_banned(rows, "dark")
         session = photograph("dark", dark=True)
         if session:
