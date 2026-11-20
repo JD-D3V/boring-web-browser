@@ -74,37 +74,52 @@ class PassportWordsTest(unittest.TestCase):
         self.assertEqual(self.chip(op="layout", eligible=0, blocked=1)[0], NONE)
 
     def test_blocked_beats_everything(self):
-        n, text, _, buttons = self.chip(blocked=1, scam=1, text=1, marked=1, visited=1)
+        n, text, _, buttons = self.chip(blocked=1, scam=1, text=1, marked=1, visited=2)
         self.assertEqual((n, text), (BLOCKED, "Blocked"))
         self.assertEqual(buttons, [])  # Pressing it opens page info (Q7).
 
     def test_scam_list_beats_the_mark_and_history(self):
-        n, text, verdict, buttons = self.chip(scam=1, text=1, marked=1, visited=1)
+        n, text, verdict, buttons = self.chip(scam=1, text=1, marked=1, visited=2)
         self.assertEqual((n, text), (SCAM, "Scam list"))
         self.assertEqual(verdict, "This site is on the scam list.")
         self.assertEqual(buttons, ["Leave this site"])  # Q4: no "I know this site".
 
     def test_chromium_text_keeps_its_words_but_the_passport_opens(self):
-        self.assertEqual(self.chip(text=1, visited=1)[0], NONE)
-        self.assertEqual(self.chip(op="layout", text=1, visited=1)[0], KNOWN)
+        self.assertEqual(self.chip(text=1, visited=2)[0], NONE)
+        self.assertEqual(self.chip(op="layout", text=1, visited=2)[0], KNOWN)
         self.assertEqual(self.chip(op="layout", text=1)[0], NEW)
 
     def test_known_by_history_or_mark(self):
-        n, text, verdict, buttons = self.chip(visited=1)
+        n, text, verdict, buttons = self.chip(visited=2)
         self.assertEqual((n, text, verdict), (KNOWN, "Known site", "A site you know"))
         self.assertEqual(buttons, ["Site settings", "Forget this site"])
         self.assertEqual(self.chip(marked=1)[0], KNOWN)
 
-    def test_lookalike_is_new_even_with_history_unless_marked(self):
+    def test_one_earlier_day_is_no_chip_two_is_known(self):
+        self.assertEqual(self.chip(visited=0)[0], NEW)
+        self.assertEqual(self.chip(visited=1)[0], NONE)
+        self.assertEqual(self.chip(op="layout", visited=1)[0], NONE)
+        self.assertEqual(self.chip(visited=2)[0], KNOWN)
+        self.assertEqual(self.chip(visited=9)[0], KNOWN)
+        # The mark is Known at once, whatever history says.
+        self.assertEqual(self.chip(marked=1, visited=0)[0], KNOWN)
+        self.assertEqual(self.chip(marked=1, visited=1)[0], KNOWN)
+        # A look-alike with one earlier day stays New; the red chips win.
         self.assertEqual(self.chip(visited=1, lookalike=1)[0], NEW)
-        self.assertEqual(self.chip(visited=1, lookalike=1, marked=1)[0], KNOWN)
+        self.assertEqual(self.chip(visited=1, scam=1)[0], SCAM)
+        self.assertEqual(self.chip(visited=1, blocked=1)[0], BLOCKED)
+        self.assertEqual(self.chip(visited=1, pending=1)[0], NONE)
+
+    def test_lookalike_is_new_even_with_history_unless_marked(self):
+        self.assertEqual(self.chip(visited=2, lookalike=1)[0], NEW)
+        self.assertEqual(self.chip(visited=2, lookalike=1, marked=1)[0], KNOWN)
 
     def test_pending_answers_show_no_soft_chip(self):
         # History is in, the look-alike answer is not: never "Known site".
-        self.assertEqual(self.chip(visited=1, pending=1)[0], NONE)
+        self.assertEqual(self.chip(visited=2, pending=1)[0], NONE)
         self.assertEqual(self.chip(marked=1, pending=1)[0], NONE)
         self.assertEqual(self.chip(pending=1)[0], NONE)
-        self.assertEqual(self.chip(op="layout", visited=1, pending=1)[0], NONE)
+        self.assertEqual(self.chip(op="layout", visited=2, pending=1)[0], NONE)
         # The red chips do not wait.
         self.assertEqual(self.chip(blocked=1, pending=1)[0], BLOCKED)
         self.assertEqual(self.chip(scam=1, pending=1)[0], SCAM)

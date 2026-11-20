@@ -125,6 +125,17 @@ class PassportSourceTest(unittest.TestCase):
         self.assertLess(decide.index("in.chromium_text"), decide.index("Chip::kKnown"))
         self.assertLess(decide.index("in.pending"), decide.index("Chip::kKnown"))
 
+    def test_mark_is_the_exact_host_never_the_registrable_domain(self):
+        # S-C10: a mark on one tenant host is not a mark on its siblings.
+        helper = code(VIEWS / "boring_passport_tab_helper.cc")
+        for name in ("::MarkedKnown() const", "::SetMarkedKnown("):
+            body = helper[helper.index(name):]
+            body = body[:body.index("\n}\n")]
+            self.assertNotIn("GetBlockingSite", body)
+            self.assertNotIn("GetDomainAndRegistry", body)
+            self.assertIn("OriginsOf(", body)
+        self.assertIn("Origin::Create(url).host()", helper)
+
     def test_facts_are_held_per_origin_not_per_address(self):
         # Item 53: replaceState, pushState or a fragment cannot drop facts.
         for name in ("boring_passport_tab_helper.cc", "boring_passport_bubble.cc"):

@@ -170,20 +170,24 @@ bool BoringPassportTabHelper::BlockedPage() const {
 }
 
 bool BoringPassportTabHelper::MarkedKnown() const {
-  const GURL url = web_contents()->GetLastCommittedURL();
-  const std::string site = boring::GetBlockingSite(url);
-  if (site.empty()) {
-    return false;
-  }
+  // The exact host the pop-up shows (or its www twin), never the whole
+  // registrable domain: a mark on one tenant is not a mark on the others.
   const base::ListValue& marks =
       ProfileOf(web_contents())->GetPrefs()->GetList(
           boring::prefs::kPassportKnownSites);
-  return std::ranges::contains(marks, base::Value(site));
+  for (const url::Origin& origin :
+       OriginsOf(web_contents()->GetLastCommittedURL())) {
+    if (!origin.host().empty() &&
+        std::ranges::contains(marks, base::Value(origin.host()))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 void BoringPassportTabHelper::SetMarkedKnown(bool known) {
-  const std::string site =
-      boring::GetBlockingSite(web_contents()->GetLastCommittedURL());
+  const GURL url = web_contents()->GetLastCommittedURL();
+  const std::string site = url::Origin::Create(url).host();
   if (site.empty()) {
     return;
   }
@@ -191,7 +195,9 @@ void BoringPassportTabHelper::SetMarkedKnown(bool known) {
   // scam list, the look-alike allow list or any blocking.
   ScopedListPrefUpdate update(ProfileOf(web_contents())->GetPrefs(),
                               boring::prefs::kPassportKnownSites);
-  update->EraseValue(base::Value(site));
+  for (const url::Origin& origin : OriginsOf(url)) {
+    update->EraseValue(base::Value(origin.host()));
+  }
   if (known) {
     update->Append(site);
   }
@@ -212,7 +218,7 @@ boring::passport::ChipInputs BoringPassportTabHelper::Inputs(
   in.chromium_text = chromium_text;
   in.marked_known = MarkedKnown();
   const bool same_page = FactsAreFor(url);
-  in.visited_before_today = same_page && facts_.days_before_today > 0;
+  in.days_before_today = same_page ? facts_.days_before_today : 0;
   in.lookalike = same_page && facts_.lookalike;
   in.pending = !same_page || facts_.pending > 0 ||
                scam->status() == boring::ScamService::Status::kLoading;
@@ -300,7 +306,11 @@ void BoringPassportTabHelper::StartQueries() {
                  history::DailyVisitsResult result) {
                 if (self && generation == self->generation_) {
                   if (result.success) {
-                    self->facts_.days_before_today += result.days_with_visits;
+                    // The most of either twin, never the sum: the same day
+                    // on both is one day.
+                    self->facts_.days_before_today = std::max(
+                        self->facts_.days_before_today,
+                        result.days_with_visits);
                   }
                   self->Answered(generation);
                 }

@@ -37,16 +37,19 @@ struct ChipInputs {
   bool pending = false;
   // The person pressed "I know this site" for this site.
   bool marked_known = false;
-  // History has a visit to this site on an earlier day.
-  bool visited_before_today = false;
+  // On how many different earlier days (local calendar days, before today)
+  // history has a visit to this site. One day is too little to call it
+  // known and too much to call it new: no chip.
+  int days_before_today = 0;
   // The name looks like a site the person uses, or a well known one.
   bool lookalike = false;
 };
 
 // The chip to draw, first match wins: nothing, Blocked, Scam list, nothing
 // where the field has words of its own, nothing while answers are pending,
-// Known site, New to you. The mark beats the look-alike rule, never Blocked
-// or the scam list.
+// Known site (the mark, or visits on two or more earlier days), nothing for
+// exactly one earlier day, New to you. The mark beats the look-alike rule,
+// never Blocked or the scam list.
 Chip DecideChip(const ChipInputs& in);
 
 // The Passport layout pressing the field's icon opens. The same as the

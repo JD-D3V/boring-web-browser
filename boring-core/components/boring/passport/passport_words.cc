@@ -40,8 +40,11 @@ Chip DecideChip(const ChipInputs& in) {
   if (in.pending) {
     return Chip::kNone;
   }
-  if (in.marked_known || (in.visited_before_today && !in.lookalike)) {
+  if (in.marked_known || (in.days_before_today >= 2 && !in.lookalike)) {
     return Chip::kKnown;
+  }
+  if (in.days_before_today == 1 && !in.lookalike) {
+    return Chip::kNone;
   }
   return Chip::kNewToYou;
 }

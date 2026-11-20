@@ -230,6 +230,7 @@ def run(base, out, captures, dark, checks, full):
             Browser(user_data_dir=profile, args=args) as b:
         checks(f"{theme}: new tab page hook is ready", open_newtab(b))
         hook(b, "engage", f"https://royalpost.net:{https}/", 50)
+        # Known by history needs two different earlier days (30 and 2 days ago).
         hook(b, "addVisit", f"https://citylibrary.net:{https}/", 30)
         hook(b, "addVisit", f"https://citylibrary.net:{https}/books", 2)
         checks(f"{theme}: test tab opens",
