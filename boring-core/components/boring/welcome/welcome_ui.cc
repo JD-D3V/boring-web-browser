@@ -123,6 +123,18 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
       <p id="no-bypass-done" class="done hidden" tabindex="-1">No way past
       scam warnings is on.</p>
     </div>
+    <div class="option">
+      <div id="earlier-off" class="row">
+        <div>
+          <strong>Tidy old tabs away</strong>
+          <p class="why">Tabs you have not used for a day move to Earlier, at
+          the end of the tab strip. You can turn this off in Settings.</p>
+        </div>
+        <button class="secondary" id="earlier-on">Turn on</button>
+      </div>
+      <p id="earlier-done" class="done hidden" tabindex="-1">Earlier tabs is
+      on.</p>
+    </div>
   </div>
 
   <div class="start">
@@ -138,7 +150,7 @@ constexpr char kScript[] = R"SCRIPT(
 function el(id) { return document.getElementById(id); }
 
 // The switches that start off, by the id their elements are named with.
-var switches = ['no-bypass'];
+var switches = ['no-bypass', 'earlier'];
 
 switches.forEach(function(id) {
   el(id + '-on').addEventListener('click', function() {
@@ -225,6 +237,7 @@ class WelcomeMessageHandler : public content::WebUIMessageHandler {
     base::DictValue out;
     PrefService* prefs = GetPrefs();
     out.Set("no-bypass", prefs && prefs->GetBoolean(prefs::kNoScamBypass));
+    out.Set("earlier", prefs && prefs->GetBoolean(prefs::kEarlierEnabled));
     out.Set("chromium", chromium_.value_or(false));
     web_ui()->CallJavascriptFunctionUnsafe("loadWelcome", out);
   }
@@ -240,6 +253,10 @@ class WelcomeMessageHandler : public content::WebUIMessageHandler {
       const std::string& id = args[0].GetString();
       if (id == "no-bypass") {
         prefs->SetBoolean(prefs::kNoScamBypass, true);
+      } else if (id == "earlier") {
+        // boring: item 16. Nothing is preselected; this is the only way the
+        // first-run page turns it on.
+        prefs->SetBoolean(prefs::kEarlierEnabled, true);
       }
     }
     HandleGet(args);

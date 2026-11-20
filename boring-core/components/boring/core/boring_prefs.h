@@ -45,6 +45,12 @@ inline constexpr char kLookalikeAllowedSites[] =
 // marks are read through and new ones stay in memory.
 inline constexpr char kPassportKnownSites[] = "boring.passport.known_sites";
 
+// boring: cui-earlier. Earlier tabs: a tab not used for a day moves off the
+// tab strip into a list kept for 30 days. Off by default, for new and
+// existing profiles; while it is off nothing is recorded. Per profile and
+// never synced (the list itself is a file in the profile folder).
+inline constexpr char kEarlierEnabled[] = "boring.earlier.enabled";
+
 // "Hide sponsored results": hide sponsored results on search pages
 // instead of only labeling them. On by default.
 inline constexpr char kHideSponsoredResults[] = "boring.hide_sponsored_results";

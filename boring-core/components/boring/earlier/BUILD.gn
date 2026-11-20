@@ -1,0 +1,16 @@
+# Copyright 2026 boring. BSD style license.
+
+# Earlier tabs, the part with no views: what an entry is, how the file that
+# keeps them is read and written, and the time limits. The tab mover, the
+# service, the chip and the pop-up are in chrome/browser/ui/views/boring
+# (boring_earlier_*), because they need windows and tabs.
+static_library("earlier") {
+  sources = [
+    "earlier_store.cc",
+    "earlier_store.h",
+  ]
+  deps = [
+    "//base",
+    "//url",
+  ]
+}

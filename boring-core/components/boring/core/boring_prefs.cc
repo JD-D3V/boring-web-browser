@@ -32,6 +32,8 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterListPref(prefs::kLookalikeAllowedSites);
   // boring: cui-passport. No sync flag, like the list above.
   registry->RegisterListPref(prefs::kPassportKnownSites);
+  // boring: cui-earlier. Off until the person switches it on.
+  registry->RegisterBooleanPref(prefs::kEarlierEnabled, false);
   // Sponsored results are removed out of the box. Turning this off in
   // Protection leaves them in place with a quiet "Sponsored" chip.
   registry->RegisterBooleanPref(prefs::kHideSponsoredResults, true);
