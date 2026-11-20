@@ -68,11 +68,27 @@ def constant(name):
     return "k" + "".join(p.capitalize() for p in name.split("_")) + "Icon"
 
 
+def listed_in_build(rel_dir, name):
+    """Whether a BUILD.gn beside the icon or one level up names it. Chromium
+    keeps a few retired .icon files that no target builds (157:
+    components/omnibox/browser/vector_icons/star_old.icon)."""
+    src = Path(OUT).parents[1]
+    named = re.compile(r'["/]' + re.escape(name) + '"')
+    for folder in (src / rel_dir, (src / rel_dir).parent):
+        for gn in folder.glob("*.gn*"):
+            if named.search(gn.read_text(encoding="utf-8", errors="ignore")):
+                return True
+    return False
+
+
 def check_build(checks):
     cache = {}
     missing = []
     for path in ours_written():
         rel_dir = path.parent.relative_to(CHROMIUM_SRC).as_posix()
+        if not listed_in_build(rel_dir, path.name):
+            print(f"not built by this Chromium, skipped: {rel_dir}/{path.name}")
+            continue
         if rel_dir not in cache:
             cache[rel_dir] = " ".join(
                 tokens(p.read_text(encoding="utf-8", errors="ignore"))
