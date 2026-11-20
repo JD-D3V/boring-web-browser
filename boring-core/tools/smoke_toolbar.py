@@ -215,7 +215,8 @@ def main():
             return f"could not press Forget: {e}"
         deadline = time.time() + 10
         while time.time() < deadline:
-            for hwnd in browser_windows(proc.pid):
+            # The dialog belongs to the browser process, a child of ours.
+            for hwnd in browser_windows(os.getpid()):
                 try:
                     with Window(hwnd) as w:
                         names = list(w.names())
