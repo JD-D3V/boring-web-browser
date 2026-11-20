@@ -14,7 +14,10 @@ GOOD = {
     "bar": [34, 20], "knob": 16, "offColor": "rgb(138, 134, 125)",
     "onColor": "rgb(79, 70, 229)", "accent": "#4f46e5", "visibleHrs": 0,
     "sepTop": "1px",
+    "panelBg": smoke.BAR["light"], "miniBg": smoke.FRAME["light"], "miniBase": smoke.BAR["light"], "miniGlyph": smoke.INK["light"],
 }  # fmt: skip
+# The panel and preview surfaces (item 27), in dark.
+DARK_SURFACES = {"panelBg": smoke.BAR["dark"], "miniBg": smoke.FRAME["dark"], "miniBase": smoke.BAR["dark"], "miniGlyph": smoke.INK["dark"]}
 
 
 class Recorder:
@@ -47,7 +50,7 @@ class StylesTest(unittest.TestCase):
 
     def test_dark_wants_the_dark_edge(self):
         r = Recorder()
-        smoke.check_styles(r, "dark", GOOD)
+        smoke.check_styles(r, "dark", {**GOOD, **DARK_SURFACES})
         self.assertEqual(r.failed, ["dark: an off switch is the edge colour"])
 
     def test_no_panel_is_one_failure(self):

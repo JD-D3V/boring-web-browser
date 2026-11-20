@@ -116,10 +116,10 @@ class MenuStyleTest(unittest.TestCase):
             "max_minor_text_width_ += 2 * config.item_horizontal_padding;", text
         )
 
-    def test_protection_chip_text_is_13px_medium(self):
+    def test_protection_chip_text_is_13px_regular(self):
         src = BUTTON.read_text(encoding="utf-8")
         self.assertIn("DeriveWithSizeDelta(13 - current_font.GetFontSize())", src)
-        self.assertIn("DeriveWithWeight(gfx::Font::Weight::MEDIUM)", src)
+        self.assertIn("DeriveWithWeight(gfx::Font::Weight::NORMAL)", src)
 
     def test_menu_colours_come_from_the_palette(self):
         src = MIXER.read_text(encoding="utf-8")
