@@ -272,11 +272,21 @@ def window_band(title, timeout=15):
                     scale = (user32.GetDpiForWindow(hwnd) or 96) / 96
                     win = wintypes.RECT()
                     user32.GetWindowRect(hwnd, ctypes.byref(win))
-                    pages = [rect_of(e) for t, e in w.items if e and t == title]
-                    pages = [r for r in pages if r.bottom > r.top]
-                    if not pages:
+                    # An app window does not name its page after the title
+                    # (only its frame and title text carry it), so the page
+                    # is the lowest of the big views inside the window: the
+                    # frame and the client view start higher up.
+                    pages = [rect_of(e) for t, e in w.items if e]
+                    pages = [
+                        r
+                        for r in pages
+                        if r.bottom > r.top and win.left <= r.left < win.right and win.top <= r.top < win.bottom
+                    ]
+                    if not pages or not any(t == title for t, e in w.items if e):
                         continue
-                    page = max(pages, key=lambda r: (r.right - r.left) * (r.bottom - r.top))
+                    area = lambda r: (r.right - r.left) * (r.bottom - r.top)  # noqa: E731
+                    big = max(area(r) for r in pages)
+                    page = max((r for r in pages if area(r) >= big / 2), key=lambda r: r.top)
                     fields = [rect_of(e) for t, e in w.items if e and t == ADDRESS_BAR]
                     fields = [r for r in fields if r.bottom > r.top]
                     field = fields[0] if fields else None
