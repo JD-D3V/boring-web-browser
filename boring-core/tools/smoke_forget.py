@@ -164,9 +164,12 @@ return {host: location.host, loaded: performance.timeOrigin,
 # same history deletion Forget this session makes.
 CLEAR_HISTORY_JS = """
 const done = arguments[arguments.length - 1];
+// Initialize first, as Settings' own dialog does: the handler answers
+// only a page it has allowed, and a clear sent before that crashes it.
 import('chrome://resources/js/cr.js')
-  .then(m => m.sendWithPromise('clearBrowsingData',
-                               ['browser.clear_data.browsing_history'], 0))
+  .then(m => m.sendWithPromise('initializeClearBrowsingData')
+    .then(() => m.sendWithPromise('clearBrowsingData',
+                                  ['browser.clear_data.browsing_history'], 0)))
   .then(() => done(true), e => done('error: ' + e));
 """
 
