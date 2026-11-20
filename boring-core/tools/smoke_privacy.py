@@ -14,9 +14,9 @@ and one on localhost, which the browser treats as two different sites.
   protection    the Protection page reports HTTPS-first on, WebRTC
                 hidden, known scam sites blocked by the scam list, and the
                 updater honestly off in a build without an update key
-  search        the new tab page lists the browser's search engines and
-                choosing one makes it the default; Google is offered but
-                is not the default, and choosing it in settings works
+  search        settings lists the browser's search engines and choosing
+                one makes it the default, also after a restart; Google is
+                offered but is not the default, and choosing it works
 
 Nothing is contacted: the check reads what the browser's own settings
 and Protection page say.
@@ -287,30 +287,44 @@ def choose_in_settings(b, name):
     )
 
 
-def newtab_search_state(b):
-    return b.run(
-        "var q = document.getElementById('q');"
-        "return {engines: Array.from("
-        "    document.querySelectorAll('#engines button')).map("
-        "    function(x) { return x.textContent.slice(1); }),"
-        " placeholder: q.placeholder, disabled: q.disabled,"
-        " shown: !document.getElementById('search').hidden};"
+def search_engines(b):
+    """The engines chrome://settings/search offers as defaults, and the one
+    that is the default now."""
+    b.get("chrome://settings/search")
+    return b.run_async(
+        "var done = arguments[arguments.length - 1];"
+        "import('chrome://resources/js/cr.js').then(function(cr) {"
+        "  return cr.sendWithPromise('getSearchEnginesList').then("
+        "    function(lists) {"
+        "      var all = [].concat.apply([], Object.values(lists));"
+        "      var d = all.find(function(x) { return x.default; });"
+        "      done({names: (lists.defaults || []).map(function(x) {"
+        "              return x.name; }),"
+        "            current: d ? d.name : ''});"
+        "    });"
+        "}).catch(function(err) { done({names: [], current: 'error: ' + err}); });"
     )
+
+
+def becomes_default(b, name, timeout=5):
+    deadline = time.time() + timeout
+    while True:
+        current = search_engines(b)["current"]
+        if current == name or time.time() > deadline:
+            return current
+        time.sleep(0.25)
 
 
 def check_google(profile, failures):
     """Google is offered (google-search.patch) and choosing it in settings
-    makes the new tab page search with it."""
+    makes it the default. The new tab page has no search box any more
+    (the address bar searches), so settings is where the choice shows."""
     with Browser(user_data_dir=profile) as b:
-        b.get("chrome://boring-newtab")
-        wait_for(b, "return document.querySelectorAll('#engines button').length >= 2")
-        state = newtab_search_state(b)
-        print("new tab engines:", state["engines"])
-        if "Google" not in state["engines"]:
-            failures.append(f"Google is not offered: {state['engines']}")
+        names = search_engines(b)["names"]
+        print("default search engines offered:", names)
+        if "Google" not in names:
+            failures.append(f"Google is not offered: {names}")
             return
-        if "No Search" in state["engines"]:
-            failures.append("the new tab page offers No Search as an engine")
         # check_search may have left Google chosen in this profile; a fresh
         # profile's DuckDuckGo default is smoke_serp's check.
         if choose_in_settings(b, "DuckDuckGo") != "DuckDuckGo":
@@ -321,51 +335,32 @@ def check_google(profile, failures):
         if chosen != "Google":
             failures.append(f"could not choose Google in settings: {chosen!r}")
             return
-        time.sleep(1)
-        b.get("chrome://boring-newtab")
-        after = wait_for(
-            b, "return document.getElementById('q').placeholder === 'Search Google'"
-        )
-        print(f"chose Google -> new tab searches Google: {bool(after)}")
-        if not after:
-            failures.append("choosing Google in settings did not reach the new tab")
+        after = becomes_default(b, "Google")
+        print(f"chose Google -> default is {after!r}")
+        if after != "Google":
+            failures.append("choosing Google in settings did not make it the default")
 
 
 def check_search(profile, failures):
+    """Settings lists the browser's search engines, choosing one makes it
+    the default, and it is still the default in a new run."""
     with Browser(user_data_dir=profile) as b:
-        b.get("chrome://boring-newtab")
-        count = wait_for(
-            b,
-            "var n = document.querySelectorAll('#engines button').length;"
-            "return n >= 2 && n;",
-        )
-        if not count:
-            failures.append("the new tab page lists no search engines to choose from")
+        state = search_engines(b)
+        if len(state["names"]) < 2:
+            failures.append(f"settings lists no search engines to choose from: {state}")
             return
-        before = b.run("return document.getElementById('q').placeholder")
-        other = b.run(
-            "var picks = Array.from("
-            "    document.querySelectorAll('#engines button'));"
-            "var p = picks.find(function(x) {"
-            "  return x.getAttribute('aria-selected') !== 'true' && !x.disabled;"
-            "});"
-            "if (!p) return '';"
-            "var name = p.textContent.slice(1); p.click(); return name;"
-        )
-        after = wait_for(
-            b,
-            "var q = document.getElementById('q').placeholder;"
-            f"return q === 'Search {other}' && q;",
-        )
-        print(f"search engines: {count}, {before!r} -> {after!r}")
-        if not other or not after:
+        before = state["current"]
+        other = next((n for n in state["names"] if n != before), "")
+        chosen = choose_in_settings(b, other) if other else ""
+        after = becomes_default(b, other) if chosen else ""
+        print(f"search engines: {len(state['names'])}, {before!r} -> {after!r}")
+        if not other or after != other:
             failures.append(f"choosing {other!r} did not change the search engine")
-        b.get("chrome://boring-newtab")
-        kept = wait_for(
-            b, f"return document.getElementById('q').placeholder === 'Search {other}'"
-        )
-        if not kept:
-            failures.append("the chosen search engine did not stay the default")
+            return
+    with Browser(user_data_dir=profile) as b:
+        kept = search_engines(b)["current"]
+        if kept != other:
+            failures.append(f"the chosen search engine did not stay the default: {kept!r}")
 
 
 def main():

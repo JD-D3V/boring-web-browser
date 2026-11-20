@@ -16,7 +16,6 @@ laid over the browser frame at its real offset.
 Writes, for each theme (light, dark):
     omnibox-closed-<theme>.png   a search typed, menu rolled up
     omnibox-open-<theme>.png     the menu opened from the engine icon
-    newtab-open-<theme>.png      the menu opened from the new tab button
 
 Needs the built browser (BORING_OUT / BORING_CHROME as for the smoke
 tests). Nothing contacts the network: every host resolves to nothing.
@@ -176,18 +175,9 @@ def run(theme, out, size, binary):
         wait_state(b, lambda s: not s.get("open"))
         time.sleep(0.4)
         shoot(frame, pids, out / f"omnibox-closed-{theme}.png")
-
-        # From the new tab page's own engine button.
-        open_newtab(b)
-        b.run("document.getElementById('engine').click()")
-        state = wait_state(b, lambda s: s.get("open") and s.get("progress") == 1)
-        time.sleep(0.4)
-        if state.get("open"):
-            shoot(frame, pids, out / f"newtab-open-{theme}.png")
-        else:
-            print("the menu did not open from the new tab button")
-            ok = False
-        hook(b, "escape")
+        # The new tab page has no engine button any more (its search box
+        # went with the compiled design), so the address bar is the only
+        # place the menu opens from.
     return ok
 
 
