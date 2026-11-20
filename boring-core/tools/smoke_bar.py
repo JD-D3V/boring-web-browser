@@ -345,8 +345,9 @@ def main():
                bool(rows) and rows[0][:2] == ("Do", "Turn on dark mode") and rows[0][3], str(rows[:1]))
         checks("the hostile title is listed only under Open tabs, as plain text",
                under(rows, HOSTILE) == ["Open tabs"], str(under(rows, HOSTILE)))
-        checks("the hostile tab offers Switch to tab",
-               any(r[1] == HOSTILE and r[2] == "Switch to tab" for r in rows))
+        checks("the hostile tab offers Switch to tab and names its site",
+               any(r[1] == HOSTILE and r[2].startswith("Switch to tab, 127.0.0.1") for r in rows),
+               str([r[:3] for r in rows if r[1] == HOSTILE]))
         checks("only our own row is titled like a Do row",
                under(rows, "Turn on dark mode") == ["Do"], str(under(rows, "Turn on dark mode")))
         checks("Settings lists Appearance: light or dark",

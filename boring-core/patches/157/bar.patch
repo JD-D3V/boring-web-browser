@@ -271,7 +271,7 @@ diff --git a/chrome/browser/autocomplete/BUILD.gn b/chrome/browser/autocomplete/
      public_deps += [
        "//components/search_engines",
        "//content/public/browser",
-@@ -131,6 +135,15 @@
+@@ -131,6 +135,16 @@
      ]
    } else {
      sources += [ "tab_matcher_desktop.cc" ]
@@ -281,6 +281,7 @@ diff --git a/chrome/browser/autocomplete/BUILD.gn b/chrome/browser/autocomplete/
 +    deps += [
 +      "//chrome/browser/themes",
 +      "//components/prefs",
++      "//components/url_formatter",
 +      "//ui/native_theme",
 +    ]
 +    # boring: end

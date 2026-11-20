@@ -19,10 +19,12 @@
 #include "components/omnibox/browser/autocomplete_provider_client.h"
 #include "components/omnibox/browser/tab_matcher.h"
 #include "components/prefs/pref_service.h"
+#include "components/url_formatter/elide_url.h"
 #include "third_party/metrics_proto/omnibox_event.pb.h"
 #include "third_party/omnibox_proto/groups.pb.h"
 #include "ui/native_theme/native_theme.h"
 #include "url/gurl.h"
+#include "url/origin.h"
 
 namespace {
 
@@ -102,6 +104,25 @@ constexpr int kSettingsRelevance = 650;
 constexpr size_t kMaxOpenTabRows = 3;
 constexpr size_t kMinInputLength = 2;
 constexpr size_t kMinDefaultKeywordLength = 3;
+
+// The page classifications the address field itself sends
+// (LocationBarModelImpl::GetPageClassification, typed input). An allow-list:
+// a search box added later gets no rows until it is named here.
+bool IsAddressFieldPage(metrics::OmniboxEventProto::PageClassification page) {
+  using metrics::OmniboxEventProto;
+  switch (page) {
+    case OmniboxEventProto::OTHER:
+    case OmniboxEventProto::INVALID_SPEC:
+    case OmniboxEventProto::BLANK:
+    case OmniboxEventProto::HOME_PAGE:
+    case OmniboxEventProto::INSTANT_NTP_WITH_OMNIBOX_AS_STARTING_FOCUS:
+    case OmniboxEventProto::SEARCH_RESULT_PAGE_NO_SEARCH_TERM_REPLACEMENT:
+    case OmniboxEventProto::SEARCH_RESULT_PAGE_DOING_SEARCH_TERM_REPLACEMENT:
+      return true;
+    default:
+      return false;
+  }
+}
 
 std::vector<std::u16string> Words(std::u16string_view text) {
   return base::SplitString(base::i18n::ToLower(text), u" \t.,:/-_",
@@ -201,9 +222,9 @@ void BoringBarProvider::Start(const AutocompleteInput& input,
       input.omit_asynchronous_matches()) {
     return;
   }
-  // The Bar only: the New Tab page's own search box cannot run a Do row.
-  if (input.current_page_classification() ==
-      metrics::OmniboxEventProto::NTP_REALBOX) {
+  // The Bar only: every other search box (the New Tab page's, a side panel's,
+  // any WebUI one) cannot run these rows.
+  if (!IsAddressFieldPage(input.current_page_classification())) {
     return;
   }
   // Typing chrome:// or file:// addresses stays the address bar's own.
@@ -225,12 +246,14 @@ void BoringBarProvider::Start(const AutocompleteInput& input,
 
 void BoringBarProvider::AddDoRows(const std::vector<std::u16string>& words) {
   auto add = [&](const DoRow& row) {
-    const std::vector<std::u16string> keywords = Words(row.keywords);
     if (!Matches(words, RowWords(row.title, row.keywords))) {
       return;
     }
+    // Enter takes the row only for its own word, "dark" or "light" (its
+    // id), never for "mode", "night" or "theme" (bar.md, Q2).
     const bool is_default =
-        row.may_be_default && TypesWholeKeyword(words, keywords);
+        row.may_be_default &&
+        TypesWholeKeyword(words, {base::UTF8ToUTF16(row.id)});
     // Not kPedal: a pedal row must carry a takeover action, and this row is
     // run by boring_bar_run.cc instead.
     AutocompleteMatch match(this,
@@ -309,10 +332,14 @@ void BoringBarProvider::AddOpenTabRows(
     match.fill_into_edit = base::UTF8ToUTF16(tab.url.spec());
     match.allowed_to_be_default_match = false;
     match.suggestion_group_id = omnibox::GROUP_BORING_OPEN_TABS;
-    SetPlainText(match,
-                 tab.title.empty() ? base::UTF8ToUTF16(tab.url.host())
-                                   : tab.title,
-                 u"Switch to tab");
+    // The tab's site beside its title, the way the address field shows a
+    // host (IDN spoof checks included), so a title alone cannot pass for
+    // another site.
+    const std::u16string site = url_formatter::FormatOriginForSecurityDisplay(
+        url::Origin::Create(tab.url),
+        url_formatter::SchemeDisplay::OMIT_HTTP_AND_HTTPS);
+    SetPlainText(match, tab.title.empty() ? site : tab.title,
+                 u"Switch to tab, " + site);
     // Already marked, so AutocompleteResult adds no second switch button;
     // Enter on the row switches to the tab.
     match.has_tab_match = true;

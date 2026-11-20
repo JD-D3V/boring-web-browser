@@ -53,6 +53,36 @@ class Tables(unittest.TestCase):
         takes = {r[0] for r in do_rows() if r[4] == "true"}
         self.assertEqual(takes, {"dark", "light"})
 
+    def test_default_only_for_the_rows_own_word(self):
+        # Item 51: "dark" or "light" (the row's id), not mode, night or theme.
+        text = PROVIDER.read_text(encoding="utf-8")
+        self.assertRegex(text, r"row\.may_be_default &&\s*TypesWholeKeyword\(words, \{base::UTF8ToUTF16\(row\.id\)\}\)")
+
+    def test_rows_only_in_the_address_field(self):
+        # Item 48: an allow-list of the address field's own classifications.
+        text = PROVIDER.read_text(encoding="utf-8")
+        start = text[text.index("void BoringBarProvider::Start("):]
+        self.assertIn("if (!IsAddressFieldPage(input.current_page_classification()))", start)
+        allow = text[text.index("bool IsAddressFieldPage("):]
+        allow = allow[:allow.index("\n}\n")]
+        listed = set(re.findall(r"case OmniboxEventProto::(\w+):", allow))
+        self.assertEqual(listed, {
+            "OTHER", "INVALID_SPEC", "BLANK", "HOME_PAGE",
+            "INSTANT_NTP_WITH_OMNIBOX_AS_STARTING_FOCUS",
+            "SEARCH_RESULT_PAGE_NO_SEARCH_TERM_REPLACEMENT",
+            "SEARCH_RESULT_PAGE_DOING_SEARCH_TERM_REPLACEMENT"})
+        for other in ("NTP_REALBOX", "NTP_COMPOSEBOX", "LENS_SIDE_PANEL_SEARCHBOX",
+                      "CONTEXTUAL_SEARCHBOX", "OTHER_OMNIBOX_COMPOSEBOX"):
+            self.assertNotIn(other, listed)
+        self.assertIn("default:\n      return false;", allow)
+
+    def test_open_tab_row_names_its_site(self):
+        # Item 50: the host, formatted as the address field does, beside the title.
+        text = PROVIDER.read_text(encoding="utf-8")
+        tabs = text[text.index("void BoringBarProvider::AddOpenTabRows("):]
+        self.assertIn("url_formatter::FormatOriginForSecurityDisplay(", tabs)
+        self.assertIn('u"Switch to tab, " + site', tabs)
+
     def test_glyphs_are_known(self):
         used = {r[3] for r in do_rows()}
         self.assertLessEqual(used, GLYPHS, used - GLYPHS)
