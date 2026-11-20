@@ -205,7 +205,7 @@ def build_steps(out, net_seconds):
             "toolbar and bookmarks bar as drawn, the bar on by default (smoke and pictures)",
             [tool("smoke_toolbar.py", "--out", str(shots / "toolbar"))],
             900,
-            "thirteen short browser launches, off screen",
+            "fifteen short browser launches, off screen",
             smoke_lines,
         ),
         # boring: cui-menu
