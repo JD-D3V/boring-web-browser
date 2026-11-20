@@ -50,6 +50,8 @@ EDGE = {"light": "rgb(138, 134, 125)", "dark": "rgb(119, 117, 109)"}
 BAR = {"light": "rgb(255, 255, 255)", "dark": "rgb(28, 28, 26)"}
 FRAME = {"light": "rgb(236, 234, 230)", "dark": "rgb(17, 17, 16)"}
 INK = {"light": "rgb(31, 30, 28)", "dark": "rgb(236, 235, 231)"}
+# The quiet ink (ink2 in the TOKENS rows): the headings, as drawn.
+MUTED = {"light": "rgb(93, 90, 84)", "dark": "rgb(169, 167, 159)"}
 
 # The computed styles the checks read, in one go.
 STYLES = (
@@ -99,6 +101,14 @@ def norm(color):
     return color
 
 
+def near(got, want, within=1.0):
+    """Each measured size within a pixel of the drawn one; missing fails."""
+    if got is None:
+        return False
+    got, want = (list(v) if isinstance(v, (list, tuple)) else [v] for v in (got, want))
+    return len(got) == len(want) and all(abs(g - w) <= within for g, w in zip(got, want, strict=True))
+
+
 def check_styles(checks, scheme, s):
     """The checks of one scheme on the styles STYLES read."""
     if not s:
@@ -107,12 +117,12 @@ def check_styles(checks, scheme, s):
     checks(f"{scheme}: the cards are flat", s["cardBg"] in ("rgba(0, 0, 0, 0)", "transparent") and s["cardRadius"] == "0px", f"{s['cardBg']} {s['cardRadius']}")
     checks(f"{scheme}: the intro text is 13px", s["introSize"] == "13px", str(s["introSize"]))
     checks(f"{scheme}: headings are 11.5px semibold", s["headSize"] == "11.5px" and s["headWeight"] == "600", f"{s['headSize']} {s['headWeight']}")
-    checks(f"{scheme}: headings are the quiet ink", not s["quiet"] or norm(s["headColor"]) == norm(s["quiet"]), f"{s['headColor']} {s['quiet']}")
-    checks(f"{scheme}: rows are 36 high with 18 at the sides", round(s["rowHeight"] or 0) == 36 and s["rowPad"] == "18px", f"{s['rowHeight']} {s['rowPad']}")
-    checks(f"{scheme}: row icons are 16", [round(v) for v in s["icon"]] == [16, 16], str(s["icon"]))
-    checks(f"{scheme}: a switch is 34 by 20 with a 16 knob", [round(v) for v in s["bar"]] == [34, 20] and round(s["knob"]) == 16, f"{s['bar']} {s['knob']}")
+    checks(f"{scheme}: headings are our quiet ink", norm(s["headColor"]) == MUTED[scheme], f"{s['headColor']} {s['quiet']}")
+    checks(f"{scheme}: rows are 36 high with 18 at the sides", near(s["rowHeight"], 36) and s["rowPad"] == "18px", f"{s['rowHeight']} {s['rowPad']}")
+    checks(f"{scheme}: row icons are 16", near(s["icon"], [16, 16]), str(s["icon"]))
+    checks(f"{scheme}: a switch is 34 by 20 with a 16 knob", near(s["bar"], [34, 20]) and near(s["knob"], 16), f"{s['bar']} {s['knob']}")
     checks(f"{scheme}: an off switch is the edge colour", norm(s["offColor"]) == EDGE[scheme], str(s["offColor"]))
-    checks(f"{scheme}: an on switch is the accent", s["onColor"] is None or not s["accent"] or norm(s["onColor"]) == norm(s["accent"]), f"{s['onColor']} {s['accent']}")
+    checks(f"{scheme}: an on switch is the accent", bool(s["onColor"]) and bool(s["accent"]) and norm(s["onColor"]) == norm(s["accent"]), f"{s['onColor']} {s['accent']}")
     checks(f"{scheme}: no separators between categories", s["visibleHrs"] == 0, str(s["visibleHrs"]))
     checks(f"{scheme}: the cards' separator is a hairline", s["sepTop"] == "1px", str(s["sepTop"]))
     checks(f"{scheme}: the panel is the bar colour", norm(s["panelBg"]) == BAR[scheme], str(s["panelBg"]))

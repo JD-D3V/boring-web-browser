@@ -12,6 +12,10 @@ id (kColorBoringEdge) and the ok green (kColorBoringOk); and, where the
 Look draws an edge of its own, text fields, outline buttons and off
 switches in that edge.
 
+Dusk is always dark (ledger item 23): on a light system, and with the
+browser's own Light or dark set to Light, the window, Settings and the new
+tab page draw Dusk's dark colours, and the Light choice stays in its pref.
+
 Then a new Look must repaint at once: Soft white is changed to Slate the
 way the Settings control writes it (chrome.settingsPrivate.setPref) and
 the frame band must follow without a restart. Until Settings lists the
@@ -60,10 +64,10 @@ OUT = ROOT / "artifacts" / "cui-colours"
 # git: page_checks finds the main checkout's, or BORING_DESIGN names it.
 SCREEN = {False: "c01", True: "c02"}
 
-# Look, dark -> colour as boring_color_mixer.cc sets it. Dusk in light is
-# Slate's light palette. Slate, and Dusk, have no edge of their own: their
-# edge is their line, and text fields, buttons and switches keep
-# Chromium's colours there.
+# Look, dark -> colour as boring_color_mixer.cc sets it. Dusk is always
+# dark (ledger item 23): its one palette on a light system too. Slate has
+# no edge of its own: its edge is its line, and text fields, buttons and
+# switches keep Chromium's colours there.
 SOFT_LIGHT = {"frame": "eceae6", "toolbar": "ffffff", "field": "f4f3ef",
               "ink": "1f1e1c", "edge": "8a867d"}
 SOFT_DARK = {"frame": "111110", "toolbar": "1c1c1a", "field": "121211",
@@ -73,17 +77,17 @@ SLATE_LIGHT = {"frame": "d3d6e3", "toolbar": "ffffff", "field": "eef0f6",
 SLATE_DARK = {"frame": "0a0b0f", "toolbar": "1d1e28", "field": "0f1015",
               "ink": "dcdde6", "edge": "2c2d3a"}
 DUSK_DARK = {"frame": "0f1017", "toolbar": "1b1d2b", "field": "262838",
-             "ink": "dcdde6", "edge": "2c2d3a"}
+             "ink": "e6e7f0", "edge": "7c809c"}
 EXPECT = {
     ("soft_white", False): SOFT_LIGHT,
     ("soft_white", True): SOFT_DARK,
     ("slate", False): SLATE_LIGHT,
     ("slate", True): SLATE_DARK,
-    ("dusk", False): SLATE_LIGHT,
+    ("dusk", False): DUSK_DARK,
     ("dusk", True): DUSK_DARK,
 }
 OK = {False: "1a7f55", True: "4cc38a"}
-DRAWN_EDGE = {"soft_white"}
+DRAWN_EDGE = {"soft_white", "dusk"}
 
 # Palette field -> the CSS variables of the ids the mixer gives it.
 VARS = {
@@ -121,14 +125,18 @@ def all_vars():
     return names + EDGE_CONTROLS + [OK_VAR]
 
 
-def seed_profile(path, look, accent=None):
-    """A new profile holding the Look, as Settings would have left it."""
+def seed_profile(path, look, accent=None, scheme=None):
+    """A new profile holding the Look, as Settings would have left it, and
+    the browser's own Light or dark when `scheme` is given (the pref
+    ThemeService keeps it in: 0 match system, 1 light, 2 dark)."""
     appearance = {k: v for k, v in (("look", look), ("accent", accent)) if v is not None}
-    if not appearance:
+    if not appearance and scheme is None:
         return
     default = Path(path) / "Default"
     default.mkdir(parents=True, exist_ok=True)
-    prefs = {"boring": {"appearance": appearance}}
+    prefs = {"boring": {"appearance": appearance}} if appearance else {}
+    if scheme is not None:
+        prefs["browser"] = {"theme": {"color_scheme2": scheme}}
     (default / "Preferences").write_text(json.dumps(prefs), encoding="utf-8")
 
 
@@ -144,7 +152,7 @@ def resolve(b):
 def expect_rows(look, dark):
     want = EXPECT[(look, dark)]
     rows = [(n, want[field]) for field, names in VARS.items() for n in names]
-    rows.append((OK_VAR, OK[dark]))
+    rows.append((OK_VAR, OK[dark or look == "dusk"]))
     if look in DRAWN_EDGE:
         rows += [(n, want["edge"]) for n in EDGE_CONTROLS]
     return rows
@@ -163,6 +171,37 @@ def check_look(look, dark, checks):
             name in have and got.get(name) == rgb(hex6),
             got.get(name),
         )
+
+
+# boring: fix-look, Dusk is always dark (ledger item 23)
+DARK_QUERY = "return matchMedia('(prefers-color-scheme: dark)').matches"
+
+
+def check_dusk_always_dark(checks):
+    """Dusk with the browser's own Light or dark set to Light, on a light
+    system: the window and our pages are Dusk's dark colours, and the
+    person's Light choice is still in its pref afterwards."""
+    tag = "dusk with Light picked"
+    with tempfile.TemporaryDirectory(prefix="colours-dusk-", dir=os.environ.get("TMP")) as prof:
+        seed_profile(prof, "dusk", scheme=1)
+        with Browser(user_data_dir=prof, args=["--window-size=1200,700"]) as b:
+            have, got = resolve(b)
+            settings_dark = b.run(DARK_QUERY)
+            b.get("chrome://newtab")
+            time.sleep(1.0)
+            newtab_dark = b.run(DARK_QUERY)
+            page = b.run(RESOLVE, [["--color-new-tab-page-background"]])
+        saved = json.loads((Path(prof) / "Default" / "Preferences").read_text(encoding="utf-8"))
+    for name, hex6 in expect_rows("dusk", True):
+        checks[f"{tag}: {name} is #{hex6}"] = (
+            name in have and got.get(name) == rgb(hex6), got.get(name))
+    checks[f"{tag}: Settings draws dark"] = (settings_dark is True, settings_dark)
+    checks[f"{tag}: the new tab page draws dark"] = (newtab_dark is True, newtab_dark)
+    bg = page.get("--color-new-tab-page-background")
+    checks[f"{tag}: the new tab page is Dusk's page #141520"] = (bg == rgb("141520"), bg)
+    kept = saved.get("browser", {}).get("theme", {}).get("color_scheme2")
+    checks[f"{tag}: the Light choice is kept in its pref"] = (kept == 1, kept)
+# boring: end fix-look
 
 
 def set_pref(b, value, pref=PREF):
@@ -235,7 +274,9 @@ def check_accent(look, dark, value, checks):
     args = ["--window-size=1200,700"] + (["--force-dark-mode"] if dark else [])
     want_fill, want_on = ACCENTS[value]
     if want_fill is None:
-        want_fill = OWN_ACCENT_SOFT_DARK if (look, dark) == ("soft_white", True) else OWN_ACCENT[dark]
+        # Dusk, always dark, has the design's dark accent as Soft white has.
+        design_dark = (look, dark) == ("soft_white", True) or look == "dusk"
+        want_fill = OWN_ACCENT_SOFT_DARK if design_dark else OWN_ACCENT[dark]
     with tempfile.TemporaryDirectory(prefix="colours-accent-", dir=os.environ.get("TMP")) as prof:
         seed_profile(prof, None if look == "soft_white" else look, value)
         with Browser(user_data_dir=prof, args=args) as b:
@@ -315,6 +356,7 @@ def main():
         for dark in (False, True):
             for value in ACCENTS:
                 check_accent(look, dark, value, checks)
+    check_dusk_always_dark(checks)
     if not opts.no_live:
         check_live(checks)
         check_accent_live(checks)

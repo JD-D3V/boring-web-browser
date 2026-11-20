@@ -17,7 +17,7 @@ GOOD = {
     "panelBg": smoke.BAR["light"], "miniBg": smoke.FRAME["light"], "miniBase": smoke.BAR["light"], "miniGlyph": smoke.INK["light"],
 }  # fmt: skip
 # The panel and preview surfaces (item 27), in dark.
-DARK_SURFACES = {"panelBg": smoke.BAR["dark"], "miniBg": smoke.FRAME["dark"], "miniBase": smoke.BAR["dark"], "miniGlyph": smoke.INK["dark"]}
+DARK_SURFACES = {"panelBg": smoke.BAR["dark"], "miniBg": smoke.FRAME["dark"], "miniBase": smoke.BAR["dark"], "miniGlyph": smoke.INK["dark"], "headColor": smoke.MUTED["dark"]}
 
 
 class Recorder:
@@ -52,6 +52,21 @@ class StylesTest(unittest.TestCase):
         r = Recorder()
         smoke.check_styles(r, "dark", {**GOOD, **DARK_SURFACES})
         self.assertEqual(r.failed, ["dark: an off switch is the edge colour"])
+
+    def test_nothing_to_check_fails(self):
+        # Ledger item 33: no on switch, no accent or no heading colour is a
+        # failure, not a pass; sizes more than a pixel off fail too.
+        for bad, name in (
+            ({"onColor": None}, "light: an on switch is the accent"),
+            ({"accent": ""}, "light: an on switch is the accent"),
+            ({"headColor": None, "quiet": ""}, "light: headings are our quiet ink"),
+            ({"headColor": "rgb(120, 116, 140)"}, "light: headings are our quiet ink"),
+            ({"bar": [32.5, 20]}, "light: a switch is 34 by 20 with a 16 knob"),
+            ({"rowHeight": None}, "light: rows are 36 high with 18 at the sides"),
+        ):
+            r = Recorder()
+            smoke.check_styles(r, "light", {**GOOD, **bad})
+            self.assertEqual(r.failed, [name], bad)
 
     def test_no_panel_is_one_failure(self):
         r = Recorder()

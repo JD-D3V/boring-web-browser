@@ -19,11 +19,14 @@ diff --git a/chrome/browser/extensions/api/settings_private/prefs_util.cc b/chro
 diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts b/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
 --- a/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
 +++ b/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
-@@ -11,7 +11,151 @@ export function getHtml(this: SettingsAppearancePageElement) {
+@@ -11,72 +11,156 @@ export function getHtml(this: SettingsAppearancePageElement) {
    return html`<!--_html_template_start_-->
  <settings-section page-title="$i18n{appearancePageTitle}">
    <div route-path="default">
 -    <div class="cr-row first" id="themeRow"
+-        ?hidden="${!this.pageVisibility_.setTheme}">
+-      <div class="flex cr-padded-text">
+-        <div>$i18n{themes}</div><div class="secondary">${this.themeSublabel_}</div>
 +    <!-- boring: cui-settings.patch. Settings, Appearance as drawn (design
 +         v12-compiled PageSettings): Light or dark, Look, Accent, Tabs,
 +         Bookmarks and Toolbar buttons first, the other rows below as before. -->
@@ -32,14 +35,25 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.h
 +    </div>
 +    <div id="colorSchemeModeRow" class="cr-row first"
 +        ?hidden="${!this.showColorSchemeMode_()}">
-+      <div id="colorSchemeModeLabel" class="flex cr-padded-text cui-title">
-+        Light or dark
-+      </div>
++      <div id="colorSchemeModeLabel" class="flex cr-padded-text">
++        <div class="cui-title">Light or dark</div>
++        ${this.isDuskLook_() ? html`
++          <div id="duskAlwaysDark" class="secondary">Dusk is always dark.</div>
++        ` : ''}
+       </div>
+-<if expr="not is_linux">
+-      ${this.themeIdPref_?.value ? html`
+-        <div class="separator"></div>
+-        <cr-button id="useDefault" @click="${this.onUseDefaultClick_}"
+-            aria-label="$i18n{resetToDefaultTheme}">
+-          $i18n{resetToDefault}
+-        </cr-button>
 +      <div id="colorSchemeModeButtons" class="cui-segmented" role="group"
 +          aria-labelledby="colorSchemeModeLabel">
 +        ${this.colorSchemeModeOptions_.map(item => html`
 +          <button class="cui-mode" data-value="${item.value}"
 +              aria-pressed="${this.isSelectedColorSchemeMode_(item.value)}"
++              ?disabled="${this.isDuskLook_()}"
 +              @click="${this.onColorSchemeModeClick_}">${item.name}</button>
 +        `)}
 +      </div>
@@ -81,11 +95,11 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.h
 +          `)}
 +          <label class="cui-outline cui-custom ${
 +              this.isCustomAccent_() ? 'on' : ''}"
-+              style="--cui-dot: ${this.boringAccentPref_?.value}">
++              style="--cui-dot: ${this.safeAccent_()}">
 +            Custom
 +            <input id="boringAccentCustom" type="color"
 +                aria-label="Custom accent colour"
-+                .value="${this.boringAccentPref_?.value || '#4f46e5'}"
++                .value="${this.safeAccent_()}"
 +                @change="${this.onBoringAccentCustomChange_}">
 +          </label>
 +        </div>
@@ -109,7 +123,27 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.h
 +            pref-key="vertical_tabs.expand_on_hover"
 +            label="$i18n{showVerticalTabsExpandOnHover}">
 +        </settings-toggle-button>
-+      ` : ''}
+       ` : ''}
+-</if>
+-<if expr="is_linux">
+-      <div class="settings-row continuation"
+-          ?hidden="${!this.showThemesSecondary_()}" id="themesSecondaryActions">
+-        <div class="separator"></div>
+-        ${this.showUseClassic_() ? html`
+-          <cr-button id="useDefault" @click="${this.onUseDefaultClick_}">
+-            $i18n{useClassicTheme}
+-          </cr-button>
+-        ` : ''}
+-        ${this.showUseGtk_() ? html`
+-          <cr-button id="useGtk" @click="${this.onUseGtkClick_}">
+-            $i18n{useGtkTheme}
+-          </cr-button>
+-        ` : ''}
+-        ${this.showUseQt_() ? html`
+-          <cr-button id="useQt" @click="${this.onUseQtClick_}">
+-            $i18n{useQtTheme}
+-          </cr-button>
+-        ` : ''}
 +
 +      ${this.showEverythingMenuToggle_() ? html`
 +        <settings-toggle-button id="showEverythingMenuButton"
@@ -127,7 +161,8 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.h
 +            label="$i18n{tabScrollAutoShowOnOverflow}"
 +            @change="${this.onTabScrollAutoShowOnOverflowChange_}">
 +        </settings-toggle-button>
-+      </div>
+       </div>
+-</if>
 +    ` : ''}
 +    <div id="bookmarksRow" class="cr-row"
 +        ?hidden="${!this.pageVisibility_.bookmarksBar}">
@@ -148,7 +183,11 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.h
 +                this.onBookmarksBarVisibilitySettingsControlChange_}">
 +        </settings-dropdown-menu>
 +      `}
-+    </div>
+     </div>
+-    <div id="toolbarRow" class="settings-row">
+-      <cr-link-row id="customizeToolbar" label="$i18n{customizeToolbar}"
+-          @click="${this.onCustomizeToolbarClick_}" external>
+-      </cr-link-row>
 +    <div id="toolbarRow" class="cr-row">
 +      <div class="flex cr-padded-text">
 +        <div class="cui-title">Toolbar buttons</div>
@@ -156,39 +195,19 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.h
 +          Choose which buttons sit next to the address bar.
 +        </div>
 +      </div>
-+      ${this.showResetPinnedActionsButton_ ? html`
-+        <cr-button id="resetPinnedToolbarActions"
-+            @click="${this.onResetPinnedToolbarActionsClick_}"
-+            aria-label="$i18n{resetToolbarToDefault}">
-+          $i18n{resetToDefault}
-+        </cr-button>
-+      ` : ''}
+       ${this.showResetPinnedActionsButton_ ? html`
+-        <div class="separator"></div>
+         <cr-button id="resetPinnedToolbarActions"
+             @click="${this.onResetPinnedToolbarActionsClick_}"
+             aria-label="$i18n{resetToolbarToDefault}">
+           $i18n{resetToDefault}
+         </cr-button>
+       ` : ''}
 +      <cr-button id="customizeToolbar" class="cui-outline"
 +          @click="${this.onCustomizeToolbarClick_}">
 +        Customize
 +      </cr-button>
-+    </div>
-+    <div class="cr-row" id="themeRow"
-         ?hidden="${!this.pageVisibility_.setTheme}">
-       <div class="flex cr-padded-text">
-         <div>$i18n{themes}</div><div class="secondary">${this.themeSublabel_}</div>
-@@ -47,36 +191,6 @@ export function getHtml(this: SettingsAppearancePageElement) {
-       </div>
- </if>
      </div>
--    <div id="toolbarRow" class="settings-row">
--      <cr-link-row id="customizeToolbar" label="$i18n{customizeToolbar}"
--          @click="${this.onCustomizeToolbarClick_}" external>
--      </cr-link-row>
--      ${this.showResetPinnedActionsButton_ ? html`
--        <div class="separator"></div>
--        <cr-button id="resetPinnedToolbarActions"
--            @click="${this.onResetPinnedToolbarActionsClick_}"
--            aria-label="$i18n{resetToolbarToDefault}">
--          $i18n{resetToDefault}
--        </cr-button>
--      ` : ''}
--    </div>
 -    <div id="colorSchemeModeRow" class="cr-row"
 -        ?hidden="${!this.showColorSchemeMode_()}">
 -      <div id="colorSchemeModeLabel" class="flex cr-padded-text"
@@ -206,10 +225,12 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.h
 -        `)}
 -      </select>
 -    </div>
++    <!-- boring: cui-settings, no Theme row (ledger item 41): a store theme
++         would switch our palette off. -->
      <div class="hr"
          ?hidden="${!this.showHr_(
              this.pageVisibility_.setTheme, this.pageVisibility_.homeButton)}">
-@@ -116,31 +230,6 @@ export function getHtml(this: SettingsAppearancePageElement) {
+@@ -116,31 +200,6 @@ export function getHtml(this: SettingsAppearancePageElement) {
          </settings-radio-group>
        </div>
      ` : ''}
@@ -241,7 +262,7 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.h
  
  <if expr="is_macosx">
      ${this.showGlassEffectEnabled_ ? html`
-@@ -159,43 +248,6 @@ export function getHtml(this: SettingsAppearancePageElement) {
+@@ -159,43 +218,6 @@ export function getHtml(this: SettingsAppearancePageElement) {
  </if>
  
  
@@ -309,7 +330,7 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.t
  
        // <if expr="is_linux">
        themeSystemThemePref_: {type: Object},
-@@ -219,6 +224,33 @@ export class SettingsAppearancePageElement extends
+@@ -219,6 +224,34 @@ export class SettingsAppearancePageElement extends
        undefined;
    protected accessor verticalTabsEnabledPref_: PrefObject<boolean>|undefined =
        undefined;
@@ -322,17 +343,18 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.t
 +        {value: 'dusk', name: 'Dusk', about: 'Deep blue grey'},
 +      ];
 +  // boring: cui-settings, Accent writes "#rrggbb" to boring.appearance.accent.
-+  // low: under 3 to 1 on the dark card, so it gets an edge ring in dark.
++  // low: under 3 to 1 on a dark card (charcoal, or Dusk's for Blue and Rose),
++  // so it gets an edge ring in dark.
 +  protected accessor boringAccentPref_: PrefObject<string>|undefined =
 +      undefined;
 +  protected accessor boringAccents_:
 +      Array<{value: string, name: string, low: boolean}> = [
 +        {value: '#4f46e5', name: 'Indigo', low: true},
-+        {value: '#2563c9', name: 'Blue', low: false},
++        {value: '#2563c9', name: 'Blue', low: true},
 +        {value: '#0f766e', name: 'Teal', low: false},
 +        {value: '#1a7f55', name: 'Green', low: false},
 +        {value: '#a16207', name: 'Amber', low: false},
-+        {value: '#be2d5a', name: 'Rose', low: false},
++        {value: '#be2d5a', name: 'Rose', low: true},
 +        {value: '#7c3aed', name: 'Violet', low: true},
 +        {value: '#4b5160', name: 'Graphite', low: true},
 +      ];
@@ -343,7 +365,7 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.t
  
    // <if expr="is_linux">
    protected accessor themeSystemThemePref_: PrefObject<number>|undefined =
-@@ -229,15 +261,15 @@ export class SettingsAppearancePageElement extends
+@@ -229,15 +262,15 @@ export class SettingsAppearancePageElement extends
        Array<{value: ColorSchemeMode, name: string}> = [
          {
            value: ColorSchemeMode.kLight,
@@ -362,7 +384,7 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.t
          },
        ];
  
-@@ -260,9 +292,10 @@ export class SettingsAppearancePageElement extends
+@@ -260,9 +293,10 @@ export class SettingsAppearancePageElement extends
      {value: 'true', name: loadTimeData.getString('glassEffectModern')},
   ];
  
@@ -375,7 +397,7 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.t
    ];
  
    // The values in this array must match the BookmarkBarVisibilityState enum
-@@ -333,6 +366,9 @@ export class SettingsAppearancePageElement extends
+@@ -333,6 +367,9 @@ export class SettingsAppearancePageElement extends
  
      this.mirrorPrefs({
        'autogenerated.theme.policy.color': 'themePolicyColorPref_',
@@ -385,7 +407,7 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.t
        'browser.pin_contextual_task_button': 'pinContextualTaskButtonPref_',
        'browser.pin_split_tab_button': 'pinSplitTabButtonPref_',
        'browser.show_forward_button': 'showForwardButtonPref_',
-@@ -614,9 +650,41 @@ export class SettingsAppearancePageElement extends
+@@ -614,9 +651,54 @@ export class SettingsAppearancePageElement extends
      return colorSchemeMode === this.selectedColorSchemeMode_;
    }
  
@@ -399,6 +421,19 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.t
 +        ColorSchemeMode;
 +    this.selectedColorSchemeMode_ = value;
 +    this.colorSchemeModeBrowserProxy_.handler.setColorSchemeMode(value);
++  }
++
++  // boring: cui-settings, Dusk is always dark, so Light or dark does not
++  // apply while it is picked (theme_service.cc, cui-colours.patch).
++  protected isDuskLook_(): boolean {
++    return this.boringLookPref_?.value === 'dusk';
++  }
++
++  // boring: cui-settings, the accent only as "#" and six hex digits before
++  // it goes in a style attribute; anything else is the default accent.
++  protected safeAccent_(): string {
++    const value = this.boringAccentPref_?.value;
++    return value && /^#[0-9a-fA-F]{6}$/.test(value) ? value : '#4f46e5';
 +  }
 +
 +  // boring: cui-settings, Accent: a preset dot, or Custom's own colour.
@@ -466,36 +501,38 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.c
  .indented-toggles,
  .indented-rows {
    padding-inline-end: 0;
-@@ -56,3 +40,277 @@
+@@ -56,3 +40,285 @@
  .indented-rows .cr-row {
    padding-inline-start: 0;
  }
 +
 +/* boring: cui-settings. Settings, Appearance as drawn (design v12-compiled
-+ * PageSettings). Colours come from the master window's TOKENS rows (light,
-+ * then dark); outlines of fields and outline buttons use the edge token. */
++ * PageSettings). Colours follow the Look and the accent: they come from the
++ * window's colour provider (boring_color_mixer.cc), with the master window's
++ * TOKENS rows (light, then dark) as fallbacks; outlines of fields and
++ * outline buttons use the edge token. line2 is the line a fifth of the way
++ * to the edge, which is the drawn line2 in both rows. */
 +:host {
 +  /* The section is a card on the page, as drawn. */
 +  background: var(--cui-surface);
 +  border-radius: 10px;
 +  box-shadow: 0 0 0 1px var(--cui-line);
 +  display: block;
-+  --cui-surface: #fff;
-+  --cui-field: #f4f3ef;
-+  --cui-line: #e2dfd9;
-+  --cui-line2: #d0ccc4;
-+  --cui-edge: #8a867d;
-+  --cui-ink2: #5d5a54;
++  --cui-surface: var(--color-toolbar, #fff);
++  --cui-field: var(--color-location-bar-background, #f4f3ef);
++  --cui-line: var(--color-toolbar-separator, #e2dfd9);
++  --cui-line2: color-mix(in srgb, var(--cui-edge) 20%, var(--cui-line));
++  --cui-edge: var(--color-boring-edge, #8a867d);
++  --cui-ink2: var(--color-label-foreground-secondary, #5d5a54);
 +}
 +
 +@media (prefers-color-scheme: dark) {
 +  :host {
-+    --cui-surface: #1c1c1a;
-+    --cui-field: #121211;
-+    --cui-line: #2d2d2a;
-+    --cui-line2: #3b3b37;
-+    --cui-edge: #77756d;
-+    --cui-ink2: #a9a79f;
++    --cui-surface: var(--color-toolbar, #1c1c1a);
++    --cui-field: var(--color-location-bar-background, #121211);
++    --cui-line: var(--color-toolbar-separator, #2d2d2a);
++    --cui-edge: var(--color-boring-edge, #77756d);
++    --cui-ink2: var(--color-label-foreground-secondary, #a9a79f);
 +  }
 +}
 +
@@ -536,6 +573,12 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.c
 +  box-shadow: 0 0 0 1px var(--cui-line2);
 +  color: inherit;
 +  font-weight: 500;
++}
++
++/* Under Dusk, which is always dark, Light or dark does not apply. */
++.cui-mode:disabled {
++  cursor: default;
++  opacity: 0.5;
 +}
 +
 +.cui-look-row {

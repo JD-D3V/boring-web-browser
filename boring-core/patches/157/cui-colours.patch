@@ -129,7 +129,19 @@ diff --git a/chrome/browser/themes/theme_service.cc b/chrome/browser/themes/them
  }
  
  void ThemeService::Shutdown() {
-@@ -768,6 +784,29 @@
+@@ -751,6 +767,11 @@
+               ? ui::ColorProviderKey::ColorMode::kLight
+               : ui::ColorProviderKey::ColorMode::kDark;
+     }
++    // boring: Dusk is always dark, whatever Light or dark says. The
++    // person's choice stays in its pref for when they pick another Look.
++    if (profile_->GetPrefs()->GetString(kBoringLookPref) == "dusk") {
++      key.color_mode = ui::ColorProviderKey::ColorMode::kDark;
++    }
+   }
+ 
+   // user_color.
+@@ -768,6 +789,29 @@
      }
    }
  

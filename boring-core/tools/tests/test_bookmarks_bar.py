@@ -66,6 +66,29 @@ class DefaultOnTest(unittest.TestCase):
                     self.assertNotIn("ToggleBookmarkBar", ln, str(p))
 
 
+class SavedTabGroupsTest(unittest.TestCase):
+    """Ledger item 32 (JD, Q18: off for everyone). The saved tab groups
+    button is off the bookmarks bar by default, and the bar's menu still
+    has its switch, which writes the same pref (smoke_toolbar.py shows the
+    bar with the pref on)."""
+
+    def test_registered_default_is_off(self):
+        text = (PATCHES / "157" / "cui-toolbar.patch").read_text(encoding="utf-8")
+        self.assertRegex(text, r"(?m)^-\s+prefs::kShowTabGroupsInBookmarkBar, true,")
+        self.assertRegex(text, r"(?m)^\+\s+prefs::kShowTabGroupsInBookmarkBar, false,")
+
+    def test_the_menu_switch_is_left_alone(self):
+        # bookmark_context_menu_controller.cc toggles and ticks the pref
+        # (IDC_BOOKMARK_BAR_TOGGLE_SHOW_TAB_GROUPS); no patch of ours
+        # touches that file or removes the command.
+        for p in PATCHES.rglob("*.patch"):
+            text = p.read_text(encoding="utf-8")
+            self.assertNotIn("bookmark_context_menu_controller.cc", text, str(p))
+            for ln in text.splitlines():
+                if ln.startswith("-") and not ln.startswith("---"):
+                    self.assertNotIn("TOGGLE_SHOW_TAB_GROUPS", ln, str(p))
+
+
 class StyleTest(unittest.TestCase):
     def setUp(self):
         self.mixer = MIXER.read_text(encoding="utf-8")

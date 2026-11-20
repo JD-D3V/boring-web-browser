@@ -14,7 +14,12 @@ Checks, on chrome://settings/appearance in a fresh profile:
   Customize opens the Customize toolbar panel;
 - Spacing is not there (dropped from Release 3);
 - in dark, the dots under 3 to 1 on the card carry an edge ring; in light
-  they do not.
+  they do not; also with Dark picked in our own Light or dark on a light
+  system, not only with --force-dark-mode;
+- no Theme row (a store theme would switch our palette off);
+- with Dusk picked and Light chosen, the page and the card are Dusk's dark,
+  Light or dark says "Dusk is always dark." with its buttons off and Light
+  still pressed, and picking Soft white brings Light back.
 Then it photographs the window in light and dark (PrintWindow of our own
 window, which sits off screen). With --captures (or BORING_CAPTURES) each
 picture is also saved as <folder>/settings/c10-light.png and c10-dark.png:
@@ -53,7 +58,8 @@ ROWS = ["colorSchemeModeRow", "boringLookRow", "boringAccentRow",
 MODES = ["Light", "Dark", "Match system"]
 ACCENTS = ["#4f46e5", "#2563c9", "#0f766e", "#1a7f55",
            "#a16207", "#be2d5a", "#7c3aed", "#4b5160"]
-LOW_IN_DARK = {"#4f46e5", "#7c3aed", "#4b5160"}
+# Under 3 to 1 on a dark card: charcoal's, or Dusk's for Blue and Rose.
+LOW_IN_DARK = {"#4f46e5", "#2563c9", "#be2d5a", "#7c3aed", "#4b5160"}
 
 PAGE = FIND + """
 var p = find(document, 'settings-appearance-page');
@@ -88,6 +94,9 @@ return {
   customize: (r.querySelector('#customizeToolbar') || {textContent: ''}).textContent.trim(),
   order: ids.map(id => all.indexOf(r.querySelector('#' + id))),
   oldSelect: !!r.querySelector('#colorSchemeModeSelect'),
+  themeRow: !!r.querySelector('#themeRow, #useDefault, #themesSecondaryActions'),
+  duskNote: (r.querySelector('#duskAlwaysDark') || {textContent: ''}).textContent.trim(),
+  modesDisabled: Array.from(r.querySelectorAll('#colorSchemeModeButtons .cui-mode')).map(b => b.disabled),
   text: r.textContent,
   rowsText: mine.map(e => e.textContent).join(' '),
   dark: matchMedia('(prefers-color-scheme: dark)').matches,
@@ -198,6 +207,8 @@ def check_page(b, check, dark):
     check(f"{mode}: no Spacing row",
           all(w not in s["text"] for w in ("Spacing", "Compact", "Comfortable")))
     check(f"{mode}: the old colour scheme menu is gone", not s["oldSelect"])
+    check(f"{mode}: no Theme row (a store theme would switch our palette off)",
+          not s["themeRow"], s["themeRow"])
     bad = [w for w in BAD_WORDS if w in s["rowsText"]]
     check(f"{mode}: no Chrome, Chromium or long dash in the new rows", not bad, bad)
     for value, name, is_pressed, shadow in s["dots"]:
@@ -248,6 +259,107 @@ def check_writes(b, check):
     check("Toolbar buttons: Customize opens the Customize toolbar panel", panel_open(b))
 
 
+# boring: fix-look (ledger items 23, 31, 35)
+# Dusk's page, card (its bar) and edge (boring_color_mixer.cc, kDuskDark).
+DUSK_PAGE_BG = "rgb(20, 21, 32)"
+DUSK_CARD_BG = "rgb(27, 29, 43)"
+DUSK_EDGE = "rgb(124, 128, 156)"
+
+
+def seed(prof, look=None, scheme=None):
+    """A new profile holding the Look and the browser's own Light or dark
+    (browser.theme.color_scheme2: 0 match system, 1 light, 2 dark)."""
+    prefs = {}
+    if look:
+        prefs["boring"] = {"appearance": {"look": look}}
+    if scheme is not None:
+        prefs["browser"] = {"theme": {"color_scheme2": scheme}}
+    default = Path(prof) / "Default"
+    default.mkdir(parents=True, exist_ok=True)
+    (default / "Preferences").write_text(json.dumps(prefs), encoding="utf-8")
+
+
+def check_rings(check, tag, s, edge):
+    for value, name, is_pressed, shadow in s["dots"]:
+        if is_pressed != "true" and value in LOW_IN_DARK:
+            check(f"{tag}: the {name} dot has an edge ring", edge in shadow, shadow)
+
+
+def check_dark_by_setting(check):
+    """Dark picked in our own Light or dark, on a light system (no
+    --force-dark-mode): the page, the card and the dots' rings are dark."""
+    tag = "Dark picked on a light system"
+    with tempfile.TemporaryDirectory(prefix="cui-settings-dark-", dir=os.environ.get("TMP")) as prof:
+        seed(prof, scheme=2)
+        with Browser(user_data_dir=prof, args=["--window-size=1280,800"]) as b:
+            b.get("chrome://settings/appearance")
+            s = wait(lambda: state(b), 20)
+    check(f"{tag}: the page loads", s, s)
+    if not s:
+        return
+    check(f"{tag}: Dark is pressed and the page is dark",
+          pressed(s).get("Dark") == "true" and s["dark"], (pressed(s), s["dark"]))
+    check(f"{tag}: the card is the dark surface", s["cardBg"] == CARD_BG[True], s["cardBg"])
+    check_rings(check, tag, s, EDGE_DARK)
+
+
+def check_dusk(check):
+    """Dusk with Light picked, on a light system: Settings is Dusk's dark,
+    its card is Dusk's card, Light or dark says it does not apply and keeps
+    the person's Light; picking Soft white brings Light back."""
+    tag = "Dusk with Light picked"
+    with tempfile.TemporaryDirectory(prefix="cui-settings-dusk-", dir=os.environ.get("TMP")) as prof:
+        seed(prof, look="dusk", scheme=1)
+        with Browser(user_data_dir=prof, args=["--window-size=1280,800"]) as b:
+            b.get("chrome://settings/appearance")
+            s = wait(lambda: state(b), 20)
+            check(f"{tag}: the page loads", s, s)
+            if not s:
+                return
+            check(f"{tag}: the page is dark", s["dark"], s["dark"])
+            check(f"{tag}: the page is Dusk's page", s["pageBg"] == DUSK_PAGE_BG, s["pageBg"])
+            check(f"{tag}: the card is Dusk's card", s["cardBg"] == DUSK_CARD_BG, s["cardBg"])
+            check(f"{tag}: Light or dark says Dusk is always dark",
+                  s["duskNote"] == "Dusk is always dark.", s["duskNote"])
+            check(f"{tag}: Light or dark does not apply (its buttons are off)",
+                  s["modesDisabled"] == [True, True, True], s["modesDisabled"])
+            check(f"{tag}: the person's Light is still the one pressed",
+                  pressed(s).get("Light") == "true", pressed(s))
+            check_rings(check, tag, s, DUSK_EDGE)
+            b.run(CLICK, ['#boringLookRow .cui-look[data-value="soft_white"]'])
+            s = wait(lambda: (lambda st: st if st and not st["dark"] else None)(state(b)), 8)
+            s = s or state(b)
+            check("Soft white picked after Dusk: Light applies again, no note, buttons on",
+                  s and not s["dark"] and not s["duskNote"]
+                  and s["modesDisabled"] == [False, False, False],
+                  s and (s["dark"], s["duskNote"], s["modesDisabled"]))
+
+
+HOSTILE_ACCENT = "#000;background:red"
+CUSTOM_STYLE = PAGE + """
+var c = r && r.querySelector('#boringAccentRow .cui-custom');
+return c ? [c.getAttribute('style'), c.querySelector('input').value] : null;
+"""
+
+
+def check_hostile_accent(check):
+    """An accent pref that is not "#" and six hex digits (a hand-edited
+    Preferences file) never reaches the style attribute: the default does."""
+    with tempfile.TemporaryDirectory(prefix="cui-settings-accent-", dir=os.environ.get("TMP")) as prof:
+        path = Path(prof) / "Default" / "Preferences"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"boring": {"appearance": {"accent": HOSTILE_ACCENT}}}),
+                        encoding="utf-8")
+        with Browser(user_data_dir=prof, args=["--window-size=1280,800"]) as b:
+            b.get("chrome://settings/appearance")
+            wait(lambda: state(b), 20)
+            got = wait(lambda: b.run(CUSTOM_STYLE), 8)
+    check("A bad accent pref puts the default accent in the style attribute",
+          got and "background" not in (got[0] or "") and "#4f46e5" in (got[0] or "")
+          and got[1] == "#4f46e5", got)
+# boring: end fix-look
+
+
 def capture(b, dark, captures=None):
     from capture_native import frame_window, grab, user32
     from drive import OFFSCREEN
@@ -289,6 +401,9 @@ def main():
         print("pictures: not taken (set BORING_ALLOW_HEADFUL=1)")
     for dark in (False, True):
         run(dark, check, shoot, opts.captures)
+    check_dark_by_setting(check)
+    check_dusk(check)
+    check_hostile_accent(check)
     failed = [n for n, (ok, _) in check.items.items() if not ok]
     (OUT / "results.json").write_text(json.dumps(check.items, indent=1), encoding="utf-8")
     print(f"\n{'FAIL' if failed else 'PASS'}: settings appearance, "
