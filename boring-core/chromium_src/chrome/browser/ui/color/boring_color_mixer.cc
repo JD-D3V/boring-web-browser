@@ -547,6 +547,16 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   }
   mixer[kColorNewTabPageBackground] = {page};
   // boring: end cui-pages
+  // boring: cui-bar
+  // The Bar's results (screen C06): the selected row on the sel token (tint
+  // is sel, see the Soft white comment above), its title in the ink, and
+  // group headers, metas and the key hints in the quiet ink, selected or
+  // not. The WebUI popup reads these through omnibox_popup_shared_style.css.
+  mixer[kColorOmniboxResultsBackgroundSelected] = {p.tint};
+  mixer[kColorOmniboxResultsTextSelected] = {p.ink};
+  mixer[kColorOmniboxResultsTextDimmed] = {p.muted};
+  mixer[kColorOmniboxResultsTextDimmedSelected] = {p.muted};
+  // boring: end cui-bar
 
   // Windows high contrast: menus keep the system colours Chromium maps
   // them to (ui/color/win/native_color_mixers_win.cc), as the stock menu

@@ -498,3 +498,296 @@ diff --git a/chrome/browser/ui/views/location_bar/BUILD.gn b/chrome/browser/ui/v
        "../boring/boring_search_engine_menu.cc",
        "../boring/boring_search_engine_menu.h",
        "content_setting_image_view.cc",
+diff --git a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
+--- a/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
++++ b/chrome/browser/ui/webui/cr_components/searchbox/searchbox_handler.cc
+@@ -60,6 +60,7 @@
+ #include "components/omnibox/browser/autocomplete_controller_emitter.h"
+ #include "components/omnibox/browser/autocomplete_input.h"
+ #include "components/omnibox/browser/autocomplete_match.h"
++#include "components/omnibox/browser/autocomplete_provider.h"  // boring: bar
+ #include "components/omnibox/browser/autocomplete_result.h"
+ #include "components/omnibox/browser/contextual_search_provider.h"
+ #include "components/omnibox/browser/omnibox_client.h"
+@@ -956,6 +957,34 @@
+   return false;
+ }
+ 
++// boring: the Bar's own rows (Do, Open tabs, Settings) draw a glyph from
++// our icon set in place of a favicon. Only rows our provider made qualify,
++// and only for a key on this list, so nothing a page sets can pick one.
++namespace {
++
++// BoringBarProvider::kIconKey.
++constexpr char kBoringBarIconKey[] = "boring.icon";
++constexpr std::string_view kBoringBarGlyphs[] = {
++    "clock", "down",    "erase", "find", "moon", "plus", "print",
++    "priv",  "sliders", "tab",   "trash", "win", "zoom"};
++
++std::optional<std::string> BoringBarGlyphPath(const AutocompleteMatch& match) {
++  if (!match.provider ||
++      match.provider->type() != AutocompleteProvider::Type::kBoringBar) {
++    return std::nullopt;
++  }
++  const std::string key =
++      match.GetAdditionalInfoForDebugging(kBoringBarIconKey);
++  if (!std::ranges::contains(kBoringBarGlyphs, key)) {
++    return std::nullopt;
++  }
++  return "//resources/cr_components/searchbox/icons/boring_bar_" + key +
++         ".svg";
++}
++
++}  // namespace
++// boring: end bar
++
+ void SearchboxHandler::OverrideIconPaths(
+     const AutocompleteMatch& match,
+     searchbox::mojom::AutocompleteMatch* mojom_match) const {
+@@ -1018,6 +1047,10 @@
+   mojom_match->icon_path = AutocompleteIconToResourceName(
+       match.GetVectorIcon(is_bookmarked, associated_keyword_turl));
+   OverrideIconPaths(match, mojom_match.get());
++  // boring: the Bar's glyph for our own rows.
++  if (std::optional<std::string> glyph = BoringBarGlyphPath(match)) {
++    mojom_match->icon_path = std::move(*glyph);
++  }
+   mojom_match->icon_url = match.icon_url;
+   // For featured enterprise search suggestions, use template url to generate
+   // the proper icon url.
+@@ -1040,6 +1073,22 @@
+   mojom_match->supports_deletion = match.SupportsDeletion();
+   mojom_match->suggest_template =
+       suggest_template_info::CreateSuggestTemplateInfo(match);
++  // boring: a search row names the engine alone, "DuckDuckGo" and not
++  // "DuckDuckGo Search" (the Bar, screen C06). The text is the engine's own
++  // short name; its style stays the dim one set for the whole line.
++  if (keyword_turl && AutocompleteMatch::IsSearchType(match.type) &&
++      !match.swap_contents_and_description &&
++      mojom_match->suggest_template->secondary_text &&
++      match.description ==
++          l10n_util::GetStringFUTF16(
++              IDS_AUTOCOMPLETE_SEARCH_DESCRIPTION,
++              keyword_turl->AdjustedShortNameForLocaleDirection())) {
++    auto& meta = *mojom_match->suggest_template->secondary_text;
++    meta.text = keyword_turl->AdjustedShortNameForLocaleDirection();
++    std::erase_if(meta.fragments, [&](const auto& fragment) {
++      return fragment->start_index >= meta.text.size();
++    });
++  }
+   if (!match.from_keyword) {
+     for (const auto& action : match.actions) {
+ // TODO(b/544764632): Implement Pedals for Android.
+diff --git a/chrome/browser/resources/omnibox_popup/app.html.ts b/chrome/browser/resources/omnibox_popup/app.html.ts
+--- a/chrome/browser/resources/omnibox_popup/app.html.ts
++++ b/chrome/browser/resources/omnibox_popup/app.html.ts
+@@ -19,6 +19,12 @@
+       @dom-change="${this.onDropdownDomChange_}"
+       ?hidden="${!this.hasVisibleMatches_}">
+   </cr-searchbox-dropdown>
++  <!-- boring: the Bar's key hints (bar.patch, screen C06). -->
++  ${this.hasVisibleMatches_ ? html`
++    <div id="boringFooter">
++      <span>Enter to choose</span><span>Up and Down to move</span>
++    </div>
++  ` : ''}
+   <omnibox-popup-contextual-entrypoint></omnibox-popup-contextual-entrypoint>
+ </div>
+ <!--_html_template_end_-->`;
+diff --git a/chrome/browser/resources/omnibox_popup/app.css b/chrome/browser/resources/omnibox_popup/app.css
+--- a/chrome/browser/resources/omnibox_popup/app.css
++++ b/chrome/browser/resources/omnibox_popup/app.css
+@@ -28,6 +28,35 @@
+   padding-bottom: 10px;
+ }
+ 
++/* boring: the Bar's results (bar.patch, screen C06): 6px inside the card,
++ * 16px glyphs 12px from the text, and the key hints under a hairline in
++ * the quiet ink. Colours are the window's own (boring_color_mixer.cc), so
++ * they follow light, dark and the Look. */
++.dropdownContainer {
++  padding: 6px;
++}
++
++:host([has-visible-matches_]) .dropdownContainer:has(#boringFooter) {
++  padding-bottom: 6px;
++}
++
++cr-searchbox-dropdown {
++  --cr-searchbox-icon-container-size: 16px;
++  --cr-searchbox-match-text-padding-inline-start: 0;
++  --cr-searchbox-results-search-icon-size: 16px;
++}
++
++#boringFooter {
++  box-shadow: inset 0 1px 0 var(--color-bubble-border);
++  color: var(--color-omnibox-results-text-dimmed);
++  display: flex;
++  font-size: 12px;
++  gap: 18px;
++  margin-top: 6px;
++  padding: 9px 10px 5px;
++}
++/* boring: end bar */
++
+ /**
+  * In debug mode, make the element take up 50% of the viewport width.
+  */
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_dropdown.css b/ui/webui/resources/cr_components/searchbox/searchbox_dropdown.css
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_dropdown.css
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_dropdown.css
+@@ -88,6 +88,19 @@
+   }
+ }
+ 
++/* boring: the Bar's group headers (bar.patch, screen C06): small, in the
++ * quiet ink. Other searchboxes keep the rules above. */
++:host-context(omnibox-popup-app) .header {
++  height: auto;
++  padding: 10px 10px 4px;
++}
++
++:host-context(omnibox-popup-app) .header .text {
++  font-size: 11.5px;
++  font-weight: 600;
++}
++/* boring: end bar */
++
+ .primary-side {
+   flex: 1;
+   min-width: 0;
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.html.ts b/ui/webui/resources/cr_components/searchbox/searchbox_match.html.ts
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_match.html.ts
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_match.html.ts
+@@ -31,6 +31,10 @@
+             ?has-icon="${!!this.match.descriptionIconPath}"
+             style="--description-icon: url(${this.match.descriptionIconPath})">
+         </span>
++        <!-- boring: "Enter" beside the Bar's selected Do row. -->
++        ${this.isBoringDoRow_() ? html`
++          <span id="boringEnter" class="dim">Enter</span>
++        ` : ''}
+       </span>
+     </div>
+   </div>
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.ts b/ui/webui/resources/cr_components/searchbox/searchbox_match.ts
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_match.ts
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_match.ts
+@@ -452,6 +452,13 @@
+     return this.match.removeButtonA11yLabel;
+   }
+ 
++  // boring: a row of the Bar's Do group (omnibox::GROUP_BORING_DO in
++  // groups.proto, bar.patch). Only our own provider puts rows there.
++  protected isBoringDoRow_(): boolean {
++    return this.isTopChromeSearchbox_ &&
++        this.match?.suggestionGroupId === 80000;
++  }
++
+   private computeSeparatorText_(): string {
+     return this.getMatchSecondaryText_() ?
+         loadTimeData.getString('searchboxSeparator') :
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.css b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_match.css
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
+@@ -158,6 +158,57 @@
+   --color-searchbox-search-icon-background:
+       var(--color-searchbox-results-dim-selected);
+ }
++
++/* boring: the Bar's rows (bar.patch, screen C06): 38px, 7px corners, the
++ * title on one line and its meta at the right in the quiet ink, glyphs in
++ * the ink, and the selected row marked by its background alone. */
++:host([is-top-chrome-searchbox_]) .container:not(.actions) {
++  border-radius: 7px;
++  gap: 12px;
++  height: 38px;
++  margin-inline-end: 0;
++  padding: 0 10px;
++}
++
++:host([is-top-chrome-searchbox_]) #icon,
++:host([is-top-chrome-searchbox_][selected]) #icon,
++:host([is-top-chrome-searchbox_]:focus-within) #icon {
++  --color-searchbox-search-icon-background:
++      var(--color-searchbox-results-foreground);
++}
++
++:host([is-top-chrome-searchbox_]) #focusIndicator {
++  visibility: hidden;
++}
++
++:host([is-top-chrome-searchbox_]) #text-container {
++  flex-grow: 1;
++}
++
++:host([is-top-chrome-searchbox_]) #text-container > #suggestion {
++  align-items: baseline;
++  display: flex;
++  gap: 12px;
++}
++
++:host([is-top-chrome-searchbox_]) #primaryText {
++  flex: 1;
++  min-width: 0;
++  overflow: hidden;
++  text-overflow: ellipsis;
++}
++
++:host([is-top-chrome-searchbox_]) #separator,
++:host(:not([selected])) #boringEnter {
++  display: none;
++}
++
++:host([is-top-chrome-searchbox_]) :is(#secondaryText, #boringEnter) {
++  flex: none;
++  font-size: 12px;
++  max-width: 50%;
++}
++/* boring: end bar */
+ 
+ #prefix {
+   opacity: 0;
+diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_icon.ts b/ui/webui/resources/cr_components/searchbox/searchbox_icon.ts
+--- a/ui/webui/resources/cr_components/searchbox/searchbox_icon.ts
++++ b/ui/webui/resources/cr_components/searchbox/searchbox_icon.ts
+@@ -362,6 +362,13 @@
+   }
+ 
+   private computeFaviconImage_(): string {
++    // boring: a row of the Bar that carries one of our glyphs (set by
++    // searchbox_handler.cc for our own rows only) draws it, not a favicon.
++    if (this.match?.iconPath.startsWith(
++            '//resources/cr_components/searchbox/icons/boring_bar_')) {
++      return '';
++    }
++
+     if (this.match && !this.match.isSearchType) {
+       if (this.match.type === DOCUMENT_MATCH_TYPE ||
+           this.match.type === PEDAL ||
+diff --git a/ui/webui/resources/cr_components/searchbox/icons/BUILD.gn b/ui/webui/resources/cr_components/searchbox/icons/BUILD.gn
+--- a/ui/webui/resources/cr_components/searchbox/icons/BUILD.gn
++++ b/ui/webui/resources/cr_components/searchbox/icons/BUILD.gn
+@@ -97,6 +97,22 @@
+     "trending_up_cr23_old.svg",
+     "win_share_cr23.svg",
+     "win_share_cr23_old.svg",
++
++    # boring: the Bar's glyphs (bar.patch), from our icon set.
++    "boring_bar_clock.svg",
++    "boring_bar_down.svg",
++    "boring_bar_erase.svg",
++    "boring_bar_find.svg",
++    "boring_bar_moon.svg",
++    "boring_bar_plus.svg",
++    "boring_bar_print.svg",
++    "boring_bar_priv.svg",
++    "boring_bar_sliders.svg",
++    "boring_bar_tab.svg",
++    "boring_bar_trash.svg",
++    "boring_bar_win.svg",
++    "boring_bar_zoom.svg",
++    # boring: end bar
+   ]
+   if (!is_chrome_branded) {
+     input_files += [
