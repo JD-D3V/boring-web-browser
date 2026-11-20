@@ -61,7 +61,11 @@ if (!r) return null;
 function menu(sel) {
   var m = r.querySelector(sel);
   var s = m && m.shadowRoot && m.shadowRoot.querySelector('select');
-  return s ? {value: s.value, options: Array.from(s.options).map(o => [o.value, o.textContent.trim()])} : null;
+  // Only the options a person can see: Chromium keeps a disabled "Custom"
+  // option in every drop-down and hides it with CSS while the value matches.
+  return s ? {value: s.value, options: Array.from(s.options).filter(
+      o => !o.disabled && !o.hidden && getComputedStyle(o).display !== 'none').map(
+      o => [o.value, o.textContent.trim()])} : null;
 }
 var all = Array.from(r.querySelectorAll('*'));
 var ids = arguments[0];
