@@ -60,9 +60,12 @@ FAST = [
 ]
 CLEAR_HISTORY_JS = """
 const done = arguments[arguments.length - 1];
+// Initialize first, as Settings' own dialog does: the handler answers only
+// a page it has allowed, and a clear sent before that crashes the browser.
 import('chrome://resources/js/cr.js')
-  .then(m => m.sendWithPromise('clearBrowsingData',
-                               ['browser.clear_data.browsing_history'], 0))
+  .then(m => m.sendWithPromise('initializeClearBrowsingData')
+    .then(() => m.sendWithPromise('clearBrowsingData',
+                                  ['browser.clear_data.browsing_history'], 0)))
   .then(() => done(true), e => done('error: ' + e));
 """
 
@@ -181,6 +184,16 @@ def names_of(pid):
         return []
 
 
+def tab_marks(pid):
+    """How many "Close" buttons our window shows: one per tab plus the same
+    few every time. Compared with itself it counts tabs without asking
+    chromedriver. Any WebDriver request about the tabs attaches DevTools to
+    every one, and Chromium's own rule never puts a tab with DevTools
+    attached to sleep, so a test that listed the tabs first would test
+    nothing."""
+    return names_of(pid).count("Close")
+
+
 def open_pages(b, base, kinds):
     for kind in kinds:
         b.run("window.open(arguments[0])", [f"{base}/{kind}"])
@@ -223,9 +236,11 @@ def scenario_off(base, checks):
             DRIVER_PID[0] = b.proc.pid  # chromedriver starts Chrome
             b.get(base + "/")
             open_pages(b, base, ["Page1", "Page2", "Page3"])
-            before = len(handles(b))
+            time.sleep(1.5)
+            before = tab_marks(DRIVER_PID[0])
             time.sleep(16)
-            checks("off by default: no tab closed", len(handles(b)) == before, f"{before}")
+            now = tab_marks(DRIVER_PID[0])
+            checks("off by default: no tab closed", before > 0 and now == before, f"{before} -> {now}")
             checks("off by default: no file kept", not earlier_file(profile).exists())
             checks("off by default: no chip", chip_count(names_of(DRIVER_PID[0])) is None)
 
@@ -239,11 +254,13 @@ def scenario_on(base, out, captures, checks):
             b.get(base + "/")
             open_pages(b, base, ["Page1", "Page2", "Guarded1", "Page3", "Page4"])
             b.run("window.open('chrome://version')")
-            before = len(handles(b))
+            time.sleep(1.5)
+            before = tab_marks(DRIVER_PID[0])
             moved = wait_for(lambda: (read_entries(profile) or []), 40)
             checks("on: tabs moved to the file", bool(moved), f"{len(moved or [])}")
-            after = len(wait_for(lambda: handles(b), 5) or [])
-            checks("on: open tabs went down", after < before, f"{before} -> {after}")
+            time.sleep(2)
+            after = tab_marks(DRIVER_PID[0])
+            checks("on: open tabs went down", before > 0 and after < before, f"{before} -> {after}")
             entries = read_entries(profile) or []
             checks("on: every entry is a web address", bool(entries) and web_only(entries))
             checks("on: the leave-this-site tab was not moved",
@@ -276,11 +293,29 @@ def scenario_on(base, out, captures, checks):
             # Clear: press, then confirm.
             tabs_before = len(handles(b))
             cleared = False
-            if pressing(pid, lambda n: n == "Clear earlier tabs") is not None:
+            steps = []
+            # A row press closes the pop-up; the chip opens it again.
+            if row:
+                wait_for(lambda: "Clear earlier tabs" not in popup_names(pid), 10)
+                for _ in range(5):
+                    try:
+                        steps.append(f"chip {pressing(pid, lambda n: chip_count([n]) is not None)}")
+                    except RuntimeError as e:
+                        steps.append(f"chip refused {str(e)[:60]}")
+                        time.sleep(1)
+                        continue
+                    if wait_for(lambda: "Clear earlier tabs" in popup_names(pid), 4):
+                        break
+            asked = pressing(pid, lambda n: n == "Clear earlier tabs")
+            steps.append(f"ask {asked}")
+            if asked is not None:
                 time.sleep(0.6)
-                if pressing(pid, lambda n: n == "Clear") is not None:
+                confirmed = pressing(pid, lambda n: n == "Clear")
+                steps.append(f"confirm {confirmed}")
+                if confirmed is not None:
                     cleared = bool(wait_for(lambda: (read_entries(profile) or []) == [], 10))
-            checks("Clear: asks, then empties the file", cleared)
+            steps.append(f"file {read_entries(profile)}")
+            checks("Clear: asks, then empties the file", cleared, "; ".join(steps)[:400])
             checks("Clear: open tabs untouched", len(handles(b)) >= tabs_before - 1)
 
 
@@ -308,9 +343,11 @@ def scenario_incognito(base, checks):
             DRIVER_PID[0] = b.proc.pid  # chromedriver starts Chrome
             b.get(base + "/")
             open_pages(b, base, ["Page1", "Page2", "Page3"])
-            before = len(handles(b))
+            time.sleep(1.5)
+            before = tab_marks(DRIVER_PID[0])
             time.sleep(16)
-            checks("incognito: nothing moved", len(handles(b)) == before)
+            now = tab_marks(DRIVER_PID[0])
+            checks("incognito: nothing moved", before > 0 and now == before, f"{before} -> {now}")
             checks("incognito: nothing recorded", not earlier_file(profile).exists())
             checks("incognito: no chip", chip_count(names_of(DRIVER_PID[0])) is None)
 
@@ -353,9 +390,11 @@ def scenario_version(base, checks):
             DRIVER_PID[0] = b.proc.pid  # chromedriver starts Chrome
             b.get(base + "/")
             open_pages(b, base, ["Page1", "Page2"])
-            before = len(handles(b))
+            time.sleep(1.5)
+            before = tab_marks(DRIVER_PID[0])
             time.sleep(16)
-            checks("version guard: no tab moved", len(handles(b)) == before)
+            now = tab_marks(DRIVER_PID[0])
+            checks("version guard: no tab moved", before > 0 and now == before, f"{before} -> {now}")
         same = earlier_file(profile).read_text(encoding="utf-8") == text
         checks("version guard: the file was never written", same)
 

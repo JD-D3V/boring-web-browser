@@ -15,6 +15,8 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/views/boring/boring_earlier_popup.h"
+#include "ui/accessibility/ax_action_data.h"
+#include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
 #include "ui/gfx/font.h"
@@ -56,6 +58,7 @@ BoringEarlierChip::BoringEarlierChip(BrowserWindowInterface* browser)
   SetCallback(base::BindRepeating(&BoringEarlierChip::OnPressed,
                                   base::Unretained(this)));
   SetFocusBehavior(FocusBehavior::ALWAYS);
+  GetViewAccessibility().SetIsCollapsed();
   auto* layout = SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kHorizontal,
       gfx::Insets::VH(0, kSidePadding), kGap));
@@ -174,6 +177,23 @@ void BoringEarlierChip::ShowPopup() {
   GetViewAccessibility().SetIsExpanded();
   popup_->Show();
   UpdateLook();
+}
+
+bool BoringEarlierChip::HandleAccessibleAction(
+    const ui::AXActionData& action_data) {
+  // The chip says it opens a pop-up, so UI Automation offers Expand and
+  // Collapse for it and no Invoke; View answers neither.
+  if (action_data.action == ax::mojom::Action::kExpand) {
+    ShowPopup();
+    return true;
+  }
+  if (action_data.action == ax::mojom::Action::kCollapse) {
+    if (popup_) {
+      popup_->Close();
+    }
+    return true;
+  }
+  return views::Button::HandleAccessibleAction(action_data);
 }
 
 void BoringEarlierChip::OnPressed() {

@@ -55,6 +55,7 @@ class BoringEarlierChip : public views::Button,
       const views::SizeBounds& available_size) const override;
   void OnThemeChanged() override;
   void AddedToWidget() override;
+  bool HandleAccessibleAction(const ui::AXActionData& action_data) override;
 
  private:
   void Update();
