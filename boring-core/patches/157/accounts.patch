@@ -31,3 +31,60 @@ diff --git a/chrome/browser/prefs/browser_prefs.cc b/chrome/browser/prefs/browse
    boring::ai::RegisterProfilePrefs(registry);
    boring::RegisterNewTabPrefs(registry);
    boring::webstore::RegisterProfilePrefs(registry);
+diff --git a/chrome/browser/ui/views/toolbar/BUILD.gn b/chrome/browser/ui/views/toolbar/BUILD.gn
+--- a/chrome/browser/ui/views/toolbar/BUILD.gn
++++ b/chrome/browser/ui/views/toolbar/BUILD.gn
+@@ -13,6 +13,7 @@
+     "app_menu.h",
+     "avatar_toolbar_button_interface.h",
+     "back_forward_button.h",
++    "boring_accounts_button.h",
+     "boring_protection_button.h",
+     "boring_reader_button.h",
+     "boring_toolbar_menu.h",
+@@ -180,6 +181,7 @@
+     "app_menu.cc",
+     "avatar_toolbar_button_interface.cc",
+     "back_forward_button.cc",
++    "boring_accounts_button.cc",
+     "boring_protection_button.cc",
+     "boring_reader_button.cc",
+     "boring_toolbar_menu.cc",
+@@ -360,6 +362,7 @@
+     "//chrome/common:chrome_features",
+     "//chrome/common:constants",
+     "//components/autofill/core/common:features",
++    "//components/boring/accounts",
+     "//components/boring/adblock:browser",
+     "//components/boring/core",
+     "//components/boring/performance",
+diff --git a/chrome/browser/ui/views/toolbar/toolbar_view.cc b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+--- a/chrome/browser/ui/views/toolbar/toolbar_view.cc
++++ b/chrome/browser/ui/views/toolbar/toolbar_view.cc
+@@ -102,6 +102,8 @@
+ #include "chrome/browser/ui/views/toolbar/app_menu_control.h"
+ #include "chrome/browser/ui/views/toolbar/avatar_toolbar_button_interface.h"
+ #include "chrome/browser/ui/views/toolbar/back_forward_button.h"
++// boring: Accounts.
++#include "chrome/browser/ui/views/toolbar/boring_accounts_button.h"
+ #include "chrome/browser/ui/views/toolbar/boring_protection_button.h"
+ #include "chrome/browser/ui/views/toolbar/boring_reader_button.h"
+ #include "chrome/browser/ui/views/toolbar/boring_toolbar_menu.h"
+@@ -643,10 +645,13 @@
+     avatar_->SetVisible(show_avatar_toolbar_button);
+   }
+ 
+-  // boring: the Accounts button (ledger item 11) goes in this slot, after
+-  // the pinned buttons and ahead of the menu. Nothing is drawn until then.
+-  boring_accounts_slot_ = AddChildView(std::make_unique<views::View>());
+-  boring_accounts_slot_->SetVisible(false);
++  // boring: the Accounts button (ledger item 11), after the pinned buttons
++  // and ahead of the menu. Not in Incognito or guest windows: nobody is
++  // signed in to anything there.
++  if (browser_->GetProfile()->IsRegularProfile()) {
++    boring_accounts_slot_ =
++        AddChildView(std::make_unique<BoringAccountsButton>(browser_));
++  }
+ 
+   // Only manage the overflow button when there are at least some views
+   // controls. If there aren't any, the WebUIToolbarWebView will handle all
