@@ -106,6 +106,9 @@ CHECKS = [
     # boring: cui-shelf
     ("the Shelf: toggle, pinned sites, saved and downloaded", "smoke_shelf.py"),
     # boring: end cui-shelf
+    # boring: cui-sidetabs
+    ("side tabs in the Shelf: list, headings, New tab, toggle", "smoke_sidetabs.py"),
+    # boring: end cui-sidetabs
 ]
 
 # Every smoke_*.py that is not a check, with the reason. A new file must
@@ -143,6 +146,9 @@ NATIVE_CHECKS = {
     # boring: cui-shelf
     "smoke_shelf.py",
     # boring: end cui-shelf
+    # boring: cui-sidetabs
+    "smoke_sidetabs.py",
+    # boring: end cui-sidetabs
 }
 
 

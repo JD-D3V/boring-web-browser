@@ -74,6 +74,7 @@ ARGPARSE_TOOLS = {
     "smoke_icons.py",  # boring: cui-icons
     "smoke_bar.py",  # boring: cui-bar
     "smoke_shelf.py",  # boring: cui-shelf
+    "smoke_sidetabs.py",  # boring: cui-sidetabs
     "test_update_local.py",
     "probe_focus.py",
 }
@@ -306,6 +307,25 @@ def build_steps(out, net_seconds):
             smoke_lines,
         ),
         # boring: end cui-shelf
+        # boring: cui-sidetabs
+        Step(
+            "1p-sidetabs",
+            "side tabs in the Shelf beside screen C09, light and dark",
+            [
+                tool(
+                    "smoke_sidetabs.py",
+                    "--out",
+                    str(shots / "sidetabs"),
+                    "--captures",
+                    str(shots / "sidetabs"),
+                )
+            ],
+            900,
+            "five browser launches (side tabs are set in the temp profile, no "
+            "input); a local server on 127.0.0.1 serves the pages",
+            smoke_lines,
+        ),
+        # boring: end cui-sidetabs
         Step(
             "2-takeover",
             "screen takeover: pointer lock and keyboard lock, real window",
