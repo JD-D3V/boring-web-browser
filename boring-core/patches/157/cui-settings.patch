@@ -407,7 +407,7 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.t
        'browser.pin_contextual_task_button': 'pinContextualTaskButtonPref_',
        'browser.pin_split_tab_button': 'pinSplitTabButtonPref_',
        'browser.show_forward_button': 'showForwardButtonPref_',
-@@ -614,9 +651,54 @@ export class SettingsAppearancePageElement extends
+@@ -614,9 +651,60 @@ export class SettingsAppearancePageElement extends
      return colorSchemeMode === this.selectedColorSchemeMode_;
    }
  
@@ -460,6 +460,12 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.t
 +  protected onBoringLookClick_(e: Event): void {
 +    const value = (e.currentTarget as HTMLElement).dataset['value'];
 +    if (value) {
++      // The Look already picked writes nothing new, so the pref observer
++      // that resets a store theme (cui-colours.patch) does not run: picking
++      // any Look resets it, so do that here.
++      if (value === this.boringLookPref_?.value) {
++        this.appearanceBrowserProxy_.useDefaultTheme();
++      }
 +      PrefService.getInstance().setPrefValue('boring.appearance.look', value);
 +    }
    }

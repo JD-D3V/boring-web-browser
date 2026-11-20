@@ -42,6 +42,16 @@ class LookResetsThemeTest(unittest.TestCase):
         hunk = text[text.index("+++ b/chrome/browser/themes/theme_service.cc"):]
         self.assertIn("UseDefaultTheme", hunk[: hunk.index("diff --git")])
 
+    def test_picking_the_look_already_chosen_resets_too(self):
+        # Ledger 49 (S-B2): an unchanged pref notifies no observer, so the
+        # page's click handler resets the theme itself in that case.
+        text = (PATCH.parent / "cui-settings.patch").read_text(encoding="utf-8")
+        start = text.index("+  protected onBoringLookClick_(e: Event): void {")
+        click = text[start:text.index("\n   }\n", start)]
+        self.assertIn("if (value === this.boringLookPref_?.value) {", click)
+        self.assertIn("this.appearanceBrowserProxy_.useDefaultTheme();", click)
+        self.assertLess(click.index("useDefaultTheme"), click.index("setPrefValue"))
+
 
 if __name__ == "__main__":
     unittest.main()
