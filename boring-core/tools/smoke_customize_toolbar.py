@@ -41,6 +41,12 @@ from smoke_quick_buttons import CHROME, TOOLBAR_JS, open_picker, rows, shoot
 
 FORGET_ROW = "Forget this session"
 EDGE = {"light": "rgb(138, 134, 125)", "dark": "rgb(119, 117, 109)"}
+# The panel's surfaces as drawn (Window.dc.html TOKENS): the panel is the
+# bar, the box behind the toolbar preview is the frame, and the preview's
+# glyphs are the ink. Not Chromium's lavender and indigo.
+BAR = {"light": "rgb(255, 255, 255)", "dark": "rgb(28, 28, 26)"}
+FRAME = {"light": "rgb(236, 234, 230)", "dark": "rgb(17, 17, 16)"}
+INK = {"light": "rgb(31, 30, 28)", "dark": "rgb(236, 235, 231)"}
 DESIGN = Path(__file__).resolve().parents[2] / "design" / "v12-compiled" / "shots-final"
 DESIGN_SHOT = "c11-customizetoolbar.png"
 
@@ -60,7 +66,12 @@ STYLES = (
     " const off = toggles.find(t => !t.checked), on = toggles.find(t => t.checked);"
     " const hrs = [...r.querySelectorAll('.sp-hr')].filter(h => h.offsetHeight > 0).length;"
     " const sep = cs(r.querySelector('hr.sp-cards-separator'));"
+    " const mini = r.querySelector('#miniToolbar');"
     " return {"
+    "  panelBg: getComputedStyle(document.documentElement).getPropertyValue('--color-side-panel-content-background').trim(),"
+    "  miniBg: cs(r.querySelector('#miniToolbarBackground')) && cs(r.querySelector('#miniToolbarBackground')).backgroundColor,"
+    "  miniBase: mini && getComputedStyle(mini).getPropertyValue('--color-sys-base').trim(),"
+    "  miniGlyph: mini && getComputedStyle(mini).getPropertyValue('--color-sys-tertiary').trim(),"
     "  cardBg: card && card.backgroundColor, cardRadius: card && card.borderTopLeftRadius,"
     "  introSize: intro && intro.fontSize,"
     "  headSize: head && head.fontSize, headWeight: head && head.fontWeight,"
@@ -103,6 +114,27 @@ def check_styles(checks, scheme, s):
     checks(f"{scheme}: an on switch is the accent", s["onColor"] is None or not s["accent"] or norm(s["onColor"]) == norm(s["accent"]), f"{s['onColor']} {s['accent']}")
     checks(f"{scheme}: no separators between categories", s["visibleHrs"] == 0, str(s["visibleHrs"]))
     checks(f"{scheme}: the cards' separator is a hairline", s["sepTop"] == "1px", str(s["sepTop"]))
+    checks(f"{scheme}: the panel is the bar colour", norm(s["panelBg"]) == BAR[scheme], str(s["panelBg"]))
+    checks(f"{scheme}: the box behind the preview is the frame colour", norm(s["miniBg"]) == FRAME[scheme], str(s["miniBg"]))
+    checks(f"{scheme}: the preview's toolbar is the bar colour", norm(s["miniBase"]) == BAR[scheme], str(s["miniBase"]))
+    checks(f"{scheme}: the preview's glyphs are the ink", norm(s["miniGlyph"]) == INK[scheme], str(s["miniGlyph"]))
+
+
+def panel_pixels(checks, scheme, shot):
+    """The panel as painted: the commonest colour in its lower right part."""
+    try:
+        from PIL import Image
+    except ImportError:
+        print("no PIL: the painted panel colour is not checked")
+        return
+    with Image.open(shot) as im:
+        im = im.convert("RGB")
+        w, h = im.size
+        box = im.crop((w - 300, int(h * 0.6), w - 60, h - 30))
+        count, colour = max(box.getcolors(box.width * box.height))
+    want = tuple(int(v) for v in BAR[scheme][4:-1].split(","))
+    near = all(abs(a - b) <= 2 for a, b in zip(colour, want))
+    checks(f"{scheme}: the panel is painted in the bar colour", near, f"{colour} in {count} pixels")
 
 
 def beside(out, scheme):
@@ -138,6 +170,7 @@ def main():
                 time.sleep(0.5)
                 check_styles(checks, scheme, cdp.evaluate(panel, STYLES))
                 shoot(out / f"customize-toolbar-{scheme}.png")
+                panel_pixels(checks, scheme, out / f"customize-toolbar-{scheme}.png")
                 beside(out, scheme)
             close(proc, cdp)
             proc = cdp = None

@@ -509,10 +509,43 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   // The hairline ahead of the menu button is a ToolbarDivider, which
   // paints in this id: the line token, as drawn.
   mixer[kColorToolbarExtensionSeparatorEnabled] = {p.line};
+  // A disabled toolbar button (back or forward with nowhere to go) in the
+  // design's faint ink (ink3 in the TOKENS rows); other Looks take their
+  // quiet ink halfway to the bar. toolbar_button.cc reads this id for a
+  // disabled button (cui-toolbar.patch).
+  mixer[kColorToolbarButtonIconDisabled] = {
+      &look == &kSoftWhiteLight  ? SkColorSetRGB(0xaa, 0xa6, 0x9d)
+      : &look == &kSoftWhiteDark ? SkColorSetRGB(0x63, 0x61, 0x5b)
+                                 : color_utils::AlphaBlend(p.muted, p.toolbar,
+                                                           0.5f)};
   // boring: end cui-toolbar
   // boring: cui-menu
+  // The Customize toolbar panel (screen C11) and every other side panel
+  // sit on the toolbar's own surface, as drawn, not on the tonal container
+  // Chromium derives from the seed colour (lavender in light, indigo in
+  // dark). The button of an open panel takes the toolbar's hover wash.
+  mixer[kColorSidePanelBackground] = {p.toolbar};
+  mixer[kColorSidePanelContentBackground] = {p.toolbar};
+  mixer[kColorToolbarButtonBackgroundHighlightedDefault] = {
+      SkColorSetA(p.ink, dark ? 0x17 : 0x12)};
   // boring: end cui-menu
   // boring: cui-pages
+  // The page token (Window.dc.html TOKENS, and the Look previews in
+  // PageSettings.dc.html): the ground under Settings and our own pages,
+  // which read it as --color-new-tab-page-background, so it follows the
+  // Look. A Look the design gives no page for takes its field halfway to
+  // the bar.
+  SkColor page = color_utils::AlphaBlend(p.field, p.toolbar, 0.5f);
+  if (&look == &kSoftWhiteLight) {
+    page = SkColorSetRGB(0xf8, 0xf7, 0xf4);
+  } else if (&look == &kSoftWhiteDark) {
+    page = SkColorSetRGB(0x15, 0x15, 0x14);
+  } else if (&look == &kCoolLight) {
+    page = SkColorSetRGB(0xf5, 0xf6, 0xf8);
+  } else if (&look == &kDuskDark) {
+    page = SkColorSetRGB(0x14, 0x15, 0x20);
+  }
+  mixer[kColorNewTabPageBackground] = {page};
   // boring: end cui-pages
 
   // Windows high contrast: menus keep the system colours Chromium maps

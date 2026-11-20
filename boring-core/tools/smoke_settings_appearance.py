@@ -45,6 +45,9 @@ DESIGN = Path(os.environ.get(
     "BORING_DESIGN", ROOT / "design" / "v12-compiled" / "shots-final"))
 SCREEN = {False: DESIGN / "c10-settings.png", True: DESIGN / "dark" / "c10-settings.png"}
 EDGE_DARK = "rgb(119, 117, 109)"  # the edge token, dark TOKENS row
+# The page and the card on it (TOKENS page and surface), light and dark.
+PAGE_BG = {False: "rgb(248, 247, 244)", True: "rgb(21, 21, 20)"}
+CARD_BG = {False: "rgb(255, 255, 255)", True: "rgb(28, 28, 26)"}
 ROWS = ["colorSchemeModeRow", "boringLookRow", "boringAccentRow",
         "tabsRow", "bookmarksRow", "toolbarRow"]
 MODES = ["Light", "Dark", "Match system"]
@@ -88,6 +91,9 @@ return {
   text: r.textContent,
   rowsText: mine.map(e => e.textContent).join(' '),
   dark: matchMedia('(prefers-color-scheme: dark)').matches,
+  pageBg: getComputedStyle(document.querySelector('settings-ui')).backgroundColor,
+  cardBg: getComputedStyle(p).backgroundColor,
+  cardRadius: getComputedStyle(p).borderTopLeftRadius,
 };
 """
 CLICK = PAGE + "var e = r && r.querySelector(arguments[0]); if (e) e.click(); return !!e;"
@@ -168,6 +174,9 @@ def check_page(b, check, dark):
     check(f"{mode}: the Appearance page loads", s, s)
     if not s:
         return
+    check(f"{mode}: the page is the design's page colour", s["pageBg"] == PAGE_BG[dark], s["pageBg"])
+    check(f"{mode}: Appearance is a card in the surface colour",
+          s["cardBg"] == CARD_BG[dark] and s["cardRadius"] == "10px", f"{s['cardBg']} {s['cardRadius']}")
     check(f"{mode}: the line under the heading",
           s["subline"] == "How the browser looks. Changes apply straight away.", s["subline"])
     check(f"{mode}: Light or dark offers Light, Dark, Match system",

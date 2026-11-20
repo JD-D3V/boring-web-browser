@@ -114,6 +114,80 @@ def find(report, wanted):
     return next((e for e in report or [] if e[0] == "button" and tag(e) == wanted), None)
 
 
+# Colours of the photographs (Window.dc.html TOKENS): the bar, the ok green
+# of the shield's tick, and the faint ink of a disabled arrow (ink3).
+BAR_RGB = {"light": (255, 255, 255), "dark": (28, 28, 26)}
+OK_RGB = {"light": (26, 127, 85), "dark": (76, 195, 138)}
+FAINT_RGB = {"light": (170, 166, 157), "dark": (99, 97, 91)}
+TOOLBAR_HEIGHT = 50
+BOOKMARKS_HEIGHT = 32
+
+
+def distance(a, b):
+    return sum(abs(x - y) for x, y in zip(a, b))
+
+
+def measure(path, theme):
+    """What a photograph shows: the toolbar's height (the address bar sits
+    in its middle), the bar plus the bookmarks bar down to the hairline,
+    the back arrow's strongest colour, and ink just before and just after
+    the shield's green tick. None when PIL is missing."""
+    try:
+        from PIL import Image
+    except ImportError:
+        return None
+    with Image.open(path) as im:
+        im = im.convert("RGB")
+        w, h = im.size
+        bar = BAR_RGB[theme]
+        top = next(y for y in range(h) if im.getpixel((3, y)) == bar)
+        line = next((y for y in range(top, h) if im.getpixel((3, y)) != bar), h)
+        # The address bar's rows (with its focus ring when focused): the
+        # first non-bar row, down to the last within 42 of it; bookmarks
+        # below the toolbar start further down than that.
+        field = [y for y in range(top, min(top + 80, line)) if im.getpixel((300, y)) != bar]
+        field = [y for y in field if y <= field[0] + 42] if field else []
+        mid = (field[0] + field[-1]) / 2 if field else top
+        band = range(top + 4, top + 44)
+        arrow = max((im.getpixel((x, y)) for x in range(8, 44) for y in band), key=lambda c: distance(c, bar))
+        greens = [x for x in range(w // 2, w) for y in band if distance(im.getpixel((x, y)), OK_RGB[theme]) < 40]
+        def inked(x0, x1):
+            return sum(1 for x in range(max(0, x0), min(w, x1)) for y in band if distance(im.getpixel((x, y)), bar) > 300)
+        before = inked(min(greens) - 14, min(greens) - 2) if greens else None
+        after = inked(max(greens) + 2, max(greens) + 40) if greens else None
+    return {"toolbar": round(2 * (mid - top + 0.5)), "bars": line - top, "arrow": arrow, "before": before, "after": after}
+
+
+def check_toolbar_picture(checks, theme, path):
+    m = measure(path, theme)
+    if m is None:
+        print("no PIL: the toolbar photograph is not measured")
+        return
+    checks(f"{theme}: the toolbar row is {TOOLBAR_HEIGHT} high", abs(m["toolbar"] - TOOLBAR_HEIGHT) <= 1, str(m))
+    checks(f"{theme}: the tick comes before the word Protected", m["before"] == 0 and (m["after"] or 0) > 10, str(m))
+    checks(f"{theme}: a disabled back arrow is the faint ink", distance(m["arrow"], FAINT_RGB[theme]) <= 18, str(m["arrow"]))
+
+
+def check_icon_files(checks):
+    """Back, forward, reload, the star and the menu dots come from our 2px
+    glyph files: the ones 157 really builds them from (see the notes in
+    .workflow/scratch/compiled/fix/progress-2.md)."""
+    src = os.environ.get("BORING_SRC")
+    if not src:
+        print("BORING_SRC not set: the icon files are not checked")
+        return
+    for rel in ("components/vector_icons/back_arrow_chrome_refresh_old.icon",
+                "components/vector_icons/forward_arrow_chrome_refresh_old.icon",
+                "components/vector_icons/reload_chrome_refresh_old.icon",
+                "components/omnibox/browser/vector_icons/star.icon",
+                "chrome/app/vector_icons/boring_menu.icon"):
+        with contextlib.suppress(OSError):
+            text = (Path(src) / rel).read_text(encoding="utf-8")
+            checks(f"{rel} is our 2px glyph", "boring" in text.splitlines()[0] and "2 px stroke" in text, text.splitlines()[0])
+            continue
+        checks(f"{rel} is our 2px glyph", False, "missing")
+
+
 def boring_pref(profile, key):
     """boring.toolbar.<key> from a closed profile's Preferences, or None."""
     with contextlib.suppress(OSError, ValueError):
@@ -254,6 +328,8 @@ def main():
             str(report),
         )
         shoot("toolbar-light", "c01-newtab.png")
+        check_toolbar_picture(checks, "light", out / "toolbar-light.png")
+        check_icon_files(checks)
         stop()
         checks("the one-time pin is marked done", boring_pref(profile, "forget_pinned_once") is True)
 
@@ -307,6 +383,7 @@ def main():
         row = drawn_row(hook(dark, ["--force-dark-mode"]))
         checks("dark: the same row", row == EXPECTED_ROW, str(row))
         shoot("toolbar-dark", "dark/c01-newtab.png")
+        check_toolbar_picture(checks, "dark", out / "toolbar-dark.png")
         stop()
 
         # 6. The bookmarks bar: off by default, on with its own setting.
@@ -336,7 +413,15 @@ def main():
                 any(n.lower() == "all bookmarks" for n in names),
                 str([n for n in names if "bookmark" in n.lower()]),
             )
+            checks(f"{theme}: no Tab groups button on the bar", "Tab groups" not in names, str(names))
             shoot(f"bookmarks-{theme}", compiled)
+            m = measure(out / f"bookmarks-{theme}.png", theme)
+            if m:
+                checks(
+                    f"{theme}: toolbar and bookmarks bar are {TOOLBAR_HEIGHT} + {BOOKMARKS_HEIGHT} high",
+                    abs(m["bars"] - TOOLBAR_HEIGHT - BOOKMARKS_HEIGHT) <= 1,
+                    str(m),
+                )
             stop()
         return checks.result("toolbar")
     finally:

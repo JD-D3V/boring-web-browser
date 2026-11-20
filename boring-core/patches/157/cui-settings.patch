@@ -466,7 +466,7 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.c
  .indented-toggles,
  .indented-rows {
    padding-inline-end: 0;
-@@ -56,3 +40,272 @@
+@@ -56,3 +40,277 @@
  .indented-rows .cr-row {
    padding-inline-start: 0;
  }
@@ -475,6 +475,11 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.c
 + * PageSettings). Colours come from the master window's TOKENS rows (light,
 + * then dark); outlines of fields and outline buttons use the edge token. */
 +:host {
++  /* The section is a card on the page, as drawn. */
++  background: var(--cui-surface);
++  border-radius: 10px;
++  box-shadow: 0 0 0 1px var(--cui-line);
++  display: block;
 +  --cui-surface: #fff;
 +  --cui-field: #f4f3ef;
 +  --cui-line: #e2dfd9;
@@ -739,3 +744,18 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.c
 +  height: 32px;
 +  width: auto;
 +}
+diff --git a/chrome/browser/resources/settings/settings_ui/settings_ui.css b/chrome/browser/resources/settings/settings_ui/settings_ui.css
+--- a/chrome/browser/resources/settings/settings_ui/settings_ui.css
++++ b/chrome/browser/resources/settings/settings_ui/settings_ui.css
+@@ -330,3 +330,11 @@
+     display: none;
+   }
+ }
++
++/* boring: cui-settings. The page under Settings is the design's page token
++ * for the Look (boring_color_mixer.cc, cui-pages), not the field colour. */
++/* stylelint-disable no-duplicate-selectors */
++:host {
++  background: var(--color-new-tab-page-background, var(--boring-surface));
++}
++/* stylelint-enable no-duplicate-selectors */

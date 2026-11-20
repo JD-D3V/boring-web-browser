@@ -1,6 +1,6 @@
 --- a/chrome/browser/resources/side_panel/customize_chrome/customize_toolbar/toolbar.css
 +++ b/chrome/browser/resources/side_panel/customize_chrome/customize_toolbar/toolbar.css
-@@ -143,3 +143,81 @@
+@@ -143,3 +143,96 @@
    margin-bottom: 8px;
    padding: 16px;
  }
@@ -79,6 +79,21 @@
 +  --cr-toggle-unchecked-bar-color: var(--color-boring-edge);
 +  --cr-toggle-unchecked-button-color: #fff;
 +  --cr-toggle-track-border-color: transparent;
++}
++/* The preview of the toolbar and the box behind it, in the window's own
++ * colours instead of the seed's tonal palette (pink and purple glyphs). */
++#miniToolbarBackground {
++  background-color: var(--color-frame-active);
++}
++
++#miniToolbar {
++  --color-sys-base: var(--color-toolbar);
++  --color-sys-header: var(--color-frame-active);
++  --color-sys-omnibox-container: var(--color-location-bar-background);
++  --color-sys-on-header-primary: var(--color-toolbar-button-icon);
++  --color-sys-on-surface-secondary: var(--color-toolbar-button-icon);
++  --color-sys-surface-variant: var(--color-toolbar-separator);
++  --color-sys-tertiary: var(--color-toolbar-button-icon);
 +}
 +/* stylelint-enable no-duplicate-selectors */
 +/* boring: end cui-menu. */

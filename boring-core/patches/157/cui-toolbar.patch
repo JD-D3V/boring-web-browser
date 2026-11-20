@@ -43,7 +43,7 @@ diff --git a/chrome/browser/ui/browser_actions.cc b/chrome/browser/ui/browser_ac
 diff --git a/chrome/browser/ui/layout_constants.cc b/chrome/browser/ui/layout_constants.cc
 --- a/chrome/browser/ui/layout_constants.cc
 +++ b/chrome/browser/ui/layout_constants.cc
-@@ -29,16 +29,18 @@ int GetLayoutConstant(LayoutConstant constant) {
+@@ -29,16 +29,18 @@
      case LayoutConstant::kBookmarkBarHeight: {
        // The fixed margin ensures the bookmark buttons appear centered relative
        // to the white space above and below.
@@ -66,6 +66,17 @@ diff --git a/chrome/browser/ui/layout_constants.cc b/chrome/browser/ui/layout_co
      case LayoutConstant::kWebAppMenuButtonSize:
        return 24;
      case LayoutConstant::kWebAppPageActionIconSize:
+@@ -252,7 +254,9 @@
+       }
+ 
+     case TOOLBAR_INTERIOR_MARGIN:
+-      return touch_ui ? gfx::Insets::VH(4, 0) : gfx::Insets::VH(6, 6);
++      // boring: 8 DIP above and below the 34 DIP address bar, so the row
++      // is 50 high, as drawn (screens 1 and 14).
++      return touch_ui ? gfx::Insets::VH(4, 0) : gfx::Insets::VH(8, 6);
+ 
+     case WEBUI_TAB_STRIP_TOOLBAR_INTERIOR_MARGIN:
+       return gfx::Insets::VH(4, 0);
 diff --git a/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc b/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc
 --- a/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc
 +++ b/chrome/browser/ui/toolbar/pinned_toolbar/pinned_toolbar_actions_model.cc
@@ -427,3 +438,32 @@ diff --git a/chrome/browser/ui/webui/side_panel/customize_chrome/customize_toolb
    add_action(kActionShowPasswordsBubbleOrPage,
               side_panel::customize_chrome::mojom::CategoryId::kYourChrome);
    add_action(kActionShowPaymentsBubbleOrPage,
+diff --git a/components/bookmarks/browser/bookmark_utils.cc b/components/bookmarks/browser/bookmark_utils.cc
+--- a/components/bookmarks/browser/bookmark_utils.cc
++++ b/components/bookmarks/browser/bookmark_utils.cc
+@@ -469,8 +469,10 @@
+   registry->RegisterBooleanPref(
+       prefs::kShowAppsShortcutInBookmarkBar, false,
+       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
++  // boring: no saved tab groups button at the start of the bookmarks bar,
++  // as drawn (screen 14). The bar's menu still turns it on.
+   registry->RegisterBooleanPref(
+-      prefs::kShowTabGroupsInBookmarkBar, true,
++      prefs::kShowTabGroupsInBookmarkBar, false,
+       user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
+   registry->RegisterBooleanPref(
+       prefs::kShowManagedBookmarksInBookmarkBar, true,
+diff --git a/chrome/browser/ui/views/toolbar/toolbar_button.cc b/chrome/browser/ui/views/toolbar/toolbar_button.cc
+--- a/chrome/browser/ui/views/toolbar/toolbar_button.cc
++++ b/chrome/browser/ui/views/toolbar/toolbar_button.cc
+@@ -291,7 +291,9 @@
+     case ButtonState::STATE_PRESSED:
+       return color_provider->GetColor(kColorToolbarButtonIconPressed);
+     case ButtonState::STATE_DISABLED:
+-      return color_provider->GetColor(kColorToolbarButtonIconInactive);
++      // boring: a disabled button in its own colour (the design's faint
++      // ink), not the inactive one, which also colours words.
++      return color_provider->GetColor(kColorToolbarButtonIconDisabled);
+     case ButtonState::STATE_NORMAL:
+       return color_provider->GetColor(kColorToolbarButtonIcon);
+     default:
