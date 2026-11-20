@@ -475,7 +475,7 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.c
 + * PageSettings). Colours come from the master window's TOKENS rows (light,
 + * then dark); outlines of fields and outline buttons use the edge token. */
 +:host {
-+  --cui-surface: #ffffff;
++  --cui-surface: #fff;
 +  --cui-field: #f4f3ef;
 +  --cui-line: #e2dfd9;
 +  --cui-line2: #d0ccc4;
@@ -578,7 +578,7 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.c
 +
 +.cui-preview.soft_white {
 +  --p-frame: #eceae6;
-+  --p-bar: #ffffff;
++  --p-bar: #fff;
 +  --p-page: #f8f7f4;
 +  --p-field: #f4f3ef;
 +  --p-edge: #d0ccc4;
@@ -586,7 +586,7 @@ diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.c
 +
 +.cui-preview.slate {
 +  --p-frame: #e6e8ee;
-+  --p-bar: #ffffff;
++  --p-bar: #fff;
 +  --p-page: #f5f6f8;
 +  --p-field: #eceef2;
 +  --p-edge: #cfd2da;
