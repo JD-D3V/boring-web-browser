@@ -342,3 +342,159 @@ diff --git a/chrome/browser/ui/omnibox/BUILD.gn b/chrome/browser/ui/omnibox/BUIL
      deps += [
        "//chrome/app:command_ids",
        "//chrome/app/vector_icons",
+diff --git a/chrome/browser/ui/accelerator_table.cc b/chrome/browser/ui/accelerator_table.cc
+--- a/chrome/browser/ui/accelerator_table.cc
++++ b/chrome/browser/ui/accelerator_table.cc
+@@ -235,7 +235,8 @@
+      IDC_FOCUS_INACTIVE_POPUP_FOR_ACCESSIBILITY},
+     {ui::VKEY_D, ui::EF_ALT_DOWN, IDC_FOCUS_LOCATION},
+     {ui::VKEY_E, ui::EF_CONTROL_DOWN, IDC_FOCUS_SEARCH},
+-    {ui::VKEY_K, ui::EF_CONTROL_DOWN, IDC_FOCUS_SEARCH},
++    // boring: Ctrl+K opens the Bar as it is, without a search keyword.
++    {ui::VKEY_K, ui::EF_CONTROL_DOWN, IDC_FOCUS_LOCATION},
+     {ui::VKEY_R, ui::EF_SHIFT_DOWN | ui::EF_ALT_DOWN,
+      IDC_SHOW_READING_MODE_KEYBOARD},
+     {ui::VKEY_T, ui::EF_SHIFT_DOWN | ui::EF_ALT_DOWN, IDC_FOCUS_TOOLBAR},
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_placeholder_util.cc b/chrome/browser/ui/views/omnibox/omnibox_placeholder_util.cc
+--- a/chrome/browser/ui/views/omnibox/omnibox_placeholder_util.cc
++++ b/chrome/browser/ui/views/omnibox/omnibox_placeholder_util.cc
+@@ -75,21 +75,10 @@
+   } else if (ShouldInstallContextualTasksPlaceholderText(location_bar)) {
+     // For Contextual Tasks page, use the page title as placeholder text.
+     out_placeholder_text = location_bar->GetWebContents()->GetTitle();
+-  } else if (const auto* default_provider = controller->client()
+-                                                ->GetTemplateURLService()
+-                                                ->GetDefaultSearchProvider()) {
+-    const bool aim_popup_enabled =
+-        omnibox::IsAimPopupEnabled(location_bar->GetProfile());
+-    if (aim_popup_enabled &&
+-        search::DefaultSearchProviderIsGoogle(
+-            controller->client()->GetTemplateURLService())) {
+-      out_placeholder_text = l10n_util::GetStringFUTF16(
+-          IDS_WEBUI_OMNIBOX_PLACEHOLDER_TEXT, default_provider->short_name());
+-    } else {
+-      // Otherwise, if a DSE is set, use the DSE placeholder text.
+-      out_placeholder_text = l10n_util::GetStringFUTF16(
+-          IDS_OMNIBOX_PLACEHOLDER_TEXT, default_provider->short_name());
+-    }
++  } else {
++    // boring: one plain line for the Bar, whatever the search engine.
++    out_placeholder_text =
++        u"Search, or type a site, a tab, or what you want to do";
+   }
+ }
+ 
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.h b/chrome/browser/ui/views/location_bar/location_bar_view.h
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.h
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.h
+@@ -185,6 +185,9 @@
+ 
+   OmniboxViewViews* omnibox_view() { return omnibox_view_; }
+ 
++  // boring: the Bar's shortcut hint, for its test hook.
++  std::u16string boring_bar_hint_text() const;
++
+   const OmniboxController* GetOmniboxController() const;
+ 
+ 
+@@ -623,6 +626,10 @@
+   // A label to show the AI Mode hint text.
+   raw_ptr<views::Label> ai_mode_hint_label_ = nullptr;
+ 
++  // boring: the Bar's shortcut hint at the field's end, "Ctrl+K", and
++  // "Esc to close" while the field has focus.
++  raw_ptr<views::Label> boring_bar_hint_ = nullptr;
++
+   // Animation to change whole location bar background color on hover.
+   gfx::SlideAnimation hover_animation_{this};
+ 
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -40,6 +40,7 @@
+ #include "chrome/browser/ui/browser_window/public/browser_window_features.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+ #include "chrome/browser/ui/color/chrome_color_id.h"
++#include "chrome/browser/ui/views/boring/boring_bar_test.h"  // boring: the Bar
+ #include "chrome/browser/ui/content_settings/content_setting_bubble_model.h"
+ #include "chrome/browser/ui/layout_constants.h"
+ #include "chrome/browser/ui/lens/lens_overlay_entry_point_controller.h"
+@@ -529,6 +530,16 @@
+   ai_mode_hint_label->SetVisible(false);
+   ai_mode_hint_label_ = AddChildView(std::move(ai_mode_hint_label));
+ 
++  // boring: the Bar's shortcut hint, 12 DIP in the field's dimmed text
++  // colour (the Look's ink2).
++  auto boring_bar_hint = std::make_unique<views::Label>(
++      u"Ctrl+K", CONTEXT_OMNIBOX_PRIMARY, views::style::STYLE_PRIMARY);
++  boring_bar_hint->SetFontList(boring_bar_hint->font_list().DeriveWithSizeDelta(
++      12 - boring_bar_hint->font_list().GetFontSize()));
++  boring_bar_hint->SetEnabledColor(kColorOmniboxTextDimmed);
++  boring_bar_hint->SetAutoColorReadabilityEnabled(false);
++  boring_bar_hint_ = AddChildView(std::move(boring_bar_hint));
++
+   // Initialize the location entry. We do this to avoid a black flash which is
+   // visible when the location entry has just been initialized.
+   Update(nullptr);
+@@ -556,6 +567,9 @@
+             weak_factory_.GetWeakPtr()),
+         base::Seconds(4));
+   }
++
++  // boring: the Bar's test hook; nothing unless --boring-bar-test.
++  BoringBarMaybeRunTest(this);
+ }
+ 
+ bool LocationBarView::IsInitialized() const {
+@@ -969,6 +983,11 @@
+                   LayoutConstant::kLocationBarTrailingDecorationAimEdgePadding)
+             : trailing_decorations_edge_padding);
+   }
++  // boring: the Bar's hint sits left of the page's own icons, and gives
++  // way when the field is too narrow for it and an address.
++  boring_bar_hint_->SetVisible(width() >= 360);
++  add_trailing_decoration(boring_bar_hint_, /*intra_item_padding=*/0,
++                          /*edge_padding=*/trailing_decorations_edge_padding);
+   add_trailing_decoration(ai_mode_hint_label_, /*intra_item_padding=*/0,
+                           /*edge_padding=*/trailing_decorations_edge_padding);
+   for (ContentSettingImageView* view :
+@@ -2217,6 +2236,9 @@
+   // The AI mode page action should only be visible when the omnibox
+   // is focused, so if there is a change in focus, refresh the icon.
+   RefreshAiModePageAction();
++
++  // boring: the Bar's hint says how to leave it.
++  boring_bar_hint_->SetText(u"Esc to close");
+ }
+ 
+ void LocationBarView::OpenOmniboxPopup(bool query_zps) {
+@@ -2239,6 +2261,14 @@
+   RefreshAiModePageAction();
+ 
+   location_icon_view_->Update(false, false);
++
++  // boring: the Bar's hint says how to open it again.
++  boring_bar_hint_->SetText(u"Ctrl+K");
++}
++
++// boring: the Bar's hint, for its test hook.
++std::u16string LocationBarView::boring_bar_hint_text() const {
++  return std::u16string(boring_bar_hint_->GetText());
+ }
+ 
+ bool LocationBarView::IsFullWebUiOmniboxReady() const {
+diff --git a/chrome/browser/ui/views/location_bar/BUILD.gn b/chrome/browser/ui/views/location_bar/BUILD.gn
+--- a/chrome/browser/ui/views/location_bar/BUILD.gn
++++ b/chrome/browser/ui/views/location_bar/BUILD.gn
+@@ -90,6 +90,11 @@
+     sources += [
+       # boring: the search engine menu on the address bar's engine icon.
+       "../boring/boring_popup.h",
++
++      # boring: the Bar's test hook.
++      "../boring/boring_bar_test.cc",
++      "../boring/boring_bar_test.h",
++
+       "../boring/boring_search_engine_menu.cc",
+       "../boring/boring_search_engine_menu.h",
+       "content_setting_image_view.cc",
