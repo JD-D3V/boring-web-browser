@@ -71,7 +71,9 @@ GROUPS = ["Do", "Open tabs", "Settings", "Search"]
 HOSTILE = "<b>Turn on dark mode</b>"
 POPUP = "omnibox-popup.top-chrome"
 BANNED = re.compile(r"\bchrom(e|ium)\b|\u2014", re.IGNORECASE)
-NO_NETWORK = ["--host-resolver-rules=MAP * ~NOTFOUND"]
+# Every host but our own local server goes nowhere (without the EXCLUDE the
+# rule also swallowed 127.0.0.1, so the test tabs never loaded).
+NO_NETWORK = ["--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"]
 
 # Every text node of the results page in document order, through shadow
 # roots, and whether any <b> element holds the hostile title.

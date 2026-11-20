@@ -34,6 +34,7 @@ from drive import Browser
 
 OUT = Path(__file__).resolve().parents[2] / "artifacts/ui-implemented"
 TEST_SWITCH = "--boring-search-menu-test"
+BAR_HINT = "Search, or type a site, a tab, or what you want to do"
 OFFLINE = "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"
 QUERY = "boring smoke query"
 
@@ -195,8 +196,10 @@ def main():
             for e in state.get("engines", [])
         )
         after = state.get("placeholder", "")
-        checks["address bar placeholder follows the default"] = (
-            after != before and target.get("name", "?") in after
+        # The Bar (bar.md, change 9) gives the field one plain hint that
+        # names no engine, so it stays the same when the default changes.
+        checks["address bar keeps the Bar's hint after make default"] = (
+            after == before == BAR_HINT
         )
         print(f"placeholder: {before!r} -> {after!r}")
         checks["menu stays open after make default"] = state.get("open") is True

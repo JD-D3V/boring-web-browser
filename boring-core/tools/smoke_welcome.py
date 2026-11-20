@@ -134,7 +134,12 @@ def run_with_chrome(checks, switches):
             "continue anyway link on a scam warning.'])"
         )
         checks["welcome has no way to turn them off"] = b.run(
-            "return !document.body.innerText.match(/turn (it|this|them) off/i)"
+            # The Earlier tabs row's own line ("You can turn this off in
+            # Settings", ledger Q14 wording) is about that switch, not the
+            # protections, so it is left out.
+            "var c=document.body.cloneNode(true);"
+            "var e=c.querySelector('#earlier-off');if(e)e.remove();"
+            "return !c.textContent.match(/turn (it|this|them) off/i)"
         )
         checks["welcome text has no em dash"] = b.run(
             "return !/\\u2014/.test(document.body.innerText)"
