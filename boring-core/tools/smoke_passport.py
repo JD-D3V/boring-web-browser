@@ -310,8 +310,9 @@ def run_in(b_args, profile, base, out, captures, dark, checks, full):
         # Known by history needs two different earlier days (30 and 2 days ago).
         hook(b, "addVisit", f"https://citylibrary.net:{https}/", 30)
         hook(b, "addVisit", f"https://citylibrary.net:{https}/books", 2)
-        checks(f"{theme}: test tab opens",
-               (hook(b, "openTab", f"https://parcel-redelivery.net:{https}/track") or {}).get("opened"))
+        # A blank test tab: opening it on the new site would be a visit of
+        # its own, and "first time" would depend on how fast history wrote it.
+        checks(f"{theme}: test tab opens", (hook(b, "openTab", "about:blank") or {}).get("opened"))
 
         # 1, 2. New to you.
         new_url = f"https://parcel-redelivery.net:{https}/track"

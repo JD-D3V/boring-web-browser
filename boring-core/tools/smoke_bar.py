@@ -391,7 +391,12 @@ def main():
         print("after switching:", report["after"], "tabs:", count)
         checks("the open tab row switches to that tab",
                report["after"].get("url", "").endswith("/hostile"), str(report["after"]))
-        checks("switching opens no new tab", count == len(tabs), str(count))
+        # No new tab: every tab left is one we opened. Chromium closes the
+        # blank tab the switch was made from (about:blank here), so there
+        # may be one fewer.
+        left = [t["url"] for t in cdp.send("Target.getTargets")["targetInfos"] if t["type"] == "page"]
+        checks("switching opens no new tab",
+               count <= len(tabs) and all(u in tabs for u in left), f"{count} {left}")
         stop()
         checks("switching to a tab titled like a Do row leaves the scheme alone",
                color_scheme(light2) == 1, str(color_scheme(light2)))
