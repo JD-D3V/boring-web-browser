@@ -114,14 +114,25 @@ diff --git a/chrome/browser/themes/theme_service.cc b/chrome/browser/themes/them
  class DefaultThemeProviderDelegate : public BrowserThemeProviderDelegate {
   public:
    CustomThemeSupplier* GetThemeSupplier() const override { return nullptr; }
-@@ -427,6 +435,14 @@
+@@ -427,6 +435,25 @@
    pref_change_registrar_.Add(
        prefs::kUserColor, base::BindRepeating(&ThemeService::NotifyThemeChanged,
                                               base::Unretained(this)));
-+  // boring: a new Look in Settings, Appearance repaints at once.
++  // boring: a new Look in Settings, Appearance repaints at once, on our own
++  // colours: a store theme goes back to the default, since Settings has no
++  // Theme row to reset it from. UseDefaultTheme repaints too.
 +  pref_change_registrar_.Add(
-+      kBoringLookPref, base::BindRepeating(&ThemeService::NotifyThemeChanged,
-+                                           base::Unretained(this)));
++      kBoringLookPref,
++      base::BindRepeating(
++          [](ThemeService* service) {
++            if (!service->UsingDefaultTheme() &&
++                !service->UsingPolicyTheme()) {
++              service->UseDefaultTheme();
++            } else {
++              service->NotifyThemeChanged();
++            }
++          },
++          base::Unretained(this)));
 +  // boring: so does a new accent.
 +  pref_change_registrar_.Add(
 +      kBoringAccentPref, base::BindRepeating(&ThemeService::NotifyThemeChanged,
@@ -129,7 +140,19 @@ diff --git a/chrome/browser/themes/theme_service.cc b/chrome/browser/themes/them
  }
  
  void ThemeService::Shutdown() {
-@@ -768,6 +784,29 @@
+@@ -751,6 +778,11 @@
+               ? ui::ColorProviderKey::ColorMode::kLight
+               : ui::ColorProviderKey::ColorMode::kDark;
+     }
++    // boring: Dusk is always dark, whatever Light or dark says. The
++    // person's choice stays in its pref for when they pick another Look.
++    if (profile_->GetPrefs()->GetString(kBoringLookPref) == "dusk") {
++      key.color_mode = ui::ColorProviderKey::ColorMode::kDark;
++    }
+   }
+ 
+   // user_color.
+@@ -768,6 +800,29 @@
      }
    }
  

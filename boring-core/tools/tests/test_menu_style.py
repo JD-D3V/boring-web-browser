@@ -116,10 +116,22 @@ class MenuStyleTest(unittest.TestCase):
             "max_minor_text_width_ += 2 * config.item_horizontal_padding;", text
         )
 
-    def test_protection_chip_text_is_13px_regular(self):
+    def test_protection_chip_text_is_13px_medium(self):
+        # The master window (design/v12-compiled Window.dc.html) draws the
+        # toolbar's labelled buttons at font-weight 500.
         src = BUTTON.read_text(encoding="utf-8")
         self.assertIn("DeriveWithSizeDelta(13 - current_font.GetFontSize())", src)
-        self.assertIn("DeriveWithWeight(gfx::Font::Weight::NORMAL)", src)
+        self.assertIn("DeriveWithWeight(gfx::Font::Weight::MEDIUM)", src)
+        self.assertNotIn("Weight::NORMAL", src)
+
+    def test_forget_label_is_the_protection_chips_weight(self):
+        # Ledger item 35: Forget and Protected side by side in one weight,
+        # the drawn 500.
+        patch = (CORE / "patches" / "157" / "cui-toolbar.patch").read_text(encoding="utf-8")
+        forget = patch[patch.index('+    SetText(u"Forget");'):]
+        forget = forget[:forget.index("+  }")]
+        self.assertIn("DeriveWithWeight(gfx::Font::Weight::MEDIUM)", forget)
+        self.assertNotIn("NORMAL", forget)
 
     def test_menu_colours_come_from_the_palette(self):
         src = MIXER.read_text(encoding="utf-8")

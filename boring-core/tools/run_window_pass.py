@@ -203,10 +203,10 @@ def build_steps(out, net_seconds):
         # boring: cui-toolbar
         Step(
             "1j-toolbar",
-            "toolbar and bookmarks bar as drawn (smoke and pictures)",
+            "toolbar and bookmarks bar as drawn, the bar on by default (smoke and pictures)",
             [tool("smoke_toolbar.py", "--out", str(shots / "toolbar"))],
             900,
-            "eleven short browser launches, off screen",
+            "fifteen short browser launches, off screen",
             smoke_lines,
         ),
         # boring: cui-menu

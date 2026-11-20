@@ -80,18 +80,21 @@ constexpr Palette kCoolDark = {
     SkColorSetRGB(0x9d, 0x9a, 0xff), SkColorSetRGB(0x2a, 0x29, 0x50),
     SkColorSetRGB(0x2c, 0x2d, 0x3a)};
 
-// Dusk, the deep blue grey Look. The design gives Dusk only its swatch in
-// Settings (canvas-source/PageSettings.dc.html), and only for dark: the
-// frame band, the bar and the field are those. Everything else is Slate's
-// dark palette above, with the popovers on the bar as there. In light,
-// Dusk is Slate's light palette.
+// Dusk, the deep blue grey Look, and always dark. The design gives Dusk
+// only its swatch in Settings (canvas-source/PageSettings.dc.html): the
+// frame band, the bar and the field are those. The rest is a token row in
+// the charcoal row's shape, worked out to sit with them (ink, ink2 as
+// muted, line, edge, pop as paper, sel as tint, the design's dark accent):
+// every text pair at 4.5 to 1 and the edge at 3 to 1 or better (the table
+// is in .workflow/scratch/compiled/fix-look/progress.md). As in Soft white,
+// window is the frame and nothing washes in the accent.
 constexpr Palette kDuskDark = {
-    SkColorSetRGB(0x07, 0x08, 0x0b), SkColorSetRGB(0x0f, 0x10, 0x17),
+    SkColorSetRGB(0x0f, 0x10, 0x17), SkColorSetRGB(0x0f, 0x10, 0x17),
     SkColorSetRGB(0x1b, 0x1d, 0x2b), SkColorSetRGB(0x26, 0x28, 0x38),
-    SkColorSetRGB(0x1b, 0x1d, 0x2b), SkColorSetRGB(0xdc, 0xdd, 0xe6),
-    SkColorSetRGB(0xa0, 0xa2, 0xb4), SkColorSetRGB(0x2c, 0x2d, 0x3a),
-    SkColorSetRGB(0x9d, 0x9a, 0xff), SkColorSetRGB(0x2a, 0x29, 0x50),
-    SkColorSetRGB(0x2c, 0x2d, 0x3a)};
+    SkColorSetRGB(0x1f, 0x22, 0x32), SkColorSetRGB(0xe6, 0xe7, 0xf0),
+    SkColorSetRGB(0xa7, 0xaa, 0xc2), SkColorSetRGB(0x30, 0x33, 0x47),
+    SkColorSetRGB(0x9b, 0x98, 0xff), SkColorSetRGB(0x28, 0x2b, 0x3c),
+    SkColorSetRGB(0x7c, 0x80, 0x9c)};
 
 constexpr Palette kBeigeLight = {
     SkColorSetRGB(0xe8, 0xe7, 0xe2), SkColorSetRGB(0xe6, 0xe5, 0xdf),
@@ -199,7 +202,7 @@ const Palette& LookPalette(const ui::ColorProviderKey& key, bool dark) {
     case ui::ColorProviderKey::BoringLook::kSlate:
       return dark ? kCoolDark : kCoolLight;
     case ui::ColorProviderKey::BoringLook::kDusk:
-      return dark ? kDuskDark : kCoolLight;
+      return kDuskDark;
     case ui::ColorProviderKey::BoringLook::kSoftWhite:
       break;
   }
@@ -219,8 +222,8 @@ bool HasCustomAccent(const ui::ColorProviderKey& key) {
   return key.boring_accent && *key.boring_accent != kDefaultAccent;
 }
 
-// The Look's palette with a custom accent in place. Soft white washes
-// nothing in the accent (its tint is the design's neutral sel); the other
+// The Look's palette with a custom accent in place. Soft white and Dusk
+// wash nothing in the accent (their tint is the neutral sel); the other
 // palettes wash it about 11% over the toolbar in light and 18% in dark,
 // as Green's tints are made.
 Palette WithAccent(const Palette& look,
@@ -231,7 +234,8 @@ Palette WithAccent(const Palette& look,
     return p;
   }
   p.accent = *key.boring_accent;
-  if (&look != &kSoftWhiteLight && &look != &kSoftWhiteDark) {
+  if (&look != &kSoftWhiteLight && &look != &kSoftWhiteDark &&
+      &look != &kDuskDark) {
     p.tint = color_utils::AlphaBlend(p.accent, p.toolbar, dark ? 0.18f : 0.11f);
   }
   return p;
@@ -287,7 +291,12 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   if (!UsingOurTheme(key)) {
     return;
   }
-  const bool dark = key.color_mode == ui::ColorProviderKey::ColorMode::kDark;
+  // Dusk is always dark. With the Look picked in Settings, theme_service.cc
+  // already puts dark in the key (cui-colours.patch); this covers
+  // --boring-scheme=dusk too.
+  const bool dark =
+      key.color_mode == ui::ColorProviderKey::ColorMode::kDark ||
+      GetLook(key) == ui::ColorProviderKey::BoringLook::kDusk;
   const Palette& look = WantsBeige(key)
                             ? (dark ? kBeigeDark : kBeigeLight)
                             : WantsGreen(key)

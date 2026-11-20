@@ -3,6 +3,7 @@
 #ifndef COMPONENTS_BORING_NEWTAB_SEARCH_ENGINE_MENU_H_
 #define COMPONENTS_BORING_NEWTAB_SEARCH_ENGINE_MENU_H_
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -54,6 +55,19 @@ void GetRecentPagesForPage(
     size_t max,
     base::CancelableTaskTracker* tracker,
     base::OnceCallback<void(std::vector<RecentPage>)> done);
+
+// Watching ends when it goes away. See WatchHistoryDeletions.
+class HistoryDeletionWatch {
+ public:
+  virtual ~HistoryDeletionWatch() = default;
+};
+
+// Runs `deleted` each time entries are deleted from the history of the
+// profile that holds `page`: Forget this session, a cleared history, one
+// entry removed. Null in Incognito, which shows no history.
+std::unique_ptr<HistoryDeletionWatch> WatchHistoryDeletions(
+    content::WebContents* page,
+    base::RepeatingClosure deleted);
 
 }  // namespace boring
 

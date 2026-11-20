@@ -20,9 +20,14 @@ Several short launches of scratch profiles, started straight from chrome.exe:
      gets Forget pinned once, first; one where that already happened and
      Forget was unpinned keeps it unpinned.
   5. A new profile, dark, photographed beside the compiled screen 1, dark.
-  6. Bookmarks bar: off on a new profile. With Chromium's own setting
-     bookmark_bar.show_on_all_tabs on, the bar shows the bookmarks and All
-     bookmarks; photographed light and dark beside the compiled screen 14.
+  6. Bookmarks bar: on for a new profile. With Chromium's own setting
+     bookmark_bar.show_on_all_tabs off it is hidden; on, the bar shows the
+     bookmarks and All bookmarks; photographed light and dark beside the
+     compiled screen 14.
+  7. An app window (--app=) and a pop-up (window.open with features): the
+     taller toolbar margin is the tabbed window's only. The app window has
+     its title bar and no toolbar band; the pop-up's slim address bar is
+     whole and the page starts just under it (UI Automation rectangles).
 
 The hook writes what it saw to boring-toolbar-test.txt in the profile.
 Only DevTools, UI Automation and PrintWindow of our own windows; nothing is
@@ -222,6 +227,79 @@ def bookmarks_file(titles):
     }
 
 
+# boring: fix-3b (ledger item 34): an app window and a pop-up, measured by UI
+# Automation on our own windows.
+APP_TITLE = "Boring app window test"
+APP_URL = "data:text/html,%3Ctitle%3EBoring%20app%20window%20test%3C/title%3E%3Ch1%3EApp%3C/h1%3E"
+POPUP_TITLE = "Boring pop-up test"
+POPUP_JS = """(() => {
+  const w = window.open('about:blank', 'boringpop', 'popup,width=520,height=420');
+  if (!w) return 'blocked';
+  w.document.title = '%s';
+  w.document.body.innerHTML = '<h1>Pop-up</h1>';
+  return 'opened';
+})()""" % POPUP_TITLE
+ADDRESS_BAR = "Address and search bar"
+
+
+def rect_of(element):
+    from ctypes import wintypes
+
+    from smoke_siteoff import _call
+
+    r = wintypes.RECT()
+    _call(element, 43, ctypes.addressof(r))  # get_CurrentBoundingRectangle
+    return r
+
+
+def window_band(title, timeout=15):
+    """(hwnd, names, band) for our window whose title holds `title`. band,
+    in DIP from the window's top: content_top (where the page starts),
+    field (the address bar's top and height, or None) and inside (the
+    address bar lies wholly within the window)."""
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    deadline = time.monotonic() + timeout
+    names = []
+    while time.monotonic() < deadline:
+        for hwnd in browser_windows(os.getpid()):
+            try:
+                with Window(hwnd) as w:
+                    if title not in (w.items[0][0] if w.items else ""):
+                        continue
+                    names = w.names()
+                    scale = (user32.GetDpiForWindow(hwnd) or 96) / 96
+                    win = wintypes.RECT()
+                    user32.GetWindowRect(hwnd, ctypes.byref(win))
+                    pages = [rect_of(e) for t, e in w.items if e and t == title]
+                    pages = [r for r in pages if r.bottom > r.top]
+                    if not pages:
+                        continue
+                    page = max(pages, key=lambda r: (r.right - r.left) * (r.bottom - r.top))
+                    fields = [rect_of(e) for t, e in w.items if e and t == ADDRESS_BAR]
+                    fields = [r for r in fields if r.bottom > r.top]
+                    field = fields[0] if fields else None
+                    band = {
+                        "content_top": round((page.top - win.top) / scale, 1),
+                        "field": (round((field.top - win.top) / scale, 1), round((field.bottom - field.top) / scale, 1))
+                        if field
+                        else None,
+                        "inside": bool(field)
+                        and win.left <= field.left
+                        and field.right <= win.right
+                        and win.top <= field.top
+                        and field.bottom <= win.bottom,
+                    }
+                    print("window band:", title, band)
+                    return hwnd, names, band
+            except (OSError, RuntimeError):
+                continue
+        time.sleep(0.5)
+    return None, names, None
+# boring: end fix-3b
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=r"E:\tmp\cui-toolbar\shots", help="folder for the photographs")
@@ -330,6 +408,12 @@ def main():
             not any(e[0] == "button" and "Avatar" in e[1] for e in report),
             str(report),
         )
+        # Ledger item 43 (JD, Q16): Chromium's own Extensions button stays.
+        checks(
+            "Chromium's own Extensions button stays on the toolbar",
+            any(e[0] == "button" and e[1] == "ExtensionsToolbarButton" for e in report or []),
+            str(report),
+        )
         shoot("toolbar-light", "c01", False)
         check_toolbar_picture(checks, "light", out / "toolbar-light.png")
         check_icon_files(checks)
@@ -389,19 +473,36 @@ def main():
         check_toolbar_picture(checks, "dark", out / "toolbar-dark.png")
         stop()
 
-        # 6. The bookmarks bar: off by default, on with its own setting.
+        # 6. The bookmarks bar: on by default (ledger item 42), and its own
+        # setting hides and shows it.
         marks = bookmarks_file(BOOKMARKS)
-        off = new_profile("bookmarks-off", bookmarks=marks)
-        start(off)
+        fresh = new_profile("bookmarks-default", bookmarks=marks)
+        start(fresh)
         names = frame_names()
-        checks("a new profile shows no bookmarks bar", not any(n.startswith(t) for t in BOOKMARKS for n in names), str(names))
+        checks("a new profile shows the bookmarks bar", all(any(n.startswith(t) for n in names) for t in BOOKMARKS), str(names))
         stop()
         checks(
-            "the setting is off by default",
-            not json.loads((off / "Default" / "Preferences").read_text(encoding="utf-8"))
+            "the setting is on by default (nothing turned it off)",
+            json.loads((fresh / "Default" / "Preferences").read_text(encoding="utf-8"))
             .get("bookmark_bar", {})
-            .get("show_on_all_tabs", False),
+            .get("show_on_all_tabs", True)
+            is not False,
         )
+        off = new_profile("bookmarks-off", {"bookmark_bar": {"show_on_all_tabs": False}}, marks)
+        start(off)
+        names = frame_names()
+        checks("the setting off hides the bar", not any(n.startswith(t) for t in BOOKMARKS for n in names), str(names))
+        stop()
+        # Ledger item 32 (JD, Q18): the saved tab groups button is off the
+        # bar by default (checked below on every bar); the bar menu's switch
+        # writes bookmark_bar.show_tab_groups, and with it on the button is back.
+        groups = new_profile(
+            "bookmarks-groups", {"bookmark_bar": {"show_on_all_tabs": True, "show_tab_groups": True}}, marks
+        )
+        start(groups)
+        names = frame_names()
+        checks("the Tab groups switch on puts the button back on the bar", "Tab groups" in names, str(names))
+        stop()
         for theme, extra in (("light", []), ("dark", ["--force-dark-mode"])):
             on = new_profile(f"bookmarks-{theme}", {"bookmark_bar": {"show_on_all_tabs": True}}, marks)
             start(on, extra)
@@ -426,6 +527,42 @@ def main():
                     str(m),
                 )
             stop()
+
+        # 7. boring: fix-3b (ledger item 34). The taller toolbar margin is
+        # the tabbed window's: an app window and a pop-up keep their title
+        # bar and their slim address bar as before.
+        other = new_profile("other-windows")
+        start(other, [f"--app={APP_URL}"], urls=())
+        hwnd, names, band = window_band(APP_TITLE)
+        checks("app window: the title bar says the page's title", bool(hwnd), str(names[:20]))
+        checks(
+            "app window: only a title bar above the page (no toolbar band)",
+            band is not None and 20 <= band["content_top"] <= 60,
+            str(band),
+        )
+        stop()
+        start(other)
+        page = next(t for t in cdp.send("Target.getTargets")["targetInfos"] if t["type"] == "page")
+        session = cdp.attach(page["targetId"])
+        opened = cdp.send("Runtime.evaluate", session, expression=POPUP_JS, userGesture=True, returnByValue=True)
+        print("pop-up:", opened.get("result", {}).get("value"))
+        hwnd, names, band = window_band(POPUP_TITLE)
+        checks("pop-up: the title bar says the page's title", bool(hwnd), str(names[:20]))
+        checks(
+            "pop-up: the address bar is whole, inside the window",
+            band is not None and band["field"] is not None and 12 <= band["field"][1] <= 40 and band["inside"],
+            str(band),
+        )
+        # The text field sits centred in the slim bar (at most 34 high), so
+        # the page starts at most 9 DIP under it; the tabbed window's 8 DIP
+        # margins would make that 15 or more.
+        checks(
+            "pop-up: the page starts just under the address bar (no toolbar margins)",
+            band is not None and band["field"] is not None and -1 <= band["content_top"] - band["field"][0] - band["field"][1] <= 10,
+            str(band),
+        )
+        stop()
+        # boring: end fix-3b
         return checks.result("toolbar")
     finally:
         stop()

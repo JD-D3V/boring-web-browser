@@ -163,7 +163,8 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   .recent-row svg { flex: none; }
   .recent-row .title { flex: 1; min-width: 0; overflow: hidden;
                        text-overflow: ellipsis; white-space: nowrap; }
-  .recent-row .site { color: var(--ink2); white-space: nowrap; }
+  /* The host is never hidden or cut: the page's own title gives way first. */
+  .recent-row .site { flex: none; color: var(--ink2); white-space: nowrap; }
   .recent-row .when { width: 70px; flex: none; text-align: end;
                       font-size: 12px; color: var(--ink2); }
   .spacer { flex: 1; }
@@ -176,7 +177,6 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   @media (max-width: 560px) {
     .shortcuts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .recent-row .site { display: none; }
   }
   @media (prefers-reduced-motion: reduce) {
     .shortcut, .remove, .primary, .secondary { transition: none; }
@@ -482,6 +482,12 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
         "getProtection",
         base::BindRepeating(&NewTabMessageHandler::HandleGetProtection,
                             base::Unretained(this)));
+    // Forget this session, or any other history deletion, empties the rows
+    // of a page that is already open, not only of the next one.
+    history_watch_ = WatchHistoryDeletions(
+        web_ui()->GetWebContents(),
+        base::BindRepeating(&NewTabMessageHandler::OnHistoryDeleted,
+                            weak_factory_.GetWeakPtr()));
     // Test only: nothing a page can ask for without the switch. Kept with
     // the search box gone, since it also drives the address bar's engine
     // menu (smoke_search_menu.py).
@@ -623,8 +629,11 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
         continue;
       }
       std::string title = base::UTF16ToUTF8(page.title);
+      // Cut on a character boundary, never inside one: a half character
+      // is not UTF-8, and base::Value refuses it.
       if (title.size() > kMaxRecentTitleLength) {
-        title.resize(kMaxRecentTitleLength);
+        title.resize(
+            base::TruncateUTF8ToByteSize(title, kMaxRecentTitleLength).size());
       }
       base::DictValue item;
       item.Set("title", title);
@@ -635,6 +644,12 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
     }
     AllowJavascript();
     web_ui()->CallJavascriptFunctionUnsafe("loadRecent", list);
+  }
+
+  void OnHistoryDeleted() {
+    if (IsJavascriptAllowed()) {
+      HandleGetRecent(base::ListValue());
+    }
   }
 
   void HandleSearchMenuTest(const base::ListValue& args) {
@@ -661,6 +676,7 @@ class NewTabMessageHandler : public content::WebUIMessageHandler {
 
   // Cancels a history query still running when the page goes away.
   base::CancelableTaskTracker tracker_;
+  std::unique_ptr<HistoryDeletionWatch> history_watch_;
   base::WeakPtrFactory<NewTabMessageHandler> weak_factory_{this};
 };
 

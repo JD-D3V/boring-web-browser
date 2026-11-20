@@ -13,11 +13,14 @@ Checked:
   "Go back to safety" returns to the previous page or, with no history,
     opens the browser's New Tab page;
   "Continue anyway" is there, and works, when "No way past scam warnings"
-    is off, and is gone when it is on (boring.protection.no_scam_bypass,
-    turned on through the Protection page's own switch);
+    is off, but hidden and out of Tab's reach until "Why was this blocked"
+    is opened (two presses); it is gone when the switch is on
+    (boring.protection.no_scam_bypass, turned on through the Protection
+    page's own switch); "Report a mistake" is there either way;
   a listed host's subdomains are blocked and its parent is not (CERT
     Polska's rule);
-  the page is painted in the design's light and dark colours;
+  the page is painted in the design's light and dark colours, and follows
+    the Look (Slate, Dusk);
   the Protection page names the scam row as on;
   a list of fewer than 10 hosts is refused: the row reads Unavailable and a
     host on the list opens (ledger 93), while a list of exactly 10 works.
@@ -111,8 +114,54 @@ VARIANTS = [
     ("dark", ["--force-dark-mode"], "rgb(21, 21, 20)", "rgb(232, 233, 237)"),
 ]
 
+# The page follows the Look (item 25): the page colour is the Look's, the
+# main button stays the TOKENS solid. Values are the mixer's palettes, as in
+# smoke_warning_page.py.
+LOOKS = [
+    ("Slate light", "slate", [], "rgb(245, 246, 248)", "rgb(26, 28, 34)"),
+    ("Dusk dark", "dusk", ["--force-dark-mode"], "rgb(20, 21, 32)", "rgb(232, 233, 237)"),
+]
+
 GO_BACK = "[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Go back to safety')"
-CONTINUE = "[...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Continue anyway, not advised')"
+# Found by their handlers, not their words, so a new label cannot make a
+# "hidden" check pass for nothing.
+CONTINUE = "document.querySelector('[onclick*=proceedAnyway]')"
+REPORT = "document.querySelector('[onclick*=reportMistake]')"
+WHY_BUTTON = "document.querySelector('button[aria-controls=why]')"
+# True when Continue is drawn and Tab can reach it. focus() takes only on a
+# button that is laid out, never on one in the closed (display: none) part.
+CONTINUE_REACHABLE = (
+    "(() => { var c = " + CONTINUE + "; if (!c) return false; c.focus();"
+    " var r = document.activeElement === c && c.getClientRects().length > 0;"
+    " c.blur(); return r; })()"
+)
+
+
+def press_continue(b):
+    """Opens "Why was this blocked", then presses Continue anyway: the two
+    presses a person needs."""
+    b.run(f"var w = {WHY_BUTTON}; if (w.getAttribute('aria-expanded') !== 'true') w.click();")
+    b.run(f"({CONTINUE}).click()")
+
+
+def check_continue_behind_why(b, check, label=""):
+    """Continue is in the page, but neither seen nor reachable by Tab until
+    "Why was this blocked" is opened; then it is both."""
+    check(f"{label}Continue anyway is in the page", bool(b.run(f"return !!({CONTINUE})")))
+    check(
+        f"{label}Continue anyway is hidden and out of Tab's reach while Why is closed",
+        not b.run(f"return {CONTINUE_REACHABLE}"),
+    )
+    b.run(f"({WHY_BUTTON}).click()")
+    check(
+        f"{label}after Why was this blocked is opened, Continue anyway is shown and reachable",
+        bool(b.run(f"return {CONTINUE_REACHABLE}")),
+    )
+    check(
+        f"{label}it reads Continue anyway, not advised",
+        b.run(f"return ({CONTINUE}).textContent.trim()") == "Continue anyway, not advised",
+    )
+    b.run(f"({WHY_BUTTON}).click()")
 
 
 def args_for(lists, pages, extra):
@@ -238,7 +287,8 @@ def main():
                     check("the warning names the host", LISTED in text)
                     check("the warning is not a not-found page", "ERR_" not in text and "can’t be reached" not in text)
                     check("Go back to safety is the main action", bool(b.run(f"return !!({GO_BACK})")) and bool(b.run("return !!document.querySelector('button.primary')")))
-                    check("Continue anyway is offered", bool(b.run(f"return !!({CONTINUE})")))
+                    check_continue_behind_why(b, check)
+                    check("Report a mistake is offered", bool(b.run(f"return !!({REPORT})")))
 
                     went_back = go_back_to(
                         b,
@@ -255,7 +305,7 @@ def main():
 
                     open_url(b, f"http://{LISTED}:{pages.port}/")
                     wait_for(b, "document.body && document.body.innerText.includes('This site is not safe')")
-                    b.run(f"({CONTINUE}).click()")
+                    press_continue(b)
                     check("Continue anyway opens the site", wait_for(b, "!!document.getElementById('ok')", 10000), b.current_url())
                     check_switch(b, check)
                     # The click-through above was made before the switch was
@@ -275,7 +325,11 @@ def main():
                         "the warning still shows with no way past",
                         wait_for(b, "document.body && document.body.innerText.includes('This site is not safe')"),
                     )
-                    check("Continue anyway is hidden", not b.run(f"return !!({CONTINUE})"))
+                    check(
+                        "no way past: Continue anyway and Why are not in the page",
+                        not b.run(f"return !!({CONTINUE}) || !!({WHY_BUTTON})"),
+                    )
+                    check("no way past: Report a mistake is still offered", bool(b.run(f"return !!({REPORT})")))
                     check("Go back to safety is still there", bool(b.run(f"return !!({GO_BACK})")))
                     history = reset_warning_history(b)
                     no_previous = history["currentIndex"] == 0 and len(history["entries"]) == 1
@@ -304,6 +358,23 @@ def main():
                             " getComputedStyle(document.querySelector('button.primary')).backgroundColor]"
                         )
                         check(f"{name}: page colour", got[0] == paper, f"{got[0]} != {paper}")
+                        check(f"{name}: main button colour", got[1] == accent, f"{got[1]} != {accent}")
+
+            # The Looks recolour the page, not only light and dark.
+            from smoke_colours import seed_profile
+
+            for name, look, extra, paper, accent in LOOKS:
+                with tempfile.TemporaryDirectory(prefix="scam-", dir=os.environ.get("TMP") or None) as profile:
+                    seed_profile(profile, look)
+                    with Browser(user_data_dir=profile, args=args_for(lists, pages, extra)) as b:
+                        wait_until_list_is_loaded(b)
+                        open_url(b, f"http://{LISTED}:{pages.port}/")
+                        wait_for(b, "document.body && document.body.innerText.includes('This site is not safe')")
+                        got = b.run(
+                            "return [getComputedStyle(document.body).backgroundColor,"
+                            " getComputedStyle(document.querySelector('button.primary')).backgroundColor]"
+                        )
+                        check(f"{name}: page colour follows the Look", got[0] == paper, f"{got[0]} != {paper}")
                         check(f"{name}: main button colour", got[1] == accent, f"{got[1]} != {accent}")
         check_list_size(pages, check)
     finally:

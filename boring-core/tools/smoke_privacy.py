@@ -16,7 +16,8 @@ and one on localhost, which the browser treats as two different sites.
                 updater honestly off in a build without an update key
   search        settings lists the browser's search engines and choosing
                 one makes it the default, also after a restart; Google is
-                offered but is not the default, and choosing it works
+                offered but is not the default, and choosing it works;
+                No Search is not offered
 
 Nothing is contacted: the check reads what the browser's own settings
 and Protection page say.
@@ -300,6 +301,7 @@ def search_engines(b):
         "      var d = all.find(function(x) { return x.default; });"
         "      done({names: (lists.defaults || []).map(function(x) {"
         "              return x.name; }),"
+        "            every: all.map(function(x) { return x.name; }),"
         "            current: d ? d.name : ''});"
         "    });"
         "}).catch(function(err) { done({names: [], current: 'error: ' + err}); });"
@@ -320,11 +322,16 @@ def check_google(profile, failures):
     makes it the default. The new tab page has no search box any more
     (the address bar searches), so settings is where the choice shows."""
     with Browser(user_data_dir=profile) as b:
-        names = search_engines(b)["names"]
+        state = search_engines(b)
+        names = state["names"]
         print("default search engines offered:", names)
         if "Google" not in names:
             failures.append(f"Google is not offered: {names}")
             return
+        # ungoogled-chromium's "No Search" leaves the address bar doing
+        # nothing; google-search.patch puts Google in its place.
+        if "No Search" in state.get("every", names):
+            failures.append(f"settings offers No Search as a search engine: {state.get('every')}")
         # check_search may have left Google chosen in this profile; a fresh
         # profile's DuckDuckGo default is smoke_serp's check.
         if choose_in_settings(b, "DuckDuckGo") != "DuckDuckGo":

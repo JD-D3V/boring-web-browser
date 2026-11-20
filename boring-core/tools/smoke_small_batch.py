@@ -31,6 +31,7 @@ from smoke_lookalike import (
     switch_is,
     text,
 )
+from smoke_scam import press_continue
 
 # Anything on the page, shadow roots included, that is on screen and is a
 # logo picture or a link to a web store.
@@ -119,7 +120,7 @@ def main():
             with Browser(user_data_dir=profile, args=browser_args()) as b:
                 open_url(b, url(RN[0]))
                 check("first visit warns", wait_for(b, WARNED))
-                b.run(f"({CONTINUE}).click()")
+                press_continue(b)
                 check(
                     "Continue anyway opens the site",
                     wait_for(b, "!!document.getElementById('ok')", 10000),

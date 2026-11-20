@@ -50,6 +50,9 @@ constexpr char kPageTop[] = R"HTML(<!DOCTYPE html>
   .host-box { padding: 10px 14px; border-radius: 8px; background: var(--field);
               box-shadow: inset 0 0 0 1px var(--line); }
   .calm, .why, .panel-note { color: var(--ink2); }
+  .why { display: flex; flex-direction: column; align-items: flex-start;
+         gap: 12px; }
+  .why .link { font-size: 13px; }
   .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
   button { font: inherit; color: inherit; border: 0; background: none;
            padding: 0; cursor: pointer; }
@@ -86,7 +89,7 @@ constexpr char kPageTop[] = R"HTML(<!DOCTYPE html>
 )HTML";
 
 constexpr char kPageBottom[] = R"HTML(
-<p class="calm">Your computer is fine. Nothing was sent, and you do not need to call anyone.</p>
+<p class="calm">%CALM%</p>
 </div>
 <div class="actions">
 <button class="primary" onclick="goBack()">%MAIN%</button>
@@ -128,15 +131,20 @@ constexpr char kWhyButton[] =
     "aria-controls=\"why\" onclick=\"toggleWhy(this)\">Why was this "
     "blocked</button>";
 
-constexpr char kContinueTop[] = "<p class=\"why\" id=\"why\" hidden>";
+// "Continue anyway" sits inside the closed "Why was this blocked" part, so
+// getting past a warning takes two presses. While the part is closed it is
+// display: none, so it can be neither seen nor reached with Tab.
+constexpr char kContinueTop[] = "<div class=\"why\" id=\"why\" hidden><p>";
 
 constexpr char kContinueBottom[] =
-    "</p><div class=\"footer\">"
-    "<button type=\"button\" class=\"link\" "
+    "</p><button type=\"button\" class=\"link\" id=\"continue\" "
     "onclick=\"return proceedAnyway()\">Continue anyway, not advised</button>"
-    "<button type=\"button\" class=\"link\" "
-    "onclick=\"reportMistake()\">Report a mistake</button>"
     "</div>";
+
+// On every warning, whether or not there is a way past.
+constexpr char kReportButton[] =
+    "<button type=\"button\" class=\"link\" id=\"report\" "
+    "onclick=\"reportMistake()\">Report a mistake</button>";
 
 // Where a text names the site: the address goes there, in bold.
 constexpr char kHostMarker[] = "%HOST%";
@@ -210,15 +218,18 @@ std::string BuildWarningPage(content::WebContents* web_contents,
   }
 
   std::string bottom(kPageBottom);
+  ReplaceFirst(bottom, "%CALM%", base::EscapeForHTML(text.calm));
   ReplaceFirst(bottom, "%MAIN%", base::EscapeForHTML(text.main_button));
   ReplaceFirst(bottom, "%WHY_BUTTON%", may_continue ? kWhyButton : "");
   ReplaceFirst(
       bottom, "%CONTINUE%",
       may_continue
-          ? base::StrCat(
-                {kContinueTop, base::EscapeForHTML(text.why), kContinueBottom})
+          ? base::StrCat({kContinueTop, base::EscapeForHTML(text.why),
+                          kContinueBottom, "<div class=\"footer\">",
+                          kReportButton, "</div>"})
           : base::StrCat({"<div class=\"footer\"><p class=\"panel-note\">",
-                          base::EscapeForHTML(text.no_bypass), "</p></div>"}));
+                          base::EscapeForHTML(text.no_bypass), "</p>",
+                          kReportButton, "</div>"}));
   return base::StrCat({top, body, bottom});
 }
 

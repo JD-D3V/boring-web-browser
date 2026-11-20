@@ -211,7 +211,7 @@ BoringProtectionButton::BoringProtectionButton(BrowserWindowInterface* browser)
   // boring: the reference's Protection control is 10 DIP of horizontal
   // padding around the shield and the word, 7 DIP between them, the shield
   // first (a toolbar button puts its image last unless told otherwise),
-  // and 13px regular text, as big as the rest of the toolbar's text, not a generic toolbar button's sizing. Comes after
+  // and 13px text at weight 500, as drawn, the weight of Forget beside it, not a generic toolbar button's sizing. Comes after
   // UpdateState() because SetLabelSideSpacing() only adds space when
   // there is already text to space away from, and this button always
   // has some (see ReadState(): every branch leaves a non-empty label).
@@ -221,7 +221,7 @@ BoringProtectionButton::BoringProtectionButton(BrowserWindowInterface* browser)
   const gfx::FontList& current_font = label()->font_list();
   label()->SetFontList(
       current_font.DeriveWithSizeDelta(13 - current_font.GetFontSize())
-          .DeriveWithWeight(gfx::Font::Weight::NORMAL));
+          .DeriveWithWeight(gfx::Font::Weight::MEDIUM));
 }
 
 BoringProtectionButton::~BoringProtectionButton() {

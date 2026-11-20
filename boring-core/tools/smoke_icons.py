@@ -81,13 +81,21 @@ def listed_in_build(rel_dir, name):
     return False
 
 
+# Icons of ours that no BUILD.gn names, on purpose: Chromium keeps the file
+# but builds nothing from it. Any other unnamed icon fails (a typo in a
+# BUILD.gn would otherwise pass as "not built").
+NOT_BUILT = {"components/omnibox/browser/vector_icons/star_old.icon"}
+
+
 def check_build(checks):
     cache = {}
     missing = []
+    skipped, unnamed = [], []
     for path in ours_written():
         rel_dir = path.parent.relative_to(CHROMIUM_SRC).as_posix()
         if not listed_in_build(rel_dir, path.name):
-            print(f"not built by this Chromium, skipped: {rel_dir}/{path.name}")
+            rel = f"{rel_dir}/{path.name}"
+            (skipped if rel in NOT_BUILT else unnamed).append(rel)
             continue
         if rel_dir not in cache:
             cache[rel_dir] = " ".join(
@@ -96,6 +104,8 @@ def check_build(checks):
             )
         if tokens(path.read_text(encoding="utf-8")) not in cache[rel_dir]:
             missing.append(f"{rel_dir}/{path.name}")
+    print(f"not built by this Chromium, skipped ({len(skipped)}, allowed): {', '.join(skipped)}")
+    checks("every icon no BUILD.gn names is on the allowed list", not unnamed, ", ".join(unnamed[:8]))
     checks("every icon of the set is in the build as written", not missing, ", ".join(missing[:8]))
 
     header = Path(OUT) / "gen" / "chrome" / "app" / "vector_icons" / "vector_icons.h"
