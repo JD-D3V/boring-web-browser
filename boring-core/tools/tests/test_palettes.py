@@ -67,6 +67,14 @@ SOFT_WHITE = {
         "tint": "#292927", "edge": "#77756d",
     },
 }
+# Dusk (ledger item 23): the canvas swatches and the row worked out to sit
+# with them, mapped to the palette's fields as Soft white's are.
+DUSK = {
+    "window": "#0f1017", "frame": "#0f1017", "toolbar": "#1b1d2b",
+    "field": "#262838", "paper": "#1f2232", "ink": "#e6e7f0",
+    "muted": "#a7aac2", "line": "#303347", "accent": "#9b98ff",
+    "tint": "#282b3c", "edge": "#7c809c",
+}
 PREFS_H = CORE / "components" / "boring" / "core" / "boring_prefs.h"
 PREFS_CC = CORE / "components" / "boring" / "core" / "boring_prefs.cc"
 COLOURS_PATCH = CORE / "patches" / "157" / "cui-colours.patch"
@@ -294,17 +302,44 @@ class PaletteTest(unittest.TestCase):
                 )
 
     def test_palettes_with_no_drawn_edge_keep_their_line(self):
-        for name in (*OLD_NAMES, "kDuskDark"):
+        for name in OLD_NAMES:
             self.assertEqual(PALETTES[name]["edge"], PALETTES[name]["line"], name)
 
-    def test_dusk_takes_its_swatch_and_slate_dark_for_the_rest(self):
-        dusk, slate = PALETTES["kDuskDark"], PALETTES["kCoolDark"]
-        self.assertEqual(hexof(dusk["frame"]), "#0f1017")
-        self.assertEqual(hexof(dusk["toolbar"]), "#1b1d2b")
-        self.assertEqual(hexof(dusk["field"]), "#262838")
-        self.assertEqual(dusk["paper"], dusk["toolbar"])
-        for field in ("window", "ink", "muted", "line", "accent", "tint"):
-            self.assertEqual(dusk[field], slate[field], field)
+    def test_dusk_is_its_swatch_and_the_worked_out_row(self):
+        # Ledger item 23: frame, bar and field are the canvas swatches; the
+        # rest is the row worked out in fix-look/progress.md.
+        got = {f: hexof(PALETTES["kDuskDark"][f]) for f in FIELDS}
+        self.assertEqual(got, DUSK)
+
+    def test_dusk_text_reaches_4_5_and_its_edge_3_on_every_surface(self):
+        p = PALETTES["kDuskDark"]
+        surfaces = ("window", "frame", "toolbar", "field", "paper", "tint")
+        for ink in ("ink", "muted", "accent"):
+            for s in surfaces:
+                self.assertGreaterEqual(contrast(p[ink], p[s]), 4.5, f"{ink} on {s}")
+        for s in surfaces:
+            self.assertGreaterEqual(contrast(p["edge"], p[s]), 3, f"edge on {s}")
+        # Its page (cui-pages block) and the window's ink on the accent.
+        page = (0x14, 0x15, 0x20)
+        self.assertGreaterEqual(contrast(p["muted"], page), 4.5)
+        self.assertGreaterEqual(contrast(p["edge"], page), 3)
+        self.assertGreaterEqual(contrast(p["window"], p["accent"]), 4.5)
+        self.assertIn("page = SkColorSetRGB(0x14, 0x15, 0x20);", MIXER.read_text(encoding="utf-8"))
+
+    def test_dusk_is_always_dark(self):
+        # The key is dark whatever Light or dark says, without touching
+        # that pref, and the mixer draws Dusk's one palette as dark.
+        patch = COLOURS_PATCH.read_text(encoding="utf-8")
+        self.assertIn('+    if (profile_->GetPrefs()->GetString(kBoringLookPref) == "dusk") {\n'
+                      "+      key.color_mode = ui::ColorProviderKey::ColorMode::kDark;", patch)
+        self.assertNotIn("SetBrowserColorScheme", "".join(
+            line for line in patch.splitlines() if line.startswith("+")))
+        src = MIXER.read_text(encoding="utf-8")
+        self.assertRegex(src, r"const bool dark =\s*key\.color_mode == ui::ColorProviderKey::"
+                              r"ColorMode::kDark \|\|\s*GetLook\(key\) == ui::ColorProviderKey::"
+                              r"BoringLook::kDusk;")
+        self.assertNotIn("kCoolLight", re.search(
+            r"case ui::ColorProviderKey::BoringLook::kDusk:\s*return [^;]+;", src).group(0))
 
     def test_edge_goes_on_fields_outline_buttons_and_off_switches(self):
         src = MIXER.read_text(encoding="utf-8")
@@ -355,7 +390,7 @@ class PaletteTest(unittest.TestCase):
         src = MIXER.read_text(encoding="utf-8")
         body = re.search(r"const Palette& LookPalette\(.*?\n\}", src, re.S).group(0)
         self.assertRegex(body, r"kSlate:\s*return dark \? kCoolDark : kCoolLight;")
-        self.assertRegex(body, r"kDusk:\s*return dark \? kDuskDark : kCoolLight;")
+        self.assertRegex(body, r"kDusk:\s*return kDuskDark;")
         self.assertTrue(body.rstrip("}").rstrip().endswith(
             "return dark ? kSoftWhiteDark : kSoftWhiteLight;"))
         self.assertIn(": LookPalette(key, dark);", src)
@@ -383,7 +418,7 @@ HOSTILE = [
     "#ffffff", "#000000", "#ffff00", "#808080", "#00ffff", "#ff00ff",
     "#1c1c1a", "#20201e", "#f4f3ef", "#eceae6", "#111110", "#fefefe",
 ]
-# The palettes each Look draws, light and dark (Dusk is Slate in light).
+# The palettes each Look draws, light and dark (Dusk is always dark).
 LOOK_PALETTES = ["kSoftWhiteLight", "kSoftWhiteDark", "kCoolLight", "kCoolDark", "kDuskDark"]
 SURFACES = ("frame", "toolbar", "field", "paper")
 DEFAULT_ACCENT = "#4f46e5"
@@ -430,7 +465,7 @@ def derive(name, accent_hex):
         return {"fill": p["accent"], "tint": p["tint"], "on": on,
                 "ring": p["accent"], "text": p["accent"], "p": p}
     p["accent"] = accent
-    if not name.startswith("kSoftWhite"):
+    if not name.startswith("kSoftWhite") and name != "kDuskDark":
         p["tint"] = alpha_blend(accent, p["toolbar"], 0.18 if dark else 0.11)
     white, black = (255, 255, 255), (0, 0, 0)
     on = white if chromium_contrast(white, accent) >= 4.5 else black
@@ -500,7 +535,7 @@ class AccentTest(unittest.TestCase):
             for field in FIELDS:
                 if field not in ("accent", "tint"):
                     self.assertEqual(a["p"][field], PALETTES[name][field], f"{name} {field}")
-            if name.startswith("kSoftWhite"):
+            if name.startswith("kSoftWhite") or name == "kDuskDark":
                 self.assertEqual(a["tint"], PALETTES[name]["tint"], name)
             else:
                 self.assertNotEqual(a["tint"], PALETTES[name]["tint"], name)
