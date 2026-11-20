@@ -1,0 +1,363 @@
+diff --git a/chrome/browser/ui/layout_constants.cc b/chrome/browser/ui/layout_constants.cc
+--- a/chrome/browser/ui/layout_constants.cc
++++ b/chrome/browser/ui/layout_constants.cc
+@@ -162,12 +162,15 @@
+       return 20;
+     case LayoutConstant::kMainBackgroundRegionCornerRadius:
+     case LayoutConstant::kToolbarCornerRadius:
++      return 8;
++    // boring: side tabs (screen C09). Rows are 32 high with 7 corners and
++    // the pinned tiles are 40 high.
+     case LayoutConstant::kVerticalTabCornerRadius:
+-      return 8;
++      return 7;
+     case LayoutConstant::kVerticalTabHeight:
+-      return 30;
++      return 32;
+     case LayoutConstant::kVerticalTabPinnedHeight:
+-      return 32;
++      return 40;
+     case LayoutConstant::kVerticalTabMinWidth:
+       return 32;
+     case LayoutConstant::kVerticalTabStripHorizontalPadding:
+diff --git a/chrome/browser/ui/tabs/vertical_tab_strip_state.h b/chrome/browser/ui/tabs/vertical_tab_strip_state.h
+--- a/chrome/browser/ui/tabs/vertical_tab_strip_state.h
++++ b/chrome/browser/ui/tabs/vertical_tab_strip_state.h
+@@ -7,7 +7,8 @@
+ 
+ namespace tabs {
+ 
+-inline constexpr int kVerticalTabStripDefaultUncollapsedWidth = 240;
++// boring: 248, as the Shelf is drawn (screen C09).
++inline constexpr int kVerticalTabStripDefaultUncollapsedWidth = 248;
+ // TODO(crbug.com/465833741): Replace constant with derived value based on
+ // caption buttons.
+ inline constexpr int kVerticalTabStripUncollapsedMinWidth = 126;
+diff --git a/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.cc b/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.cc
+--- a/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.cc
++++ b/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.cc
+@@ -342,38 +342,23 @@
+ }
+ 
+ void VerticalTabStripStateControllerImpl::UpdateCollapseActionItem() {
+-  const bool is_collapsed =
+-      GetCollapseState() != VerticalTabStripCollapseState::kExpanded;
+-
+-  const gfx::VectorIcon& icon = (is_collapsed == base::i18n::IsRTL())
+-                                    ? features::IsRoundedIconsEnabled()
+-                                          ? views::kMenuOpenIcon
+-                                          : views::kMenuOpenOldIcon
+-                                    : views::kMenuCloseCustomIcon;
+-
+-  const auto& text =
+-      is_collapsed ? IDS_EXPAND_VERTICAL_TABS : IDS_COLLAPSE_VERTICAL_TABS;
+-
+-  const int tooltip_id = is_collapsed ? IDS_EXPAND_VERTICAL_TABS_TOOLTIP
+-                                      : IDS_COLLAPSE_VERTICAL_TABS_TOOLTIP;
++  // boring: with side tabs the collapse button is the Shelf button: the
++  // Shelf glyph and one name, "Show or hide the Shelf", whichever way it
++  // will go (screen C09). It still collapses the list to icons.
++  const std::u16string name = u"Show or hide the Shelf";
+ 
+   actions::ActionItem* collapse_action =
+       actions::ActionManager::Get().FindAction(kActionToggleCollapseVertical,
+                                                root_action_item_);
+   if (collapse_action) {
+     collapse_action->SetImage(
+-        ui::ImageModel::FromVectorIcon(icon, ui::kColorIcon));
+-    collapse_action->SetText(
+-        chrome::GetCleanTitleAndTooltipText(l10n_util::GetStringUTF16(text)));
++        ui::ImageModel::FromVectorIcon(kBoringShelfIcon, ui::kColorIcon));
++    collapse_action->SetText(name);
+ 
+     ui::Accelerator accelerator = collapse_action->GetAccelerator();
+     const std::u16string shortcut_text = accelerator.GetShortcutText();
+     const std::u16string tooltip_text =
+-        shortcut_text.empty()
+-            ? chrome::GetCleanTitleAndTooltipText(
+-                  l10n_util::GetStringUTF16(text))
+-            : chrome::GetCleanTitleAndTooltipText(
+-                  l10n_util::GetStringFUTF16(tooltip_id, shortcut_text));
++        shortcut_text.empty() ? name : name + u" (" + shortcut_text + u")";
+     collapse_action->SetTooltipText(tooltip_text);
+ 
+     collapse_action->SetEnabled(ShouldDisplayVerticalTabs());
+diff --git a/chrome/browser/ui/color/chrome_color_id.h b/chrome/browser/ui/color/chrome_color_id.h
+--- a/chrome/browser/ui/color/chrome_color_id.h
++++ b/chrome/browser/ui/color/chrome_color_id.h
+@@ -1204,6 +1204,7 @@
+   E_CPONLY(kColorBoringShelfTileRing) \
+   E_CPONLY(kColorBoringShelfRowHover) \
+   E_CPONLY(kColorBoringShelfToggleOn) \
++  E_CPONLY(kColorBoringSideNewTabRing) \
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
+ #define CHROME_PLATFORM_SPECIFIC_COLOR_IDS \
+diff --git a/chrome/browser/ui/views/tabs/vertical/BUILD.gn b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+--- a/chrome/browser/ui/views/tabs/vertical/BUILD.gn
++++ b/chrome/browser/ui/views/tabs/vertical/BUILD.gn
+@@ -7,6 +7,7 @@
+ 
+ source_set("vertical") {
+   sources = [
++    "boring_new_tab_row.h",
+     "top_container_button.h",
+     "vertical_tab_strip_bottom_container.h",
+     "vertical_tab_strip_expand_on_hover_lock.h",
+@@ -37,6 +38,7 @@
+ 
+ source_set("impl") {
+   sources = [
++    "boring_new_tab_row.cc",
+     "top_container_button.cc",
+     "vertical_tab_strip_bottom_container.cc",
+     "vertical_tab_strip_expand_on_hover_lock.cc",
+@@ -47,6 +49,7 @@
+   ]
+ 
+   deps = [
++    "//chrome/app/vector_icons",
+     "//chrome/browser:primitives",
+     "//chrome/browser/glic",
+     "//chrome/browser/glic/browser_ui:glow",
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.h b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.h
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.h
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.h
+@@ -13,6 +13,7 @@
+ class BrowserWindowInterface;
+ class ExpandOnHoverLock;
+ class TabStripFlatEdgeButton;
++class BoringNewTabRow;
+ 
+ namespace actions {
+ class ActionItem;
+@@ -47,6 +48,8 @@
+   raw_ptr<BrowserWindowInterface> browser_ = nullptr;
+   raw_ptr<actions::ActionItem> root_action_item_ = nullptr;
+   raw_ptr<TabStripFlatEdgeButton> new_tab_button_ = nullptr;
++  // boring: the wide list's New tab row (screen C09).
++  raw_ptr<BoringNewTabRow> new_tab_row_ = nullptr;
+   base::CallbackListSubscription collapsed_state_change_subscription_;
+   base::CallbackListSubscription new_tab_button_pressed_subscription_;
+ 
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
+@@ -9,6 +9,7 @@
+ #include "chrome/browser/ui/layout_constants.h"
+ #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
++#include "chrome/browser/ui/views/tabs/vertical/boring_new_tab_row.h"
+ #include "chrome/browser/ui/views/tabs/shared/new_tab_button.h"
+ #include "chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.h"
+ #include "ui/actions/actions.h"
+@@ -40,6 +41,7 @@
+           record_new_tab_button_pressed);
+ 
+   new_tab_button_ = AddChildView(std::move(new_tab_button));
++  new_tab_row_ = AddChildView(std::make_unique<BoringNewTabRow>(browser_));
+ 
+   OnCollapseStateChanged(state_controller->GetCollapseState());
+   collapsed_state_change_subscription_ =
+@@ -105,6 +107,14 @@
+   new_tab_button_->SetInsets(GetLayoutInsets(
+       collapsed ? LayoutInset::VERTICAL_TAB_STRIP_BOTTOM_BUTTON_COLLAPSED
+                 : LayoutInset::VERTICAL_TAB_STRIP_BOTTOM_BUTTON_UNCOLLAPSED));
++
++  // boring: wide, the labelled row; narrow, the plain button.
++  new_tab_button_->SetVisible(collapsed);
++  new_tab_row_->SetVisible(!collapsed);
++  new_tab_row_->SetProperty(
++      views::kFlexBehaviorKey,
++      views::FlexSpecification(views::MinimumFlexSizeRule::kScaleToMinimum,
++                               views::MaximumFlexSizeRule::kUnbounded));
+ }
+ 
+ BEGIN_METADATA(VerticalTabStripBottomContainer)
+diff --git a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
+--- a/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
++++ b/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
+@@ -67,6 +67,10 @@
+       combo_button_orientation_ = state_controller->IsCollapsed()
+                                       ? views::LayoutOrientation::kVertical
+                                       : views::LayoutOrientation::kHorizontal);
++  // boring: side tabs keep only the Shelf button here (screen C09). Tab
++  // search is in the Bar and on Ctrl+Shift+A. UpdateControlsVisibility
++  // keeps them hidden.
++  combo_button_->SetVisible(false);
+ 
+   if (organizer_panel::IsOrganizerPanelFeatureEnabled()) {
+     segmented_control_ = AddChildView(
+@@ -598,6 +602,13 @@
+       combo_button_->SetVisible(true);
+     }
+   }
++  // boring: see the constructor.
++  if (segmented_control_) {
++    segmented_control_->SetVisible(false);
++  }
++  if (combo_button_) {
++    combo_button_->SetVisible(false);
++  }
+ }
+ 
+ BEGIN_METADATA(VerticalTabStripTopContainer)
+diff --git a/chrome/browser/ui/views/tabs/common/BUILD.gn b/chrome/browser/ui/views/tabs/common/BUILD.gn
+--- a/chrome/browser/ui/views/tabs/common/BUILD.gn
++++ b/chrome/browser/ui/views/tabs/common/BUILD.gn
+@@ -7,6 +7,7 @@
+ 
+ source_set("common") {
+   sources = [
++    "boring_side_tab_heading.h",
+     "dragged_tabs_container.h",
+     "pinned_tab_container_view.h",
+     "root_tab_collection_node.h",
+@@ -47,6 +48,7 @@
+ 
+ source_set("impl") {
+   sources = [
++    "boring_side_tab_heading.cc",
+     "dragged_tabs_container.cc",
+     "horizontal_tab_style_views.cc",
+     "horizontal_tab_style_views.h",
+diff --git a/chrome/browser/ui/views/tabs/common/tab_strip_view.h b/chrome/browser/ui/views/tabs/common/tab_strip_view.h
+--- a/chrome/browser/ui/views/tabs/common/tab_strip_view.h
++++ b/chrome/browser/ui/views/tabs/common/tab_strip_view.h
+@@ -150,6 +150,9 @@
+   raw_ptr<views::ScrollView> unpinned_tabs_scroll_view_ = nullptr;
+   raw_ptr<UnpinnedTabContainerView> unpinned_tabs_container_view_ = nullptr;
+   raw_ptr<TabScrollButtonContainer> tab_scroll_button_container_ = nullptr;
++  // boring: headings of the side tabs list (screen C09). Vertical only.
++  raw_ptr<views::View> boring_pinned_heading_ = nullptr;
++  raw_ptr<views::View> boring_open_heading_ = nullptr;
+   bool is_collapsed_ = false;
+ 
+   // Used for seek time metrics from the time the mouse enters the tabstrip.
+diff --git a/chrome/browser/ui/views/tabs/common/tab_strip_view.cc b/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
+--- a/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
+@@ -19,6 +19,7 @@
+ #include "chrome/browser/ui/tabs/tab_strip_model.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/frame/frame_separator.h"
++#include "chrome/browser/ui/views/tabs/common/boring_side_tab_heading.h"
+ #include "chrome/browser/ui/views/tabs/common/pinned_tab_container_view.h"
+ #include "chrome/browser/ui/views/tabs/common/tab_collection_node.h"
+ #include "chrome/browser/ui/views/tabs/common/tab_group_view.h"
+@@ -190,6 +191,16 @@
+       views::ScrollView::ScrollWithLayers::kEnabled));
+   SetScrollViewProperties(unpinned_tabs_scroll_view_);
+ 
++  if (orientation_ == TabStripOrientation::kVertical) {
++    // boring: the side tabs list is headed like the Shelf (screen C09). The
++    // layout shows them when the list is wide and there is something under
++    // them.
++    boring_pinned_heading_ =
++        AddChildView(std::make_unique<BoringSideTabHeading>(u"Pinned"));
++    boring_open_heading_ =
++        AddChildView(std::make_unique<BoringSideTabHeading>(u"Open tabs"));
++  }
++
+   if (orientation_ == TabStripOrientation::kHorizontal) {
+     unpinned_tab_scroll_type_recorder_ =
+         std::make_unique<tabs::UnpinnedTabScrollTypeRecorder>(
+diff --git a/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc b/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc
+--- a/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc
+@@ -259,11 +259,33 @@
+                                      unpinned_preferred_height != 0 &&
+                                      is_collapsed;
+ 
++  // boring: the headings of the side tabs list, shown when the list is wide
++  // and there is something under them (screen C09).
++  views::View* pinned_heading = tab_strip_view->boring_pinned_heading_;
++  views::View* open_heading = tab_strip_view->boring_open_heading_;
++  const bool show_pinned_heading =
++      pinned_heading && !is_collapsed && pinned_preferred_height != 0;
++  const bool show_open_heading =
++      open_heading && !is_collapsed && unpinned_preferred_height != 0;
++  const int heading_width =
++      std::max(0, size_bounds.width().value() - 2 * region_horizontal_padding);
++  const int pinned_heading_height =
++      show_pinned_heading
++          ? pinned_heading->GetPreferredSize(views::SizeBounds(heading_width, {}))
++                .height()
++          : 0;
++  const int open_heading_height =
++      show_open_heading
++          ? open_heading->GetPreferredSize(views::SizeBounds(heading_width, {}))
++                .height()
++          : 0;
++
+   // If the height is bounded, calculate the available space for laying out the
+   // pinned and unpinned containers.
+   int remaining_height = 0;
+   if (size_bounds.height().is_bounded()) {
+-    remaining_height = size_bounds.height().value();
++    remaining_height = size_bounds.height().value() - pinned_heading_height -
++                       open_heading_height;
+     if (pinned_preferred_height != 0 && unpinned_preferred_height != 0) {
+       remaining_height -= region_vertical_padding;
+     }
+@@ -274,6 +296,17 @@
+     // Clamp the remaining height to 0 if we have less space.
+     remaining_height = std::max(remaining_height, 0);
+   }
++
++  // boring: the "Pinned" heading, then the pinned container.
++  if (pinned_heading) {
++    layouts.child_layouts.emplace_back(
++        pinned_heading, show_pinned_heading,
++        show_pinned_heading
++            ? gfx::Rect(region_horizontal_padding, y, heading_width,
++                        pinned_heading_height)
++            : gfx::Rect());
++  }
++  y += pinned_heading_height;
+ 
+   // Place the pinned container.
+   int pinned_container_height = pinned_preferred_height;
+@@ -316,6 +349,17 @@
+   }
+   layouts.child_layouts.emplace_back(tabs_separator, should_show_separator,
+                                      separator_bounds);
++
++  // boring: the "Open tabs" heading, above the whole list of tabs.
++  if (open_heading) {
++    layouts.child_layouts.emplace_back(
++        open_heading, show_open_heading,
++        show_open_heading
++            ? gfx::Rect(region_horizontal_padding, y, heading_width,
++                        open_heading_height)
++            : gfx::Rect());
++  }
++  y += open_heading_height;
+ 
+   // Place the unpinned container using the entire available width, we do not
+   // inset the x value by `region_horizontal_padding` here because, when the tab
+diff --git a/chrome/browser/ui/views/tabs/common/pinned_tab_container_view.cc b/chrome/browser/ui/views/tabs/common/pinned_tab_container_view.cc
+--- a/chrome/browser/ui/views/tabs/common/pinned_tab_container_view.cc
++++ b/chrome/browser/ui/views/tabs/common/pinned_tab_container_view.cc
+@@ -26,7 +26,10 @@
+ #include "ui/views/view_utils.h"
+ 
+ namespace {
+-constexpr int kTabPadding = 4;
++// boring: 6, the gap between pinned tiles in the design (screen C09).
++constexpr int kTabPadding = 6;
++// boring: the wide list shows its pinned tiles four to a row.
++constexpr int kBoringExpandedColumns = 4;
+ }  // namespace
+ 
+ PinnedTabContainerView::PinnedTabContainerView(
+@@ -418,6 +421,9 @@
+                   static_cast<int>(std::floor((available_width - child_width) /
+                                               (child_width + kTabPadding)) +
+                                    1));
++    if (collapse_state == tabs::VerticalTabStripCollapseState::kExpanded) {
++      children_on_row = std::min(children_on_row, kBoringExpandedColumns);
++    }
+ 
+     // Allocate extra space to the tabs.
+     available_width -=

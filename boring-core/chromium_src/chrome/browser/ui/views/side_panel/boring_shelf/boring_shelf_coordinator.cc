@@ -7,12 +7,17 @@
 
 #include "base/functional/bind.h"
 #include "base/functional/callback_helpers.h"
+#include "chrome/app/chrome_command_ids.h"
+#include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry.h"
 #include "chrome/browser/ui/side_panel/side_panel_entry_scope.h"
 #include "chrome/browser/ui/side_panel/side_panel_registry.h"
 #include "chrome/browser/ui/side_panel/side_panel_ui.h"
 #include "chrome/browser/ui/views/side_panel/boring_shelf/boring_shelf_view.h"
+#include "chrome/common/pref_names.h"
+#include "components/prefs/pref_service.h"
 
 namespace boring::shelf {
 
@@ -52,6 +57,13 @@ void RegisterShelfEntry(BrowserWindowInterface* browser,
 
 void ToggleShelf(BrowserWindowInterface* browser) {
   if (!WindowHasShelf(browser)) {
+    return;
+  }
+  // With side tabs (item 14) the list is the Shelf: the command narrows it
+  // to icons and widens it again, so the Shelf is one thing in both modes.
+  if (browser->GetProfile()->GetPrefs()->GetBoolean(
+          prefs::kVerticalTabsEnabled)) {
+    chrome::ExecuteCommand(browser, IDC_TOGGLE_VERTICAL_TABS_COLLAPSE);
     return;
   }
   if (SidePanelUI* ui = SidePanelUI::From(browser)) {

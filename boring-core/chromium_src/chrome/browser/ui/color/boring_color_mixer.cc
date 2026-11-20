@@ -331,6 +331,10 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   ids[kColorBoringShelfRowHover] = {ui::kColorMenuItemBackgroundHighlighted};
   ids[kColorBoringShelfToggleOn] = {ui::kColorSeparator};
   // boring: end cui-shelf
+  // boring: cui-sidetabs
+  // The ring of the New tab row in the side tabs list, under any theme.
+  ids[kColorBoringSideNewTabRing] = {ui::kColorSeparator};
+  // boring: end cui-sidetabs
   if (!UsingOurTheme(key)) {
     return;
   }
@@ -631,6 +635,10 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
       : &look == &kSoftWhiteDark ? SkColorSetRGB(0x3b, 0x3b, 0x37)
                                  : color_utils::AlphaBlend(p.ink, page, 0.18f)};
   // boring: end cui-shelf
+  // boring: cui-sidetabs
+  // The New tab row's ring is the TOKENS edge (screen C09).
+  mixer[kColorBoringSideNewTabRing] = {p.edge};
+  // boring: end cui-sidetabs
 
   // Windows high contrast: menus keep the system colours Chromium maps
   // them to (ui/color/win/native_color_mixers_win.cc), as the stock menu
