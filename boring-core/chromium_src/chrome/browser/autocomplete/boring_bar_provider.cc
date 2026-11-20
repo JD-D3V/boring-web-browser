@@ -18,6 +18,8 @@
 #include "components/omnibox/browser/autocomplete_match_classification.h"
 #include "components/omnibox/browser/autocomplete_provider_client.h"
 #include "components/omnibox/browser/tab_matcher.h"
+#include "components/prefs/pref_service.h"
+#include "third_party/metrics_proto/omnibox_event.pb.h"
 #include "third_party/omnibox_proto/groups.pb.h"
 #include "ui/native_theme/native_theme.h"
 #include "url/gurl.h"
@@ -169,6 +171,15 @@ bool IsDarkNow(Profile* profile) {
          ui::NativeTheme::PreferredColorScheme::kDark;
 }
 
+// The Look pref (components/boring/core/boring_prefs.h kAppearanceLook).
+constexpr char kLookPref[] = "boring.appearance.look";
+
+bool IsDusk(Profile* profile) {
+  const PrefService* prefs = profile->GetPrefs();
+  return prefs->FindPreference(kLookPref) &&
+         prefs->GetString(kLookPref) == "dusk";
+}
+
 }  // namespace
 
 BoringBarProvider::BoringBarProvider(AutocompleteProviderClient* client,
@@ -188,6 +199,11 @@ void BoringBarProvider::Start(const AutocompleteInput& input,
   // only and must keep treating text as a search or an address.
   if (input.IsZeroSuggest() || input.in_keyword_mode() ||
       input.omit_asynchronous_matches()) {
+    return;
+  }
+  // The Bar only: the New Tab page's own search box cannot run a Do row.
+  if (input.current_page_classification() ==
+      metrics::OmniboxEventProto::NTP_REALBOX) {
     return;
   }
   // Typing chrome:// or file:// addresses stays the address bar's own.
@@ -215,10 +231,12 @@ void BoringBarProvider::AddDoRows(const std::vector<std::u16string>& words) {
     }
     const bool is_default =
         row.may_be_default && TypesWholeKeyword(words, keywords);
+    // Not kPedal: a pedal row must carry a takeover action, and this row is
+    // run by boring_bar_run.cc instead.
     AutocompleteMatch match(this,
                             is_default ? kDoDefaultRelevance : kDoRelevance,
                             /*deletable=*/false,
-                            omnibox::AutocompleteMatchType::kPedal);
+                            omnibox::AutocompleteMatchType::kNavsuggest);
     // Never opened: boring_bar_run.cc runs the row by its id instead. The
     // address only keeps rows apart when results are deduplicated.
     match.destination_url =
@@ -232,7 +250,10 @@ void BoringBarProvider::AddDoRows(const std::vector<std::u16string>& words) {
     match.RecordAdditionalInfo(kIconKey, row.glyph);
     matches_.push_back(std::move(match));
   };
-  add(IsDarkNow(profile_) ? kLightRow : kDarkRow);
+  // Dusk is always dark, so neither row would change anything there.
+  if (!IsDusk(profile_)) {
+    add(IsDarkNow(profile_) ? kLightRow : kDarkRow);
+  }
   for (const DoRow& row : kDoRows) {
     add(row);
   }
