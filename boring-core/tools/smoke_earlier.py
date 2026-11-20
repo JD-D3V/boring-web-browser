@@ -49,6 +49,9 @@ from drive import CHROME, Browser
 from smoke_local import Checks
 from smoke_site_panel import Window, browser_windows
 
+# Chrome's parent: chromedriver, set as each Browser starts.
+DRIVER_PID = [None]
+
 FILE_NAME = "Boring Earlier Tabs"
 FAST = [
     "--boring-earlier-idle-seconds=5",
@@ -216,21 +219,23 @@ def new_profile(tmp, enabled):
 def scenario_off(base, checks):
     with tempfile.TemporaryDirectory(prefix="earlier-", dir=r"E:\tmp") as tmp:
         profile = new_profile(tmp, False)
-        with Browser(user_data_dir=str(profile), args=["--window-size=1280,800", *FAST]) as b:
+        with Browser(headful=True, user_data_dir=str(profile), args=["--window-size=1280,800", *FAST]) as b:
+            DRIVER_PID[0] = b.proc.pid  # chromedriver starts Chrome
             b.get(base + "/")
             open_pages(b, base, ["Page1", "Page2", "Page3"])
             before = len(handles(b))
             time.sleep(16)
             checks("off by default: no tab closed", len(handles(b)) == before, f"{before}")
             checks("off by default: no file kept", not earlier_file(profile).exists())
-            checks("off by default: no chip", chip_count(names_of(os.getpid())) is None)
+            checks("off by default: no chip", chip_count(names_of(DRIVER_PID[0])) is None)
 
 
 def scenario_on(base, out, captures, checks):
     with tempfile.TemporaryDirectory(prefix="earlier-", dir=r"E:\tmp") as tmp:
         profile = new_profile(tmp, True)
         args = ["--window-size=1280,800", *FAST, "--boring-open-earlier"]
-        with Browser(user_data_dir=str(profile), args=args) as b:
+        with Browser(headful=True, user_data_dir=str(profile), args=args) as b:
+            DRIVER_PID[0] = b.proc.pid  # chromedriver starts Chrome
             b.get(base + "/")
             open_pages(b, base, ["Page1", "Page2", "Guarded1", "Page3", "Page4"])
             b.run("window.open('chrome://version')")
@@ -246,8 +251,8 @@ def scenario_on(base, out, captures, checks):
             checks("on: the chrome:// tab was not moved",
                    not any(e.get("url", "").startswith("chrome:") for e in entries))
             pid = b.proc.pid
-            wait_for(lambda: chip_count(names_of(os.getpid())) is not None, 15)
-            count = chip_count(names_of(os.getpid()))
+            wait_for(lambda: chip_count(names_of(DRIVER_PID[0])) is not None, 15)
+            count = chip_count(names_of(DRIVER_PID[0]))
             checks("on: the chip is named Earlier and the count", count == len(entries),
                    f"chip {count}, file {len(entries)}")
             # The pop-up opened by --boring-open-earlier.
@@ -281,7 +286,7 @@ def scenario_on(base, out, captures, checks):
 
 def shoot(out, folder, checks, theme):
     try:
-        hwnd = frame_window(CHROME, under=os.getpid())
+        hwnd = frame_window(CHROME, under=DRIVER_PID[0])
     except (LookupError, RuntimeError, OSError) as e:
         checks("our window to photograph", False, str(e))
         return
@@ -299,14 +304,15 @@ def scenario_incognito(base, checks):
     with tempfile.TemporaryDirectory(prefix="earlier-", dir=r"E:\tmp") as tmp:
         profile = new_profile(tmp, True)
         args = ["--window-size=1280,800", "--incognito", *FAST]
-        with Browser(user_data_dir=str(profile), args=args) as b:
+        with Browser(headful=True, user_data_dir=str(profile), args=args) as b:
+            DRIVER_PID[0] = b.proc.pid  # chromedriver starts Chrome
             b.get(base + "/")
             open_pages(b, base, ["Page1", "Page2", "Page3"])
             before = len(handles(b))
             time.sleep(16)
             checks("incognito: nothing moved", len(handles(b)) == before)
             checks("incognito: nothing recorded", not earlier_file(profile).exists())
-            checks("incognito: no chip", chip_count(names_of(os.getpid())) is None)
+            checks("incognito: no chip", chip_count(names_of(DRIVER_PID[0])) is None)
 
 
 def scenario_expiry(base, checks):
@@ -317,7 +323,8 @@ def scenario_expiry(base, checks):
                    make_entry("old2", f"{base}/Old2", old, title="Old2")]
         earlier_file(profile).write_text(file_text(entries), encoding="utf-8")
         args = ["--window-size=1280,800", *FAST, "--boring-earlier-keep-seconds=10"]
-        with Browser(user_data_dir=str(profile), args=args) as b:
+        with Browser(headful=True, user_data_dir=str(profile), args=args) as b:
+            DRIVER_PID[0] = b.proc.pid  # chromedriver starts Chrome
             gone = wait_for(lambda: read_entries(profile) == [], 25)
             checks("expiry: old entries left the file", bool(gone), str(read_entries(profile)))
 
@@ -327,7 +334,8 @@ def scenario_history(base, checks):
         profile = new_profile(tmp, False)
         entry = make_entry("h1", f"{base}/Hist1", now_ms(), title="Hist1")
         earlier_file(profile).write_text(file_text([entry]), encoding="utf-8")
-        with Browser(user_data_dir=str(profile), args=["--window-size=1280,800", *FAST]) as b:
+        with Browser(headful=True, user_data_dir=str(profile), args=["--window-size=1280,800", *FAST]) as b:
+            DRIVER_PID[0] = b.proc.pid  # chromedriver starts Chrome
             b.get(base + "/Hist1")
             time.sleep(1)
             b.get("chrome://settings/clearBrowserData")
@@ -341,7 +349,8 @@ def scenario_version(base, checks):
         profile = new_profile(tmp, True)
         text = file_text([make_entry("v2", f"{base}/V2", now_ms())], version=2)
         earlier_file(profile).write_text(text, encoding="utf-8")
-        with Browser(user_data_dir=str(profile), args=["--window-size=1280,800", *FAST]) as b:
+        with Browser(headful=True, user_data_dir=str(profile), args=["--window-size=1280,800", *FAST]) as b:
+            DRIVER_PID[0] = b.proc.pid  # chromedriver starts Chrome
             b.get(base + "/")
             open_pages(b, base, ["Page1", "Page2"])
             before = len(handles(b))

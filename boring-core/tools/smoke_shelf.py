@@ -46,6 +46,9 @@ from drive import CHROME, Browser
 from smoke_local import Checks
 from smoke_site_panel import Window
 
+# Chrome's parent: chromedriver, set as each Browser starts.
+DRIVER_PID = [None]
+
 SWITCH = "--boring-open-shelf"
 TOGGLE = "Show or hide the Shelf"
 PANE = "The Shelf"
@@ -122,7 +125,7 @@ def wait_for(fn, timeout=15.0, step=0.4):
 
 def shoot(out, dark, folder, checks):
     try:
-        hwnd = frame_window(CHROME, under=os.getpid())
+        hwnd = frame_window(CHROME, under=DRIVER_PID[0])
     except (LookupError, RuntimeError, OSError) as e:
         checks("our window to photograph", False, str(e))
         return
@@ -158,7 +161,8 @@ def run_main(port, out, captures, dark, checks, full):
         downloads = Path(tmp) / "downloads"
         downloads.mkdir()
         seed_profile(profile, downloads)
-        with Browser(user_data_dir=str(profile), args=args) as b:
+        with Browser(headful=True, user_data_dir=str(profile), args=args) as b:
+            DRIVER_PID[0] = b.proc.pid  # chromedriver starts Chrome
             # The pinned list is the new tab page's; add two sites to it.
             b.get("chrome://newtab")
             time.sleep(1.5)
@@ -166,7 +170,7 @@ def run_main(port, out, captures, dark, checks, full):
                 b.run("chrome.send('addShortcut', [arguments[0], arguments[1]])", [title, base + path])
             titles = [t for t, _ in PINNED]
             b.get(base + "/")
-            frame_under = os.getpid()
+            frame_under = DRIVER_PID[0]
 
             # 1, 2. The toggle, then the Shelf that the hook opens.
             opened = wait_for(lambda: PANE in names_of(frame_under), 20)
@@ -221,10 +225,11 @@ def b_handles(b):
 
 def run_variant(name, extra_args, port, checks, want_toggle, want_saved):
     with tempfile.TemporaryDirectory(prefix="shelf-", dir=r"E:\tmp") as tmp:
-        with Browser(user_data_dir=str(Path(tmp) / "profile"),
+        with Browser(headful=True, user_data_dir=str(Path(tmp) / "profile"),
                      args=[SWITCH, "--window-size=1280,800", *extra_args]) as b:
+            DRIVER_PID[0] = b.proc.pid  # chromedriver starts Chrome
             time.sleep(8)
-            names = names_of(os.getpid())
+            names = names_of(DRIVER_PID[0])
             state = shelf_state(names, [])
             checks(f"{name}: toggle {'is' if want_toggle else 'is not'} there",
                    state["toggle"] == want_toggle, str(sorted(names))[:300])

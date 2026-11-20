@@ -332,8 +332,13 @@ def main():
         checks(f"{label}: no row says Chrome or has an em dash", not bad, str(bad))
 
     try:
-        light = work / "light"
-        write_prefs(light, {"browser": {"theme": {"color_scheme2": 1}}})
+        def fresh_light(name):
+            # A new profile per step: a reused one restores the last run's tabs.
+            where = work / name
+            write_prefs(where, {"browser": {"theme": {"color_scheme2": 1}}})
+            return where
+
+        light = fresh_light("light")
         tabs = ("about:blank", weather, hostile)
         net_log = work / "net-log.json"
 
@@ -379,7 +384,8 @@ def main():
                set(server.paths) <= {"/weather", "/hostile", "/favicon.ico"}, str(server.paths))
 
         # 2. Switching to the hostile tab runs nothing.
-        report = hook(light, "turn on dark;open=Open tabs", urls=tabs)
+        light2 = fresh_light("light-switch")
+        report = hook(light2, "turn on dark;open=Open tabs", urls=tabs)
         time.sleep(1)
         count = tab_count()
         print("after switching:", report["after"], "tabs:", count)
@@ -388,16 +394,17 @@ def main():
         checks("switching opens no new tab", count == len(tabs), str(count))
         stop()
         checks("switching to a tab titled like a Do row leaves the scheme alone",
-               color_scheme(light) == 1, str(color_scheme(light)))
+               color_scheme(light2) == 1, str(color_scheme(light2)))
 
         # 3. A Settings row opens its page.
-        report = hook(light, "dark;open=Settings", urls=tabs)
+        report = hook(fresh_light("light-settings"), "dark;open=Settings", urls=tabs)
         checks("the Settings row opens chrome://settings/appearance",
                report["after"].get("url") == "chrome://settings/appearance", str(report["after"]))
         stop()
 
         # 4. Enter on the Do row, then a row that may not take Enter.
-        report = hook(light, "dark;enter", urls=tabs)
+        light4 = fresh_light("light-enter")
+        report = hook(light4, "dark;enter", urls=tabs)
         print("after Enter:", report["after"])
         checks("Enter on the Do row leaves the page where it was",
                report["after"].get("url") == "about:blank", str(report["after"]))
@@ -405,10 +412,13 @@ def main():
                report["after"].get("field", "x") != "dark", str(report["after"]))
         stop()
         checks("Enter on 'Turn on dark mode' turns dark mode on",
-               color_scheme(light) == 2, str(color_scheme(light)))
-        visited = [u for u in history_urls(light) if "boring-bar" in u or "dark" in u.lower()]
+               color_scheme(light4) == 2, str(color_scheme(light4)))
+        # Every light profile of the run, so no step can leave a Do row or a
+        # search for 'dark' in history.
+        visited = [u for p in (light, light2, light4) for u in history_urls(p)
+                   if "boring-bar" in u or "dark" in u.lower()]
         checks("history has no Do row and no search for 'dark'", not visited, str(visited))
-        report = hook(light, "forget", urls=tabs)
+        report = hook(light4, "forget", urls=tabs)
         forget = [r for r in report["rows"] if r[0] == "Do" and "Forget" in r[1]]
         checks("'forget' lists Forget this session", bool(forget), str(report["rows"]))
         checks("Forget never takes Enter", forget and not any(r[3] for r in forget), str(forget))

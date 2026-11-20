@@ -45,6 +45,9 @@ from drive import CHROME, Browser
 from smoke_local import Checks
 from smoke_site_panel import Window
 
+# Chrome's parent: chromedriver, set as each Browser starts.
+DRIVER_PID = [None]
+
 TOGGLE = "Show or hide the Shelf"
 NEW_TAB = "New tab"
 OPEN_HEADING = "Open tabs"
@@ -125,7 +128,7 @@ def seed_profile(profile, vertical):
 
 def shoot(out, dark, folder, checks):
     try:
-        hwnd = frame_window(CHROME, under=os.getpid())
+        hwnd = frame_window(CHROME, under=DRIVER_PID[0])
     except (LookupError, RuntimeError, OSError) as e:
         checks("our window to photograph", False, str(e))
         return
@@ -148,12 +151,13 @@ def run_main(port, out, captures, dark, checks, full):
     with tempfile.TemporaryDirectory(prefix="sidetabs-", dir=r"E:\tmp") as tmp:
         profile = Path(tmp) / "profile"
         seed_profile(profile, True)
-        with Browser(user_data_dir=str(profile), args=args) as b:
+        with Browser(headful=True, user_data_dir=str(profile), args=args) as b:
+            DRIVER_PID[0] = b.proc.pid  # chromedriver starts Chrome
             b.get(base + "/")
             for n in range(3):
                 b.run("window.open(arguments[0])", [f"{base}/Page{n}"])
                 time.sleep(0.4)
-            under = os.getpid()
+            under = DRIVER_PID[0]
             # 2. The list and its parts.
             ready = wait_for(lambda: TOGGLE in names_of(under), 20)
             state = side_tabs_state(names_of(under))
@@ -189,9 +193,10 @@ def run_variant(name, extra_args, vertical, checks, expect):
     with tempfile.TemporaryDirectory(prefix="sidetabs-", dir=r"E:\tmp") as tmp:
         profile = Path(tmp) / "profile"
         seed_profile(profile, vertical)
-        with Browser(user_data_dir=str(profile), args=["--window-size=1280,800", *extra_args]) as b:
+        with Browser(headful=True, user_data_dir=str(profile), args=["--window-size=1280,800", *extra_args]) as b:
+            DRIVER_PID[0] = b.proc.pid  # chromedriver starts Chrome
             time.sleep(8)
-            names = names_of(os.getpid())
+            names = names_of(DRIVER_PID[0])
             state = side_tabs_state(names)
             for key, want in expect.items():
                 checks(f"{name}: {key} is {want}", state[key] == want, str(sorted(names))[:300])

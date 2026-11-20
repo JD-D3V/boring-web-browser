@@ -69,6 +69,14 @@ from smoke_local import Checks, list_folder, wait_for
 from smoke_memory import close, launch
 from smoke_site_panel import Window, browser_windows
 
+# Who started the browser in hand: chromedriver (drive.Browser) or this script.
+UNDER = [None]
+
+
+def our_pid():
+    return UNDER[0] or os.getpid()
+
+
 TEST_SWITCH = "--boring-passport-test"
 OPENSSL = r"C:\Program Files\Git\usr\bin\openssl.exe"
 NAMES = ["citylibrary.net", "parcel-redelivery.net", "royalpost.net", "rnyalpost.net", "plain.net"]
@@ -204,7 +212,7 @@ def texts(state):
 
 def shoot(out, name, screen, dark, folder, checks):
     try:
-        hwnd = frame_window(CHROME, under=os.getpid())
+        hwnd = frame_window(CHROME, under=our_pid())
     except (LookupError, RuntimeError, OSError) as e:
         checks(f"{name}: our window to photograph", False, str(e))
         return
@@ -227,7 +235,8 @@ def run(base, out, captures, dark, checks, full):
         args.append("--force-dark-mode")
     https, http = base[:2]
     with tempfile.TemporaryDirectory(prefix="passport-", dir=r"E:\tmp") as profile, \
-            Browser(user_data_dir=profile, args=args) as b:
+            Browser(headful=True, user_data_dir=profile, args=args) as b:
+        UNDER[0] = b.proc.pid  # chromedriver starts Chrome
         checks(f"{theme}: new tab page hook is ready", open_newtab(b))
         hook(b, "engage", f"https://royalpost.net:{https}/", 50)
         # Known by history needs two different earlier days (30 and 2 days ago).
@@ -248,7 +257,7 @@ def run(base, out, captures, dark, checks, full):
         checks(f"{theme}: chip is drawn 28 high", chip.get("height") == 28, str(chip))
         if full:
             try:
-                with Window(frame_window(CHROME, under=os.getpid())) as w:
+                with Window(frame_window(CHROME, under=our_pid())) as w:
                     names = w.names()
                 checks("UI Automation finds the New to you button", "New to you" in names, str(names)[:300])
             except (LookupError, RuntimeError, OSError) as e:
@@ -434,7 +443,7 @@ def chip_names_of_ours(timeout=0.0):
     deadline = time.monotonic() + timeout
     while True:
         windows = 0
-        for hwnd in browser_windows(os.getpid()):
+        for hwnd in browser_windows(our_pid()):
             try:
                 with Window(hwnd) as w:
                     windows += 1
@@ -463,9 +472,10 @@ def run_warnings(base, checks):
     FILE_URL.write_text("<!doctype html><title>A file</title><p>A file.</p>", encoding="utf-8")
     with list_folder({"scamlist.txt": scam_list_text()}) as lists, \
             tempfile.TemporaryDirectory(prefix="passport-", dir=r"E:\tmp") as profile, \
-            Browser(user_data_dir=profile, args=[
+            Browser(headful=True, user_data_dir=profile, args=[
                 TEST_SWITCH, f"--boring-list-dir={lists}", "--disable-boring-list-updates",
                 f"--host-resolver-rules={rules}", "--window-size=1280,800"]) as b:
+        UNDER[0] = b.proc.pid  # chromedriver starts Chrome
         checks("warnings: new tab page hook is ready", open_newtab(b))
         b.get("chrome://boring-protection")
         checks("warnings: the scam list loads", wait_for(
@@ -520,7 +530,8 @@ def run_windows(base, checks):
     site = f"https://parcel-redelivery.net:{https}/track"
     for label, extra in (("private window", ["--incognito"]), ("guest window", ["--guest"])):
         with tempfile.TemporaryDirectory(prefix="passport-", dir=r"E:\tmp") as profile, \
-                Browser(user_data_dir=profile, args=flags + extra) as b:
+                Browser(headful=True, user_data_dir=profile, args=flags + extra) as b:
+            UNDER[0] = b.proc.pid  # chromedriver starts Chrome
             b.get(site)
             found, windows = chip_names_of_ours(timeout=10)
             checks(f"{label}: our window was found", windows > 0)
@@ -528,6 +539,7 @@ def run_windows(base, checks):
     with tempfile.TemporaryDirectory(prefix="passport-", dir=r"E:\tmp") as tmp:
         where = Path(tmp) / "app"
         (where / "Default").mkdir(parents=True)
+        UNDER[0] = None  # launched by this script
         proc, cdp = launch(CHROME, where, flags + [f"--app={site}"], urls=())
         try:
             time.sleep(4)
@@ -538,6 +550,7 @@ def run_windows(base, checks):
             close(proc, cdp)
         where = Path(tmp) / "popup"
         (where / "Default").mkdir(parents=True)
+        UNDER[0] = None  # launched by this script
         proc, cdp = launch(CHROME, where, flags)
         try:
             time.sleep(3)
