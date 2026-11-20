@@ -73,6 +73,7 @@ ARGPARSE_TOOLS = {
     "smoke_customize_toolbar.py",  # boring: cui-menu
     "smoke_icons.py",  # boring: cui-icons
     "smoke_bar.py",  # boring: cui-bar
+    "smoke_shelf.py",  # boring: cui-shelf
     "test_update_local.py",
     "probe_focus.py",
 }
@@ -286,6 +287,25 @@ def build_steps(out, net_seconds):
             smoke_lines,
         ),
         # boring: end cui-passport
+        # boring: cui-shelf
+        Step(
+            "1o-shelf",
+            "the Shelf with top tabs beside screen C03, light and dark",
+            [
+                tool(
+                    "smoke_shelf.py",
+                    "--out",
+                    str(shots / "shelf"),
+                    "--captures",
+                    str(shots / "shelf"),
+                )
+            ],
+            900,
+            "four browser launches (the Shelf is opened by a test switch, no input); "
+            "a local server on 127.0.0.1 serves one page and one file",
+            smoke_lines,
+        ),
+        # boring: end cui-shelf
         Step(
             "2-takeover",
             "screen takeover: pointer lock and keyboard lock, real window",

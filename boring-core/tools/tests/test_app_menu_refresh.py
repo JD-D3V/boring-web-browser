@@ -247,6 +247,15 @@ class PatchTest(unittest.TestCase):
                 changed = [ln for ln in section.splitlines() if ln.startswith("-")]
                 self.assertEqual(changed, [], f"{name} changes lines in {build}")
                 touched.discard(build)
+            # A later piece (cui-shelf) takes its command id from the block the
+            # chair handed out, in the same header. Lines added there leave
+            # this patch's lines as they are; changing any is still refused.
+            ids = "chrome/app/chrome_command_ids.h"
+            if ids in touched:
+                section = text.split(f"+++ b/{ids}\n", 1)[1].split("\ndiff --git ", 1)[0]
+                changed = [ln for ln in section.splitlines() if ln.startswith("-")]
+                self.assertEqual(changed, [], f"{name} changes lines in {ids}")
+                touched.discard(ids)
             self.assertEqual(touched & PATCHED_FILES, set(), name)
 
     def test_no_command_the_patch_removes_is_lost(self):

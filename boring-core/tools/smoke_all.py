@@ -103,6 +103,9 @@ CHECKS = [
     # boring: cui-passport
     ("the Passport: chip, Site passport pop-up, its buttons", "smoke_passport.py"),
     # boring: end cui-passport
+    # boring: cui-shelf
+    ("the Shelf: toggle, pinned sites, saved and downloaded", "smoke_shelf.py"),
+    # boring: end cui-shelf
 ]
 
 # Every smoke_*.py that is not a check, with the reason. A new file must
@@ -137,6 +140,9 @@ NATIVE_CHECKS = {
     # boring: cui-passport
     "smoke_passport.py",
     # boring: end cui-passport
+    # boring: cui-shelf
+    "smoke_shelf.py",
+    # boring: end cui-shelf
 }
 
 
