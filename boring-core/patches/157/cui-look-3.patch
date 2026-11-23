@@ -242,7 +242,7 @@ diff --git a/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc b/chro
    sync_icon_->SetProperty(views::kMarginsKey,
                            gfx::Insets::TLBR(0, 0, 0, kSyncIconLabelPadding));
    attention_indicator_->SetProperty(
-@@ -568,7 +612,18 @@
+@@ -568,7 +612,22 @@
    SetHoverCardDataFrom(tab_group_data);
  }
  
@@ -256,12 +256,16 @@ diff --git a/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc b/chro
 +}
 +
  void TabGroupHeaderView::OnTabCountChanged() {
-+  // boring: the side tabs heading's "N tabs".
++  // boring: the side tabs heading's "N tabs". The tab strip model counts a
++  // tab only after its view has moved, so count again once that is done.
 +  BoringUpdateCount();
++  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
++      FROM_HERE, base::BindOnce(&TabGroupHeaderView::BoringUpdateCount,
++                                weak_ptr_factory_.GetWeakPtr()));
    if (delegate_->IsValid() && delegate_->GetTabGroup().is_ephemeral()) {
      const int tab_count = delegate_->GetTabGroup().tab_count();
      group_header_label_->SetText(l10n_util::GetPluralStringFUTF16(
-@@ -690,6 +745,14 @@
+@@ -690,6 +749,14 @@
    }
  
    // Update background.
