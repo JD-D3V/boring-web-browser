@@ -13,6 +13,7 @@
 #include "base/location.h"
 #include "base/memory/raw_ptr.h"
 #include "base/strings/strcat.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -212,10 +213,21 @@ class BarTest {
       return;
     }
     content::WebContents* contents = bar()->GetWebContents();
+    // The address field's height and its toolbar row's (screens C01, C14:
+    // 36 in a row of 50).
+    int row_height = 0;
+    for (views::View* up = bar()->parent(); up; up = up->parent()) {
+      if (up->GetClassName() == "ToolbarView") {
+        row_height = up->height();
+        break;
+      }
+    }
     base::StrAppend(
         &report_,
         {"after\tfield=", OneLine(bar()->omnibox_view()->GetText()), "\turl=",
-         contents ? contents->GetVisibleURL().spec() : std::string(), "\n"});
+         contents ? contents->GetVisibleURL().spec() : std::string(),
+         "\tbarHeight=", base::NumberToString(bar()->height()),
+         "\trowHeight=", base::NumberToString(row_height), "\n"});
     Finish();
   }
 

@@ -1,3 +1,29 @@
+diff --git a/chrome/browser/ui/layout_constants.cc b/chrome/browser/ui/layout_constants.cc
+--- a/chrome/browser/ui/layout_constants.cc
++++ b/chrome/browser/ui/layout_constants.cc
+@@ -86,7 +86,9 @@
+     case LayoutConstant::kLocationBarTrailingDecorationInnerPadding:
+       return touch_ui ? 3 : 8;
+     case LayoutConstant::kLocationBarHeight:
+-      return touch_ui ? 36 : 34;
++      // boring: 36 DIP as drawn (Window.dc.html); TOOLBAR_INTERIOR_MARGIN
++      // below keeps the row 50. Touch was 36 already.
++      return 36;
+     // LINT.IfChange(LocationBarIconSize)
+     case LayoutConstant::kLocationBarIconSize:
+       return touch_ui ? 20 : 16;
+@@ -257,9 +259,9 @@
+       }
+ 
+     case TOOLBAR_INTERIOR_MARGIN:
+-      // boring: 8 DIP above and below the 34 DIP address bar, so the row
++      // boring: 7 DIP above and below the 36 DIP address bar, so the row
+       // is 50 high, as drawn (screens 1 and 14).
+-      return touch_ui ? gfx::Insets::VH(4, 0) : gfx::Insets::VH(8, 6);
++      return touch_ui ? gfx::Insets::VH(4, 0) : gfx::Insets::VH(7, 6);
+ 
+     case WEBUI_TAB_STRIP_TOOLBAR_INTERIOR_MARGIN:
+       return gfx::Insets::VH(4, 0);
 diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/toolbar/app_menu_model.cc
 --- a/chrome/browser/ui/toolbar/app_menu_model.cc
 +++ b/chrome/browser/ui/toolbar/app_menu_model.cc

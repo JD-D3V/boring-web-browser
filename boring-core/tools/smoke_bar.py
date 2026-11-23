@@ -463,6 +463,9 @@ def main():
                report["after"].get("url") == "about:blank", str(report["after"]))
         checks("the field shows the page's address again, not the query",
                report["after"].get("field", "x") != "dark", str(report["after"]))
+        checks("the address field is 36 high in a toolbar row of 50 (as drawn)",
+               report["after"].get("barHeight") == "36" and report["after"].get("rowHeight") == "50",
+               str(report["after"]))
         stop()
         checks("Enter on 'Turn on dark mode' turns dark mode on",
                color_scheme(light4) == 2, str(color_scheme(light4)))
