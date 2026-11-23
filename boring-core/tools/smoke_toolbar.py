@@ -493,6 +493,8 @@ def main():
         start(fresh)
         names = frame_names()
         checks("a new profile shows the bookmarks bar", all(any(n.startswith(t) for n in names) for t in BOOKMARKS), str(names))
+        checks("the bar's right-hand button reads All bookmarks (screen C14)",
+               "All bookmarks" in names and "All Bookmarks" not in names, str(names))
         stop()
         checks(
             "the setting is on by default (nothing turned it off)",

@@ -1,3 +1,17 @@
+diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources.grd
+--- a/chrome/app/generated_resources.grd
++++ b/chrome/app/generated_resources.grd
+@@ -17952,8 +17952,9 @@
+     </if>
+ 
+     <!-- Automation infobar -->
++    <!-- boring: our name in the automation bar. -->
+     <message name="IDS_CONTROLLED_BY_AUTOMATION" desc="Message shown when the browser session is being controlled by an automated test.">
+-      Chrome is being controlled by automated test software
++      Boring Browser is being controlled by automated test software
+     </message>
+ 
+     <!-- Chrome for Testing infobar main text -->
 diff --git a/chrome/browser/ui/layout_constants.cc b/chrome/browser/ui/layout_constants.cc
 --- a/chrome/browser/ui/layout_constants.cc
 +++ b/chrome/browser/ui/layout_constants.cc
@@ -55,6 +69,21 @@ diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/too
  
    CreateFindAndEditSubMenu();
  
+diff --git a/chrome/browser/ui/views/bookmarks/bookmark_bar_view.cc b/chrome/browser/ui/views/bookmarks/bookmark_bar_view.cc
+--- a/chrome/browser/ui/views/bookmarks/bookmark_bar_view.cc
++++ b/chrome/browser/ui/views/bookmarks/bookmark_bar_view.cc
+@@ -1170,8 +1170,9 @@
+   // There should be no buttons. If non-zero it means we didn't properly clear
+   // things. The actual bookmark buttons are added from Layout().
+   DCHECK(bookmark_buttons_.empty());
+-  const std::u16string all_bookmarks_button_text =
+-      l10n_util::GetStringUTF16(IDS_BOOKMARKS_ALL_BOOKMARKS);
++  // boring: the bar's own button reads "All bookmarks" (screen C14); the
++  // root folder keeps its name everywhere else.
++  const std::u16string all_bookmarks_button_text = u"All bookmarks";
+   all_bookmarks_button_->GetViewAccessibility().SetName(
+       all_bookmarks_button_text);
+   all_bookmarks_button_->SetText(all_bookmarks_button_text);
 diff --git a/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc b/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc
 --- a/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc
 +++ b/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc

@@ -160,7 +160,7 @@ def shape_checks(b, checks):
     """The fresh profile's page: what is on it and what is not."""
     b.get("chrome://newtab")
     checks["new tab is our page"] = wait_for(b, "location.host==='boring-newtab'")
-    checks["tab title is still New Tab"] = b.run("return document.title==='New Tab'")
+    checks["tab title is New tab"] = b.run("return document.title==='New tab'")
     icon = b.run_async(ICON_LOADS)
     checks["tab icon brand.svg loads"] = icon == "ok"
     if icon != "ok":

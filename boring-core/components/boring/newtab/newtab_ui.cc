@@ -66,7 +66,7 @@ constexpr char kPage[] = R"PAGE(<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>New Tab</title>
+<title>New tab</title>
 <link rel="icon" type="image/svg+xml" href="brand.svg">
 <link rel="stylesheet" href="chrome://theme/colors.css?sets=ui,chrome">
 <style>

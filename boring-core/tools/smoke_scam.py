@@ -338,7 +338,7 @@ def main():
                         went_to_new_tab = go_back_to(
                             b,
                             "location.protocol === 'chrome:' && "
-                            "location.host === 'boring-newtab' && document.title === 'New Tab'",
+                            "location.host === 'boring-newtab' && document.title === 'New tab'",
                         )
                         check(
                             "Go back to safety with no history opens New Tab",

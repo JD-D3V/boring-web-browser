@@ -170,6 +170,11 @@ def run_main(port, out, captures, dark, checks, full):
             checks(f"{theme}: Open tabs heading", state["open_heading"], str(state))
             checks(f"{theme}: no Pinned heading while nothing is pinned", not state["pinned_heading"], str(state))
             checks(f"{theme}: a New tab button", state["new_tab"], str(state))
+            # WebDriver's automation bar names the product, never Chrome.
+            bar_names = [n for n in names_of(under) if "automated test software" in n]
+            checks(f"{theme}: the automation bar says Boring Browser",
+                   bool(bar_names) and all(n.startswith("Boring Browser is being controlled")
+                                           for n in bar_names), str(bar_names))
             # Screen C09: the New tab row shows its shortcut at the right.
             checks(f"{theme}: the New tab row shows Ctrl+T", "Ctrl+T" in names_of(under),
                    str(names_of(under))[:300])
