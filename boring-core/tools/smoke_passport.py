@@ -89,7 +89,10 @@ def our_pid():
 TEST_SWITCH = "--boring-passport-test"
 OPENSSL = r"C:\Program Files\Git\usr\bin\openssl.exe"
 NAMES = ["citylibrary.net", "parcel-redelivery.net", "royalpost.net", "rnyalpost.net", "plain.net",
-         "selfmade.net"]
+         "selfmade.net", "jsoff-passport.net"]
+# Ledger 59 (S-D7): a site where the person blocked JavaScript (seeded in
+# Preferences as a Site settings exception).
+JS_OFF_HOST = "jsoff-passport.net"
 NEW, KNOWN = 2, 1
 SECURE = 3  # security_state::SECURE
 # A 1x1 PNG for the mixed content page.
@@ -302,24 +305,30 @@ def run(base, out, captures, dark, checks, full):
         args.append("--force-dark-mode")
     https, http = base[:2]
     with tempfile.TemporaryDirectory(prefix="passport-", dir=r"E:\tmp") as profile:
-        seed_profile(profile)
+        seed_profile(profile, https)
         run_in(b_args=args, profile=profile, base=base, out=out, captures=captures, dark=dark,
                checks=checks, full=full)
 
 
-def seed_profile(profile):
+def seed_profile(profile, https=None):
     """HTTPS-First (on by default) puts Chromium's own warning page in front
     of every http page; step 9 is about the http page a person reaches past
     it, so this profile has it off, the way smoke_lookalike.py seeds it. The
     warning page itself is checked in run_warnings.
     It also allows insecure content (Site settings, "Insecure content"),
     which is what stops Chromium upgrading an http image to https: step 9c
-    needs real mixed content on the page."""
+    needs real mixed content on the page.
+    With `https`, JavaScript is blocked for JS_OFF_HOST (Site settings,
+    "JavaScript", Not allowed) for ledger 59's card question check."""
     folder = Path(profile) / "Default"
     folder.mkdir(parents=True, exist_ok=True)
+    content = {"default_content_setting_values": {"mixed_script": 1}}
+    if https:
+        content["content_settings"] = {"exceptions": {"javascript": {
+            f"https://{JS_OFF_HOST}:{https},*": {"setting": 2}}}}
     (folder / "Preferences").write_text(json.dumps(
         {"https_only_mode_enabled": False, "https_first_balanced_mode_enabled": False,
-         "profile": {"default_content_setting_values": {"mixed_script": 1}}}), encoding="utf-8")
+         "profile": content}), encoding="utf-8")
 
 
 def run_in(b_args, profile, base, out, captures, dark, checks, full):
@@ -469,6 +478,17 @@ def run_in(b_args, profile, base, out, captures, dark, checks, full):
         go(b, f"https://royalpost.net:{https}/names")
         checks("the card fact does not follow to the next page",
                (hook(b, "passportState") or {}).get("asksCard") is False)
+        # Ledger 59 (S-D7): the same card page on a site where JavaScript is
+        # blocked: the card question is not asked.
+        go(b, f"https://{JS_OFF_HOST}:{https}/pay")
+        time.sleep(1.5)  # as long as the card page above needed
+        checks("JavaScript blocked: no card fact",
+               (hook(b, "passportState") or {}).get("asksCard") is not True,
+               str(hook(b, "passportState")))
+        state = popup(b)
+        checks("JavaScript blocked: the Passport has no card row",
+               "This page asks for card details." not in texts(state), str(texts(state)))
+        hook(b, "closePopup")
 
         # 3. Look-alike of a site you use.
         go(b, f"https://rnyalpost.net:{https}/")
@@ -595,6 +615,12 @@ def run_in(b_args, profile, base, out, captures, dark, checks, full):
         checks("mixed content: the page is not SECURE", chip.get("securityLevel") not in (None, SECURE), str(chip))
         checks("mixed content: no chip of ours", chip.get("chip") == 0 and chip.get("text") == "", str(chip))
         chip_follows_level("mixed content", chip)
+        # Ledger 59 (S-D5): this known site is not SECURE here, so the
+        # Passport never opens in the "A site you know" layout.
+        state = popup(b)
+        checks("not SECURE on a known site: the Passport is not in the A site you know layout",
+               state.get("verdict") != "A site you know", str(state)[:300])
+        hook(b, "closePopup")
         # 9b. An error page (the name goes nowhere): Chromium's icon, no chip.
         go(b, f"https://gone-passport.net:{https}/")
         time.sleep(1)
