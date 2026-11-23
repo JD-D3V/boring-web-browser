@@ -22,9 +22,13 @@ What it asserts (nothing is asserted that was not looked at):
      toggle. App window: no list.
   8. Captures: PrintWindow of our window with side tabs, light and dark,
      beside C09 (--captures).
+  9. "Open tabs" heading: with no group it sits right above the first tab;
+     with one group and two loose tabs (made by smoke_tabgroups.py's test
+     extension) its top is below the group's last tab and its bottom above
+     the first loose tab (UI Automation bounds).
 Not checked here: the pinned grid (four tiles to a row; a tab cannot be
-pinned without input and no pin hook exists), the group heading row, the
-Earlier section (item 16 is not built), the sheet's radius (drawn 10, built 8).
+pinned without input and no pin hook exists), the group heading row. The
+Earlier section is checked by smoke_earlier.py (scenario_side).
 
 Usage: python boring-core/tools/smoke_sidetabs.py [--out DIR] [--captures DIR]
 """
@@ -98,6 +102,43 @@ def width_taken(b):
 def names_of(under):
     with Window(frame_window(CHROME, under=under)) as w:
         return w.names()
+
+
+def rects_of(under):
+    """[(name, (left, top, right, bottom))] of every named control on our
+    window, in screen pixels, read through UI Automation."""
+    import ctypes
+    from ctypes import wintypes
+    from smoke_site_panel import _call  # noqa: PLC0415
+
+    out = []
+    with Window(frame_window(CHROME, under=under)) as w:
+        for text, element in w.items:
+            if not (element and text):
+                continue
+            r = wintypes.RECT()
+            _call(element, 43, ctypes.addressof(r))  # get_CurrentBoundingRectangle
+            out.append((text, (r.left, r.top, r.right, r.bottom)))
+    return out
+
+
+def first_rect(rects, wanted):
+    """The first non-empty rectangle whose name `wanted` accepts, or None."""
+    for text, r in rects:
+        if wanted(text) and r[2] > r[0] and r[3] > r[1]:
+            return r
+    return None
+
+
+def heading_between(heading, above, below):
+    """Screen C09: the "Open tabs" heading's top is at or below the bottom of
+    the tab above it, and its bottom at or above the top of the tab below.
+    Pure, so it is tested without a browser."""
+    if not (heading and below):
+        return False
+    if above and heading[1] < above[3]:
+        return False
+    return heading[3] <= below[1]
 
 
 def press(under, name):
@@ -178,6 +219,14 @@ def run_main(port, out, captures, dark, checks, full):
             # Screen C09: the New tab row shows its shortcut at the right.
             checks(f"{theme}: the New tab row shows Ctrl+T", "Ctrl+T" in names_of(under),
                    str(names_of(under))[:300])
+            # With no group the Open tabs heading sits right above the first
+            # loose tab (below Pinned when there is one).
+            rects = rects_of(under)
+            head = first_rect(rects, lambda t: t == OPEN_HEADING)
+            first_tab = first_rect(rects, lambda t: t.startswith("Home"))
+            checks(f"{theme}: with no group, Open tabs sits right above the first tab",
+                   heading_between(head, None, first_tab) and first_tab[1] - head[3] <= 24,
+                   f"heading {head}, first tab {first_tab}")
             # 4. The strip's other buttons are gone.
             checks(f"{theme}: no tab search button in the list", not state["tab_search"], str(state))
             # 3. Width.
@@ -200,6 +249,50 @@ def run_main(port, out, captures, dark, checks, full):
             time.sleep(1.5)
             after = len(handles(b))
             checks("New tab opens a tab", after == before + 1, f"{before} -> {after}")
+
+
+GROUP_FIRST_JS = r"""
+// cui-look-4: screen C09's order, the group first, then two loose tabs.
+window.sceneGroupFirst = async () => {
+  await clear();
+  await group(await open(['Train times', 'Hotel booking', 'City map']), 'Trip', 'cyan');
+  await open(['Local news', 'Weather']);
+  return finish();
+};
+"""
+
+
+def run_groups(checks):
+    """One group and two loose tabs: the "Open tabs" heading's top is below
+    the group's last tab and above the first loose tab. The group is made by
+    smoke_tabgroups.py's test extension (chrome.tabs.group), driven through
+    WebDriver; nothing is sent to the OS."""
+    import smoke_tabgroups as tg  # noqa: PLC0415
+
+    with tempfile.TemporaryDirectory(prefix="sidetabs-", dir=r"E:\tmp") as tmp:
+        profile = Path(tmp) / "profile"
+        seed_profile(profile, True)
+        ext = Path(tmp) / "ext"
+        ext.mkdir()
+        tg.write_extension(ext)
+        run_js = ext / "run.js"
+        run_js.write_text(run_js.read_text(encoding="utf-8") + GROUP_FIRST_JS, encoding="utf-8")
+        args = ["--window-size=1280,800", "--load-extension=" + str(ext)]
+        with Browser(headful=True, user_data_dir=str(profile), args=args,
+                     keep_switches=["enable-automation"]) as b:
+            DRIVER_PID[0] = b.proc.pid  # chromedriver starts Chrome
+            tg.run_page(b)
+            groups = tg.call(b, "sceneGroupFirst")
+            checks("groups: the Trip group was made",
+                   isinstance(groups, list) and len(groups) == 1 and groups[0].get("tabs") == 3, str(groups))
+            time.sleep(1.5)
+            rects = rects_of(DRIVER_PID[0])
+            head = first_rect(rects, lambda t: t == OPEN_HEADING)
+            last_group_tab = first_rect(rects, lambda t: t.startswith("City map"))
+            first_loose = first_rect(rects, lambda t: t.startswith("Local news"))
+            checks("groups: Open tabs sits between the group and the loose tabs",
+                   heading_between(head, last_group_tab, first_loose),
+                   f"heading {head}, City map {last_group_tab}, Local news {first_loose}")
 
 
 def run_variant(name, extra_args, vertical, checks, expect):
@@ -229,6 +322,7 @@ def main():
         run_variant("default profile", [], False, checks, {"open_heading": False, "toggle": True})
         run_main(port, args.out, args.captures, False, checks, full=True)
         run_main(port, args.out, args.captures, True, checks, full=False)
+        run_groups(checks)
         # 7. Private window shows a working window; an app window has no list.
         run_variant("private window", ["--incognito"], True, checks, {"toggle": True})
         run_variant("app window", [f"--app=http://127.0.0.1:{port}/"], True, checks,

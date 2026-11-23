@@ -372,6 +372,20 @@ diff --git a/chrome/browser/ui/views/tabs/common/tab_group_view.cc b/chrome/brow
      group_header_->OnTabCountChanged();
    }
    return removed;
+diff --git a/chrome/browser/ui/views/tabs/common/tab_strip_view.cc b/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
+--- a/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
+@@ -197,8 +197,8 @@
+     // them.
+     boring_pinned_heading_ =
+         AddChildView(std::make_unique<BoringSideTabHeading>(u"Pinned"));
+-    boring_open_heading_ =
+-        AddChildView(std::make_unique<BoringSideTabHeading>(u"Open tabs"));
++    // boring: "Open tabs" now lives inside the unpinned container, between
++    // the groups and the loose tabs (cui-look-4), so it is not made here.
+   }
+ 
+   if (orientation_ == TabStripOrientation::kHorizontal) {
 diff --git a/chrome/browser/ui/views/tabs/common/tab_view.cc b/chrome/browser/ui/views/tabs/common/tab_view.cc
 --- a/chrome/browser/ui/views/tabs/common/tab_view.cc
 +++ b/chrome/browser/ui/views/tabs/common/tab_view.cc
@@ -396,6 +410,129 @@ diff --git a/chrome/browser/ui/views/tabs/common/tab_view.cc b/chrome/browser/ui
        (split_ ? GetInsets().height() : 0));
  }
  
+diff --git a/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.cc b/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.cc
+--- a/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.cc
++++ b/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.cc
+@@ -6,6 +6,7 @@
+ 
+ #include "chrome/browser/ui/layout_constants.h"
+ #include "chrome/browser/ui/tabs/tab_style.h"
++#include "chrome/browser/ui/views/tabs/common/boring_side_tab_heading.h"  // boring
+ #include "chrome/browser/ui/views/tabs/common/dragged_tabs_container.h"
+ #include "chrome/browser/ui/views/tabs/common/split_tab_view.h"
+ #include "chrome/browser/ui/views/tabs/common/tab_collection_animating_layout_manager.h"
+@@ -99,6 +100,14 @@
+   SetEventTargeter(std::make_unique<views::ViewTargeter>(
+       std::make_unique<UnpinnedTabContainerViewTargeter>(this)));
+ 
++  // boring: the "Open tabs" heading sits between the groups and the loose
++  // tabs (screen C09). The layout always lists it, shown or not, so the
++  // animating layout manager never leaves it at stale bounds.
++  if (orientation_ == TabStripOrientation::kVertical) {
++    boring_open_heading_ =
++        AddChildView(std::make_unique<BoringSideTabHeading>(u"Open tabs"));
++  }
++
+   collection_node->set_remove_child_from_node(base::BindRepeating(
+       &TabCollectionAnimatingLayoutManager::AnimateAndDestroyChildView,
+       base::Unretained(&layout_manager_.get())));
+diff --git a/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.h b/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.h
+--- a/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.h
++++ b/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view.h
+@@ -90,6 +90,11 @@
+ 
+   const raw_ref<TabCollectionAnimatingLayoutManager> layout_manager_;
+ 
++  // boring: the "Open tabs" heading of the side tabs list (screen C09),
++  // vertical only. Not a tab: it has no collection node, and the layout
++  // places it above the loose tabs that follow the last group.
++  raw_ptr<views::View> boring_open_heading_ = nullptr;
++
+   base::CallbackListSubscription node_destroyed_subscription_;
+ };
+ 
+diff --git a/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view_layout.cc b/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view_layout.cc
+--- a/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view_layout.cc
++++ b/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view_layout.cc
+@@ -242,7 +242,64 @@
+   const int horizontal_padding =
+       GetLayoutConstant(LayoutConstant::kVerticalTabStripHorizontalPadding);
+ 
++  // boring: the "Open tabs" heading (screen C09) goes above the first loose
++  // tab after the last group, else above the first loose tab; never while the
++  // list is narrow, in a focused group, or with no loose tab to head.
++  views::View* const boring_heading = tab_container_view->boring_open_heading_;
++  const views::View* boring_heading_before = nullptr;
++  if (boring_heading &&
++      collapse_state == tabs::VerticalTabStripCollapseState::kExpanded &&
++      !focused_group_id.has_value()) {
++    const views::View* first_loose = nullptr;
++    const views::View* first_loose_after_group = nullptr;
++    bool seen_group = false;
++    for (const views::View* child : children) {
++      if (!IsChildVisibleInContainer(tab_container_view, focused_group_id,
++                                     child)) {
++        continue;
++      }
++      if (views::AsViewClass<TabGroupView>(child)) {
++        seen_group = true;
++        first_loose_after_group = nullptr;
++        continue;
++      }
++      if (!first_loose) {
++        first_loose = child;
++      }
++      if (seen_group && !first_loose_after_group) {
++        first_loose_after_group = child;
++      }
++    }
++    boring_heading_before =
++        first_loose_after_group ? first_loose_after_group : first_loose;
++  }
++  bool boring_heading_placed = false;
++  auto place_boring_heading = [&]() {
++    boring_heading_placed = true;
++    // 12 DIP more room above it when something comes before it, so it reads
++    // as a new section as the Shelf's 18 DIP gap does.
++    constexpr int kBoringGapAbove = 12;
++    const int top = height > 0 ? height + kBoringGapAbove : 0;
++    const int heading_width =
++        size_bounds.width().is_bounded()
++            ? std::max(0, size_bounds.width().value() - 2 * horizontal_padding)
++            : boring_heading->GetPreferredSize().width();
++    const int heading_height =
++        boring_heading->GetPreferredSize(views::SizeBounds(heading_width, {}))
++            .height();
++    layouts.child_layouts.emplace_back(
++        boring_heading, true,
++        gfx::Rect(horizontal_padding, top, heading_width, heading_height));
++    height = top + heading_height;
++    width = std::max(width, horizontal_padding + heading_width);
++  };
++
+   for (auto* child : children) {
++    // boring: the heading goes in just before its tab.
++    if (boring_heading && child == boring_heading_before &&
++        !boring_heading_placed) {
++      place_boring_heading();
++    }
+     int x =
+         views::AsViewClass<TabGroupView>(child) &&
+                 collapse_state != tabs::VerticalTabStripCollapseState::kExpanded
+@@ -293,6 +350,13 @@
+     height -= kTabVerticalPadding;
+   }
+ 
++  // boring: a heading that is not shown is still listed, hidden, so the
++  // animating layout manager hides it instead of leaving it where it was.
++  if (boring_heading && !boring_heading_placed) {
++    layouts.child_layouts.emplace_back(
++        boring_heading, false, gfx::Rect(horizontal_padding, 0, 0, 0));
++  }
++
+   if (tab_container_view->IsHandlingDrag()) {
+     dragged_view_bottom = tab_container_view->GetDraggingViewsBounds().bottom();
+     if (size_bounds.height().is_bounded()) {
 diff --git a/chrome/browser/ui/views/tabs/common/vertical_tab_style_views.cc b/chrome/browser/ui/views/tabs/common/vertical_tab_style_views.cc
 --- a/chrome/browser/ui/views/tabs/common/vertical_tab_style_views.cc
 +++ b/chrome/browser/ui/views/tabs/common/vertical_tab_style_views.cc

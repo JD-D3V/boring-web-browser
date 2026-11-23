@@ -49,6 +49,33 @@ class StateTests(unittest.TestCase):
         self.assertFalse(s["open_heading"])
 
 
+class HeadingPlaceTests(unittest.TestCase):
+    """cui-look-4: "Open tabs" between the groups and the loose tabs."""
+
+    LOOK3 = (CORE / "patches/157/cui-look-3.patch").read_text()
+
+    def test_between(self):
+        head, above, below = (10, 100, 200, 118), (10, 60, 200, 92), (10, 120, 200, 152)
+        self.assertTrue(smoke_sidetabs.heading_between(head, above, below))
+        self.assertTrue(smoke_sidetabs.heading_between(head, None, below))
+        self.assertFalse(smoke_sidetabs.heading_between(head, (10, 60, 200, 105), below))
+        self.assertFalse(smoke_sidetabs.heading_between(head, above, (10, 110, 200, 140)))
+        self.assertFalse(smoke_sidetabs.heading_between(None, above, below))
+
+    def test_first_rect_skips_empty(self):
+        rects = [("Weather", (0, 0, 0, 0)), ("Weather", (1, 2, 3, 4))]
+        self.assertEqual(smoke_sidetabs.first_rect(rects, lambda t: t == "Weather"), (1, 2, 3, 4))
+        self.assertIsNone(smoke_sidetabs.first_rect(rects, lambda t: t == "x"))
+
+    def test_heading_moved_into_the_unpinned_container(self):
+        self.assertIn("boring_open_heading_ =\n+        AddChildView(std::make_unique<BoringSideTabHeading>(u\"Open tabs\"))",
+                      self.LOOK3)
+        self.assertIn("-    boring_open_heading_ =", self.LOOK3)
+        # Always listed in the layout, shown or hidden.
+        self.assertIn("boring_heading, false,", self.LOOK3)
+        self.assertIn("first_loose_after_group", self.LOOK3)
+
+
 class PatchTests(unittest.TestCase):
     def test_last_in_series_after_shelf(self):
         names = series()
