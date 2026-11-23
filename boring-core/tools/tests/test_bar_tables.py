@@ -83,6 +83,20 @@ class Tables(unittest.TestCase):
         self.assertIn("url_formatter::FormatOriginForSecurityDisplay(", tabs)
         self.assertIn('u"Switch to tab, " + site', tabs)
 
+    def test_open_tab_row_never_erases_the_match_enter_takes(self):
+        # Ledger 57 (S-D1): in bar.patch, our Open tabs row loses deduplication
+        # to a match that may be the default, before Chromium's kOpenTab rule.
+        patch = (PATCHES / "bar.patch").read_text(encoding="utf-8")
+        section = patch[patch.index("+++ b/components/omnibox/browser/autocomplete_match.cc"):]
+        section = section[: section.find("\ndiff --git ") if "\ndiff --git " in section else None]
+        self.assertIn("boring:", section)
+        self.assertIn("AutocompleteProvider::Type::kBoringBar", section)
+        self.assertIn("allowed_to_be_default_match", section)
+        self.assertIn("+  // boring:", section)
+        text = PROVIDER.read_text(encoding="utf-8")
+        tabs = text[text.index("void BoringBarProvider::AddOpenTabRows("):]
+        self.assertIn("match.allowed_to_be_default_match = false;", tabs)
+
     def test_glyphs_are_known(self):
         used = {r[3] for r in do_rows()}
         self.assertLessEqual(used, GLYPHS, used - GLYPHS)

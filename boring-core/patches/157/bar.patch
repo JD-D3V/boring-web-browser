@@ -792,3 +792,34 @@ diff --git a/ui/webui/resources/cr_components/searchbox/icons/BUILD.gn b/ui/webu
    ]
    if (!is_chrome_branded) {
      input_files += [
+diff --git a/components/omnibox/browser/autocomplete_match.cc b/components/omnibox/browser/autocomplete_match.cc
+--- a/components/omnibox/browser/autocomplete_match.cc
++++ b/components/omnibox/browser/autocomplete_match.cc
+@@ -764,6 +764,27 @@
+     }
+     if (rich2 && !rich1) {
+       return false;
++    }
++  }
++
++  // boring: the Bar's own Open tabs row (provider kBoringBar) may never take
++  // Enter, so it must never erase a match that may: typing the address of
++  // an open tab, or text history completes to it, then Enter, opens that
++  // address instead of falling through to a search. Rows that may not be
++  // the default still fold into the Open tabs row below.
++  {
++    const auto is_boring_open_tab = [](const AutocompleteMatch& match) {
++      return match.type == omnibox::AutocompleteMatchType::kOpenTab &&
++             match.provider &&
++             match.provider->type() == AutocompleteProvider::Type::kBoringBar;
++    };
++    if (is_boring_open_tab(match1) && !match1.allowed_to_be_default_match &&
++        match2.allowed_to_be_default_match) {
++      return false;
++    }
++    if (is_boring_open_tab(match2) && !match2.allowed_to_be_default_match &&
++        match1.allowed_to_be_default_match) {
++      return true;
+     }
+   }
+ 

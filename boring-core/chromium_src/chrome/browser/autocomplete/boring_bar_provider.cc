@@ -100,8 +100,11 @@ constexpr SettingsRow kSettingsRows[] = {
 constexpr int kDoDefaultRelevance = 1350;
 constexpr int kDoRelevance = 700;
 // Never default, and below what the person typed as an address. When the
-// same page is also a history row, deduplication keeps the Open tabs row
-// by its type (AutocompleteMatch::BetterDuplicate prefers kOpenTab).
+// same page is also a history row that may not take Enter, deduplication
+// keeps the Open tabs row by its type (AutocompleteMatch::BetterDuplicate
+// prefers kOpenTab). A row that may take Enter (the typed address, or one
+// history completes inline) wins over this one (bar.patch's "boring:" hunk
+// in autocomplete_match.cc), so Enter never falls through to a search.
 constexpr int kOpenTabRelevance = 800;
 constexpr int kSettingsRelevance = 650;
 constexpr size_t kMaxOpenTabRows = 3;

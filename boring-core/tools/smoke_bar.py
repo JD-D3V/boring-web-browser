@@ -22,6 +22,11 @@ is sent to the OS as input; windows are placed off screen; every launch has
      of the run holds no address but our own local server.
   2. Same profile: switching to the hostile tab from Open tabs keeps the
      tab count and the colour scheme.
+  2b. Ledger 57: a page open in tab A at http://bank.example.com/ (the
+     resolver maps that name to our local server, nothing leaves); in a
+     blank tab "bank.example.com" is typed and Enter pressed: the row Enter
+     takes is not a search, and the tab shows bank.example.com (tab A, or
+     the address opened), never a search address.
   3. Same profile: "dark" then Settings opens chrome://settings/appearance.
   4. Same profile: Enter on "dark" turns dark mode on (Preferences
      browser.theme.color_scheme2 becomes 2), the field shows the page's
@@ -35,7 +40,10 @@ is sent to the OS as input; windows are placed off screen; every launch has
      close"; Ctrl+E still enters search mode.
 
 Not checked here: the hint read through UI Automation (the hook reads the
-label instead), and queries typed one letter at a time (net_audit.py).
+label instead), queries typed one letter at a time (net_audit.py), and the
+inline-completed case of 2b (the hook sets the whole text at once and a
+fresh profile has no typed history to complete from; the same dedup rule
+covers it).
 
     python smoke_bar.py [--out E:\\tmp\\bar-shots] [--captures FOLDER]
 
@@ -142,7 +150,7 @@ class PageServer(http.server.ThreadingHTTPServer):
         class Handler(http.server.BaseHTTPRequestHandler):
             def do_GET(self):  # noqa: N802
                 server.paths.append(self.path)
-                title = {"/weather": "Weather", "/hostile": HOSTILE}.get(self.path)
+                title = {"/weather": "Weather", "/hostile": HOSTILE, "/": "Bank"}.get(self.path)
                 if title is None:
                     self.send_error(404)
                     return
@@ -400,6 +408,24 @@ def main():
         stop()
         checks("switching to a tab titled like a Do row leaves the scheme alone",
                color_scheme(light2) == 1, str(color_scheme(light2)))
+
+        # 2b. Ledger 57: the address of an open tab, typed, then Enter.
+        bank_host = "bank.example.com"
+        bank_rules = [f"--host-resolver-rules=MAP {bank_host} 127.0.0.1:{server.server_address[1]}, "
+                      "MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"]
+        report = hook(fresh_light("light-address"), f"{bank_host};enter", bank_rules,
+                      urls=("about:blank", f"http://{bank_host}/"))
+        print("rows for the open tab's address:", report["rows"])
+        print("after Enter on the address:", report["after"])
+        chosen = [r for r in report["rows"] if r[3]]
+        checks("the row Enter takes for an open tab's address is not a search",
+               len(chosen) == 1 and chosen[0][0] not in ("Search", "Open tabs")
+               and "search" not in chosen[0][2].lower(), str(chosen))
+        after_url = report["after"].get("url", "")
+        after_host = re.match(r"https?://([^/:]+)", after_url)
+        checks("Enter on an open tab's address shows that site, never a search address",
+               after_host is not None and after_host.group(1) == bank_host, after_url)
+        stop()
 
         # 3. A Settings row opens its page.
         report = hook(fresh_light("light-settings"), "dark;open=Settings", urls=tabs)
