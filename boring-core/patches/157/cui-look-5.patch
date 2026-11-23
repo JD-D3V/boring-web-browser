@@ -1,0 +1,144 @@
+diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+--- a/chrome/browser/ui/views/location_bar/location_bar_view.cc
++++ b/chrome/browser/ui/views/location_bar/location_bar_view.cc
+@@ -260,8 +260,12 @@
+           // Show focus ring when the Omnibox is visibly focused and either the
+           // popup is closed or it's the full WebUI popup, which keeps the
+           // focused look (see `ShouldUsePopupOpenAppearance()`).
++          // boring: never while the Bar's results are open: the results
++          // card covers the field, and the ring showed as a broken outline
++          // at its corners (screen C06 draws none).
+           return v->GetOmniboxController()->edit_model()->is_caret_visible() &&
+-                 !v->ShouldUsePopupOpenAppearance();
++                 !v->ShouldUsePopupOpenAppearance() &&
++                 !v->GetOmniboxController()->IsPopupOpen();
+         }));
+     views::FocusRing::Get(this)->SetOutsetFocusRingDisabled(true);
+     // boring: the glow of the approved mock, a 3 DIP soft accent ring just
+diff --git a/chrome/browser/ui/views/omnibox/omnibox_placeholder_util.cc b/chrome/browser/ui/views/omnibox/omnibox_placeholder_util.cc
+--- a/chrome/browser/ui/views/omnibox/omnibox_placeholder_util.cc
++++ b/chrome/browser/ui/views/omnibox/omnibox_placeholder_util.cc
+@@ -110,6 +110,12 @@
+     }
+   }
+ 
++  // boring: the Bar's line shows whenever the field is empty, focused or
++  // not (screen C01), unless a keyword is selected.
++  if (!controller->edit_model()->is_keyword_selected()) {
++    return true;
++  }
++
+   // If the omnibox is blurred, only show the DSE placeholder if there is no
+   // keyword selected.
+   if (!controller->edit_model()->is_caret_visible()) {
+diff --git a/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc b/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc
+--- a/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc
+@@ -213,7 +213,9 @@
+         views::kFlexBehaviorKey,
+         views::FlexSpecification(views::MinimumFlexSizeRule::kPreferred,
+                                  views::MaximumFlexSizeRule::kPreferred));
+-    collapse_icon_->SetVisible(!delegate_->IsGroupFocused());
++    // boring: no arrow after "N tabs" (screen C09 draws none); pressing the
++    // label still folds the group.
++    collapse_icon_->SetVisible(false);
+   }
+ 
+   // boring: in side tabs the heading row is the group's solid label, sized
+@@ -736,7 +738,7 @@
+ 
+   // Update collapse icon.
+   if (collapse_icon_) {
+-    collapse_icon_->SetVisible(!delegate_->IsGroupFocused());
++    collapse_icon_->SetVisible(false);  // boring: see the constructor.
+     collapse_icon_->SetImage(ui::ImageModel::FromVectorIcon(
+         tab_group_visual_data_.is_collapsed()
+             ? features::IsRoundedIconsEnabled()
+diff --git a/chrome/browser/ui/views/tabs/common/tab_view.cc b/chrome/browser/ui/views/tabs/common/tab_view.cc
+--- a/chrome/browser/ui/views/tabs/common/tab_view.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_view.cc
+@@ -97,6 +97,8 @@
+ #include "ui/views/view.h"
+ #include "ui/views/view_class_properties.h"
+ #include "ui/views/view_utils.h"
++#include "chrome/browser/ui/color/chrome_color_id.h"  // boring: side tabs
++#include "ui/gfx/font_list.h"  // boring: side tabs
+ 
+ namespace {
+ constexpr int kFocusRingInset = 0.0f;
+@@ -366,6 +368,13 @@
+   }
+ 
+   title_->SetProperty(views::kElementIdentifierKey, kVerticalTabTitleElementId);
++  // boring: a side tab's title is drawn at 13, as the Shelf's rows (screen
++  // C09).
++  if (orientation_ == TabStripOrientation::kVertical) {
++    const gfx::FontList& title_font = title_->font_list();
++    title_->SetFontList(
++        title_font.DeriveWithSizeDelta(13 - title_font.GetFontSize()));
++  }
+   SetProperty(views::kElementIdentifierKey, kTabElementId);
+   // Layout manager must be set after child views are created because the
+   // vertical layout stores pointers to those children.
+@@ -1234,8 +1243,8 @@
+       SetBorder(views::CreateRoundedRectBorder(
+           GetLayoutConstant(LayoutConstant::kVerticalTabPinnedBorderThickness),
+           GetLayoutConstant(LayoutConstant::kVerticalTabCornerRadius) + 1,
+-          IsFrameActive() ? kColorVerticalTabPinnedOutline
+-                          : kColorTabDividerFrameInactive));
++          // boring: and the hairline of the Shelf's tiles (screen C09).
++          kColorBoringShelfTileRing));
+     }
+   } else if (GetBorder()) {
+     SetBorder(nullptr);
+@@ -1249,7 +1258,12 @@
+         ThemeProperties::SHOULD_FILL_BACKGROUND_TAB_COLOR);
+   }
+   TabStyle::TabColors colors = tab_styling()->CalculateTargetColors();
+-  title_->SetEnabledColor(colors.foreground_color);
++  // boring: every side tab's title is in the ink, open or not (screen C09).
++  if (orientation_ == TabStripOrientation::kVertical) {
++    title_->SetEnabledColor(kColorBoringShelfText);
++  } else {
++    title_->SetEnabledColor(colors.foreground_color);
++  }
+   close_button_->SetColors(colors);
+   alert_indicator_->OnParentTabButtonColorChanged();
+ 
+diff --git a/chrome/browser/ui/views/tabs/common/vertical_tab_style_views.cc b/chrome/browser/ui/views/tabs/common/vertical_tab_style_views.cc
+--- a/chrome/browser/ui/views/tabs/common/vertical_tab_style_views.cc
++++ b/chrome/browser/ui/views/tabs/common/vertical_tab_style_views.cc
+@@ -25,6 +25,8 @@
+ #include "ui/gfx/scoped_canvas.h"
+ #include "ui/views/view_utils.h"
+ #include "ui/views/widget/widget.h"
++#include "chrome/browser/ui/color/chrome_color_id.h"  // boring: pinned tiles
++#include "ui/color/color_provider.h"  // boring: pinned tiles
+ 
+ VerticalTabStyleViews::VerticalTabStyleViews(
+     std::unique_ptr<TabStyleViewDelegate> delegate)
+@@ -150,6 +152,24 @@
+   const float scale = canvas->UndoDeviceScaleFactor();
+ 
+   canvas->ClipPath(fill_path, true);
++
++  // boring: a pinned tile, not open, picked or hovered, sits on the surface
++  // with the Shelf's hairline round it (TabView's border), as the Shelf's own
++  // pinned tiles do (screen C09).
++  if (delegate_->IsPinned() &&
++      selection_state == TabStyle::TabSelectionState::kInactive && !hovered &&
++      !fill_id.has_value()) {
++    if (const ui::ColorProvider* provider =
++            delegate_->GetView()->GetColorProvider()) {
++      cc::PaintFlags tile_flags;
++      tile_flags.setAntiAlias(true);
++      tile_flags.setColor(provider->GetColor(kColorBoringShelfTile));
++      canvas->DrawRect(gfx::ScaleToEnclosingRect(
++                           delegate_->GetView()->GetLocalBounds(), scale),
++                       tile_flags);
++      return;
++    }
++  }
+ 
+   // boring: a side tab in a group, other than the open or a picked one,
+   // sits on a wash of the group's colour beside the group's line

@@ -68,6 +68,13 @@ class BoringSideEarlierSection
   void Reveal(bool focus);
   void ShowAll();
   void OnRow(const std::string& id);
+  // "Clear earlier tabs" at the end of the opened-out section: asks first,
+  // then clears, the same way as the pop-up (BoringEarlierClearQuestion,
+  // BoringEarlierClearAll).
+  void OnAskClear();
+  void OnCancelClear();
+  void OnClear();
+  void AddClearFooter(size_t total);
   bool IsWide() const;
 
   const raw_ptr<BrowserWindowInterface> browser_;
@@ -77,6 +84,7 @@ class BoringSideEarlierSection
   base::CallbackListSubscription collapse_subscription_;
   raw_ptr<views::View> first_row_ = nullptr;
   bool expanded_ = false;
+  bool confirming_ = false;
   bool focus_pending_ = false;
   bool rebuild_pending_ = false;
   base::WeakPtrFactory<BoringSideEarlierSection> weak_factory_{this};

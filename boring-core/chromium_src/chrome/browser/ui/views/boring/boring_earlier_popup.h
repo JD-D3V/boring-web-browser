@@ -9,14 +9,29 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "chrome/browser/ui/views/boring/boring_earlier_tabs_service.h"
+#include "ui/color/color_id.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
+#include "ui/views/controls/button/button.h"
 #include "ui/views/widget/widget.h"
 
 class BrowserWindowInterface;
 
 namespace views {
+class LabelButton;
 class View;
 }
+
+// Shared by the pop-up and the side tabs Earlier section, so both clear the
+// list the same way: the footer's text button (32 high, as wide as its text;
+// `strong` for the medium weight), the question "Clear earlier tabs" asks
+// before anything goes, and the clear itself.
+std::unique_ptr<views::LabelButton> BoringEarlierTextButton(
+    views::Button::PressedCallback callback,
+    const std::u16string& text,
+    ui::ColorId color,
+    bool strong);
+std::u16string BoringEarlierClearQuestion(size_t total);
+void BoringEarlierClearAll(boring::earlier::EarlierTabsService* service);
 
 // The "Earlier tabs" pop-up (screen C08), under the chip. A browser view, not
 // a page: nothing a page does can open, press or draw into it. Titles are

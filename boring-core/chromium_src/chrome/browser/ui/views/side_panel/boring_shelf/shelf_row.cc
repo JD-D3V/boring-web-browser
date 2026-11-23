@@ -41,7 +41,8 @@ void SetFont(views::Label* label, int size, gfx::Font::Weight weight) {
 }  // namespace
 
 ShelfSectionHeading::ShelfSectionHeading(const std::u16string& heading,
-                                         const std::u16string& note) {
+                                         const std::u16string& note,
+                                         bool regular) {
   auto* layout = SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kHorizontal,
       gfx::Insets::TLBR(0, kRowSidePadding, 4, kRowSidePadding)));
@@ -51,7 +52,8 @@ ShelfSectionHeading::ShelfSectionHeading(const std::u16string& heading,
   auto* title = AddChildView(std::make_unique<views::Label>(heading));
   title->SetEnabledColor(kColorBoringShelfHeading);
   title->SetHorizontalAlignment(gfx::ALIGN_LEFT);
-  SetFont(title, 12, gfx::Font::Weight::SEMIBOLD);
+  SetFont(title, 12,
+          regular ? gfx::Font::Weight::NORMAL : gfx::Font::Weight::SEMIBOLD);
   layout->SetFlexForView(title, 1);
 
   if (!note.empty()) {

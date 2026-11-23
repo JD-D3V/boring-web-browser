@@ -22,8 +22,11 @@ BoringSideTabHeading::BoringSideTabHeading(const std::u16string& text)
   SetAutoColorReadabilityEnabled(false);
   SetHorizontalAlignment(gfx::ALIGN_LEFT);
   const gfx::FontList base = font_list();
+  // The regular weight: text on the tab strip draws heavier than in the
+  // Shelf, so the Shelf's semibold read as bold here (screen C09 draws the
+  // headings quiet).
   SetFontList(base.DeriveWithSizeDelta(kFontSize - base.GetFontSize())
-                  .DeriveWithWeight(gfx::Font::Weight::SEMIBOLD));
+                  .DeriveWithWeight(gfx::Font::Weight::NORMAL));
   SetBorder(views::CreateEmptyBorder(
       gfx::Insets::TLBR(0, kSideInset, kBottomInset, kSideInset)));
   // A heading names what is under it; it is not a control.

@@ -91,6 +91,35 @@ class SheetTests(unittest.TestCase):
                          "sheet")
         self.assertEqual(smoke_sidetabs.sheet_state(None, client, 1.0)[0], "other")
 
+    @staticmethod
+    def picture(w, h, box, radius_cut):
+        """BGRA bytes: grey, with a magenta box whose four corner pixels are
+        grey when radius_cut."""
+        px = bytearray(b"\x80\x80\x80\xff" * (w * h))
+        for y in range(box[1], box[3]):
+            for x in range(box[0], box[2]):
+                corner = x in (box[0], box[2] - 1) and y in (box[1], box[3] - 1)
+                if not (radius_cut and corner):
+                    px[(y * w + x) * 4:(y * w + x) * 4 + 4] = b"\xff\x00\xff\xff"
+        return bytes(px)
+
+    def test_colour_box_and_corners(self):
+        box = (3, 2, 17, 12)
+        rounded = self.picture(20, 15, box, True)
+        self.assertEqual(smoke_sidetabs.colour_box(20, 15, rounded, smoke_sidetabs.MAGENTA), box)
+        self.assertEqual(smoke_sidetabs.rounded_corners(20, rounded, box, smoke_sidetabs.MAGENTA, 3), 4)
+        square = self.picture(20, 15, box, False)
+        self.assertEqual(smoke_sidetabs.rounded_corners(20, square, box, smoke_sidetabs.MAGENTA, 3), 0)
+        self.assertIsNone(smoke_sidetabs.colour_box(4, 4, b"\x00" * 64, smoke_sidetabs.MAGENTA))
+
+    def test_top_row_tabs(self):
+        client = (0, 0, 1280, 800)
+        rects = [("Live1", (250, 2, 450, 36)), ("Live2 - Memory usage - 5 MB", (450, 2, 650, 36)),
+                 ("Live3", (12, 120, 236, 152)), ("Other", (700, 2, 900, 36))]
+        top = smoke_sidetabs.top_row_tabs(rects, ["Live1", "Live2", "Live3"], client, 1.0)
+        self.assertEqual([t for t, _r in top], ["Live1", "Live2 - Memory usage - 5 MB"])
+        self.assertEqual(smoke_sidetabs.top_row_tabs(rects[2:], ["Live3"], client, 1.0), [])
+
     def test_expected_follows_the_series(self):
         self.assertEqual(smoke_sidetabs.sheet_expected(), "cui-sheet.patch" in series())
 
@@ -116,7 +145,7 @@ class PatchTests(unittest.TestCase):
         at = names.index("sidetabs.patch")
         self.assertEqual(names[at - 1], "shelf.patch")
         # Only later pieces' patches come after it.
-        self.assertTrue(set(names[at + 1:]) <= {"earlier.patch", "cui-look-3.patch", "cui-sheet.patch"},
+        self.assertTrue(set(names[at + 1:]) <= {"earlier.patch", "cui-look-3.patch", "cui-look-5.patch", "cui-sheet.patch"},
                         names[at + 1:])
 
     def test_top_tabs_stay_the_default(self):

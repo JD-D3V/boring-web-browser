@@ -15,7 +15,9 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/layout_constants.h"
+#include "chrome/browser/ui/views/boring/boring_earlier_popup.h"
 #include "chrome/browser/ui/views/side_panel/boring_shelf/shelf_data.h"
 #include "chrome/browser/ui/views/side_panel/boring_shelf/shelf_row.h"
 #include "components/boring/core/boring_prefs.h"
@@ -23,6 +25,9 @@
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/views/accessibility/view_accessibility.h"
+#include "ui/views/border.h"
+#include "ui/views/controls/button/label_button.h"
+#include "ui/views/controls/label.h"
 #include "ui/views/controls/scroll_view.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/box_layout_view.h"
@@ -182,7 +187,7 @@ void BoringSideEarlierSection::Rebuild() {
   }
 
   AddChildView(std::make_unique<boring::shelf::ShelfSectionHeading>(
-      u"Earlier", u"kept 30 days"));
+      u"Earlier", u"kept 30 days", /*regular=*/true));
 
   const size_t shown =
       expanded_ ? state.newest.size()
@@ -228,6 +233,11 @@ void BoringSideEarlierSection::Rebuild() {
         kBoringClockIcon, boring::shelf::ShowAllText(state.total),
         std::u16string()));
   }
+  if (expanded_) {
+    AddClearFooter(state.total);
+  } else {
+    confirming_ = false;
+  }
   SetVisible(true);
   PreferredSizeChanged();
 
@@ -257,6 +267,52 @@ void BoringSideEarlierSection::OnRow(const std::string& id) {
   if (service_) {
     service_->Reopen(id, browser_);
   }
+}
+
+void BoringSideEarlierSection::AddClearFooter(size_t total) {
+  // Screen C08's footer control, at the end of the opened-out list.
+  if (!confirming_) {
+    AddChildView(BoringEarlierTextButton(
+        base::BindRepeating(&BoringSideEarlierSection::OnAskClear,
+                            base::Unretained(this)),
+        u"Clear earlier tabs", kColorBoringShelfHeading, /*strong=*/false));
+    return;
+  }
+  auto* ask = AddChildView(
+      std::make_unique<views::Label>(BoringEarlierClearQuestion(total)));
+  ask->SetEnabledColor(kColorBoringShelfText);
+  ask->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+  ask->SetMultiLine(true);
+  ask->SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(4, 8)));
+  auto* buttons = AddChildView(std::make_unique<views::BoxLayoutView>());
+  buttons->SetOrientation(views::BoxLayout::Orientation::kHorizontal);
+  buttons->SetBetweenChildSpacing(8);
+  buttons->AddChildView(BoringEarlierTextButton(
+      base::BindRepeating(&BoringSideEarlierSection::OnClear,
+                          base::Unretained(this)),
+      u"Clear", kColorBoringShelfText, /*strong=*/true));
+  buttons->AddChildView(BoringEarlierTextButton(
+      base::BindRepeating(&BoringSideEarlierSection::OnCancelClear,
+                          base::Unretained(this)),
+      u"Cancel", kColorBoringShelfHeading, /*strong=*/false));
+}
+
+void BoringSideEarlierSection::OnAskClear() {
+  confirming_ = true;
+  ScheduleRebuild();
+}
+
+void BoringSideEarlierSection::OnCancelClear() {
+  confirming_ = false;
+  ScheduleRebuild();
+}
+
+void BoringSideEarlierSection::OnClear() {
+  confirming_ = false;
+  expanded_ = false;
+  // The service tells every section, which then rebuilds (and hides, empty).
+  BoringEarlierClearAll(service_);
+  ScheduleRebuild();
 }
 
 BEGIN_METADATA(BoringSideEarlierSection)

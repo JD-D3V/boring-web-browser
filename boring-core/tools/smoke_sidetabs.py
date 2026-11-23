@@ -28,8 +28,18 @@ What it asserts (nothing is asserted that was not looked at):
      the first loose tab (UI Automation bounds).
  10. The page in a rounded sheet: with cui-sheet.patch in the series the
      page stops 8 DIP (6 to 10) short of the client area's right and bottom
-     edges; without it, it runs to both. In fullscreen it runs to both.
-     (The 10 DIP corners and the frame colour are seen in the captures.)
+     edges, with four rounded corners; without it, it runs to both. The
+     page's edges come from its own pixels (painted magenta after the
+     photograph, read with PrintWindow). With the sheet only: in fullscreen
+     it runs to both, maximised it keeps the sheet (both put the window on
+     a monitor for a moment).
+ 11. Ledger 60: side tabs replace the top row. Top tabs at start, switched
+     live to side from Settings (chrome.settingsPrivate, as the Tabs row
+     writes it) with several tabs open, a second window, back to top, side
+     again, then a restart on the same profile: each window shows either
+     the side list with no tab in the top 40 DIP band, or the top row with
+     no list, never both; no tab is lost; every tab but the open one is
+     named once in UI Automation.
 Not checked here: the pinned grid (four tiles to a row; a tab cannot be
 pinned without input and no pin hook exists), the group heading row. The
 Earlier section is checked by smoke_earlier.py (scenario_side).
@@ -209,6 +219,122 @@ def page_and_client(under, title):
     return page, client, scale
 
 
+MAGENTA = (255, 0, 255)
+PAINT_PAGE_JS = (
+    "document.documentElement.style.background = '#ff00ff';"
+    "document.body.style.background = '#ff00ff';"
+    "document.body.style.color = '#ff00ff';"
+    "return [innerWidth, innerHeight];"
+)
+
+
+def _print_window(hwnd):
+    """(width, height, BGRA bytes, window rect) of our window, drawn by
+    PrintWindow (our window only, never a screen grab)."""
+    import ctypes
+    from capture_native import BITMAPINFOHEADER, RECT, gdi32, user32  # noqa: PLC0415
+
+    r = RECT()
+    user32.GetWindowRect(hwnd, ctypes.byref(r))
+    w, h = r.right - r.left, r.bottom - r.top
+    screen = user32.GetDC(0)
+    mem = gdi32.CreateCompatibleDC(screen)
+    bmp = gdi32.CreateCompatibleBitmap(screen, w, h)
+    gdi32.SelectObject(mem, bmp)
+    user32.PrintWindow(hwnd, mem, 2)
+    info = BITMAPINFOHEADER()
+    info.biSize = ctypes.sizeof(BITMAPINFOHEADER)
+    info.biWidth, info.biHeight, info.biPlanes, info.biBitCount = w, -h, 1, 32
+    buf = ctypes.create_string_buffer(w * h * 4)
+    gdi32.GetDIBits(mem, bmp, 0, h, buf, ctypes.byref(info), 0)
+    gdi32.DeleteObject(bmp)
+    gdi32.DeleteDC(mem)
+    user32.ReleaseDC(0, screen)
+    return w, h, bytes(buf), (r.left, r.top, r.right, r.bottom)
+
+
+def colour_box(w, h, bgra, colour):
+    """(left, top, right, bottom) of the pixels exactly `colour` (RGB), right
+    and bottom exclusive, or None. Pure."""
+    want = bytes((colour[2], colour[1], colour[0]))
+    xs, ys = [], []
+    for y in range(0, h):
+        row = bgra[y * w * 4:(y + 1) * w * 4]
+        first = last = None
+        for x in range(w):
+            if row[x * 4:x * 4 + 3] == want:
+                if first is None:
+                    first = x
+                last = x
+        if first is not None:
+            xs += [first, last]
+            ys.append(y)
+    if not ys:
+        return None
+    return (min(xs), min(ys), max(xs) + 1, max(ys) + 1)
+
+
+def rounded_corners(w, bgra, box, colour, inset):
+    """How many of the box's four corner pixels are NOT `colour` while the
+    pixels `inset` inside along both edges are: 4 means four rounded
+    corners. Pure."""
+    want = bytes((colour[2], colour[1], colour[0]))
+
+    def at(x, y):
+        return bgra[(y * w + x) * 4:(y * w + x) * 4 + 3] == want
+
+    left, top, right, bottom = box[0], box[1], box[2] - 1, box[3] - 1
+    count = 0
+    for cx, cy, dx, dy in ((left, top, 1, 1), (right, top, -1, 1), (left, bottom, 1, -1), (right, bottom, -1, -1)):
+        if not at(cx, cy) and at(cx + dx * inset, cy) and at(cx, cy + dy * inset):
+            count += 1
+    return count
+
+
+def page_from_pixels(under, b):
+    """The page's rectangle on screen, found by painting it magenta and
+    reading our window's own pixels, plus the window's client rectangle,
+    scale and the number of rounded corners."""
+    import ctypes
+    from ctypes import wintypes
+
+    b.run(PAINT_PAGE_JS)
+    time.sleep(0.8)
+    hwnd = frame_window(CHROME, under=under)
+    user32 = ctypes.windll.user32
+    w, h, bgra, wr = _print_window(hwnd)
+    rc = wintypes.RECT()
+    user32.GetClientRect(hwnd, ctypes.byref(rc))
+    origin = wintypes.POINT(0, 0)
+    user32.ClientToScreen(hwnd, ctypes.byref(origin))
+    client = (origin.x, origin.y, origin.x + rc.right, origin.y + rc.bottom)
+    scale = (user32.GetDpiForWindow(hwnd) or 96) / 96
+    box = colour_box(w, h, bgra, MAGENTA)
+    if not box:
+        return None, client, scale, 0
+    page = (wr[0] + box[0], wr[1] + box[1], wr[0] + box[2], wr[1] + box[3])
+    return page, client, scale, rounded_corners(w, bgra, box, MAGENTA, max(4, round(6 * scale)))
+
+
+def cdp(b, cmd, params):
+    return b._req("POST", f"/session/{b.sid}/goog/cdp/execute", {"cmd": cmd, "params": params})
+
+
+def top_row_tabs(rects, titles, client, scale):
+    """Tabs named in `titles` that sit in a horizontal tab strip: in the top
+    band of the client area (their top within 40 DIP of it) and wider than
+    tall. Pure."""
+    out = []
+    for text, r in rects:
+        if not any(text.startswith(t) for t in titles):
+            continue
+        if r[2] <= r[0] or r[3] <= r[1]:
+            continue
+        if r[1] - client[1] < 40 * scale and (r[2] - r[0]) > 2 * (r[3] - r[1]):
+            out.append((text, r))
+    return out
+
+
 def heading_between(heading, above, below):
     """Screen C09: the "Open tabs" heading's top is at or below the bottom of
     the tab above it, and its bottom at or above the top of the tab below.
@@ -314,13 +440,17 @@ def run_main(port, out, captures, dark, checks, full):
                    LIST_WIDTH <= taken <= LIST_WIDTH + 24, str(taken))
             # The page in a rounded sheet (cui-sheet.patch): 8 DIP of frame
             # to its right and below; without the patch it runs to the edges.
+            # The page's own pixels (painted magenta for the measure, after
+            # the photograph) give its edges; UI Automation has no page box.
+            shoot(out, dark, captures, checks)
             want = "sheet" if sheet_expected() else "flush"
-            page, client, scale = page_and_client(under, "Page2")
+            page, client, scale, corners = page_from_pixels(under, b)
             got, gaps = sheet_state(page, client, scale)
             checks(f"{theme}: the page is {'in a sheet' if want == 'sheet' else 'flush'}"
                    " (series has cui-sheet.patch: " + str(want == "sheet") + ")",
                    got == want, f"right, bottom gap DIP {gaps}; page {page}; client {client}")
-            shoot(out, dark, captures, checks)
+            if want == "sheet":
+                checks(f"{theme}: the sheet has four rounded corners", corners == 4, str(corners))
             if not full:
                 return
             # 5. The toggle narrows the list and widens it again.
@@ -330,22 +460,55 @@ def run_main(port, out, captures, dark, checks, full):
             press(under, TOGGLE)
             wide = wait_for(lambda: width_taken(b) >= LIST_WIDTH, 8)
             checks("the toggle widens it again", bool(wide), str(width_taken(b)))
-            # In fullscreen the sheet's margin goes away.
-            rect = b._req("GET", f"/session/{b.sid}/window/rect")["value"]
-            b._req("POST", f"/session/{b.sid}/window/fullscreen", {})
+            if not sheet_expected():
+                # Without the sheet there is no margin to lose in fullscreen or
+                # keep when maximised, and nothing to put on a monitor.
+                run_new_tab(b, under, checks)
+                return
+            # In fullscreen the sheet's margin goes away. WebDriver cannot
+            # make an off-screen window fullscreen, so the page asks for it
+            # with a user gesture (DevTools); the window then covers a
+            # monitor for about two seconds.
+            cdp(b, "Runtime.evaluate", {"expression": "document.documentElement.requestFullscreen()",
+                                        "userGesture": True, "awaitPromise": True})
             time.sleep(1.5)
-            page, client, scale = page_and_client(under, "Page2")
+            full = b.run("return [innerWidth, innerHeight, screen.width, screen.height, "
+                         "!!document.fullscreenElement]")
+            page, client, scale, _c = page_from_pixels(under, b)
             got, gaps = sheet_state(page, client, scale)
+            checks("fullscreen: the page fills the screen", bool(full[4]) and full[0] == full[2]
+                   and full[1] == full[3], str(full))
             checks("fullscreen: the page runs to the edges", got == "flush", f"gaps {gaps}")
+            cdp(b, "Runtime.evaluate", {"expression": "document.exitFullscreen()",
+                                        "userGesture": True, "awaitPromise": True})
+            time.sleep(1.5)
+            # Maximised: the sheet keeps its 8 DIP and corners.
+            rect = b._req("GET", f"/session/{b.sid}/window/rect")["value"]
+            try:
+                b._req("POST", f"/session/{b.sid}/window/maximize", {})
+                time.sleep(1.5)
+                page, client, scale, corners = page_from_pixels(under, b)
+                got, gaps = sheet_state(page, client, scale)
+                checks("maximised: the page is " + ("in a sheet" if sheet_expected() else "flush"),
+                       got == ("sheet" if sheet_expected() else "flush"), f"gaps {gaps}")
+                if sheet_expected():
+                    checks("maximised: four rounded corners", corners == 4, str(corners))
+                grab(frame_window(CHROME, under=under), str(Path(out) / "sidetabs-maximised.png"))
+            except RuntimeError as e:
+                checks("maximised: WebDriver could maximise the window", False, str(e)[:200])
             b._req("POST", f"/session/{b.sid}/window/rect",
                    {k: rect[k] for k in ("x", "y", "width", "height")})
             time.sleep(1.5)
-            # 6. New tab opens a tab.
-            before = len(handles(b))
-            press(under, NEW_TAB)
-            time.sleep(1.5)
-            after = len(handles(b))
-            checks("New tab opens a tab", after == before + 1, f"{before} -> {after}")
+            run_new_tab(b, under, checks)
+
+
+def run_new_tab(b, under, checks):
+    # 6. New tab opens a tab.
+    before = len(handles(b))
+    press(under, NEW_TAB)
+    time.sleep(1.5)
+    after = len(handles(b))
+    checks("New tab opens a tab", after == before + 1, f"{before} -> {after}")
 
 
 GROUP_FIRST_JS = r"""
@@ -392,6 +555,143 @@ def run_groups(checks):
                    f"heading {head}, City map {last_group_tab}, Local news {first_loose}")
 
 
+LIVE_TITLES = ["Live1", "Live2", "Live3", "Live4"]
+
+
+def set_side_tabs(b, value):
+    """Write vertical_tabs.enabled the way Settings, Appearance, Tabs does
+    (chrome.settingsPrivate from the Settings page, in the running window)."""
+    b.get("chrome://settings/appearance")
+    time.sleep(1.5)
+    return b.run_async(
+        "const done = arguments[arguments.length - 1];"
+        "chrome.settingsPrivate.setPref(arguments[0], arguments[1], '', ok => {"
+        "  chrome.settingsPrivate.getPref(arguments[0], p => done([ok, p.value]));"
+        "});",
+        ["vertical_tabs.enabled", value],
+    )
+
+
+def frames_of(pid):
+    """Our browser windows (those with an address bar): [(hwnd, names, rects, client, scale)]."""
+    import ctypes
+    from ctypes import wintypes
+
+    from smoke_site_panel import _call, browser_windows  # noqa: PLC0415
+
+    user32 = ctypes.windll.user32
+    out = []
+    for hwnd in browser_windows(pid):
+        try:
+            with Window(hwnd) as w:
+                names = w.names()
+                if "Address and search bar" not in names:
+                    continue
+                rects = []
+                for text, element in w.items:
+                    if not (element and text):
+                        continue
+                    r = wintypes.RECT()
+                    _call(element, 43, ctypes.addressof(r))
+                    rects.append((text, (r.left, r.top, r.right, r.bottom)))
+        except (LookupError, OSError):
+            continue
+        rc = wintypes.RECT()
+        user32.GetClientRect(hwnd, ctypes.byref(rc))
+        origin = wintypes.POINT(0, 0)
+        user32.ClientToScreen(hwnd, ctypes.byref(origin))
+        client = (origin.x, origin.y, origin.x + rc.right, origin.y + rc.bottom)
+        scale = (user32.GetDpiForWindow(hwnd) or 96) / 96
+        out.append((hwnd, names, rects, client, scale))
+    return out
+
+
+def tab_layout(frame, titles):
+    """'side' when the window shows the side list and no tab of `titles` in a
+    top row, 'top' when every such tab is in the top row and there is no
+    list, else 'mixed'; with how often each title is named."""
+    _hwnd, names, rects, client, scale = frame
+    counts = {t: sum(1 for n in names if n.startswith(t)) for t in titles}
+    top = top_row_tabs(rects, titles, client, scale)
+    has_list = OPEN_HEADING in names
+    present = [t for t in titles if counts[t]]
+    if has_list and not top:
+        return "side", counts
+    in_top = {t for t in titles for text, _r in top if text.startswith(t)}
+    if not has_list and set(present) <= in_top:
+        return "top", counts
+    return "mixed", counts
+
+
+def check_layout(checks, label, pid, titles, want):
+    ok = wait_for(lambda: [f for f in frames_of(pid) if tab_layout(f, titles)[0] == want], 15)
+    frames = frames_of(pid)
+    for i, f in enumerate(frames):
+        got, counts = tab_layout(f, titles)
+        checks(f"{label}: window {i + 1} shows {want} tabs only", got == want,
+               f"got {got}; {counts}; top row {top_row_tabs(f[2], titles, f[3], f[4])[:3]}")
+        # The open tab (the last one opened) also has its page in the tree,
+        # which repeats its title; every other tab is named once.
+        once = {t: c for t, c in counts.items() if t in titles[:-1]}
+        checks(f"{label}: window {i + 1} names each tab once",
+               all(c <= 1 for c in once.values()), str(once))
+    return bool(ok)
+
+
+def run_live_switch(port, out, checks):
+    """Ledger 60: side tabs replace the top row, they never double up.
+    Start with top tabs, switch to side live from Settings (several tabs
+    open), open a second window, switch back to top, switch to side again,
+    then restart the browser on the same profile."""
+    base = f"http://127.0.0.1:{port}"
+    with tempfile.TemporaryDirectory(prefix="sidetabs-", dir=r"E:\tmp") as tmp:
+        profile = Path(tmp) / "profile"
+        seed_profile(profile, False)
+        with Browser(headful=True, user_data_dir=str(profile), args=["--window-size=1280,800"]) as b:
+            DRIVER_PID[0] = b.proc.pid
+            pid = b.proc.pid
+            b.get(base + "/Home")
+            for t in LIVE_TITLES:
+                b.run("window.open(arguments[0])", [f"{base}/{t}"])
+                time.sleep(0.4)
+            tabs_before = len(handles(b))
+            check_layout(checks, "live, at start", pid, LIVE_TITLES, "top")
+            ok = set_side_tabs(b, True)
+            checks("live: Settings writes side tabs on", ok == [True, True], str(ok))
+            check_layout(checks, "live, switched to side", pid, LIVE_TITLES, "side")
+            checks("live, switched to side: no tab lost", len(handles(b)) == tabs_before,
+                   f"{tabs_before} -> {len(handles(b))}")
+            time.sleep(1.0)
+            try:
+                path = Path(out) / "sidetabs-live-light.png"
+                grab(frame_window(CHROME, under=pid), str(path))
+                print("saved", path)
+            except (LookupError, RuntimeError, OSError) as e:
+                checks("live: our window to photograph", False, str(e))
+            # A second window, opened with side tabs on.
+            b._req("POST", f"/session/{b.sid}/window/new", {"type": "window"})
+            time.sleep(2.0)
+            two = wait_for(lambda: len(frames_of(pid)) >= 2, 10)
+            checks("live: a second window opened", bool(two), str(len(frames_of(pid))))
+            check_layout(checks, "live, two windows, side", pid, LIVE_TITLES, "side")
+            # Back to the top: the top row returns, the list goes.
+            ok = set_side_tabs(b, False)
+            checks("live: Settings writes side tabs off", ok == [True, False], str(ok))
+            check_layout(checks, "live, switched back to top", pid, LIVE_TITLES, "top")
+            checks("live, back to top: no tab lost", len(handles(b)) == tabs_before + 1,
+                   f"{tabs_before} + 1 -> {len(handles(b))}")
+            ok = set_side_tabs(b, True)
+            checks("live: side tabs on again before the restart", ok == [True, True], str(ok))
+        # Restart on the same profile: side tabs stay on, no top row.
+        with Browser(headful=True, user_data_dir=str(profile), args=["--window-size=1280,800"]) as b:
+            DRIVER_PID[0] = b.proc.pid
+            b.get(base + "/Restart1")
+            for t in ("Restart2", "Restart3"):
+                b.run("window.open(arguments[0])", [f"{base}/{t}"])
+                time.sleep(0.5)
+            check_layout(checks, "after a restart", b.proc.pid, ["Restart2", "Restart3"], "side")
+
+
 def run_variant(name, extra_args, vertical, checks, expect):
     with tempfile.TemporaryDirectory(prefix="sidetabs-", dir=r"E:\tmp") as tmp:
         profile = Path(tmp) / "profile"
@@ -420,6 +720,8 @@ def main():
         run_main(port, args.out, args.captures, False, checks, full=True)
         run_main(port, args.out, args.captures, True, checks, full=False)
         run_groups(checks)
+        # 11. Ledger 60: side tabs replace the top row, at start and live.
+        run_live_switch(port, args.out, checks)
         # 7. Private window shows a working window; an app window has no list.
         run_variant("private window", ["--incognito"], True, checks, {"toggle": True})
         run_variant("app window", [f"--app=http://127.0.0.1:{port}/"], True, checks,

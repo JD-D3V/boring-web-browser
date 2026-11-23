@@ -464,6 +464,63 @@ def look_checks(checks):
         checks[f"{label}: page, tiles, field, text and focus ring follow the Look and accent"] = got == want
 
 
+FIELD_NAME = "Address and search bar"
+
+
+def ink_pixels(w, bgra, box, threshold=60):
+    """Pixels inside box (window pixels, right and bottom exclusive) that
+    differ from the box's most common colour by more than `threshold`
+    (sum of the three channels). Pure."""
+    from collections import Counter
+
+    px = []
+    for y in range(box[1], box[3]):
+        for x in range(box[0], box[2]):
+            i = (y * w + x) * 4
+            px.append((bgra[i], bgra[i + 1], bgra[i + 2]))
+    if not px:
+        return 0
+    bg = Counter(px).most_common(1)[0][0]
+    return sum(1 for p in px if sum(abs(a - c) for a, c in zip(p, bg)) > threshold)
+
+
+def placeholder_ink(hwnd):
+    """Text pixels drawn in the empty address field between its icon and the
+    middle (the placeholder line, never the hint at the right end; a caret
+    alone is about 20), read from our own window's pixels; and whether the
+    field has focus."""
+    import ctypes
+    from ctypes import wintypes
+
+    from smoke_sidetabs import _print_window
+    from smoke_site_panel import Window, _call
+
+    rect = None
+    focused = None
+    with Window(hwnd) as win:
+        for text, element in win.items:
+            if text == FIELD_NAME and element:
+                r = wintypes.RECT()
+                _call(element, 43, ctypes.addressof(r))  # get_CurrentBoundingRectangle
+                if r.right > r.left:
+                    rect = (r.left, r.top, r.right, r.bottom)
+                    has = ctypes.c_int(0)
+                    try:
+                        _call(element, 26, ctypes.addressof(has))  # get_CurrentHasKeyboardFocus
+                        focused = bool(has.value)
+                    except OSError:
+                        focused = None
+                    break
+    if not rect:
+        return 0, focused
+    w, h, bgra, wr = _print_window(hwnd)
+    scale = (ctypes.windll.user32.GetDpiForWindow(hwnd) or 96) / 96
+    left = rect[0] - wr[0] + round(36 * scale)
+    right = rect[0] - wr[0] + (rect[2] - rect[0]) * 6 // 10
+    top, bottom = rect[1] - wr[1] + 2, rect[3] - wr[1] - 2
+    return ink_pixels(w, bgra, (max(0, left), max(0, top), min(w, right), min(h, bottom))), focused
+
+
 def capture(profile, checks, captures=None):
     """Light and dark photographs of our own window, beside C01 and C02."""
     if not headful_allowed():
@@ -492,6 +549,10 @@ def capture(profile, checks, captures=None):
             )
             time.sleep(1.0)
             hwnd = frame_window(CHROME, under=b.proc.pid)
+            # Screen C01: the empty field shows its line even with focus.
+            ink, focused = placeholder_ink(hwnd)
+            print(f"  {name}: field ink pixels {ink}, focused {focused}")
+            checks[f"{name}: the empty field shows its placeholder line (focused: {focused})"] = ink >= 120
             shot = OUT / f"newtab-{name}.png"
             grab(hwnd, str(shot))
             both = page_checks.save_capture(shot, "newtab", screen, dark=dark, folder=captures)

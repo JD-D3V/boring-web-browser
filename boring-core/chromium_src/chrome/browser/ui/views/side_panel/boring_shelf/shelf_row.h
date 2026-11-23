@@ -29,8 +29,11 @@ class ShelfSectionHeading : public views::View {
   METADATA_HEADER(ShelfSectionHeading, views::View)
 
  public:
+  // `regular`: the heading in the regular weight, for the side tabs list,
+  // where text on the tab strip draws heavier than in the Shelf.
   ShelfSectionHeading(const std::u16string& heading,
-                      const std::u16string& note);
+                      const std::u16string& note,
+                      bool regular = false);
   ShelfSectionHeading(const ShelfSectionHeading&) = delete;
   ShelfSectionHeading& operator=(const ShelfSectionHeading&) = delete;
   ~ShelfSectionHeading() override;

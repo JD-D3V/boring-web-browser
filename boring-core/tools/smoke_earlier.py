@@ -509,10 +509,63 @@ def scenario_side(base, checks):
             checks("side tabs: pressing the row reopens the tab", bool(reopened))
             left = wait_for(lambda: row not in [e["title"] for e in (read_entries(profile) or [])], 10)
             checks("side tabs: the entry left the list", bool(left))
-            # The reopened tab carries the same title in the tab list, so the
-            # row is gone when the name shows exactly once.
-            gone = wait_for(lambda: names_of(pid).count(row) == 1, 10)
-            checks("side tabs: the row went away", bool(gone), f"{names_of(pid).count(row)}")
+            # The reopened tab carries the same title in the tab list (and its
+            # page in the tree), so the row's own name cannot be counted. The
+            # section shows one row: once it lists the next newest entry, or
+            # goes when none is left, the pressed row has gone.
+            def next_row():
+                rest = [e["title"] for e in (read_entries(profile) or [])]
+                state_now = side_section(names_of(pid), rest)
+                if not rest:
+                    return not state_now["shown"]
+                return state_now["rows"] == [rest[0]]
+            gone = wait_for(next_row, 10)
+            checks("side tabs: the row went away (the next newest shows)", bool(gone),
+                   str(side_section(names_of(pid), titles)))
+            scenario_side_show_all(b, base, pid, profile, checks)
+
+
+def scenario_side_show_all(b, base, pid, profile, checks):
+    """Show all opens the section to every row, ending with Clear earlier
+    tabs, which asks first and then empties the list (ledger 16, 55)."""
+    open_pages(b, base, ["Side4", "Side5", "Side6"])
+    enough = wait_for(lambda: len(read_entries(profile) or []) >= 3, 40)
+    checks("side tabs: three or more tabs in Earlier for Show all", bool(enough),
+           str(len(read_entries(profile) or [])))
+    titles = [e["title"] for e in (read_entries(profile) or [])]
+    wait_for(lambda: side_section(names_of(pid), titles)["show_all"], 15)
+    show_all = side_section(names_of(pid), titles)["show_all"]
+    checks("side tabs: Show all N offered", bool(show_all), str(show_all))
+    if not show_all:
+        return
+    pressing(pid, lambda n, s=show_all: n == s)
+    every = wait_for(lambda: set(titles) <= set(side_section(names_of(pid), titles)["rows"]), 10)
+    checks("side tabs: Show all lists every Earlier row", bool(every),
+           f"{side_section(names_of(pid), titles)['rows']} of {titles}")
+    has_clear = wait_for(lambda: "Clear earlier tabs" in names_of(pid), 10)
+    checks("side tabs: the opened-out section ends with Clear earlier tabs", bool(has_clear))
+    if not has_clear:
+        return
+    pressing(pid, lambda n: n == "Clear earlier tabs")
+    asked = wait_for(lambda: any(n.startswith("Clear ") and "from Earlier?" in n for n in names_of(pid))
+                     and "Clear" in names_of(pid), 10)
+    checks("side tabs: Clear earlier tabs asks first", bool(asked),
+           str([n for n in names_of(pid) if n.startswith("Clear")]))
+    checks("side tabs: nothing cleared before the answer", len(read_entries(profile) or []) >= len(titles))
+    if not asked:
+        return
+    pressing(pid, lambda n: n == "Cancel")
+    back = wait_for(lambda: "Clear earlier tabs" in names_of(pid), 10)
+    checks("side tabs: Cancel keeps the list", bool(back) and len(read_entries(profile) or []) >= len(titles))
+    pressing(pid, lambda n: n == "Clear earlier tabs")
+    wait_for(lambda: "Clear" in names_of(pid), 10)
+    open_before = len(handles(b))
+    pressing(pid, lambda n: n == "Clear")
+    cleared = wait_for(lambda: (read_entries(profile) or []) == [], 10)
+    checks("side tabs: Clear empties the list", bool(cleared))
+    gone = wait_for(lambda: not side_section(names_of(pid), titles)["shown"], 10)
+    checks("side tabs: the section goes once the list is empty", bool(gone))
+    checks("side tabs: Clear leaves open tabs alone", len(handles(b)) >= open_before - 1)
 
 
 def scenario_side_off(base, checks):
@@ -530,6 +583,25 @@ def scenario_side_off(base, checks):
             checks("side tabs, Earlier off: the list is there", "Open tabs" in names, str(sorted(names))[:300])
             checks("side tabs, Earlier off: no Earlier section",
                    not side_section(names, ["Kept1"])["shown"] and "Kept1" not in names, str(sorted(names))[:300])
+
+
+def scenario_side_private(base, checks):
+    """Side tabs on, Earlier on with an entry in the file: a private window
+    and a guest window show no Earlier section."""
+    for label, switch in (("private", "--incognito"), ("guest", "--guest")):
+        with tempfile.TemporaryDirectory(prefix="earlier-", dir=r"E:\tmp") as tmp:
+            profile = Path(tmp) / "profile"
+            seed_side_prefs(profile, True)
+            entry = make_entry("p1", f"{base}/Kept2", now_ms(), title="Kept2")
+            earlier_file(profile).write_text(file_text([entry]), encoding="utf-8")
+            with Browser(headful=True, user_data_dir=str(profile),
+                         args=["--window-size=1280,800", switch, *FAST]) as b:
+                DRIVER_PID[0] = b.proc.pid
+                b.get(base + "/")
+                time.sleep(6)
+                names = popup_names(b.proc.pid)
+                checks(f"side tabs, {label} window: no Earlier section",
+                       SECTION_NOTE not in names and "Kept2" not in names, str(sorted(set(names)))[:300])
 
 
 def main():
@@ -550,6 +622,7 @@ def main():
         scenario_version(base, checks)
         scenario_side(base, checks)
         scenario_side_off(base, checks)
+        scenario_side_private(base, checks)
     finally:
         server.shutdown()
     return checks.result("earlier tabs")

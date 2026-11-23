@@ -94,6 +94,28 @@ std::unique_ptr<views::LabelButton> MakeTextButton(
 
 }  // namespace
 
+std::unique_ptr<views::LabelButton> BoringEarlierTextButton(
+    views::Button::PressedCallback callback,
+    const std::u16string& text,
+    ui::ColorId color,
+    bool strong) {
+  return MakeTextButton(
+      std::move(callback), text, color,
+      strong ? gfx::Font::Weight::MEDIUM : gfx::Font::Weight::NORMAL);
+}
+
+std::u16string BoringEarlierClearQuestion(size_t total) {
+  return u"Clear " + base::NumberToString16(total) +
+         (total == 1 ? u" tab" : u" tabs") +
+         u" from Earlier? The pages stay in your history.";
+}
+
+void BoringEarlierClearAll(boring::earlier::EarlierTabsService* service) {
+  if (service) {
+    service->ClearAll();
+  }
+}
+
 BoringEarlierPopup::BoringEarlierPopup(views::View* anchor,
                                        BrowserWindowInterface* browser,
                                        base::OnceClosure closed)
@@ -227,11 +249,7 @@ void BoringEarlierPopup::Rebuild() {
   box->set_cross_axis_alignment(views::BoxLayout::CrossAxisAlignment::kCenter);
   if (confirming_) {
     auto* ask = AddLabel(
-        footer,
-        u"Clear " + base::NumberToString16(total) +
-            (total == 1 ? u" tab" : u" tabs") +
-            u" from Earlier? The pages stay in your history.",
-        12, gfx::Font::Weight::NORMAL, kColorBoringShelfText,
+        footer, BoringEarlierClearQuestion(total), 12, gfx::Font::Weight::NORMAL, kColorBoringShelfText,
         gfx::Insets::VH(4, 0));
     ask->SetMultiLine(true);
     box->SetFlexForView(ask, 1);
@@ -287,9 +305,7 @@ void BoringEarlierPopup::OnCancelClear() {
 }
 
 void BoringEarlierPopup::OnClear() {
-  if (service_) {
-    service_->ClearAll();
-  }
+  BoringEarlierClearAll(service_);
   confirming_ = false;
   Close();
 }

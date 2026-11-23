@@ -65,7 +65,7 @@ class PatchTests(unittest.TestCase):
     def test_last_in_series(self):
         names = series()
         # Only the look round's patches may come after it.
-        self.assertTrue(set(names[names.index("earlier.patch") + 1:]) <= {"cui-look-3.patch", "cui-sheet.patch"},
+        self.assertTrue(set(names[names.index("earlier.patch") + 1:]) <= {"cui-look-3.patch", "cui-look-5.patch", "cui-sheet.patch"},
                         names[names.index("earlier.patch") + 1:])
         self.assertTrue(PATCH.exists())
 
