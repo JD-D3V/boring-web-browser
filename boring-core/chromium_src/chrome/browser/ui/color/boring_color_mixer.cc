@@ -644,6 +644,16 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   // page token (screens C04, C05), not Chromium's lavender separator.
   mixer[kColorBoringPassportLine] = {p.line};
   mixer[kColorBoringPassportFooter] = {page};
+  // Infobars under the toolbar (the automation bar, a flag warning) on the
+  // bar surface with the ink and the hairline, not Chromium's tonal base
+  // (lavender in light, purple in dark).
+  mixer[kColorInfoBarBackground] = {p.toolbar};
+  mixer[kColorInfoBarForeground] = {p.ink};
+  mixer[kColorInfoBarButtonIcon] = {p.ink};
+  mixer[kColorInfoBarButtonIconHovered] = {p.ink};
+  mixer[kColorInfoBarButtonIconDisabled] = {p.muted};
+  mixer[kColorInfoBarContentAreaSeparator] = {p.line};
+  mixer[ui::kColorInfoBarIcon] = {p.ink};
   // boring: end cui-look-3
 
   // Windows high contrast: menus keep the system colours Chromium maps

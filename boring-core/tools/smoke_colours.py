@@ -92,9 +92,9 @@ DRAWN_EDGE = {"soft_white", "dusk"}
 # Palette field -> the CSS variables of the ids the mixer gives it.
 VARS = {
     "frame": ["--color-frame-active"],
-    "toolbar": ["--color-toolbar"],
+    "toolbar": ["--color-toolbar", "--color-info-bar-background"],
     "field": ["--color-location-bar-background"],
-    "ink": ["--color-omnibox-text"],
+    "ink": ["--color-omnibox-text", "--color-info-bar-foreground"],
     "edge": ["--color-location-bar-border", "--color-boring-edge"],
 }
 EDGE_CONTROLS = [
