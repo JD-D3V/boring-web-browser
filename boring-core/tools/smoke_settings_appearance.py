@@ -100,9 +100,17 @@ return {
   text: r.textContent,
   rowsText: mine.map(e => e.textContent).join(' '),
   dark: matchMedia('(prefers-color-scheme: dark)').matches,
-  pageBg: getComputedStyle(document.querySelector('settings-ui')).backgroundColor,
-  cardBg: getComputedStyle(p).backgroundColor,
-  cardRadius: getComputedStyle(p).borderTopLeftRadius,
+  // The page area beside the sidebar, and the two cards on it (screen C10).
+  pageBg: getComputedStyle(find(document, 'settings-ui').shadowRoot
+      .querySelector('#container')).backgroundColor,
+  cards: ['#boringLookCard', '#boringLayoutCard'].map(sel => {
+    const card = r.querySelector(sel);
+    return card ? [getComputedStyle(card).backgroundColor,
+                   getComputedStyle(card).borderTopLeftRadius,
+                   !!card.querySelector(sel === '#boringLookCard'
+                       ? '#colorSchemeModeRow' : '#tabsRow')] : null;
+  }),
+  tabsNote: (r.querySelector('#tabsRow .secondary') || {textContent: ''}).textContent.trim(),
 };
 """
 CLICK = PAGE + "var e = r && r.querySelector(arguments[0]); if (e) e.click(); return !!e;"
@@ -184,8 +192,11 @@ def check_page(b, check, dark):
     if not s:
         return
     check(f"{mode}: the page is the design's page colour", s["pageBg"] == PAGE_BG[dark], s["pageBg"])
-    check(f"{mode}: Appearance is a card in the surface colour",
-          s["cardBg"] == CARD_BG[dark] and s["cardRadius"] == "10px", f"{s['cardBg']} {s['cardRadius']}")
+    check(f"{mode}: the rows sit on two cards in the surface colour, 10px corners",
+          all(card and card[0] == CARD_BG[dark] and card[1] == "10px" and card[2] for card in s["cards"]),
+          s["cards"])
+    check(f"{mode}: Tabs says where side tabs go",
+          s["tabsNote"] == "Along the top, or down the side in the Shelf.", s["tabsNote"])
     check(f"{mode}: the line under the heading",
           s["subline"] == "How the browser looks. Changes apply straight away.", s["subline"])
     check(f"{mode}: Light or dark offers Light, Dark, Match system",
@@ -299,7 +310,7 @@ def check_dark_by_setting(check):
         return
     check(f"{tag}: Dark is pressed and the page is dark",
           pressed(s).get("Dark") == "true" and s["dark"], (pressed(s), s["dark"]))
-    check(f"{tag}: the card is the dark surface", s["cardBg"] == CARD_BG[True], s["cardBg"])
+    check(f"{tag}: the card is the dark surface", (s["cards"][0] or [None])[0] == CARD_BG[True], s["cards"])
     check_rings(check, tag, s, EDGE_DARK)
 
 
@@ -318,7 +329,7 @@ def check_dusk(check):
                 return
             check(f"{tag}: the page is dark", s["dark"], s["dark"])
             check(f"{tag}: the page is Dusk's page", s["pageBg"] == DUSK_PAGE_BG, s["pageBg"])
-            check(f"{tag}: the card is Dusk's card", s["cardBg"] == DUSK_CARD_BG, s["cardBg"])
+            check(f"{tag}: the card is Dusk's card", (s["cards"][0] or [None])[0] == DUSK_CARD_BG, s["cards"])
             check(f"{tag}: Light or dark says Dusk is always dark",
                   s["duskNote"] == "Dusk is always dark.", s["duskNote"])
             check(f"{tag}: Light or dark does not apply (its buttons are off)",

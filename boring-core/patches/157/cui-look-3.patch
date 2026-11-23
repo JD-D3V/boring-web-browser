@@ -12,6 +12,97 @@ diff --git a/chrome/app/generated_resources.grd b/chrome/app/generated_resources
      </message>
  
      <!-- Chrome for Testing infobar main text -->
+diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.css b/chrome/browser/resources/settings/appearance_page/appearance_page.css
+--- a/chrome/browser/resources/settings/appearance_page/appearance_page.css
++++ b/chrome/browser/resources/settings/appearance_page/appearance_page.css
+@@ -48,10 +48,8 @@
+  * outline buttons use the edge token. line2 is the line a fifth of the way
+  * to the edge, which is the drawn line2 in both rows. */
+ :host {
+-  /* The section is a card on the page, as drawn. */
+-  background: var(--cui-surface);
+-  border-radius: 10px;
+-  box-shadow: 0 0 0 1px var(--cui-line);
++  /* boring: cui-look-3. The rows sit on two cards (.cui-card below), as
++   * drawn; the page's title stays on the page. */
+   display: block;
+   --cui-surface: var(--color-toolbar, #fff);
+   --cui-field: var(--color-location-bar-background, #f4f3ef);
+@@ -71,6 +69,15 @@
+   }
+ }
+ 
++/* boring: cui-look-3. A card on the page token (screen C10): the surface,
++ * the hairline and 10px corners, 20px apart. */
++.cui-card {
++  background: var(--cui-surface);
++  border-radius: 10px;
++  box-shadow: 0 0 0 1px var(--cui-line);
++  margin-block: 16px 20px;
++}
++
+ .boring-subline {
+   color: var(--cui-ink2);
+   font-size: 13px;
+diff --git a/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts b/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
+--- a/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
++++ b/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
+@@ -17,6 +17,8 @@
+     <div class="boring-subline">
+       How the browser looks. Changes apply straight away.
+     </div>
++    <!-- boring: cui-look-3. Light or dark, Look and Accent on one card. -->
++    <div id="boringLookCard" class="cui-card">
+     <div id="colorSchemeModeRow" class="cr-row first"
+         ?hidden="${!this.showColorSchemeMode_()}">
+       <div id="colorSchemeModeLabel" class="flex cr-padded-text">
+@@ -82,10 +84,14 @@
+         </div>
+       </div>
+     ` : ''}
+-    <div id="tabsRow" class="cr-row">
++    </div>
++    <!-- boring: cui-look-3. Tabs, Earlier tabs, Bookmarks and Toolbar
++         buttons on the second card. -->
++    <div id="boringLayoutCard" class="cui-card">
++    <div id="tabsRow" class="cr-row first">
+       <div class="flex cr-padded-text" aria-hidden="true">
+         <div class="cui-title">Tabs</div>
+-        <div class="secondary">Along the top, or down the side.</div>
++        <div class="secondary">Along the top, or down the side in the Shelf.</div>
+       </div>
+       <settings-dropdown-menu id="tabStripPosition" label="Tabs"
+           pref-key="vertical_tabs.enabled"
+@@ -163,6 +169,7 @@
+           @click="${this.onCustomizeToolbarClick_}">
+         Customize
+       </cr-button>
++    </div>
+     </div>
+     <!-- boring: cui-settings, no Theme row (ledger item 41): a store theme
+          would switch our palette off. -->
+diff --git a/chrome/browser/resources/settings/settings_ui/settings_ui.css b/chrome/browser/resources/settings/settings_ui/settings_ui.css
+--- a/chrome/browser/resources/settings/settings_ui/settings_ui.css
++++ b/chrome/browser/resources/settings/settings_ui/settings_ui.css
+@@ -215,6 +215,9 @@
+ }
+ 
+ #container {
++  /* boring: cui-look-3. The pages sit on the page token, the sidebar on
++   * the surface (screen C10), so a card shows. */
++  background: var(--color-new-tab-page-background, var(--boring-surface));
+   display: flex;
+   flex: 1;
+   overflow: auto;
+@@ -234,6 +237,8 @@
+  * by its labels changed width when the selected label turned
+  * semibold (205px to 209px), which moved the whole page. */
+ #left {
++  /* boring: cui-look-3, see #container. */
++  background: var(--boring-surface);
+   border-inline-end: 1px solid var(--boring-line);
+   box-sizing: border-box;
+   flex: none;
 diff --git a/chrome/browser/ui/layout_constants.cc b/chrome/browser/ui/layout_constants.cc
 --- a/chrome/browser/ui/layout_constants.cc
 +++ b/chrome/browser/ui/layout_constants.cc
@@ -38,37 +129,6 @@ diff --git a/chrome/browser/ui/layout_constants.cc b/chrome/browser/ui/layout_co
  
      case WEBUI_TAB_STRIP_TOOLBAR_INTERIOR_MARGIN:
        return gfx::Insets::VH(4, 0);
-diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/toolbar/app_menu_model.cc
---- a/chrome/browser/ui/toolbar/app_menu_model.cc
-+++ b/chrome/browser/ui/toolbar/app_menu_model.cc
-@@ -2132,6 +2132,9 @@
-                                         : kTrashCanRefreshOldIcon);
-   SetElementIdentifierAt(GetIndexOfCommandId(IDC_CLEAR_BROWSING_DATA).value(),
-                          kClearBrowsingDataMenuItem);
-+  // boring: our menu's rows read without an ellipsis (screen C07).
-+  SetLabel(GetIndexOfCommandId(IDC_CLEAR_BROWSING_DATA).value(),
-+           u"&Delete browsing data");
- 
-   AddTitle(u"Page");
-   CreateZoomMenu();
-@@ -2140,6 +2143,8 @@
-   AddItemWithStringIdAndVectorIcon(
-       this, IDC_PRINT, IDS_PRINT,
-       features::IsRoundedIconsEnabled() ? kPrintIcon : kPrintMenuOldIcon);
-+  // boring: no ellipsis (screen C07).
-+  SetLabel(GetIndexOfCommandId(IDC_PRINT).value(), u"&Print");
- 
-   if (glic::GlicEnabling::IsEnabledForProfile(browser_->GetProfile())) {
-     AddItemWithStringIdAndVectorIcon(this, IDC_OPEN_GLIC,
-@@ -2231,6 +2236,8 @@
- 
-   AddItemWithStringIdAndVectorIcon(this, IDC_SHOW_TRANSLATE, IDS_SHOW_TRANSLATE,
-                                    vector_icons::kGTranslateIcon);
-+  // boring: no ellipsis (screen C07).
-+  SetLabel(GetIndexOfCommandId(IDC_SHOW_TRANSLATE).value(), u"T&ranslate");
- 
-   CreateFindAndEditSubMenu();
- 
 diff --git a/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc b/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
 --- a/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
 +++ b/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
