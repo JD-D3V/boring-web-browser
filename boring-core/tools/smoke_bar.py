@@ -507,6 +507,19 @@ def main():
         stop()
 
         # 7. Ctrl+K and Ctrl+E.
+        # The new tab page (screen C01): the field is empty, showing its
+        # placeholder and the Ctrl+K hint, never chrome://boring-newtab.
+        report = hook(fresh_light("ntp"), "keys", urls=("chrome://newtab/",))
+        before = report["state"].get("before", {})
+        print("new tab page field:", before)
+        checks("on a new tab the address field is empty, with the Bar's placeholder",
+               before.get("text") == "" and before.get("placeholder")
+               == "Search, or type a site, a tab, or what you want to do", str(before))
+        checks("on a new tab the field shows Ctrl+K, or Esc to close while focused",
+               before.get("hint") == ("Esc to close" if before.get("focused") == "yes" else "Ctrl+K"),
+               str(before))
+        stop()
+
         report = hook(work / "keys", "keys", urls=(weather,))
         state = report["state"]
         print("keys:", state)

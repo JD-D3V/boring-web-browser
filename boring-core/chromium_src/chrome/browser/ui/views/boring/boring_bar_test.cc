@@ -119,7 +119,8 @@ class BarTest {
          "\tall_selected=", YesNo(field->IsSelectAll()),
          "\tkeyword=", YesNo(model()->is_keyword_selected()),
          "\ttext=", OneLine(field->GetText()),
-         "\thint=", OneLine(bar()->boring_bar_hint_text()), "\n"});
+         "\thint=", OneLine(bar()->boring_bar_hint_text()),
+         "\tplaceholder=", OneLine(std::u16string(field->GetPlaceholderText())), "\n"});
   }
 
   void Begin() {

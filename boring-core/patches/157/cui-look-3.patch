@@ -69,6 +69,23 @@ diff --git a/chrome/browser/ui/toolbar/app_menu_model.cc b/chrome/browser/ui/too
  
    CreateFindAndEditSubMenu();
  
+diff --git a/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc b/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
+--- a/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
++++ b/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
+@@ -124,7 +124,12 @@
+   const auto is_ntp = [](const GURL& url) {
+     return (url.SchemeIs(content::kChromeUIScheme) &&
+             url.GetHost() == chrome::kChromeUINewTabHost) ||
+-           url.spec() == chrome::kChromeUISplitViewNewTabPageURL;
++           url.spec() == chrome::kChromeUISplitViewNewTabPageURL ||
++           // boring: our new tab page (newtab-default.patch) hides its
++           // address the same way, so a new tab shows the empty field and
++           // its placeholder (screen C01). Only the browser serves it.
++           (url.SchemeIs(content::kChromeUIScheme) &&
++            url.GetHost() == "boring-newtab");
+   };
+ 
+   GURL url = entry->GetURL();
 diff --git a/chrome/browser/ui/views/bookmarks/bookmark_bar_view.cc b/chrome/browser/ui/views/bookmarks/bookmark_bar_view.cc
 --- a/chrome/browser/ui/views/bookmarks/bookmark_bar_view.cc
 +++ b/chrome/browser/ui/views/bookmarks/bookmark_bar_view.cc
