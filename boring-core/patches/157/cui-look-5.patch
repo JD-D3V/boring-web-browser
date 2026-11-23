@@ -15,6 +15,18 @@ diff --git a/chrome/browser/ui/views/location_bar/location_bar_view.cc b/chrome/
          }));
      views::FocusRing::Get(this)->SetOutsetFocusRingDisabled(true);
      // boring: the glow of the approved mock, a 3 DIP soft accent ring just
+@@ -1513,6 +1517,11 @@
+         is_caret_visible
+             ? color_provider->GetColor(kColorOmniboxResultsBackground)
+             : color_provider->GetColor(kColorLocationBarBorder);
++  } else if (is_caret_visible && GetOmniboxController()->IsPopupOpen()) {
++    // boring: under the Bar's open results card the edge takes the card's
++    // colour; the accent edge showed through the card's corners as a broken
++    // outline (screen C06 draws none).
++    border_color = color_provider->GetColor(kColorOmniboxResultsBackground);
+   } else if (is_caret_visible) {
+     // boring: a focused field takes the accent on its edge, and the focus
+     // ring adds the soft glow around it.
 diff --git a/chrome/browser/ui/views/omnibox/omnibox_placeholder_util.cc b/chrome/browser/ui/views/omnibox/omnibox_placeholder_util.cc
 --- a/chrome/browser/ui/views/omnibox/omnibox_placeholder_util.cc
 +++ b/chrome/browser/ui/views/omnibox/omnibox_placeholder_util.cc
