@@ -639,6 +639,12 @@ void AddBoringColorMixer(ui::ColorProvider* provider,
   // The New tab row's ring is the TOKENS edge (screen C09).
   mixer[kColorBoringSideNewTabRing] = {p.edge};
   // boring: end cui-sidetabs
+  // boring: cui-look-3
+  // The Passport's hairlines are the line token and its footer sits on the
+  // page token (screens C04, C05), not Chromium's lavender separator.
+  mixer[kColorBoringPassportLine] = {p.line};
+  mixer[kColorBoringPassportFooter] = {page};
+  // boring: end cui-look-3
 
   // Windows high contrast: menus keep the system colours Chromium maps
   // them to (ui/color/win/native_color_mixers_win.cc), as the stock menu

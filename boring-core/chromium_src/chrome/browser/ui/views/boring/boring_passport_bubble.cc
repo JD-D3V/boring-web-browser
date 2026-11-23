@@ -10,6 +10,7 @@
 #include "base/functional/callback_helpers.h"
 #include "base/memory/ptr_util.h"
 #include "base/no_destructor.h"
+#include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/sequenced_task_runner.h"
 #include "chrome/app/vector_icons/vector_icons.h"
@@ -63,6 +64,7 @@
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/view.h"
+#include "ui/views/view_utils.h"
 #include "url/gurl.h"
 
 namespace {
@@ -426,8 +428,17 @@ void BoringPassportBubble::ShowButtons() {
       button->SetBgColorIdOverride(kColorBoringPassportSolid);
       button->SetEnabledTextColors(kColorBoringPassportSolidText);
     } else if (label == boring::passport::kForgetThisSite) {
+      // Plain quiet text on the pop-up's own surface, no tint at rest.
       button->SetStyle(ui::ButtonStyle::kText);
+      button->SetBgColorIdOverride(ui::kColorBubbleBackground);
       button->SetEnabledTextColors(ui::kColorLabelForegroundSecondary);
+    } else {
+      // Site settings, I know this site: an outline button as drawn, ink
+      // text and a 1px edge on the pop-up's own surface.
+      button->SetStyle(ui::ButtonStyle::kDefault);
+      button->SetBgColorIdOverride(ui::kColorBubbleBackground);
+      button->SetStrokeColorIdOverride(kColorBoringEdge);
+      button->SetEnabledTextColors(kColorOmniboxText);
     }
     if (label != boring::passport::kForgetThisSite) {
       static_cast<views::BoxLayout*>(button_row_->GetLayoutManager())
@@ -556,6 +567,35 @@ base::DictValue BoringPassportBubble::StateForTesting() const {
     }
   }
   out.Set("buttons", std::move(buttons));
+  // How the buttons and hairlines are drawn (screens C04, C05).
+  if (const ui::ColorProvider* colors =
+          button_row_ ? button_row_->GetColorProvider() : nullptr) {
+    base::ListValue looks;
+    for (views::View* child : button_row_->children()) {
+      auto* button = views::AsViewClass<views::MdTextButton>(child);
+      if (!button) {
+        continue;
+      }
+      const SkColor text = button->GetCurrentTextColor();
+      looks.Append(
+          base::DictValue()
+              .Set("label", button->GetText())
+              .Set("solid", button->GetStyle() == ui::ButtonStyle::kProminent)
+              .Set("onSurface", button->GetBgColorIdOverride() ==
+                                    std::optional<ui::ColorId>(
+                                        ui::kColorBubbleBackground))
+              .Set("edge", button->GetStrokeColorIdOverride() ==
+                               std::optional<ui::ColorId>(kColorBoringEdge))
+              .Set("textInk", text == colors->GetColor(kColorOmniboxText))
+              .Set("textQuiet",
+                   text == colors->GetColor(ui::kColorLabelForegroundSecondary))
+              .Set("focused", button->HasFocus()));
+    }
+    out.Set("buttonLook", std::move(looks));
+    const SkColor line = colors->GetColor(kColorBoringPassportLine);
+    out.Set("line", base::StringPrintf("#%02x%02x%02x", SkColorGetR(line),
+                                       SkColorGetG(line), SkColorGetB(line)));
+  }
   out.Set("footer", footer_);
   if (widget_) {
     const gfx::Rect bounds = widget_->GetWindowBoundsInScreen();

@@ -259,6 +259,24 @@ def texts(state):
     return [f.get("text") for f in state.get("facts", [])]
 
 
+LINE_TOKEN = {False: "#e2dfd9", True: "#2d2d2a"}  # Window.dc.html TOKENS line
+
+
+def button_look(state, theme, dark, outline, checks):
+    """Screens C04, C05: the outline button has ink text and the edge on the
+    pop-up's own surface, nothing has focus when the pop-up opens, and the
+    hairlines between the fact rows are the line token (default Look)."""
+    look = {b.get("label"): b for b in state.get("buttonLook", [])}
+    button = look.get(outline, {})
+    checks(f"{theme}: {outline} is an outline button with ink text",
+           button.get("textInk") and button.get("edge") and button.get("onSurface")
+           and not button.get("solid"), str(button))
+    checks(f"{theme}: no button shows a focus ring when the pop-up opens",
+           bool(look) and not any(b.get("focused") for b in look.values()), str(look))
+    checks(f"{theme}: the fact rows' hairline is the line token",
+           state.get("line") == LINE_TOKEN[dark], str(state.get("line")))
+
+
 def shoot(out, name, screen, dark, folder, checks):
     try:
         hwnd = frame_window(CHROME, under=our_pid())
@@ -355,6 +373,10 @@ def run_in(b_args, profile, base, out, captures, dark, checks, full):
         checks(f"{theme}: footer says what was blocked",
                footer.startswith("Blocked on this page") or footer == "Nothing blocked on this page.", footer)
         checks(f"{theme}: Passport is 384 wide or more", state.get("width", 0) >= 384, str(state.get("width")))
+        button_look(state, theme, dark, "I know this site", checks)
+        look = {b.get("label"): b for b in state.get("buttonLook", [])}
+        checks(f"{theme}: Leave this site is the one solid button",
+               look.get("Leave this site", {}).get("solid") is True, str(look))
         shoot(out, "new", "C05", dark, captures, checks)
 
         # 4. Known by history.
@@ -369,6 +391,12 @@ def run_in(b_args, profile, base, out, captures, dark, checks, full):
         checks(f"{theme}: visit count and month", want in texts(state), f"{want} / {texts(state)}")
         checks(f"{theme}: Site settings and Forget this site",
                state.get("buttons") == ["Site settings", "Forget this site"], str(state.get("buttons")))
+        button_look(state, theme, dark, "Site settings", checks)
+        look = {b.get("label"): b for b in state.get("buttonLook", [])}
+        forget = look.get("Forget this site", {})
+        checks(f"{theme}: Forget this site is quiet text on the pop-up's surface",
+               forget.get("textQuiet") and forget.get("onSurface") and not forget.get("edge"),
+               str(forget))
         shoot(out, "known", "C04", dark, captures, checks)
         if not full:
             return
