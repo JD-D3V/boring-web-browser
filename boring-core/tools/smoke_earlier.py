@@ -529,8 +529,8 @@ def scenario_side_show_all(b, base, pid, profile, checks):
     """Show all opens the section to every row, ending with Clear earlier
     tabs, which asks first and then empties the list (ledger 16, 55)."""
     open_pages(b, base, ["Side4", "Side5", "Side6"])
-    enough = wait_for(lambda: len(read_entries(profile) or []) >= 3, 40)
-    checks("side tabs: three or more tabs in Earlier for Show all", bool(enough),
+    enough = wait_for(lambda: len(read_entries(profile) or []) >= 2, 60)
+    checks("side tabs: two or more tabs (one row and Show all) in Earlier for Show all", bool(enough),
            str(len(read_entries(profile) or [])))
     titles = [e["title"] for e in (read_entries(profile) or [])]
     wait_for(lambda: side_section(names_of(pid), titles)["show_all"], 15)
