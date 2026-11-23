@@ -22,9 +22,17 @@ What it asserts (nothing is asserted that was not looked at):
      toggle. App window: no list.
   8. Captures: PrintWindow of our window with side tabs, light and dark,
      beside C09 (--captures).
+  9. "Open tabs" heading: with no group it sits right above the first tab;
+     with one group and two loose tabs (made by smoke_tabgroups.py's test
+     extension) its top is below the group's last tab and its bottom above
+     the first loose tab (UI Automation bounds).
+ 10. The page in a rounded sheet: with cui-sheet.patch in the series the
+     page stops 8 DIP (6 to 10) short of the client area's right and bottom
+     edges; without it, it runs to both. In fullscreen it runs to both.
+     (The 10 DIP corners and the frame colour are seen in the captures.)
 Not checked here: the pinned grid (four tiles to a row; a tab cannot be
-pinned without input and no pin hook exists), the group heading row, the
-Earlier section (item 16 is not built), the sheet's radius (drawn 10, built 8).
+pinned without input and no pin hook exists), the group heading row. The
+Earlier section is checked by smoke_earlier.py (scenario_side).
 
 Usage: python boring-core/tools/smoke_sidetabs.py [--out DIR] [--captures DIR]
 """
@@ -125,6 +133,93 @@ def shortcut_of(under, name):
     return found
 
 
+def rects_of(under):
+    """[(name, (left, top, right, bottom))] of every named control on our
+    window, in screen pixels, read through UI Automation."""
+    import ctypes
+    from ctypes import wintypes
+    from smoke_site_panel import _call  # noqa: PLC0415
+
+    out = []
+    with Window(frame_window(CHROME, under=under)) as w:
+        for text, element in w.items:
+            if not (element and text):
+                continue
+            r = wintypes.RECT()
+            _call(element, 43, ctypes.addressof(r))  # get_CurrentBoundingRectangle
+            out.append((text, (r.left, r.top, r.right, r.bottom)))
+    return out
+
+
+def first_rect(rects, wanted):
+    """The first non-empty rectangle whose name `wanted` accepts, or None."""
+    for text, r in rects:
+        if wanted(text) and r[2] > r[0] and r[3] > r[1]:
+            return r
+    return None
+
+
+SERIES = Path(__file__).resolve().parents[1] / "patches" / "series"
+
+
+def sheet_expected():
+    """The page sits in a rounded sheet with side tabs only while
+    cui-sheet.patch is in the series (the builder can take it out)."""
+    try:
+        names = [ln.strip() for ln in SERIES.read_text(encoding="utf-8").splitlines()]
+    except OSError:
+        return False
+    return "cui-sheet.patch" in names
+
+
+def sheet_state(page, client, scale):
+    """Screen C09's sheet from two screen rectangles (left, top, right,
+    bottom): the page and our window's client area. "sheet" when the page
+    stops 6 to 10 DIP short of the client's right and bottom edges (drawn 8),
+    "flush" when it runs to both edges, else "other". Pure."""
+    if not (page and client and scale):
+        return "other", None
+    right = (client[2] - page[2]) / scale
+    bottom = (client[3] - page[3]) / scale
+    gaps = (round(right, 1), round(bottom, 1))
+    if 6 <= right <= 10 and 6 <= bottom <= 10:
+        return "sheet", gaps
+    if abs(right) <= 1.5 and abs(bottom) <= 1.5:
+        return "flush", gaps
+    return "other", gaps
+
+
+def page_and_client(under, title):
+    """The page's rectangle (the largest control named `title`: the tab has
+    the same name but is small) and the client rectangle of our window, in
+    screen pixels, and the window's scale."""
+    import ctypes
+    from ctypes import wintypes
+
+    hwnd = frame_window(CHROME, under=under)
+    user32 = ctypes.windll.user32
+    rc = wintypes.RECT()
+    user32.GetClientRect(hwnd, ctypes.byref(rc))
+    origin = wintypes.POINT(0, 0)
+    user32.ClientToScreen(hwnd, ctypes.byref(origin))
+    client = (origin.x, origin.y, origin.x + rc.right, origin.y + rc.bottom)
+    scale = (user32.GetDpiForWindow(hwnd) or 96) / 96
+    named = [r for text, r in rects_of(under) if text == title and r[2] > r[0] and r[3] > r[1]]
+    page = max(named, key=lambda r: (r[2] - r[0]) * (r[3] - r[1]), default=None)
+    return page, client, scale
+
+
+def heading_between(heading, above, below):
+    """Screen C09: the "Open tabs" heading's top is at or below the bottom of
+    the tab above it, and its bottom at or above the top of the tab below.
+    Pure, so it is tested without a browser."""
+    if not (heading and below):
+        return False
+    if above and heading[1] < above[3]:
+        return False
+    return heading[3] <= below[1]
+
+
 def press(under, name):
     with Window(frame_window(CHROME, under=under)) as w:
         return w.press(lambda text: text == name)
@@ -203,12 +298,28 @@ def run_main(port, out, captures, dark, checks, full):
             # Screen C09: the New tab row shows its shortcut at the right.
             key = shortcut_of(under, NEW_TAB)
             checks(f"{theme}: the New tab row shows Ctrl+T", key == "Ctrl+T", repr(key))
+            # With no group the Open tabs heading sits right above the first
+            # loose tab (below Pinned when there is one).
+            rects = rects_of(under)
+            head = first_rect(rects, lambda t: t == OPEN_HEADING)
+            first_tab = first_rect(rects, lambda t: t.startswith("Home"))
+            checks(f"{theme}: with no group, Open tabs sits right above the first tab",
+                   heading_between(head, None, first_tab) and first_tab[1] - head[3] <= 24,
+                   f"heading {head}, first tab {first_tab}")
             # 4. The strip's other buttons are gone.
             checks(f"{theme}: no tab search button in the list", not state["tab_search"], str(state))
             # 3. Width.
             taken = width_taken(b)
             checks(f"{theme}: the page gives up about {LIST_WIDTH} DIP",
                    LIST_WIDTH <= taken <= LIST_WIDTH + 24, str(taken))
+            # The page in a rounded sheet (cui-sheet.patch): 8 DIP of frame
+            # to its right and below; without the patch it runs to the edges.
+            want = "sheet" if sheet_expected() else "flush"
+            page, client, scale = page_and_client(under, "Page2")
+            got, gaps = sheet_state(page, client, scale)
+            checks(f"{theme}: the page is {'in a sheet' if want == 'sheet' else 'flush'}"
+                   " (series has cui-sheet.patch: " + str(want == "sheet") + ")",
+                   got == want, f"right, bottom gap DIP {gaps}; page {page}; client {client}")
             shoot(out, dark, captures, checks)
             if not full:
                 return
@@ -219,12 +330,66 @@ def run_main(port, out, captures, dark, checks, full):
             press(under, TOGGLE)
             wide = wait_for(lambda: width_taken(b) >= LIST_WIDTH, 8)
             checks("the toggle widens it again", bool(wide), str(width_taken(b)))
+            # In fullscreen the sheet's margin goes away.
+            rect = b._req("GET", f"/session/{b.sid}/window/rect")["value"]
+            b._req("POST", f"/session/{b.sid}/window/fullscreen", {})
+            time.sleep(1.5)
+            page, client, scale = page_and_client(under, "Page2")
+            got, gaps = sheet_state(page, client, scale)
+            checks("fullscreen: the page runs to the edges", got == "flush", f"gaps {gaps}")
+            b._req("POST", f"/session/{b.sid}/window/rect",
+                   {k: rect[k] for k in ("x", "y", "width", "height")})
+            time.sleep(1.5)
             # 6. New tab opens a tab.
             before = len(handles(b))
             press(under, NEW_TAB)
             time.sleep(1.5)
             after = len(handles(b))
             checks("New tab opens a tab", after == before + 1, f"{before} -> {after}")
+
+
+GROUP_FIRST_JS = r"""
+// cui-look-4: screen C09's order, the group first, then two loose tabs.
+window.sceneGroupFirst = async () => {
+  await clear();
+  await group(await open(['Train times', 'Hotel booking', 'City map']), 'Trip', 'cyan');
+  await open(['Local news', 'Weather']);
+  return finish();
+};
+"""
+
+
+def run_groups(checks):
+    """One group and two loose tabs: the "Open tabs" heading's top is below
+    the group's last tab and above the first loose tab. The group is made by
+    smoke_tabgroups.py's test extension (chrome.tabs.group), driven through
+    WebDriver; nothing is sent to the OS."""
+    import smoke_tabgroups as tg  # noqa: PLC0415
+
+    with tempfile.TemporaryDirectory(prefix="sidetabs-", dir=r"E:\tmp") as tmp:
+        profile = Path(tmp) / "profile"
+        seed_profile(profile, True)
+        ext = Path(tmp) / "ext"
+        ext.mkdir()
+        tg.write_extension(ext)
+        run_js = ext / "run.js"
+        run_js.write_text(run_js.read_text(encoding="utf-8") + GROUP_FIRST_JS, encoding="utf-8")
+        args = ["--window-size=1280,800", "--load-extension=" + str(ext)]
+        with Browser(headful=True, user_data_dir=str(profile), args=args,
+                     keep_switches=["enable-automation"]) as b:
+            DRIVER_PID[0] = b.proc.pid  # chromedriver starts Chrome
+            tg.run_page(b)
+            groups = tg.call(b, "sceneGroupFirst")
+            checks("groups: the Trip group was made",
+                   isinstance(groups, list) and len(groups) == 1 and groups[0].get("tabs") == 3, str(groups))
+            time.sleep(1.5)
+            rects = rects_of(DRIVER_PID[0])
+            head = first_rect(rects, lambda t: t == OPEN_HEADING)
+            last_group_tab = first_rect(rects, lambda t: t.startswith("City map"))
+            first_loose = first_rect(rects, lambda t: t.startswith("Local news"))
+            checks("groups: Open tabs sits between the group and the loose tabs",
+                   heading_between(head, last_group_tab, first_loose),
+                   f"heading {head}, City map {last_group_tab}, Local news {first_loose}")
 
 
 def run_variant(name, extra_args, vertical, checks, expect):
@@ -254,6 +419,7 @@ def main():
         run_variant("default profile", [], False, checks, {"open_heading": False, "toggle": True})
         run_main(port, args.out, args.captures, False, checks, full=True)
         run_main(port, args.out, args.captures, True, checks, full=False)
+        run_groups(checks)
         # 7. Private window shows a working window; an app window has no list.
         run_variant("private window", ["--incognito"], True, checks, {"toggle": True})
         run_variant("app window", [f"--app=http://127.0.0.1:{port}/"], True, checks,

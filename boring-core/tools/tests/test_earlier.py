@@ -64,8 +64,9 @@ class HelperTests(unittest.TestCase):
 class PatchTests(unittest.TestCase):
     def test_last_in_series(self):
         names = series()
-        # Only the look round's patch may come after it.
-        self.assertEqual(names[names.index("earlier.patch") + 1:] in ([], ["cui-look-3.patch"]), True)
+        # Only the look round's patches may come after it.
+        self.assertTrue(set(names[names.index("earlier.patch") + 1:]) <= {"cui-look-3.patch", "cui-sheet.patch"},
+                        names[names.index("earlier.patch") + 1:])
         self.assertTrue(PATCH.exists())
 
     def test_command_ids_are_in_our_block_and_free(self):
@@ -98,6 +99,54 @@ class LookTests(unittest.TestCase):
         row_h = (VIEWS / "side_panel/boring_shelf/shelf_row.h").read_text(encoding="utf-8")
         self.assertIn("kHeight = 32;", row_h)
         self.assertIn("kGap = 10;", row_h)
+
+
+class SideSectionTests(unittest.TestCase):
+    """Side tabs (screen C09): the Earlier section in the list (cui-look-4)."""
+
+    SECTION = (VIEWS / "boring/boring_side_earlier_section.cc").read_text(encoding="utf-8")
+    LOOK3 = (CORE / "patches/157/cui-look-3.patch").read_text(encoding="utf-8")
+
+    def test_names_say_what_the_section_shows(self):
+        names = ["Earlier", "kept 30 days", "Soup", "Show all 3", "Open tabs"]
+        s = smoke_earlier.side_section(names, ["Soup", "Gone"])
+        self.assertTrue(s["shown"])
+        self.assertEqual(s["rows"], ["Soup"])
+        self.assertEqual(s["show_all"], "Show all 3")
+        none = smoke_earlier.side_section(["Open tabs", "Earlier 3"], ["Soup"])
+        self.assertFalse(none["shown"])
+        self.assertEqual(none["rows"], [])
+
+    def test_side_prefs_turn_side_tabs_on(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            smoke_earlier.seed_side_prefs(tmp, False)
+            prefs = json.loads((Path(tmp) / "Default" / "Preferences").read_text())
+        self.assertTrue(prefs["vertical_tabs"]["enabled"])
+        self.assertFalse(prefs["boring"]["earlier"]["enabled"])
+
+    def test_reuses_the_shelf_and_the_service(self):
+        for piece in ("ShelfSectionHeading", "ShelfRow", "GetEarlierState", "ShowAllText",
+                      "AddObserver(this)", "->Reopen(id, browser_)"):
+            self.assertIn(piece, self.SECTION, piece)
+        self.assertIn('u"Earlier", u"kept 30 days"', self.SECTION)
+        # Show all runs the existing command; with side tabs it opens the section out.
+        self.assertIn("IDC_BORING_EARLIER_SHOW_ALL", self.SECTION)
+        coord = (VIEWS / "side_panel/boring_shelf/boring_shelf_coordinator.cc").read_text(encoding="utf-8")
+        self.assertIn("BoringSideEarlierSection::ShowAllFor(browser)", coord)
+        chip = (VIEWS / "boring/boring_earlier_chip.cc").read_text(encoding="utf-8")
+        self.assertIn("BoringSideEarlierSection::RevealFor(browser_)", chip)
+
+    def test_only_when_on_with_tabs_and_wide(self):
+        self.assertIn("!state.enabled || state.total == 0", self.SECTION)
+        self.assertIn("boring::prefs::kEarlierEnabled", self.SECTION)
+        self.assertIn("RegisterOnCollapseChanged", self.SECTION)
+        self.assertIn("TYPE_NORMAL", self.SECTION)
+
+    def test_placed_above_the_new_tab_row(self):
+        self.assertIn("std::make_unique<BoringSideEarlierSection>", self.LOOK3)
+        self.assertIn("GetIndexOf(bottom_button_container_)", self.LOOK3)
+        self.assertIn('"../boring/boring_side_earlier_section.cc"', self.LOOK3)
 
 
 class SafetyTests(unittest.TestCase):

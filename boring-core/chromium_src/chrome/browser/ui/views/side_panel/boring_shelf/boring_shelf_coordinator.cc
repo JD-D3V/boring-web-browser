@@ -15,6 +15,7 @@
 #include "chrome/browser/ui/side_panel/side_panel_entry_scope.h"
 #include "chrome/browser/ui/side_panel/side_panel_registry.h"
 #include "chrome/browser/ui/side_panel/side_panel_ui.h"
+#include "chrome/browser/ui/views/boring/boring_side_earlier_section.h"
 #include "chrome/browser/ui/views/side_panel/boring_shelf/boring_shelf_view.h"
 #include "chrome/common/pref_names.h"
 #include "components/prefs/pref_service.h"
@@ -72,9 +73,14 @@ void ToggleShelf(BrowserWindowInterface* browser) {
 }
 
 void ShowShelfWithEarlier(BrowserWindowInterface* browser) {
-  if (!WindowHasShelf(browser) ||
-      browser->GetProfile()->GetPrefs()->GetBoolean(
+  if (!WindowHasShelf(browser)) {
+    return;
+  }
+  // With side tabs the list is the Shelf: its Earlier section opens out in
+  // place (cui-look-4), and the side panel stays closed.
+  if (browser->GetProfile()->GetPrefs()->GetBoolean(
           prefs::kVerticalTabsEnabled)) {
+    BoringSideEarlierSection::ShowAllFor(browser);
     return;
   }
   BoringShelfView::ExpandEarlierFor(browser);
