@@ -530,6 +530,16 @@ def scenario_side_show_all(b, base, pid, profile, checks):
     tabs, which asks first and then empties the list (ledger 16, 55)."""
     open_pages(b, base, ["Side4", "Side5", "Side6"])
     enough = wait_for(lambda: len(read_entries(profile) or []) >= 2, 60)
+    # Let the moves settle: every move rebuilds the section, and a press on
+    # a row that is being replaced finds no button.
+    last, still = -1, 0
+    for _ in range(20):
+        count = len(read_entries(profile) or [])
+        still = still + 1 if count == last else 0
+        last = count
+        if still >= 3:
+            break
+        time.sleep(3)
     checks("side tabs: two or more tabs (one row and Show all) in Earlier for Show all", bool(enough),
            str(len(read_entries(profile) or [])))
     titles = [e["title"] for e in (read_entries(profile) or [])]
@@ -538,7 +548,13 @@ def scenario_side_show_all(b, base, pid, profile, checks):
     checks("side tabs: Show all N offered", bool(show_all), str(show_all))
     if not show_all:
         return
-    pressing(pid, lambda n, s=show_all: n == s)
+    for _ in range(5):
+        try:
+            pressing(pid, lambda n, s=show_all: n == s)
+            break
+        except RuntimeError:
+            time.sleep(2)
+            show_all = side_section(names_of(pid), titles)["show_all"] or show_all
     every = wait_for(lambda: set(titles) <= set(side_section(names_of(pid), titles)["rows"]), 10)
     checks("side tabs: Show all lists every Earlier row", bool(every),
            f"{side_section(names_of(pid), titles)['rows']} of {titles}")
