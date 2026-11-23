@@ -707,7 +707,7 @@ diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.ts b/ui/
 diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.css b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
 --- a/ui/webui/resources/cr_components/searchbox/searchbox_match.css
 +++ b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
-@@ -158,6 +158,80 @@
+@@ -158,6 +158,87 @@
    --color-searchbox-search-icon-background:
        var(--color-searchbox-results-dim-selected);
  }
@@ -736,6 +736,13 @@ diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.css b/ui
 +
 +:host([is-top-chrome-searchbox_]) #text-container {
 +  flex-grow: 1;
++  padding-inline-end: 0;
++}
++
++/* Chromium's empty actions box would grow and take half the row: the hint
++ * belongs at the row's right end, 10px inside. */
++:host([is-top-chrome-searchbox_]:not([has-action])) .actions.container {
++  display: none;
 +}
 +
 +/* .container outranks Chromium's own inline-block #suggestion rule below. */
