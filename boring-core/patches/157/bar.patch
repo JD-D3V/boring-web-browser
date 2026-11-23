@@ -660,7 +660,16 @@ diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_dropdown.css b
 diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.html.ts b/ui/webui/resources/cr_components/searchbox/searchbox_match.html.ts
 --- a/ui/webui/resources/cr_components/searchbox/searchbox_match.html.ts
 +++ b/ui/webui/resources/cr_components/searchbox/searchbox_match.html.ts
-@@ -31,6 +31,10 @@
+@@ -25,12 +25,18 @@
+           ellipsis prepended to the suggestion. -->
+       <span id="ellipsis" ?hidden="${!this.showEllipsis}">...&nbsp;</span>
+       <span id="suggestion">
+-        <span id="primaryText" .innerHTML="${this.primaryTextHtml_}"></span>
++        <!-- boring: boring-site lays out the Bar's Open tabs row. -->
++        <span id="primaryText" .innerHTML="${this.primaryTextHtml_}"
++            ?boring-site="${this.isBoringOpenTabRow_()}"></span>
+         <span id="separator" class="dim">${this.separatorText_}</span>
+         <span id="secondaryText" .innerHTML="${this.secondaryTextHtml_}"
              ?has-icon="${!!this.match.descriptionIconPath}"
              style="--description-icon: url(${this.match.descriptionIconPath})">
          </span>
@@ -674,7 +683,7 @@ diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.html.ts 
 diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.ts b/ui/webui/resources/cr_components/searchbox/searchbox_match.ts
 --- a/ui/webui/resources/cr_components/searchbox/searchbox_match.ts
 +++ b/ui/webui/resources/cr_components/searchbox/searchbox_match.ts
-@@ -452,6 +452,13 @@
+@@ -452,6 +452,20 @@
      return this.match.removeButtonA11yLabel;
    }
  
@@ -685,13 +694,20 @@ diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.ts b/ui/
 +        this.match?.suggestionGroupId === 80000;
 +  }
 +
++  // boring: a row of the Bar's Open tabs group (GROUP_BORING_OPEN_TABS):
++  // its primary text is the title, then the site as its own dim fragment.
++  protected isBoringOpenTabRow_(): boolean {
++    return this.isTopChromeSearchbox_ &&
++        this.match?.suggestionGroupId === 80001;
++  }
++
    private computeSeparatorText_(): string {
      return this.getMatchSecondaryText_() ?
          loadTimeData.getString('searchboxSeparator') :
 diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.css b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
 --- a/ui/webui/resources/cr_components/searchbox/searchbox_match.css
 +++ b/ui/webui/resources/cr_components/searchbox/searchbox_match.css
-@@ -158,6 +158,57 @@
+@@ -158,6 +158,80 @@
    --color-searchbox-search-icon-background:
        var(--color-searchbox-results-dim-selected);
  }
@@ -722,10 +738,13 @@ diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.css b/ui
 +  flex-grow: 1;
 +}
 +
-+:host([is-top-chrome-searchbox_]) #text-container > #suggestion {
++/* .container outranks Chromium's own inline-block #suggestion rule below. */
++:host([is-top-chrome-searchbox_]) .container #text-container > #suggestion {
 +  align-items: baseline;
 +  display: flex;
++  flex: 1 1 auto;
 +  gap: 12px;
++  min-width: 0;
 +}
 +
 +:host([is-top-chrome-searchbox_]) #primaryText {
@@ -744,6 +763,26 @@ diff --git a/ui/webui/resources/cr_components/searchbox/searchbox_match.css b/ui
 +  flex: none;
 +  font-size: 12px;
 +  max-width: 50%;
++}
++
++/* An Open tabs row: the title, cut when long, then its site in the quiet
++ * ink, always whole (ledger 50). */
++:host([is-top-chrome-searchbox_]) #primaryText[boring-site] {
++  align-items: baseline;
++  display: flex;
++  gap: 8px;
++}
++
++:host([is-top-chrome-searchbox_]) #primaryText[boring-site] > span {
++  min-width: 0;
++  overflow: hidden;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
++:host([is-top-chrome-searchbox_]) #primaryText[boring-site] > span.dim {
++  flex: none;
++  font-size: 12px;
 +}
 +/* boring: end bar */
  

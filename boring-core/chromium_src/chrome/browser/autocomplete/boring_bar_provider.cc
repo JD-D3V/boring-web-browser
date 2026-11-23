@@ -303,7 +303,9 @@ void BoringBarProvider::AddSettingsRows(
     match.fill_into_edit = base::UTF8ToUTF16(row.url);
     match.allowed_to_be_default_match = false;
     match.suggestion_group_id = omnibox::GROUP_BORING_SETTINGS;
-    SetPlainText(match, row.title, u"Open");
+    // The controller swaps contents and description for a row that is not a
+    // search, so the popup shows the title first and "Open" at the right.
+    SetPlainText(match, u"Open", row.title);
     match.RecordAdditionalInfo(kIconKey, "sliders");
     matches_.push_back(std::move(match));
   }
@@ -347,8 +349,16 @@ void BoringBarProvider::AddOpenTabRows(
     const std::u16string site = url_formatter::FormatOriginForSecurityDisplay(
         url::Origin::Create(tab.url),
         url_formatter::SchemeDisplay::OMIT_HTTP_AND_HTTPS);
-    SetPlainText(match, tab.title.empty() ? site : tab.title,
-                 u"Switch to tab, " + site);
+    // Shown swapped (AutocompleteController::AggregateNewMatches): the title
+    // with its site after it in the quiet ink, and "Switch to tab" at the
+    // right. The site is its own fragment so the popup keeps it in view when
+    // a long title is cut.
+    SetPlainText(match, u"Switch to tab",
+                 tab.title.empty() ? site : tab.title + u" " + site);
+    if (!tab.title.empty()) {
+      match.description_class.push_back(ACMatchClassification(
+          tab.title.size() + 1, ACMatchClassification::DIM));
+    }
     // Already marked, so AutocompleteResult adds no second switch button;
     // Enter on the row switches to the tab.
     match.has_tab_match = true;

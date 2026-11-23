@@ -120,6 +120,12 @@ POPUP_LOOK = r"""(() => {
         icon.shadowRoot.querySelector('#icon');
     const enter = m.shadowRoot.querySelector('#boringEnter');
     const style = getComputedStyle(box);
+    // The hint (secondary text, or "Enter") sits at the row's right end.
+    const right = box.getBoundingClientRect().right;
+    const hints = [m.shadowRoot.querySelector('#secondaryText'), enter]
+        .filter(e => e && e.textContent.trim() &&
+                getComputedStyle(e).display !== 'none');
+    const site = m.shadowRoot.querySelector('#primaryText[boring-site] > .dim');
     look.rows.push({
       selected: m.hasAttribute('selected'),
       height: box.getBoundingClientRect().height,
@@ -127,6 +133,9 @@ POPUP_LOOK = r"""(() => {
       radius: style.borderTopLeftRadius,
       mask: iconBox ? getComputedStyle(iconBox).webkitMaskImage : '',
       enter: !!enter && getComputedStyle(enter).display !== 'none',
+      hintGap: hints.map(e => Math.round(right - e.getBoundingClientRect().right)),
+      site: site ? {text: site.textContent,
+                    width: site.getBoundingClientRect().width} : null,
     });
   }
   const h = all.find(e => e.localName === 'h3' && e.classList.contains('header'));
@@ -331,6 +340,14 @@ def main():
         checks(f"{mode}: Enter shows on the selected Do row only",
                [r["enter"] for r in rows] == [True] + [False] * (len(rows) - 1),
                str([r["enter"] for r in rows]))
+        checks(f"{mode}: every hint sits at its row's right end (10px inside)",
+               all(all(g <= 12 for g in r["hintGap"]) for r in rows),
+               str([r["hintGap"] for r in rows]))
+        sites = [r["site"] for r in rows if r["site"]]
+        checks(f"{mode}: an Open tabs row shows its site whole beside the title",
+               # The dark step types "light", which matches no open tab.
+               (bool(sites) or dark) and all(s["width"] > 20 and s["text"].startswith("127.0.0.1")
+                                   for s in sites), str(sites))
         header = look["header"] or {}
         checks(f"{mode}: group headers are 11.5px at weight 600",
                header.get("size") == "11.5px" and header.get("weight") == "600", str(header))
@@ -358,11 +375,16 @@ def main():
                group_order(rows) == GROUPS, str(group_order(rows)))
         checks("'Turn on dark mode' is first, under Do, and selected",
                bool(rows) and rows[0][:2] == ("Do", "Turn on dark mode") and rows[0][3], str(rows[:1]))
+        # An Open tabs row reads "<title> <site>" with "Switch to tab" at the right.
+        site = server.url.split("//", 1)[1]
+        hostile_rows = [r for r in rows if r[1].startswith(HOSTILE)]
         checks("the hostile title is listed only under Open tabs, as plain text",
-               under(rows, HOSTILE) == ["Open tabs"], str(under(rows, HOSTILE)))
-        checks("the hostile tab offers Switch to tab and names its site",
-               any(r[1] == HOSTILE and r[2].startswith("Switch to tab, 127.0.0.1") for r in rows),
-               str([r[:3] for r in rows if r[1] == HOSTILE]))
+               [r[0] for r in hostile_rows] == ["Open tabs"], str(hostile_rows))
+        checks("the hostile tab shows its title, then its site, and Switch to tab",
+               any(r[1] == f"{HOSTILE} {site}" and r[2] == "Switch to tab" for r in rows),
+               str([r[:3] for r in hostile_rows]))
+        checks("Settings rows end in Open",
+               any(r[0] == "Settings" and r[2] == "Open" for r in rows), str(rows))
         checks("only our own row is titled like a Do row",
                under(rows, "Turn on dark mode") == ["Do"], str(under(rows, "Turn on dark mode")))
         checks("Settings lists Appearance: light or dark",

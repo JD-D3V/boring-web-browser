@@ -174,9 +174,14 @@ class BarTest {
           match.suggestion_group_id
               ? result.GetHeaderForSuggestionGroup(*match.suggestion_group_id)
               : std::u16string();
+      // The row as the popup shows it: the primary text, then the hint at
+      // the right (the controller swaps them for rows that are not searches).
+      const bool swap = match.swap_contents_and_description;
+      const std::u16string& primary = swap ? match.description : match.contents;
+      const std::u16string& hint = swap ? match.contents : match.description;
       base::StrAppend(&report_,
-                      {"row\t", OneLine(header), "\t", OneLine(match.contents),
-                       "\t", OneLine(match.description), "\t",
+                      {"row\t", OneLine(header), "\t", OneLine(primary),
+                       "\t", OneLine(hint), "\t",
                        i == selected ? "selected" : "-", "\n"});
       if (!open_line && !open_header_.empty() && header == open_header_) {
         open_line = i;
