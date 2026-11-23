@@ -25,6 +25,11 @@ What it asserts (nothing is asserted that was not looked at):
   7. History: clearing browsing history removes the matching entries.
   8. Version guard: a file with version 2 is never written and no tab moves.
   9. Captures: PrintWindow of the pop-up, light and dark (--captures).
+ 10. Side tabs (screen C09): with side tabs and Earlier on, tabs still move;
+     the list's Earlier section shows "Earlier", "kept 30 days" and the
+     newest moved tab; pressing that row reopens the tab (handles +1), the
+     entry leaves the file and the row goes. Earlier off, with an entry
+     left in the file: no section.
 Not checked here: pinned and grouped tabs (no hook can pin or group a tab
 without input, so the rule is code only), a tab playing audio, unsaved form
 input, the Settings switch and the first-run row (not reachable without
@@ -441,6 +446,92 @@ def scenario_version(base, checks):
         checks("version guard: the file was never written", same)
 
 
+# --- side tabs: the Earlier section in the list (cui-look-4) ----------------
+
+SECTION_NOTE = "kept 30 days"
+
+
+def seed_side_prefs(profile, enabled):
+    """Side tabs on, Earlier tabs on or off, written before the browser starts."""
+    default = Path(profile) / "Default"
+    default.mkdir(parents=True, exist_ok=True)
+    prefs = {"vertical_tabs": {"enabled": True}, "boring": {"earlier": {"enabled": bool(enabled)}}}
+    (default / "Preferences").write_text(json.dumps(prefs), encoding="utf-8")
+
+
+def side_section(names, titles):
+    """What the names on our window say about the side tabs Earlier section.
+    Pure, tested without a browser. The note "kept 30 days" belongs to the
+    section only: the pop-up is never opened in these scenarios and the Shelf
+    side panel stays closed with side tabs."""
+    have = list(names)
+    rows = [t for t in titles if t in have]
+    return {
+        "shown": "Earlier" in have and SECTION_NOTE in have,
+        "rows": rows,
+        "show_all": next((n for n in have if n.startswith("Show all ")), None),
+    }
+
+
+def scenario_side(base, checks):
+    """Side tabs on, Earlier on: a tab moves, the section shows its row,
+    pressing the row reopens the tab and the row goes."""
+    with tempfile.TemporaryDirectory(prefix="earlier-", dir=r"E:\tmp") as tmp:
+        profile = Path(tmp) / "profile"
+        seed_side_prefs(profile, True)
+        with Browser(headful=True, user_data_dir=str(profile), args=["--window-size=1280,800", *FAST]) as b:
+            DRIVER_PID[0] = b.proc.pid  # chromedriver starts Chrome
+            pid = b.proc.pid
+            b.get(base + "/")
+            open_pages(b, base, ["Side1", "Side2", "Side3"])
+            # No WebDriver question about the tabs before they move (see
+            # tab_marks): only the file is read.
+            moved = wait_for(lambda: (read_entries(profile) or []), 40)
+            checks("side tabs: tabs still move to Earlier", bool(moved), f"{len(moved or [])}")
+            entries = read_entries(profile) or []
+            titles = [e["title"] for e in entries]
+            seen = wait_for(lambda: side_section(names_of(pid), titles)["rows"], 15)
+            state = side_section(names_of(pid), titles)
+            checks("side tabs: the Earlier section shows with kept 30 days", state["shown"],
+                   str(sorted(names_of(pid)))[:300])
+            checks("side tabs: the section lists the newest moved tab",
+                   bool(seen) and titles and state["rows"] == [titles[0]], f"{state['rows']} of {titles}")
+            if len(entries) > 1:
+                checks("side tabs: Show all N under the row", state["show_all"] == f"Show all {len(entries)}",
+                       str(state["show_all"]))
+            if not state["rows"]:
+                checks("side tabs: a row to press", False)
+                return
+            row = state["rows"][0]
+            open_before = len(handles(b))
+            pressing(pid, lambda n, r=row: n == r)
+            reopened = wait_for(lambda: len(handles(b)) == open_before + 1, 10)
+            checks("side tabs: pressing the row reopens the tab", bool(reopened))
+            left = wait_for(lambda: row not in [e["title"] for e in (read_entries(profile) or [])], 10)
+            checks("side tabs: the entry left the list", bool(left))
+            # The reopened tab carries the same title in the tab list, so the
+            # row is gone when the name shows exactly once.
+            gone = wait_for(lambda: names_of(pid).count(row) == 1, 10)
+            checks("side tabs: the row went away", bool(gone), f"{names_of(pid).count(row)}")
+
+
+def scenario_side_off(base, checks):
+    """Side tabs on, Earlier off with an entry left in the file: no section."""
+    with tempfile.TemporaryDirectory(prefix="earlier-", dir=r"E:\tmp") as tmp:
+        profile = Path(tmp) / "profile"
+        seed_side_prefs(profile, False)
+        entry = make_entry("s1", f"{base}/Kept1", now_ms(), title="Kept1")
+        earlier_file(profile).write_text(file_text([entry]), encoding="utf-8")
+        with Browser(headful=True, user_data_dir=str(profile), args=["--window-size=1280,800", *FAST]) as b:
+            DRIVER_PID[0] = b.proc.pid  # chromedriver starts Chrome
+            b.get(base + "/")
+            time.sleep(6)
+            names = names_of(b.proc.pid)
+            checks("side tabs, Earlier off: the list is there", "Open tabs" in names, str(sorted(names))[:300])
+            checks("side tabs, Earlier off: no Earlier section",
+                   not side_section(names, ["Kept1"])["shown"] and "Kept1" not in names, str(sorted(names))[:300])
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=r"E:\tmp\earlier-shots")
@@ -457,6 +548,8 @@ def main():
         scenario_expiry(base, checks)
         scenario_history(base, checks)
         scenario_version(base, checks)
+        scenario_side(base, checks)
+        scenario_side_off(base, checks)
     finally:
         server.shutdown()
     return checks.result("earlier tabs")

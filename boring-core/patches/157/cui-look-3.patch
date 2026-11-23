@@ -174,6 +174,64 @@ diff --git a/chrome/browser/ui/views/chrome_layout_provider.cc b/chrome/browser/
        });
    const auto it = shape_token_map.find(id);
    return it == shape_token_map.end() ? views::ShapeSysTokens::kDefault
+diff --git a/chrome/browser/ui/views/frame/BUILD.gn b/chrome/browser/ui/views/frame/BUILD.gn
+--- a/chrome/browser/ui/views/frame/BUILD.gn
++++ b/chrome/browser/ui/views/frame/BUILD.gn
+@@ -562,7 +562,14 @@
+ 
+ source_set("vertical_tab_strip_region_view") {
+   public = [ "vertical_tab_strip_region_view.h" ]
+-  sources = [ "vertical_tab_strip_region_view.cc" ]
++  sources = [
++    # boring: the Earlier section of the side tabs list (cui-look-4). It
++    # uses the Shelf's rows and data (//chrome/browser/ui/views/side_panel)
++    # by header only, as the Earlier pop-up does, so no dependency cycle.
++    "../boring/boring_side_earlier_section.cc",
++    "../boring/boring_side_earlier_section.h",
++    "vertical_tab_strip_region_view.cc",
++  ]
+   public_deps = [
+     ":base_tab_strip_region_view",
+     "//base",
+@@ -605,6 +612,13 @@
+     "//ui/base/dragdrop:types",
+     "//ui/compositor",
+     "//ui/display",
++    # boring: the Earlier section (cui-look-4).
++    "//chrome/app/vector_icons",
++    "//chrome/browser/ui:browser_commands",
++    "//components/boring/core",
++    "//components/boring/earlier",
++    "//components/history/core/browser",
++    "//components/prefs",
+   ]
+ }
+ 
+diff --git a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+--- a/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
++++ b/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
+@@ -36,6 +36,7 @@
+ #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/views/animations/tab_strip_animations.h"
++#include "chrome/browser/ui/views/boring/boring_side_earlier_section.h"  // boring
+ #include "chrome/browser/ui/views/frame/base_tab_strip_region_view.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/frame/custom_corners_background.h"
+@@ -189,6 +190,13 @@
+               LayoutConstant::kVerticalTabStripCollapsedVerticalPadding),
+           region_horizontal_padding, 0, region_horizontal_padding));
+ 
++  // boring: the Earlier section (screen C09), above the New tab row. The tab
++  // strip view goes in right after the separator, so it stays above this.
++  content_area_view_->AddChildViewAt(
++      std::make_unique<BoringSideEarlierSection>(browser_view->browser(),
++                                                 state_controller_),
++      *content_area_view_->GetIndexOf(bottom_button_container_));
++
+   gemini_button_ =
+       content_area_view_->AddChildView(std::make_unique<views::View>());
+ 
 diff --git a/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc b/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc
 --- a/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc
 +++ b/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc

@@ -14,7 +14,9 @@
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
+#include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
 #include "chrome/browser/ui/views/boring/boring_earlier_popup.h"
+#include "chrome/browser/ui/views/boring/boring_side_earlier_section.h"
 #include "ui/accessibility/ax_action_data.h"
 #include "ui/accessibility/ax_enums.mojom.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
@@ -167,6 +169,16 @@ void BoringEarlierChip::Update() {
 }
 
 void BoringEarlierChip::ShowPopup() {
+  // With side tabs the tab strip that holds this chip is hidden, so there is
+  // nothing to hang the pop-up from: the side tabs list's Earlier section is
+  // shown and focused instead (cui-look-4).
+  if (const tabs::VerticalTabStripStateController* controller =
+          tabs::VerticalTabStripStateController::From(browser_.get());
+      controller && controller->ShouldDisplayVerticalTabs()) {
+    open_pending_ = false;
+    BoringSideEarlierSection::RevealFor(browser_);
+    return;
+  }
   if (popup_ || !GetVisible() || !GetWidget()) {
     return;
   }
