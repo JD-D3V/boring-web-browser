@@ -83,7 +83,12 @@ std::unique_ptr<views::LabelButton> MakeTextButton(
       std::make_unique<TextButton>(std::move(callback), text, weight);
   button->SetEnabledTextColors(color);
   button->SetHorizontalAlignment(gfx::ALIGN_LEFT);
-  button->SetPreferredSize(gfx::Size(button->GetPreferredSize().width(), 32));
+  // 32 high as drawn, as wide as its whole text: a width fixed here, before
+  // the button is in a widget, was measured too narrow and cut the label
+  // ("Show...", "Clear earlier...").
+  button->SetMinSize(gfx::Size(0, 32));
+  button->SetMaxSize(gfx::Size(0, 32));
+  button->SetElideBehavior(gfx::NO_ELIDE);
   return button;
 }
 
@@ -177,7 +182,7 @@ void BoringEarlierPopup::Rebuild() {
       contents_,
       u"Tabs you have not used for a day move here. They are kept for 30 "
       u"days.",
-      12, gfx::Font::Weight::NORMAL, kColorBoringShelfHeading,
+      13, gfx::Font::Weight::NORMAL, kColorBoringShelfHeading,
       gfx::Insets::TLBR(2, 10, 6, 10));
   about->SetMultiLine(true);
 

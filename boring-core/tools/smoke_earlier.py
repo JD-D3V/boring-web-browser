@@ -223,6 +223,42 @@ def popup_names(pid):
     return out
 
 
+def footer_fits(pid, labels):
+    """Screen C08: each footer button is at least as wide as its whole text
+    (Segoe UI 12px at the window's scale, the buttons' own size), so neither
+    reads "Show..." or "Clear earlier...".
+    {label: (button width, text width)} for the labels found."""
+    import ctypes
+    from ctypes import wintypes
+    from smoke_site_panel import _call  # noqa: PLC0415
+
+    gdi32, user32 = ctypes.windll.gdi32, ctypes.windll.user32
+    out = {}
+    for hwnd in browser_windows(pid):
+        try:
+            with Window(hwnd) as w:
+                scale = user32.GetDpiForWindow(hwnd) / 96 or 1
+                dc = user32.GetDC(None)
+                font = gdi32.CreateFontW(-round(12 * scale), 0, 0, 0, 400, 0, 0, 0, 0, 0, 0, 0, 0,
+                                         "Segoe UI")
+                old = gdi32.SelectObject(dc, font)
+                try:
+                    for text, element in w.items:
+                        if element and text in labels:
+                            rect = wintypes.RECT()
+                            _call(element, 43, ctypes.addressof(rect))
+                            size = wintypes.SIZE()
+                            gdi32.GetTextExtentPoint32W(dc, text, len(text), ctypes.byref(size))
+                            out[text] = (rect.right - rect.left, size.cx)
+                finally:
+                    gdi32.SelectObject(dc, old)
+                    gdi32.DeleteObject(font)
+                    user32.ReleaseDC(None, dc)
+        except (LookupError, OSError):
+            continue
+    return out
+
+
 def new_profile(tmp, enabled):
     profile = Path(tmp) / "profile"
     seed_prefs(profile, enabled)
@@ -277,6 +313,12 @@ def scenario_on(base, out, captures, checks):
             names = popup_names(pid)
             checks("the pop-up shows its title and Clear", "Clear earlier tabs" in names,
                    str(sorted(names))[:300])
+            show_all = f"Show all {len(entries)}"
+            checks("the footer reads Show all N and Clear earlier tabs",
+                   show_all in names and "Clear earlier tabs" in names, str(sorted(names))[:300])
+            fits = footer_fits(pid, {show_all, "Clear earlier tabs"})
+            checks("both footer buttons are wide enough for their whole text",
+                   len(fits) == 2 and all(w >= t for w, t in fits.values()), str(fits))
             shoot(out, captures, checks, "light")
             # Reopen: press a row (its title is the page's title).
             titles = [e["title"] for e in entries]
