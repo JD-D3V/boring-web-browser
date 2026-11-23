@@ -52,8 +52,11 @@ class StateTests(unittest.TestCase):
 class PatchTests(unittest.TestCase):
     def test_last_in_series_after_shelf(self):
         names = series()
-        self.assertEqual(names[-2], "sidetabs.patch")
-        self.assertEqual(names[-3], "shelf.patch")
+        at = names.index("sidetabs.patch")
+        self.assertEqual(names[at - 1], "shelf.patch")
+        # Only later pieces' patches come after it.
+        self.assertTrue(set(names[at + 1:]) <= {"earlier.patch", "cui-look-3.patch"},
+                        names[at + 1:])
 
     def test_top_tabs_stay_the_default(self):
         text = PATCH.read_text()

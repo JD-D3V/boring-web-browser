@@ -16,6 +16,8 @@
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
+#include "ui/events/event_constants.h"
+#include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/gfx/font.h"
 #include "ui/gfx/font_list.h"
 #include "ui/views/accessibility/view_accessibility.h"
@@ -65,11 +67,19 @@ BoringNewTabRow::BoringNewTabRow(BrowserWindowInterface* browser)
 
   // The shortcut is read from the window's own accelerators, so it is right
   // for the platform and for a person's changes, and is never typed here.
-  ui::Accelerator accelerator;
+  // The row is made while the window is still being built, before its
+  // accelerators can be asked, so the lookup can come back empty; then it
+  // shows the platform's standard new tab shortcut (T with the platform's
+  // accelerator key), as drawn (screen C09).
+  ui::Accelerator accelerator(ui::VKEY_T, ui::EF_PLATFORM_ACCELERATOR);
   BrowserView* browser_view = BrowserView::GetBrowserViewForBrowser(browser);
+  ui::Accelerator configured;
   if (browser_view && browser_view->GetAcceleratorProvider() &&
       browser_view->GetAcceleratorProvider()->GetAcceleratorForCommandId(
-          IDC_NEW_TAB, &accelerator)) {
+          IDC_NEW_TAB, &configured)) {
+    accelerator = configured;
+  }
+  {
     auto* shortcut = AddChildView(
         std::make_unique<views::Label>(accelerator.GetShortcutText()));
     shortcut->SetEnabledColor(kColorBoringShelfHeading);

@@ -50,7 +50,8 @@ class PatchTests(unittest.TestCase):
         names = series()
         # Side tabs (item 14) go right after the Shelf; Earlier tabs (item 16)
         # come after them.
-        self.assertEqual(names[-3:], ["shelf.patch", "sidetabs.patch", "earlier.patch"])
+        at = names.index("shelf.patch")
+        self.assertEqual(names[at:at + 3], ["shelf.patch", "sidetabs.patch", "earlier.patch"])
         self.assertLess(names.index("passport.patch"), names.index("shelf.patch"))
         self.assertTrue(SHELF_PATCH.exists())
 

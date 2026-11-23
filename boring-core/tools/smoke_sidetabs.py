@@ -170,6 +170,9 @@ def run_main(port, out, captures, dark, checks, full):
             checks(f"{theme}: Open tabs heading", state["open_heading"], str(state))
             checks(f"{theme}: no Pinned heading while nothing is pinned", not state["pinned_heading"], str(state))
             checks(f"{theme}: a New tab button", state["new_tab"], str(state))
+            # Screen C09: the New tab row shows its shortcut at the right.
+            checks(f"{theme}: the New tab row shows Ctrl+T", "Ctrl+T" in names_of(under),
+                   str(names_of(under))[:300])
             # 4. The strip's other buttons are gone.
             checks(f"{theme}: no tab search button in the list", not state["tab_search"], str(state))
             # 3. Width.

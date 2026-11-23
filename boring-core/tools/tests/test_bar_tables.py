@@ -81,7 +81,11 @@ class Tables(unittest.TestCase):
         text = PROVIDER.read_text(encoding="utf-8")
         tabs = text[text.index("void BoringBarProvider::AddOpenTabRows("):]
         self.assertIn("url_formatter::FormatOriginForSecurityDisplay(", tabs)
-        self.assertIn('u"Switch to tab, " + site', tabs)
+        # Shown swapped: the title, then the site as its own quiet fragment,
+        # and "Switch to tab" at the right.
+        self.assertIn('tab.title + u" " + site', tabs)
+        self.assertIn("ACMatchClassification::DIM", tabs)
+        self.assertIn('u"Switch to tab"', tabs)
 
     def test_open_tab_row_never_erases_the_match_enter_takes(self):
         # Ledger 57 (S-D1): in bar.patch, our Open tabs row loses deduplication

@@ -1,0 +1,182 @@
+diff --git a/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc b/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc
+--- a/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc
+@@ -5,6 +5,7 @@
+ #include "chrome/browser/ui/views/tabs/common/tab_group_header_view.h"
+ 
+ #include "base/i18n/rtl.h"
++#include "base/strings/string_number_conversions.h"  // boring: side tabs count
+ #include "base/task/single_thread_task_runner.h"
+ #include "build/build_config.h"
+ #include "build/buildflag.h"
+@@ -36,6 +37,8 @@
+ #include "ui/base/ui_base_features.h"
+ #include "ui/color/color_provider.h"
+ #include "ui/gfx/color_utils.h"
++#include "ui/gfx/font.h"  // boring: side tabs heading
++#include "ui/gfx/font_list.h"  // boring: side tabs heading
+ #include "ui/views/accessibility/view_accessibility.h"
+ #include "ui/views/animation/ink_drop.h"
+ #include "ui/views/background.h"
+@@ -213,6 +216,47 @@
+     collapse_icon_->SetVisible(!delegate_->IsGroupFocused());
+   }
+ 
++  // boring: in side tabs the heading row is the group's solid label, sized
++  // to its name, then "N tabs" at the right in the quiet ink (screen C09).
++  // The row itself has no fill; UpdateColors() puts the group colour on the
++  // label alone.
++  if (orientation_ == TabStripOrientation::kVertical) {
++    group_header_label_->SetProperty(
++        views::kFlexBehaviorKey,
++        views::FlexSpecification(
++            views::LayoutOrientation::kHorizontal,
++            views::MinimumFlexSizeRule::kScaleToMinimumSnapToZero,
++            views::MaximumFlexSizeRule::kPreferred,
++            /*adjust_height_for_width=*/false,
++            views::MinimumFlexSizeRule::kScaleToZero)
++            .WithOrder(2));
++    group_header_label_->SetBorder(
++        views::CreateEmptyBorder(gfx::Insets::VH(3, 10)));
++    const gfx::FontList& label_font = group_header_label_->font_list();
++    group_header_label_->SetFontList(
++        label_font.DeriveWithSizeDelta(12 - label_font.GetFontSize())
++            .DeriveWithWeight(gfx::Font::Weight::SEMIBOLD));
++    boring_count_label_ = AddChildViewAt(
++        std::make_unique<views::Label>(),
++        *GetIndexOf(group_header_label_.get()) + 1);
++    boring_count_label_->SetCanProcessEventsWithinSubtree(false);
++    boring_count_label_->SetAutoColorReadabilityEnabled(false);
++    boring_count_label_->SetHorizontalAlignment(gfx::ALIGN_RIGHT);
++    boring_count_label_->SetEnabledColor(kColorBoringShelfHeading);
++    const gfx::FontList& count_font = boring_count_label_->font_list();
++    boring_count_label_->SetFontList(
++        count_font.DeriveWithSizeDelta(12 - count_font.GetFontSize()));
++    boring_count_label_->SetProperty(
++        views::kMarginsKey, gfx::Insets::TLBR(0, kSyncIconLabelPadding, 0, 0));
++    boring_count_label_->SetProperty(
++        views::kFlexBehaviorKey,
++        views::FlexSpecification(
++            views::MinimumFlexSizeRule::kScaleToMinimumSnapToZero,
++            views::MaximumFlexSizeRule::kUnbounded)
++            .WithOrder(3));
++    BoringUpdateCount();
++  }
++
+   sync_icon_->SetProperty(views::kMarginsKey,
+                           gfx::Insets::TLBR(0, 0, 0, kSyncIconLabelPadding));
+   attention_indicator_->SetProperty(
+@@ -568,7 +612,18 @@
+   SetHoverCardDataFrom(tab_group_data);
+ }
+ 
++void TabGroupHeaderView::BoringUpdateCount() {
++  if (!boring_count_label_ || !delegate_->IsValid()) {
++    return;
++  }
++  const int count = delegate_->GetTabGroup().tab_count();
++  boring_count_label_->SetText(
++      base::NumberToString16(count) + (count == 1 ? u" tab" : u" tabs"));
++}
++
+ void TabGroupHeaderView::OnTabCountChanged() {
++  // boring: the side tabs heading's "N tabs".
++  BoringUpdateCount();
+   if (delegate_->IsValid() && delegate_->GetTabGroup().is_ephemeral()) {
+     const int tab_count = delegate_->GetTabGroup().tab_count();
+     group_header_label_->SetText(l10n_util::GetPluralStringFUTF16(
+@@ -690,6 +745,14 @@
+   }
+ 
+   // Update background.
++  // boring: in side tabs only the label is filled, a 7-cornered chip; the
++  // row stays clear (screen C09).
++  if (orientation_ == TabStripOrientation::kVertical) {
++    group_header_label_->SetBackground(
++        views::CreateRoundedRectBackground(background_color, 7));
++    SetBackground(nullptr);
++    return;
++  }
+   SetBackground(
+       views::CreateRoundedRectBackground(background_color, GetCornerRadii()));
+ }
+diff --git a/chrome/browser/ui/views/tabs/common/tab_group_header_view.h b/chrome/browser/ui/views/tabs/common/tab_group_header_view.h
+--- a/chrome/browser/ui/views/tabs/common/tab_group_header_view.h
++++ b/chrome/browser/ui/views/tabs/common/tab_group_header_view.h
+@@ -164,6 +164,10 @@
+   const raw_ptr<views::LabelButton> editor_bubble_button_ = nullptr;
+ 
+   const raw_ptr<views::ImageView> collapse_icon_ = nullptr;
++  // boring: side tabs only, "N tabs" at the right of the group's heading
++  // row, in the quiet ink (screen C09).
++  raw_ptr<views::Label> boring_count_label_ = nullptr;
++  void BoringUpdateCount();
+   const raw_ref<Delegate> delegate_;
+   const TabStripOrientation orientation_;
+ 
+diff --git a/chrome/browser/ui/views/tabs/common/tab_group_view.cc b/chrome/browser/ui/views/tabs/common/tab_group_view.cc
+--- a/chrome/browser/ui/views/tabs/common/tab_group_view.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_group_view.cc
+@@ -278,7 +278,9 @@
+   }
+   layout_manager_->AnimateAndReparentView(std::move(child_view),
+                                           previous_bounds_in_screen);
+-  if (IsValid() && GetTabGroup().is_ephemeral()) {
++  // boring: every group's heading counts its tabs in side tabs, not only an
++  // ephemeral one's (OnTabCountChanged keeps that case as it was).
++  if (IsValid()) {
+     group_header_->OnTabCountChanged();
+   }
+ }
+@@ -291,7 +293,8 @@
+     child_view->SetVisible(true);
+   }
+   auto removed = RemoveChildViewT(child_view);
+-  if (IsValid() && GetTabGroup().is_ephemeral()) {
++  // boring: see AttachChildView.
++  if (IsValid()) {
+     group_header_->OnTabCountChanged();
+   }
+   return removed;
+diff --git a/chrome/browser/ui/views/tabs/common/tab_view.cc b/chrome/browser/ui/views/tabs/common/tab_view.cc
+--- a/chrome/browser/ui/views/tabs/common/tab_view.cc
++++ b/chrome/browser/ui/views/tabs/common/tab_view.cc
+@@ -1230,9 +1230,10 @@
+       SetBorder(views::CreateEmptyBorder(gfx::Insets(GetLayoutConstant(
+           LayoutConstant::kVerticalTabPinnedBorderThickness))));
+     } else {
++      // boring: a pinned tile's corners are 8 as drawn (screen C09).
+       SetBorder(views::CreateRoundedRectBorder(
+           GetLayoutConstant(LayoutConstant::kVerticalTabPinnedBorderThickness),
+-          GetLayoutConstant(LayoutConstant::kVerticalTabCornerRadius),
++          GetLayoutConstant(LayoutConstant::kVerticalTabCornerRadius) + 1,
+           IsFrameActive() ? kColorVerticalTabPinnedOutline
+                           : kColorTabDividerFrameInactive));
+     }
+@@ -1409,6 +1410,8 @@
+ SkScalar TabView::GetCornerRadius() const {
+   return SkIntToScalar(
+       GetLayoutConstant(LayoutConstant::kVerticalTabCornerRadius) +
++      // boring: 8 for a pinned tile (screen C09).
++      (pinned_ && !split_ ? 1 : 0) +
+       (split_ ? GetInsets().height() : 0));
+ }
+ 
+diff --git a/chrome/browser/ui/views/tabs/common/vertical_tab_style_views.cc b/chrome/browser/ui/views/tabs/common/vertical_tab_style_views.cc
+--- a/chrome/browser/ui/views/tabs/common/vertical_tab_style_views.cc
++++ b/chrome/browser/ui/views/tabs/common/vertical_tab_style_views.cc
+@@ -240,8 +240,13 @@
+ }
+ 
+ SkScalar VerticalTabStyleViews::GetCornerRadius() const {
++  // boring: a pinned tile's corners are 8 as drawn (screen C09); rows keep
++  // the constant's 7, which the top tabs share.
++  const int boring_radius =
++      GetLayoutConstant(LayoutConstant::kVerticalTabCornerRadius) +
++      (delegate_->IsPinned() && !delegate_->IsSplit() ? 1 : 0);
+   return SkIntToScalar(
+-      GetLayoutConstant(LayoutConstant::kVerticalTabCornerRadius) +
++      boring_radius +
+       (delegate_->IsSplit() ? delegate_->GetView()->GetInsets().height() : 0));
+ }
+ 
