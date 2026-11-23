@@ -26,6 +26,10 @@ What it asserts (nothing is asserted that was not looked at):
      with one group and two loose tabs (made by smoke_tabgroups.py's test
      extension) its top is below the group's last tab and its bottom above
      the first loose tab (UI Automation bounds).
+ 10. The page in a rounded sheet: with cui-sheet.patch in the series the
+     page stops 8 DIP (6 to 10) short of the client area's right and bottom
+     edges; without it, it runs to both. In fullscreen it runs to both.
+     (The 10 DIP corners and the frame colour are seen in the captures.)
 Not checked here: the pinned grid (four tiles to a row; a tab cannot be
 pinned without input and no pin hook exists), the group heading row. The
 Earlier section is checked by smoke_earlier.py (scenario_side).
@@ -128,6 +132,56 @@ def first_rect(rects, wanted):
         if wanted(text) and r[2] > r[0] and r[3] > r[1]:
             return r
     return None
+
+
+SERIES = Path(__file__).resolve().parents[1] / "patches" / "series"
+
+
+def sheet_expected():
+    """The page sits in a rounded sheet with side tabs only while
+    cui-sheet.patch is in the series (the builder can take it out)."""
+    try:
+        names = [ln.strip() for ln in SERIES.read_text(encoding="utf-8").splitlines()]
+    except OSError:
+        return False
+    return "cui-sheet.patch" in names
+
+
+def sheet_state(page, client, scale):
+    """Screen C09's sheet from two screen rectangles (left, top, right,
+    bottom): the page and our window's client area. "sheet" when the page
+    stops 6 to 10 DIP short of the client's right and bottom edges (drawn 8),
+    "flush" when it runs to both edges, else "other". Pure."""
+    if not (page and client and scale):
+        return "other", None
+    right = (client[2] - page[2]) / scale
+    bottom = (client[3] - page[3]) / scale
+    gaps = (round(right, 1), round(bottom, 1))
+    if 6 <= right <= 10 and 6 <= bottom <= 10:
+        return "sheet", gaps
+    if abs(right) <= 1.5 and abs(bottom) <= 1.5:
+        return "flush", gaps
+    return "other", gaps
+
+
+def page_and_client(under, title):
+    """The page's rectangle (the largest control named `title`: the tab has
+    the same name but is small) and the client rectangle of our window, in
+    screen pixels, and the window's scale."""
+    import ctypes
+    from ctypes import wintypes
+
+    hwnd = frame_window(CHROME, under=under)
+    user32 = ctypes.windll.user32
+    rc = wintypes.RECT()
+    user32.GetClientRect(hwnd, ctypes.byref(rc))
+    origin = wintypes.POINT(0, 0)
+    user32.ClientToScreen(hwnd, ctypes.byref(origin))
+    client = (origin.x, origin.y, origin.x + rc.right, origin.y + rc.bottom)
+    scale = (user32.GetDpiForWindow(hwnd) or 96) / 96
+    named = [r for text, r in rects_of(under) if text == title and r[2] > r[0] and r[3] > r[1]]
+    page = max(named, key=lambda r: (r[2] - r[0]) * (r[3] - r[1]), default=None)
+    return page, client, scale
 
 
 def heading_between(heading, above, below):
@@ -233,6 +287,14 @@ def run_main(port, out, captures, dark, checks, full):
             taken = width_taken(b)
             checks(f"{theme}: the page gives up about {LIST_WIDTH} DIP",
                    LIST_WIDTH <= taken <= LIST_WIDTH + 24, str(taken))
+            # The page in a rounded sheet (cui-sheet.patch): 8 DIP of frame
+            # to its right and below; without the patch it runs to the edges.
+            want = "sheet" if sheet_expected() else "flush"
+            page, client, scale = page_and_client(under, "Page2")
+            got, gaps = sheet_state(page, client, scale)
+            checks(f"{theme}: the page is {'in a sheet' if want == 'sheet' else 'flush'}"
+                   " (series has cui-sheet.patch: " + str(want == "sheet") + ")",
+                   got == want, f"right, bottom gap DIP {gaps}; page {page}; client {client}")
             shoot(out, dark, captures, checks)
             if not full:
                 return
@@ -243,6 +305,16 @@ def run_main(port, out, captures, dark, checks, full):
             press(under, TOGGLE)
             wide = wait_for(lambda: width_taken(b) >= LIST_WIDTH, 8)
             checks("the toggle widens it again", bool(wide), str(width_taken(b)))
+            # In fullscreen the sheet's margin goes away.
+            rect = b._req("GET", f"/session/{b.sid}/window/rect")["value"]
+            b._req("POST", f"/session/{b.sid}/window/fullscreen", {})
+            time.sleep(1.5)
+            page, client, scale = page_and_client(under, "Page2")
+            got, gaps = sheet_state(page, client, scale)
+            checks("fullscreen: the page runs to the edges", got == "flush", f"gaps {gaps}")
+            b._req("POST", f"/session/{b.sid}/window/rect",
+                   {k: rect[k] for k in ("x", "y", "width", "height")})
+            time.sleep(1.5)
             # 6. New tab opens a tab.
             before = len(handles(b))
             press(under, NEW_TAB)

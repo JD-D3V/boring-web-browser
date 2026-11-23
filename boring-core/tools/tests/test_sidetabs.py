@@ -76,13 +76,47 @@ class HeadingPlaceTests(unittest.TestCase):
         self.assertIn("first_loose_after_group", self.LOOK3)
 
 
+class SheetTests(unittest.TestCase):
+    """cui-look-4: the page in a rounded sheet, in its own last patch."""
+
+    SHEET = CORE / "patches/157/cui-sheet.patch"
+
+    def test_states(self):
+        client = (0, 0, 1000, 800)
+        self.assertEqual(smoke_sidetabs.sheet_state((260, 60, 992, 792), client, 1.0)[0], "sheet")
+        self.assertEqual(smoke_sidetabs.sheet_state((260, 60, 1000, 800), client, 1.0)[0], "flush")
+        self.assertEqual(smoke_sidetabs.sheet_state((260, 60, 980, 800), client, 1.0)[0], "other")
+        # 8 DIP at 150 % is 12 pixels.
+        self.assertEqual(smoke_sidetabs.sheet_state((390, 90, 1488, 1188), (0, 0, 1500, 1200), 1.5)[0],
+                         "sheet")
+        self.assertEqual(smoke_sidetabs.sheet_state(None, client, 1.0)[0], "other")
+
+    def test_expected_follows_the_series(self):
+        self.assertEqual(smoke_sidetabs.sheet_expected(), "cui-sheet.patch" in series())
+
+    def test_own_patch_last_and_one_file(self):
+        if "cui-sheet.patch" not in series():
+            self.skipTest("cui-sheet.patch taken out of the series")
+        self.assertEqual(series()[-1], "cui-sheet.patch")
+        text = self.SHEET.read_text()
+        files = re.findall(r"^\+\+\+ b/(\S+)", text, re.M)
+        self.assertEqual(files, ["chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc"])
+        added = "\n".join(added_lines(text))
+        self.assertIn("boring", added)
+        # Side tabs only, never fullscreen, a side panel, split view or glass.
+        for word in ("TabStripType::kVertical", "!is_fullscreen(layout_data_->window_state)",
+                     "has_side_panel()", "is_split_view", "!in_glass_mode()",
+                     "kBoringSheetMargin = 8", "kBoringSheetRadius = 10.0f"):
+            self.assertIn(word, added, word)
+
+
 class PatchTests(unittest.TestCase):
     def test_last_in_series_after_shelf(self):
         names = series()
         at = names.index("sidetabs.patch")
         self.assertEqual(names[at - 1], "shelf.patch")
         # Only later pieces' patches come after it.
-        self.assertTrue(set(names[at + 1:]) <= {"earlier.patch", "cui-look-3.patch"},
+        self.assertTrue(set(names[at + 1:]) <= {"earlier.patch", "cui-look-3.patch", "cui-sheet.patch"},
                         names[at + 1:])
 
     def test_top_tabs_stay_the_default(self):

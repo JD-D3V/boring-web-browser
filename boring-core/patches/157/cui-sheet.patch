@@ -1,0 +1,152 @@
+diff --git a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+--- a/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
++++ b/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
+@@ -829,6 +829,16 @@
+   BrowserLayoutParams params = layout_data_->revised_params;
+   bool needs_exclusion = true;
+   const HorizontalLayout& horizontal_layout = layout_data_->horizontal_layout;
++  // boring: the page in a rounded sheet (screen C09, cui-sheet): side tabs,
++  // not fullscreen, no side panel and no split view (both bring Chromium's
++  // own inset and corners), not the glass frame (left as Chromium draws it).
++  // Same test in DoPostLayoutVisualAdjustments().
++  const bool boring_sheet =
++      layout_data_->tab_strip_type == TabStripType::kVertical &&
++      !is_fullscreen(layout_data_->window_state) &&
++      !horizontal_layout.has_side_panel() &&
++      !horizontal_layout.is_split_view &&
++      !layout_data_->separator_info.shadow_box && !in_glass_mode();
+ 
+   const int target_organizer_width =
+       layout_data_->tab_strip_type == TabStripType::kHorizontal
+@@ -997,9 +1007,10 @@
+                    views().browser_view)) {
+     gfx::Rect corner_bounds;
+     const double top_corner = layout_data_->vertical_tabs_top_corner();
++    // boring: not with the sheet; the toolbar and the list are one surface.
+     const bool top_corner_visible =
+         layout_data_->tab_strip_type == TabStripType::kVertical &&
+-        top_corner > 0.0;
++        top_corner > 0.0 && !boring_sheet;
+ 
+     // The top corner is drawn when the tabstrip goes all the way to the top.
+     if (top_corner_visible) {
+@@ -1020,9 +1031,10 @@
+                    views().browser_view)) {
+     gfx::Rect corner_bounds;
+     const double bottom_corner = layout_data_->vertical_tabs_bottom_corner();
++    // boring: not with the sheet; the page rounds its own corners.
+     const bool bottom_corner_visible =
+         layout_data_->tab_strip_type == TabStripType::kVertical &&
+-        bottom_corner > 0.0;
++        bottom_corner > 0.0 && !boring_sheet;
+     if (bottom_corner_visible) {
+       auto preferred =
+           views().vertical_tab_strip_bottom_corner->GetPreferredSize();
+@@ -1085,7 +1097,9 @@
+     } else {
+       main_background_bounds = params.visual_client_area;
+     }
+-    const bool main_background_visibility = horizontal_layout.has_side_panel();
++    // boring: with the sheet the main background shows as its margin.
++    const bool main_background_visibility =
++        horizontal_layout.has_side_panel() || boring_sheet;
+     main_background_layout =
+         &layout.AddChild(views().main_background_region, main_background_bounds,
+                          main_background_visibility);
+@@ -1219,8 +1233,9 @@
+   // especially obvious in split view, where turning the separator off provides
+   // the required top padding.
+   const auto& separator_info = layout_data_->separator_info;
++  // boring: the sheet's rounded top needs no line across it.
+   views().multi_contents_view->SetShouldShowTopSeparator(
+-      separator_info.multi_contents_separator);
++      separator_info.multi_contents_separator && !boring_sheet);
+ 
+   // Updating the top, left and right insets for contents container view when
+   // in split view. This is dependent on a number of other browser states.
+@@ -1261,6 +1276,17 @@
+   // force the logic to be updated when multi-contents is fully rolled-out.
+   CHECK(IsParentedToAndVisible(views().multi_contents_view,
+                                views().browser_view));
++
++  // boring: the sheet's margin, 8 DIP on the trailing side and below, as
++  // Chromium's own side panel shadow box insets the page. Leading and top
++  // stay 0: the list and the toolbar already give that room.
++  if (boring_sheet) {
++    constexpr int kBoringSheetMargin = 8;
++    const gfx::Insets sheet_insets =
++        gfx::Insets::TLBR(0, 0, kBoringSheetMargin, kBoringSheetMargin);
++    params.Inset(sheet_insets);
++    unclipped_contents_region.Inset(sheet_insets);
++  }
+ 
+   // Because side panels have minimum width, in a small browser, it is possible
+   // for the combination of minimum-sized contents pane and minimum-sized side
+@@ -1579,6 +1605,27 @@
+ 
+ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
+     const BrowserLayoutParams& params) {
++  // boring: the page in a rounded sheet (screen C09, cui-sheet); the same
++  // test as in CalculateProposedLayout().
++  const bool boring_sheet =
++      layout_data_->tab_strip_type == TabStripType::kVertical &&
++      !is_fullscreen(layout_data_->window_state) &&
++      !layout_data_->horizontal_layout.has_side_panel() &&
++      !layout_data_->horizontal_layout.is_split_view &&
++      !layout_data_->separator_info.shadow_box && !in_glass_mode();
++  if (boring_sheet) {
++    // All four corners at 10 DIP, through the same rounding Chromium uses
++    // for split view and the glass frame (it clips the page itself).
++    constexpr float kBoringSheetRadius = 10.0f;
++    views().multi_contents_view->SetBackgroundRadii(gfx::RoundedCornersF(
++        kBoringSheetRadius, kBoringSheetRadius, kBoringSheetRadius,
++        kBoringSheetRadius));
++  } else if (!in_glass_mode() &&
++             !views().multi_contents_view->GetBackgroundRadii().IsEmpty()) {
++    // boring: leaving the sheet (top tabs, fullscreen, a side panel).
++    views().multi_contents_view->SetBackgroundRadii(gfx::RoundedCornersF());
++  }
++
+   // If the window goes out of glass mode, these changes won't hurt anything.
+   if (in_glass_mode()) {
+     gfx::RoundedCornersF content_corners;
+@@ -1709,7 +1756,9 @@
+             frame_color.opacity,
+     };
+     // Vertical tab strip always draws trailing edge.
+-    vertical_tabs_outline.trailing = true;
++    // boring: except beside the sheet, where list, toolbar and margin are one
++    // surface and the page's own corners part it from them.
++    vertical_tabs_outline.trailing = !boring_sheet;
+     // Top edge is drawn when the tabstrip is not flush with the edge of the
+     // screen, or with a visual element that provides a natural border.
+     if (animation.expand_on_hover_width > 0.0 || top_corner < 0.0 ||
+@@ -1866,6 +1915,14 @@
+       break;
+   }
+   toolbar_background->SetCorners(toolbar_corners);
++  // boring: with the sheet the toolbar row is the frame colour, one surface
++  // with the list and the margin (screen C09); otherwise Chromium's colour.
++  if (boring_sheet) {
++    toolbar_background->SetPrimaryColor(frame_color);
++  } else {
++    toolbar_background->SetPrimaryColor(
++        CustomCornersBackground::ToolbarTheme());
++  }
+ 
+   auto* const top_container_background =
+       views().top_container->background()->AsA<CustomCornersBackground>();
+@@ -1995,6 +2052,13 @@
+     }
+ 
+     main_background->SetCorners(main_background_corners);
++    // boring: the sheet's margin is the frame colour; otherwise Chromium's
++    // toolbar colour, as the view is made.
++    if (boring_sheet) {
++      main_background->SetPrimaryColor(frame_color);
++    } else {
++      main_background->SetPrimaryColor(CustomCornersBackground::ToolbarTheme());
++    }
+   }
+ }
+ 
