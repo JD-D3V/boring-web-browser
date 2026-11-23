@@ -45,7 +45,7 @@ diff --git a/chrome/browser/ui/views/location_bar/BUILD.gn b/chrome/browser/ui/v
        "//chrome/browser/history_embeddings",
        "//chrome/browser/page_info",
        "//chrome/browser/resources/omnibox_popup:resources_grit",
-@@ -181,6 +190,18 @@
+@@ -181,6 +190,21 @@
        "//chrome/browser/web_applications:features",
        "//components/autofill/core/common:features",
        "//components/boring/newtab",
@@ -57,6 +57,9 @@ diff --git a/chrome/browser/ui/views/location_bar/BUILD.gn b/chrome/browser/ui/v
 +      "//components/boring/adblock:browser",
 +      "//components/boring/core",
 +      "//components/boring/scam",
++      "//chrome/browser/content_settings:content_settings_factory",
++      "//components/content_settings/core/browser",
++      "//components/content_settings/core/common",
 +      "//components/lookalikes/core",
 +      "//components/password_manager/core/browser",
 +      "//components/site_engagement/content",

@@ -3,6 +3,8 @@
 #ifndef CHROME_BROWSER_UI_VIEWS_BORING_BORING_PASSPORT_TAB_HELPER_H_
 #define CHROME_BROWSER_UI_VIEWS_BORING_BORING_PASSPORT_TAB_HELPER_H_
 
+#include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -42,6 +44,9 @@ class BoringPassportTabHelper
     GURL url;
     // The committed entry's time: visits before it are "before this page".
     base::Time cutoff;
+    // When this tab first showed this site (FirstShown): visits after it
+    // count toward Known site only if the person started them.
+    base::Time first_shown;
     // Answers still on their way. The chip and the Passport use what is in.
     int pending = 0;
     int visits_before = 0;
@@ -88,6 +93,9 @@ class BoringPassportTabHelper
 
   // Test only: the facts as a dictionary.
   base::DictValue StateForTesting() const;
+  // Test only: as if this tab had first shown `url`'s site at `time`; asks
+  // the page's questions again.
+  void SetFirstSeenForTesting(const GURL& url, base::Time time);
 
  private:
   friend class content::WebContentsUserData<BoringPassportTabHelper>;
@@ -119,15 +127,34 @@ class BoringPassportTabHelper
   void AskFrameForCardFields(content::RenderFrameHost* frame);
 
   void StartQueries();
+  // The earliest time this tab showed `url`'s site (its origin or www
+  // twin): the oldest of its navigation entries for the site (kept across
+  // session restore) and the first-seen times this helper keeps for the
+  // tab's lifetime (kept past the back list's limit and replaced entries).
+  base::Time FirstShown(const GURL& url) const;
+  void OnKnownDays(int generation,
+                   std::vector<std::vector<boring::passport::SiteVisit>> sites);
   void OnEngagedSites(int generation,
                       const std::vector<lookalikes::DomainInfo>& sites);
   void Answered(int generation);
+  // Once every answer for the page is in: remember whether it was a "New
+  // to you" site, the warning the chip keeps while the next page of the
+  // same site is answered (S-D4).
+  void NoteSettled();
+  // The card answer came in: an open Passport for this tab gains the row.
+  void CardFactFound();
   // Asks the address field to run its icon update again.
   void Changed();
 
   Facts facts_;
   // Bumped per page so a late answer for an earlier page is dropped.
   int generation_ = 0;
+  // Per origin (serialized), the first time this tab showed it. Only ever
+  // moves earlier; lives as long as the tab.
+  std::map<std::string, base::Time> first_seen_;
+  // Origins (serialized) whose last settled answer in this tab was New to
+  // you.
+  std::set<std::string> warned_origins_;
   PrefChangeRegistrar marks_;
   // Every frame's autofill manager of this tab, for the card fact.
   autofill::ScopedAutofillManagersObservation autofill_managers_{this};

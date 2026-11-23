@@ -37,11 +37,15 @@ Chip DecideChip(const ChipInputs& in) {
   }
   // The neutral state (the browser's own icon) until every answer is in, so
   // "Known site" never shows on history alone before the look-alike answer.
+  // A warning this tab already gave for this site stays while a newer page
+  // of it is answered, so a page that loads itself again and again cannot
+  // keep the warning away. Never Known, never over the person's mark.
   if (in.pending) {
-    return Chip::kNone;
+    return in.held_warning && !in.marked_known ? Chip::kNewToYou
+                                               : Chip::kNone;
   }
   if (in.marked_known || (in.days_before_today >= 2 && !in.lookalike)) {
-    return Chip::kKnown;
+    return in.scam_list_failed ? Chip::kNone : Chip::kKnown;
   }
   if (in.days_before_today == 1 && !in.lookalike) {
     return Chip::kNone;
@@ -52,7 +56,57 @@ Chip DecideChip(const ChipInputs& in) {
 Chip DecideLayout(const ChipInputs& in) {
   ChipInputs without_text = in;
   without_text.chromium_text = false;
-  return DecideChip(without_text);
+  // The pop-up lists facts, so it waits for them even where the chip holds
+  // a warning it already gave.
+  without_text.held_warning = false;
+  const Chip layout = DecideChip(without_text);
+  // "A site you know" over a connection that is not plainly secure would
+  // soften the browser's own warning: page info opens instead.
+  if (layout == Chip::kKnown && in.chromium_text) {
+    return Chip::kNone;
+  }
+  return layout;
+}
+
+bool VisitIsVisible(uint32_t transition) {
+  const uint32_t core = transition & kTransitionCoreMask;
+  return (transition & kTransitionChainEnd) != 0 &&
+         core != kTransitionAutoSubframe && core != kTransitionManualSubframe &&
+         core != kTransitionKeywordGenerated;
+}
+
+bool PersonStartedVisit(uint32_t transition) {
+  if (transition & (kTransitionClientRedirect | kTransitionForwardBack)) {
+    return false;
+  }
+  switch (transition & kTransitionCoreMask) {
+    case kTransitionTyped:
+    case kTransitionAutoBookmark:
+    case kTransitionKeyword:
+    case kTransitionKeywordGenerated:
+    case kTransitionGenerated:
+    case kTransitionAutoToplevel:
+      return true;
+    default:
+      return false;
+  }
+}
+
+int CountKnownDays(const std::vector<SiteVisit>& visits,
+                   int64_t today,
+                   int64_t first_shown) {
+  std::vector<int64_t> days;
+  for (const SiteVisit& visit : visits) {
+    if (visit.day >= today || !VisitIsVisible(visit.transition)) {
+      continue;
+    }
+    if (visit.time < first_shown || PersonStartedVisit(visit.transition)) {
+      days.push_back(visit.day);
+    }
+  }
+  std::sort(days.begin(), days.end());
+  return static_cast<int>(std::unique(days.begin(), days.end()) -
+                          days.begin());
 }
 
 std::u16string ChipText(Chip chip) {

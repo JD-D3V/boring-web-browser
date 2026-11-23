@@ -209,6 +209,41 @@ class PassportSourceTest(unittest.TestCase):
             if added:
                 self.assertTrue(any("boring" in l for l in added), hunk[:200])
 
+    def test_card_question_skips_frames_with_javascript_blocked(self):
+        # Ledger 59 (S-D7): checked before the isolated-world script runs.
+        helper = code(VIEWS / "boring_passport_tab_helper.cc")
+        ask = helper[helper.index("void BoringPassportTabHelper::AskFrameForCardFields("):]
+        ask = ask[: ask.index("\n}\n")]
+        self.assertIn("ContentSettingsType::JAVASCRIPT", helper)
+        self.assertLess(ask.index("JavaScriptBlocked("), ask.index("ExecuteJavaScriptInIsolatedWorld"))
+
+    def test_known_days_come_from_the_rule_not_daily_counts(self):
+        # Ledger 58 (S-D2): days are counted by CountKnownDays from visit rows
+        # with their transitions, read on the history thread and cancelable.
+        helper = code(VIEWS / "boring_passport_tab_helper.cc")
+        self.assertIn("ScheduleDBTask(", helper)
+        self.assertIn("&tracker_", helper[helper.index("ScheduleDBTask("):][:600])
+        self.assertIn("CountKnownDays(", helper)
+        self.assertNotIn("days_with_visits", helper)
+        self.assertIn("FirstShown(url)", helper)
+
+    def test_open_passport_gains_a_late_card_row(self):
+        # Ledger 59 (S-D3).
+        helper = code(VIEWS / "boring_passport_tab_helper.cc")
+        found = helper[helper.index("void BoringPassportTabHelper::CardFactFound("):]
+        self.assertIn("BoringPassportBubble::FactsChangedFor(", found[: found.index("\n}\n")])
+        self.assertEqual(helper.count("asks_card = true;"), 2)
+        self.assertEqual(helper.count("CardFactFound();"), 2)
+
+    def test_shelf_rechecks_a_download_at_the_press(self):
+        # Ledger 59 (Shelf): the row was built earlier; the press checks again.
+        shelf = code(CORE / "chromium_src" / "chrome" / "browser" / "ui" / "views" / "side_panel"
+                     / "boring_shelf" / "boring_shelf_view.cc")
+        press = shelf[shelf.index("void BoringShelfView::ActivateDownload("):]
+        press = press[: press.index("\n}\n")]
+        for word in ("COMPLETE", "IsDangerous()", "IsInsecure()", "GetFileExternallyRemoved()"):
+            self.assertLess(press.index(word), press.index("OpenDownload()"), word)
+
     def test_no_em_dashes_or_browser_names_in_words(self):
         for path in PASSPORT:
             for literal in re.findall(r'u"([^"]*)"', text(path)):

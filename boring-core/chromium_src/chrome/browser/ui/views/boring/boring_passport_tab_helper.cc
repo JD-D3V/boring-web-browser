@@ -6,12 +6,16 @@
 #include <utility>
 
 #include "base/functional/bind.h"
+#include "base/functional/callback.h"
+#include "base/location.h"
 #include "base/values.h"
+#include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/history/history_service_factory.h"
 #include "chrome/browser/lookalikes/lookalike_url_service.h"
 #include "chrome/browser/lookalikes/lookalike_url_service_factory.h"
 #include "chrome/browser/password_manager/factories/profile_password_store_factory.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/views/boring/boring_passport_bubble.h"
 #include "chrome/common/chrome_isolated_world_ids.h"
 #include "components/autofill/content/browser/content_autofill_client.h"
 #include "components/autofill/core/browser/autofill_field.h"
@@ -23,8 +27,14 @@
 #include "components/boring/scam/lookalike_brands.h"
 #include "components/boring/scam/scam_blocking_page.h"
 #include "components/boring/scam/scam_service.h"
+#include "components/content_settings/core/browser/host_content_settings_map.h"
+#include "components/content_settings/core/common/content_settings.h"
+#include "components/content_settings/core/common/content_settings_types.h"
+#include "components/history/core/browser/history_database.h"
+#include "components/history/core/browser/history_db_task.h"
 #include "components/history/core/browser/history_service.h"
 #include "components/history/core/browser/history_types.h"
+#include "components/history/core/browser/url_row.h"
 #include "components/keyed_service/core/service_access_type.h"
 #include "components/lookalikes/core/lookalike_url_util.h"
 #include "components/password_manager/core/browser/password_form.h"
@@ -98,6 +108,90 @@ bool LookalikeCandidate(const GURL& url) {
 constexpr char16_t kAsksCardScript[] =
     u"!!document.querySelector('input[autocomplete*=\"cc-number\" i],"
     u"input[autocomplete*=\"cc-csc\" i]')";
+
+int64_t Micros(base::Time time) {
+  return time.ToDeltaSinceWindowsEpoch().InMicroseconds();
+}
+
+// Bounds on what one page's question reads, so a site with a very long
+// history costs a bounded amount. The address field's own suggestions read
+// the same rows (urls by prefix, most typed first).
+constexpr size_t kMaxUrlsPerSite = 1000;
+constexpr size_t kMaxVisitsPerSite = 20000;
+
+using SiteVisits = std::vector<boring::passport::SiteVisit>;
+
+// Known site's days need each visit's type (who started it), which no
+// per-site history query hands out. Runs on the history thread through
+// HistoryService::ScheduleDBTask, cancelable through the helper's tracker,
+// and reads only: the origin's addresses, then their visits before
+// `cutoff`. One list per origin, in the order given.
+class SiteVisitsTask : public history::HistoryDBTask {
+ public:
+  using Callback = base::OnceCallback<void(std::vector<SiteVisits>)>;
+
+  SiteVisitsTask(std::vector<url::Origin> origins,
+                 base::Time cutoff,
+                 Callback callback)
+      : origins_(std::move(origins)),
+        cutoff_(cutoff),
+        callback_(std::move(callback)) {}
+  SiteVisitsTask(const SiteVisitsTask&) = delete;
+  SiteVisitsTask& operator=(const SiteVisitsTask&) = delete;
+  ~SiteVisitsTask() override = default;
+
+  bool RunOnDBThread(history::HistoryBackend* backend,
+                     history::HistoryDatabase* db) override {
+    for (const url::Origin& origin : origins_) {
+      SiteVisits& out = sites_.emplace_back();
+      if (!db) {
+        continue;
+      }
+      history::URLRows rows;
+      db->AutocompleteForPrefix(origin.GetURL().spec(), kMaxUrlsPerSite,
+                                /*typed_only=*/false, &rows);
+      for (const history::URLRow& row : rows) {
+        if (!origin.IsSameOriginWith(row.url())) {
+          continue;
+        }
+        history::VisitVector visits;
+        if (!db->GetNon404VisitsForURL(row.id(), &visits)) {
+          continue;
+        }
+        for (const history::VisitRow& visit : visits) {
+          if (visit.visit_time >= cutoff_ || out.size() >= kMaxVisitsPerSite) {
+            continue;
+          }
+          out.push_back({Micros(visit.visit_time),
+                         Micros(visit.visit_time.LocalMidnight()),
+                         static_cast<uint32_t>(visit.transition)});
+        }
+      }
+    }
+    return true;
+  }
+
+  void DoneRunOnMainThread() override {
+    std::move(callback_).Run(std::move(sites_));
+  }
+
+ private:
+  const std::vector<url::Origin> origins_;
+  const base::Time cutoff_;
+  Callback callback_;
+  std::vector<SiteVisits> sites_;
+};
+
+// The person blocked JavaScript for this address: the card question is not
+// asked there, not even in an isolated world.
+bool JavaScriptBlocked(Profile* profile, const GURL& url) {
+  HostContentSettingsMap* settings =
+      HostContentSettingsMapFactory::GetForProfile(profile);
+  return !settings ||
+         settings->GetContentSetting(url, url,
+                                     ContentSettingsType::JAVASCRIPT) ==
+             CONTENT_SETTING_BLOCK;
+}
 
 bool IsSiteEngagementMatch(lookalikes::LookalikeUrlMatchType type) {
   using Type = lookalikes::LookalikeUrlMatchType;
@@ -232,6 +326,15 @@ boring::passport::ChipInputs BoringPassportTabHelper::Inputs(
   in.lookalike = same_page && facts_.lookalike;
   in.pending = !same_page || facts_.pending > 0 ||
                scam->status() == boring::ScamService::Status::kLoading;
+  // A list that failed to load says nothing about this site: Known site
+  // waits for it as for a pending answer; New to you does not (S-D6).
+  in.scam_list_failed =
+      scam->status() == boring::ScamService::Status::kFailed;
+  // A New to you this tab already settled on for this site (or its www
+  // twin) stays while the answers for a newer page are pending (S-D4).
+  for (const url::Origin& origin : OriginsOf(url)) {
+    in.held_warning |= warned_origins_.contains(origin.Serialize());
+  }
   return in;
 }
 
@@ -262,7 +365,7 @@ void BoringPassportTabHelper::OnFieldTypesDetermined(
     if (types.contains(autofill::CREDIT_CARD_NUMBER) ||
         types.contains(autofill::CREDIT_CARD_VERIFICATION_CODE)) {
       facts_.asks_card = true;
-      Changed();
+      CardFactFound();
       return;
     }
   }
@@ -300,6 +403,14 @@ void BoringPassportTabHelper::AskFrameForCardFields(
       !frame->GetLastCommittedURL().SchemeIsHTTPOrHTTPS()) {
     return;
   }
+  // Where the person blocked JavaScript (for this frame's site or the
+  // page's), the page is not asked at all, not even in an isolated world
+  // (S-D7). The card row is then left out, as with autofill's own parse.
+  Profile* profile = ProfileOf(web_contents());
+  if (JavaScriptBlocked(profile, frame->GetLastCommittedURL()) ||
+      JavaScriptBlocked(profile, web_contents()->GetLastCommittedURL())) {
+    return;
+  }
   // The answer comes from a renderer, so it is untrusted: it can only add
   // the cautionary row (sticky for this page), never take a warning away
   // or change the chip. Nothing of it is kept or logged but that one bit.
@@ -314,7 +425,7 @@ void BoringPassportTabHelper::AskFrameForCardFields(
               return;
             }
             self->facts_.asks_card = true;
-            self->Changed();
+            self->CardFactFound();
           },
           weak_factory_.GetWeakPtr(), generation_),
       ISOLATED_WORLD_ID_CHROME_INTERNAL);
@@ -333,6 +444,16 @@ void BoringPassportTabHelper::StartQueries() {
   }
   facts_.url = url;
   facts_.cutoff = entry->GetTimestamp();
+  // This tab shows the site from this entry's time on, if not earlier.
+  const base::Time shown =
+      facts_.cutoff.is_null() ? base::Time::Now() : facts_.cutoff;
+  for (const url::Origin& origin : OriginsOf(url)) {
+    auto [it, added] = first_seen_.try_emplace(origin.Serialize(), shown);
+    if (!added && shown < it->second) {
+      it->second = shown;
+    }
+  }
+  facts_.first_shown = FirstShown(url);
   facts_.scam_listed = boring::ScamService::GetInstance()->IsListed(url);
   Profile* profile = ProfileOf(web_contents());
   const int generation = generation_;
@@ -341,7 +462,17 @@ void BoringPassportTabHelper::StartQueries() {
   // which is what "you have visited" means; nothing is written.
   if (history::HistoryService* history = HistoryServiceFactory::GetForProfile(
           profile, ServiceAccessType::EXPLICIT_ACCESS)) {
-    const base::Time midnight = base::Time::Now().LocalMidnight();
+    // Known site's days: earlier days with a visit the person started, or
+    // one from before this tab first showed the site (ledger 58). Visits a
+    // page made itself while it sat in this tab never count.
+    ++facts_.pending;
+    history->ScheduleDBTask(
+        FROM_HERE,
+        std::make_unique<SiteVisitsTask>(
+            OriginsOf(url), facts_.cutoff,
+            base::BindOnce(&BoringPassportTabHelper::OnKnownDays,
+                           weak_factory_.GetWeakPtr(), generation)),
+        &tracker_);
     for (const url::Origin& origin : OriginsOf(url)) {
       ++facts_.pending;
       history->GetDailyVisitsToOrigin(
@@ -353,26 +484,6 @@ void BoringPassportTabHelper::StartQueries() {
                 if (self && generation == self->generation_) {
                   if (result.success) {
                     self->facts_.visits_before += result.total_visits;
-                  }
-                  self->Answered(generation);
-                }
-              },
-              weak_factory_.GetWeakPtr(), generation),
-          &tracker_);
-      ++facts_.pending;
-      history->GetDailyVisitsToOrigin(
-          origin, base::Time(), std::min(midnight, facts_.cutoff),
-          history::VisitQuery404sPolicy::kExclude404s,
-          base::BindOnce(
-              [](base::WeakPtr<BoringPassportTabHelper> self, int generation,
-                 history::DailyVisitsResult result) {
-                if (self && generation == self->generation_) {
-                  if (result.success) {
-                    // The most of either twin, never the sum: the same day
-                    // on both is one day.
-                    self->facts_.days_before_today = std::max(
-                        self->facts_.days_before_today,
-                        result.days_with_visits);
                   }
                   self->Answered(generation);
                 }
@@ -450,6 +561,88 @@ void BoringPassportTabHelper::StartQueries() {
             origin_url),
         consumer_weak_factory_.GetWeakPtr());
   }
+  NoteSettled();
+}
+
+base::Time BoringPassportTabHelper::FirstShown(const GURL& url) const {
+  const std::vector<url::Origin> origins = OriginsOf(url);
+  base::Time first = base::Time::Max();
+  for (const url::Origin& origin : origins) {
+    auto it = first_seen_.find(origin.Serialize());
+    if (it != first_seen_.end()) {
+      first = std::min(first, it->second);
+    }
+  }
+  // The back list's entries keep their times across a session restore,
+  // which this helper's memory does not.
+  content::NavigationController& controller = web_contents()->GetController();
+  for (int i = 0; i < controller.GetEntryCount(); ++i) {
+    content::NavigationEntry* entry = controller.GetEntryAtIndex(i);
+    if (!entry || entry->GetTimestamp().is_null()) {
+      continue;
+    }
+    const GURL& entry_url = entry->GetURL();
+    if (std::ranges::any_of(origins, [&](const url::Origin& origin) {
+          return origin.IsSameOriginWith(entry_url);
+        })) {
+      first = std::min(first, entry->GetTimestamp());
+    }
+  }
+  return first.is_max() ? base::Time::Now() : first;
+}
+
+void BoringPassportTabHelper::OnKnownDays(int generation,
+                                          std::vector<SiteVisits> sites) {
+  if (generation != generation_) {
+    return;
+  }
+  const int64_t today = Micros(base::Time::Now().LocalMidnight());
+  const int64_t first_shown = Micros(facts_.first_shown);
+  int days = 0;
+  // The most of either twin, never the sum: the same day on both is one day.
+  for (const SiteVisits& visits : sites) {
+    days = std::max(
+        days, boring::passport::CountKnownDays(visits, today, first_shown));
+  }
+  facts_.days_before_today = days;
+  Answered(generation);
+}
+
+void BoringPassportTabHelper::NoteSettled() {
+  if (facts_.pending > 0 || !facts_.url.is_valid()) {
+    return;
+  }
+  // The answer as the chip would give it with nothing pending, the field's
+  // own words aside: only a settled New to you is held for later pages.
+  boring::passport::ChipInputs settled;
+  settled.eligible = true;
+  settled.scam_listed = facts_.scam_listed;
+  settled.marked_known = MarkedKnown();
+  settled.days_before_today = facts_.days_before_today;
+  settled.lookalike = facts_.lookalike;
+  const std::string key = url::Origin::Create(facts_.url).Serialize();
+  if (boring::passport::DecideChip(settled) ==
+      boring::passport::Chip::kNewToYou) {
+    warned_origins_.insert(key);
+  } else {
+    warned_origins_.erase(key);
+  }
+}
+
+void BoringPassportTabHelper::CardFactFound() {
+  Changed();
+  // A Passport already open for this tab was built before the answer: it
+  // gains the row now rather than at its next opening (S-D3).
+  BoringPassportBubble::FactsChangedFor(web_contents());
+}
+
+void BoringPassportTabHelper::SetFirstSeenForTesting(const GURL& url,
+                                                     base::Time time) {
+  for (const url::Origin& origin : OriginsOf(url)) {
+    first_seen_[origin.Serialize()] = time;
+  }
+  StartQueries();
+  Changed();
 }
 
 void BoringPassportTabHelper::OnEngagedSites(
@@ -497,6 +690,7 @@ void BoringPassportTabHelper::Answered(int generation) {
     return;
   }
   facts_.pending = std::max(0, facts_.pending - 1);
+  NoteSettled();
   Changed();
 }
 
@@ -516,6 +710,11 @@ base::DictValue BoringPassportTabHelper::StateForTesting() const {
               ? -1
               : static_cast<int>(
                     (base::Time::Now() - facts_.first_visit).InDays()));
+  out.Set("firstShownDaysAgo",
+          facts_.first_shown.is_null()
+              ? -1
+              : static_cast<int>(
+                    (base::Time::Now() - facts_.first_shown).InDays()));
   out.Set("lookalike", facts_.lookalike);
   out.Set("lookalikeOf", facts_.lookalike_of);
   out.Set("lookalikeUsedSite", facts_.lookalike_used_site);

@@ -49,7 +49,8 @@ int main() {
     if (op == "chip" || op == "layout") {
       ChipInputs c;
       in >> c.eligible >> c.blocked_page >> c.scam_listed >> c.chromium_text >>
-          c.marked_known >> c.days_before_today >> c.lookalike >> c.pending;
+          c.marked_known >> c.days_before_today >> c.lookalike >> c.pending >>
+          c.held_warning >> c.scam_list_failed;
       const Chip chip = op == "chip" ? DecideChip(c) : DecideLayout(c);
       std::cout << static_cast<int>(chip) << "|" << Narrow(ChipText(chip))
                 << "|" << Narrow(Verdict(chip)) << "|";
@@ -82,6 +83,16 @@ int main() {
         std::cout << FactName(fact) << ";";
       }
       std::cout << "\n";
+    } else if (op == "knowndays") {
+      // knowndays TODAY FIRST_SHOWN then TIME DAY TRANSITION per visit.
+      int64_t today, first_shown;
+      in >> today >> first_shown;
+      std::vector<SiteVisit> visits;
+      SiteVisit v;
+      while (in >> v.time >> v.day >> v.transition) {
+        visits.push_back(v);
+      }
+      std::cout << CountKnownDays(visits, today, first_shown) << "\n";
     } else if (op == "connection") {
       int priv;
       in >> priv;

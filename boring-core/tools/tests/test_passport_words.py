@@ -27,8 +27,25 @@ VCVARS = (
 NONE, KNOWN, NEW, BLOCKED, SCAM = range(5)
 
 
-def inputs(eligible=1, blocked=0, scam=0, text=0, marked=0, visited=0, lookalike=0, pending=0):
-    return f"{eligible} {blocked} {scam} {text} {marked} {visited} {lookalike} {pending}"
+def inputs(eligible=1, blocked=0, scam=0, text=0, marked=0, visited=0, lookalike=0, pending=0,
+           held=0, failed=0):
+    return (f"{eligible} {blocked} {scam} {text} {marked} {visited} {lookalike} {pending}"
+            f" {held} {failed}")
+
+
+# ui::PageTransition numbers for the Known days rule.
+LINK, TYPED, BOOKMARK, SUBFRAME, RELOAD, KEYWORD_GENERATED = 0, 1, 2, 4, 8, 10
+CHAIN = 0x10000000 | 0x20000000  # a visit with no redirects starts and ends its chain
+CHAIN_START_ONLY = 0x10000000
+CLIENT_REDIRECT = 0x40000000
+SERVER_REDIRECT = 0x80000000
+FORWARD_BACK = 0x01000000
+DAY = 86_400_000_000  # microseconds
+
+
+def visit(day, transition, hour=12):
+    """A visit on `day` (a day number) at `hour`: (time, day start, transition)."""
+    return (day * DAY + hour * 3_600_000_000, day * DAY, transition)
 
 
 class PassportWordsTest(unittest.TestCase):
@@ -86,8 +103,82 @@ class PassportWordsTest(unittest.TestCase):
 
     def test_chromium_text_keeps_its_words_but_the_passport_opens(self):
         self.assertEqual(self.chip(text=1, visited=2)[0], NONE)
-        self.assertEqual(self.chip(op="layout", text=1, visited=2)[0], KNOWN)
         self.assertEqual(self.chip(op="layout", text=1)[0], NEW)
+        self.assertEqual(self.chip(op="layout", text=1, scam=1)[0], SCAM)
+
+    def test_never_a_site_you_know_where_the_connection_is_not_secure(self):
+        # Ledger 59 (S-D5): page info opens instead, by history or by mark.
+        self.assertEqual(self.chip(op="layout", text=1, visited=2)[0], NONE)
+        self.assertEqual(self.chip(op="layout", text=1, marked=1)[0], NONE)
+        self.assertEqual(self.chip(op="layout", visited=2)[0], KNOWN)
+
+    def test_a_failed_scam_list_holds_back_known_site_only(self):
+        # Ledger 59 (S-D6): as if the list's answer were still pending.
+        self.assertEqual(self.chip(failed=1, visited=2)[0], NONE)
+        self.assertEqual(self.chip(failed=1, marked=1)[0], NONE)
+        self.assertEqual(self.chip(op="layout", failed=1, visited=2)[0], NONE)
+        # The warnings do not wait for it.
+        self.assertEqual(self.chip(failed=1)[0], NEW)
+        self.assertEqual(self.chip(failed=1, visited=2, lookalike=1)[0], NEW)
+        self.assertEqual(self.chip(failed=1, visited=1)[0], NONE)
+
+    def test_a_warning_already_given_stays_while_answers_are_pending(self):
+        # Ledger 59 (S-D4): New to you is held for the same site in the tab.
+        self.assertEqual(self.chip(pending=1, held=1)[0], NEW)
+        self.assertEqual(self.chip(pending=1, held=1, visited=2)[0], NEW)
+        # Never over the person's mark, never where the field has its words,
+        # and the red chips still win.
+        self.assertEqual(self.chip(pending=1, held=1, marked=1)[0], NONE)
+        self.assertEqual(self.chip(pending=1, held=1, text=1)[0], NONE)
+        self.assertEqual(self.chip(pending=1, held=1, scam=1)[0], SCAM)
+        self.assertEqual(self.chip(pending=1, held=1, blocked=1)[0], BLOCKED)
+        # Once answered, the answer decides, not the held chip.
+        self.assertEqual(self.chip(held=1, visited=2)[0], KNOWN)
+        # The pop-up still waits for the facts it lists.
+        self.assertEqual(self.chip(op="layout", pending=1, held=1)[0], NONE)
+
+    # Ledger 58: which earlier days count toward Known site.
+    def known_days(self, visits, today=10, first_shown=(7, 9)):
+        day, hour = first_shown
+        first = day * DAY + hour * 3_600_000_000
+        line = " ".join(f"{t} {d} {tr}" for t, d, tr in visits)
+        return int(self.ask(f"knowndays {today * DAY} {first} {line}")[0])
+
+    def test_self_made_link_visits_after_the_tab_opened_do_not_count(self):
+        # The tab first showed the site on day 7; the page loads itself on
+        # days 8 and 9 (after midnight, a plain link visit each time).
+        self.assertEqual(self.known_days([visit(8, LINK | CHAIN), visit(9, LINK | CHAIN)]), 0)
+        # A form, a reload or a client redirect the page makes count no more.
+        self.assertEqual(self.known_days([visit(8, 7 | CHAIN), visit(9, RELOAD | CHAIN),
+                                          visit(9, TYPED | CHAIN | CLIENT_REDIRECT)]), 0)
+        # Going back to an entry the person typed is the page's doing too.
+        self.assertEqual(self.known_days([visit(8, TYPED | CHAIN | FORWARD_BACK)]), 0)
+        # Later the same day the tab opened it, too.
+        self.assertEqual(self.known_days([visit(7, LINK | CHAIN, hour=10)]), 0)
+
+    def test_visits_the_person_started_count(self):
+        self.assertEqual(self.known_days([visit(8, TYPED | CHAIN), visit(9, BOOKMARK | CHAIN)]), 2)
+        # A typed address that the server redirected keeps its type.
+        self.assertEqual(self.known_days([visit(8, TYPED | CHAIN | SERVER_REDIRECT)]), 1)
+        for core in (2, 5, 6, 9):  # bookmark or tile, generated, top level, keyword
+            self.assertEqual(self.known_days([visit(8, core | CHAIN)]), 1, core)
+
+    def test_visits_before_the_tab_first_showed_the_site_count(self):
+        self.assertEqual(self.known_days([visit(3, LINK | CHAIN), visit(5, LINK | CHAIN)]), 2)
+        # Earlier the same day the tab first showed it.
+        self.assertEqual(self.known_days([visit(7, LINK | CHAIN, hour=8)]), 1)
+        # Mixed: one day before, one self-made day after.
+        self.assertEqual(self.known_days([visit(5, LINK | CHAIN), visit(8, LINK | CHAIN)]), 1)
+
+    def test_days_are_earlier_days_counted_once_and_visible_only(self):
+        # Today never counts; two visits on one day are one day.
+        self.assertEqual(self.known_days([visit(10, TYPED | CHAIN), visit(4, LINK | CHAIN),
+                                          visit(4, TYPED | CHAIN, hour=20)]), 1)
+        # Not the end of a chain, a frame, or a search results page.
+        self.assertEqual(self.known_days([visit(4, TYPED | CHAIN_START_ONLY),
+                                          visit(5, SUBFRAME | CHAIN),
+                                          visit(6, KEYWORD_GENERATED | CHAIN)]), 0)
+        self.assertEqual(self.known_days([]), 0)
 
     def test_known_by_history_or_mark(self):
         n, text, verdict, buttons = self.chip(visited=2)

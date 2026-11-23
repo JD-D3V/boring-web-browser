@@ -21,6 +21,9 @@ What it asserts:
      after the page's own history.replaceState the row and chip stay (53).
   4. Known by history: two earlier visits, then "Known site", "A site you
      know", "3 times since <month>", Site settings and Forget this site.
+  4a. Ledger 58: with the tab set to have first shown a site 5 days ago,
+     link visits seeded on days 3 and 2 count no day (chip New to you,
+     never Known); typed visits on days 4 and 1 make it Known site.
   5. I know this site: the mark is kept, the chip says Known site at once.
   6. Forget this site: the question, Cancel keeps the mark, Forget drops it.
   7. Leave this site: the tab shows the new tab page, no extra history entry.
@@ -85,7 +88,8 @@ def our_pid():
 
 TEST_SWITCH = "--boring-passport-test"
 OPENSSL = r"C:\Program Files\Git\usr\bin\openssl.exe"
-NAMES = ["citylibrary.net", "parcel-redelivery.net", "royalpost.net", "rnyalpost.net", "plain.net"]
+NAMES = ["citylibrary.net", "parcel-redelivery.net", "royalpost.net", "rnyalpost.net", "plain.net",
+         "selfmade.net"]
 NEW, KNOWN = 2, 1
 SECURE = 3  # security_state::SECURE
 # A 1x1 PNG for the mixed content page.
@@ -308,6 +312,8 @@ def run_in(b_args, profile, base, out, captures, dark, checks, full):
         checks(f"{theme}: new tab page hook is ready", open_newtab(b))
         hook(b, "engage", f"https://royalpost.net:{https}/", 50)
         # Known by history needs two different earlier days (30 and 2 days ago).
+        # The hook adds them as typed visits, the person's own (ledger 58);
+        # they are before this tab ever showed the site, so either way counts.
         hook(b, "addVisit", f"https://citylibrary.net:{https}/", 30)
         hook(b, "addVisit", f"https://citylibrary.net:{https}/books", 2)
         # A blank test tab: opening it on the new site would be a visit of
@@ -372,6 +378,42 @@ def run_in(b_args, profile, base, out, captures, dark, checks, full):
         time.sleep(0.5)
         checks("Site settings opens page info", (hook(b, "passportPopup") or {}).get("pageInfoShowing"))
         hook(b, "closePopup")
+
+        # 4a. Ledger 58: a page cannot earn Known site with visits it made
+        # itself. The tab is set to have first shown selfmade.net 5 days
+        # ago; link visits on days 3 and 2 (after that, as a page reloading
+        # itself past midnight would make) do not count.
+        self_url = f"https://selfmade.net:{https}/"
+        go(b, self_url)
+        hook(b, "addVisit", self_url + "a", 3, "link")
+        hook(b, "addVisit", self_url + "b", 2, "link")
+
+        def settle_first_seen(days_ago):
+            hook(b, "setFirstSeen", self_url, days_ago)
+            deadline = time.monotonic() + 10
+            state = {}
+            while time.monotonic() < deadline:
+                state = hook(b, "passportState") or {}
+                if state.get("pending") == 0:
+                    break
+                time.sleep(0.1)
+            time.sleep(0.3)
+            return state
+
+        state = settle_first_seen(5)
+        chip = hook(b, "chipState") or {}
+        print("self-made visits:", state, chip)
+        checks("self-made link visits after the tab showed the site count no day",
+               state.get("daysBeforeToday") == 0 and state.get("firstShownDaysAgo") == 5, str(state))
+        checks("self-made link visits never make Known site",
+               chip.get("text") in ("New to you", "") and chip.get("text") != "Known site", str(chip))
+        # Visits the person typed on two earlier days do count.
+        hook(b, "addVisit", self_url + "c", 4)
+        hook(b, "addVisit", self_url + "d", 1)
+        state = settle_first_seen(5)
+        chip = hook(b, "chipState") or {}
+        checks("typed visits on two earlier days make Known site",
+               state.get("daysBeforeToday") == 2 and chip.get("text") == "Known site", f"{state} {chip}")
 
         # 6a. Card details: a page with card fields says so, one with only
         # name fields says nothing (absence is never stated as safety).

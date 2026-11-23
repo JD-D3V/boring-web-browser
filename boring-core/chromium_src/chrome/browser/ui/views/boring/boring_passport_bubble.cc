@@ -179,7 +179,22 @@ BoringPassportBubble::BoringPassportBubble(LocationIconView* icon,
   // (IDN spoof checks included). Never the page's title or any page text.
   host_ = url_formatter::FormatUrlForSecurityDisplay(
       url_, url_formatter::SchemeDisplay::OMIT_HTTP_AND_HTTPS);
+  rows_ = MakeRows(contents);
 
+  const boring::BlockedTotals totals = boring::BlockedCounts::Get(url_);
+  auto* popups =
+      blocked_content::PopupBlockerTabHelper::FromWebContents(contents);
+  footer_ = boring::passport::FooterText(
+      totals.of(boring::BlockedKind::kAds),
+      totals.of(boring::BlockedKind::kTrackers),
+      totals.of(boring::BlockedKind::kCookieBanners),
+      totals.of(boring::BlockedKind::kScripts),
+      popups ? static_cast<uint32_t>(popups->GetBlockedPopupsCount()) : 0);
+}
+
+std::vector<BoringPassportBubble::Row> BoringPassportBubble::MakeRows(
+    content::WebContents* contents) const {
+  std::vector<Row> rows;
   BoringPassportTabHelper* helper =
       BoringPassportTabHelper::GetOrCreate(contents);
   const BoringPassportTabHelper::Facts& facts = helper->facts();
@@ -189,7 +204,7 @@ BoringPassportBubble::BoringPassportBubble(LocationIconView* icon,
   in.asks_card = same_page && facts.asks_card;
   in.connection_private = ConnectionPrivate(contents);
   in.saved_password = same_page && facts.saved_password;
-  for (Fact fact : boring::passport::FactsFor(layout, in)) {
+  for (Fact fact : boring::passport::FactsFor(layout_, in)) {
     Row row{std::u16string(), IconName(fact), "ink2"};
     switch (fact) {
       case Fact::kScamList:
@@ -233,18 +248,31 @@ BoringPassportBubble::BoringPassportBubble(LocationIconView* icon,
         row.text = boring::passport::PasswordFact();
         break;
     }
-    rows_.push_back(std::move(row));
+    rows.push_back(std::move(row));
   }
+  return rows;
+}
 
-  const boring::BlockedTotals totals = boring::BlockedCounts::Get(url_);
-  auto* popups =
-      blocked_content::PopupBlockerTabHelper::FromWebContents(contents);
-  footer_ = boring::passport::FooterText(
-      totals.of(boring::BlockedKind::kAds),
-      totals.of(boring::BlockedKind::kTrackers),
-      totals.of(boring::BlockedKind::kCookieBanners),
-      totals.of(boring::BlockedKind::kScripts),
-      popups ? static_cast<uint32_t>(popups->GetBlockedPopupsCount()) : 0);
+// static
+void BoringPassportBubble::FactsChangedFor(content::WebContents* contents) {
+  BoringPassportBubble* bubble = Current().get();
+  if (!bubble || !contents || bubble->contents_.get() != contents ||
+      !bubble->widget_ || !bubble->facts_view_ || bubble->motion_.closing() ||
+      contents->GetLastCommittedURL() != bubble->url_) {
+    return;
+  }
+  std::vector<Row> rows = bubble->MakeRows(contents);
+  const auto same = [](const Row& a, const Row& b) {
+    return a.text == b.text && a.icon == b.icon && a.color == b.color;
+  };
+  if (std::ranges::equal(rows, bubble->rows_, same)) {
+    return;
+  }
+  bubble->rows_ = std::move(rows);
+  bubble->facts_view_->RemoveAllChildViews();
+  bubble->FillFacts();
+  bubble->widget_->GetRootView()->DeprecatedLayoutImmediately();
+  bubble->delegate_->SizeToContents();
 }
 
 BoringPassportBubble::~BoringPassportBubble() = default;
@@ -322,11 +350,35 @@ std::unique_ptr<views::View> BoringPassportBubble::MakeContents() {
   host->SetElideBehavior(gfx::ELIDE_HEAD);
 
   // Facts: one row each, a line on top of each.
-  auto* facts = contents->AddChildView(std::make_unique<views::View>());
-  facts->SetLayoutManager(std::make_unique<views::BoxLayout>(
+  facts_view_ = contents->AddChildView(std::make_unique<views::View>());
+  facts_view_->SetLayoutManager(std::make_unique<views::BoxLayout>(
       views::BoxLayout::Orientation::kVertical, gfx::Insets::VH(0, 8)));
+  FillFacts();
+
+  // Buttons, or the Forget question in their place.
+  button_row_ = contents->AddChildView(std::make_unique<views::View>());
+  button_row_->SetLayoutManager(std::make_unique<views::BoxLayout>(
+      views::BoxLayout::Orientation::kHorizontal, gfx::Insets::TLBR(14, 18, 16, 18),
+      8));
+  ShowButtons();
+
+  // Footer: what was blocked on this page.
+  auto* footer = contents->AddChildView(MakeLabel(
+      footer_, 12, gfx::Font::Weight::NORMAL, ui::kColorLabelForegroundSecondary));
+  footer->SetMultiLine(true);
+  footer->SetBorder(views::CreatePaddedBorder(
+      views::CreateSolidSidedBorder(gfx::Insets::TLBR(1, 0, 0, 0),
+                                          kColorBoringPassportLine),
+      gfx::Insets::TLBR(11, 18, 10, 18)));
+  footer->SetBackground(
+      views::CreateRoundedRectBackground(kColorBoringPassportFooter,
+                                         gfx::RoundedCornersF(0, 0, 12, 12)));
+  return contents;
+}
+
+void BoringPassportBubble::FillFacts() {
   for (const Row& row : rows_) {
-    auto* line = facts->AddChildView(std::make_unique<views::View>());
+    auto* line = facts_view_->AddChildView(std::make_unique<views::View>());
     line->SetBorder(views::CreateSolidSidedBorder(
         gfx::Insets::TLBR(1, 0, 0, 0), kColorBoringPassportLine));
     auto* layout = line->SetLayoutManager(std::make_unique<views::BoxLayout>(
@@ -353,26 +405,6 @@ std::unique_ptr<views::View> BoringPassportBubble::MakeContents() {
     text->SetMultiLine(true);
     layout->SetFlexForView(text, 1);
   }
-
-  // Buttons, or the Forget question in their place.
-  button_row_ = contents->AddChildView(std::make_unique<views::View>());
-  button_row_->SetLayoutManager(std::make_unique<views::BoxLayout>(
-      views::BoxLayout::Orientation::kHorizontal, gfx::Insets::TLBR(14, 18, 16, 18),
-      8));
-  ShowButtons();
-
-  // Footer: what was blocked on this page.
-  auto* footer = contents->AddChildView(MakeLabel(
-      footer_, 12, gfx::Font::Weight::NORMAL, ui::kColorLabelForegroundSecondary));
-  footer->SetMultiLine(true);
-  footer->SetBorder(views::CreatePaddedBorder(
-      views::CreateSolidSidedBorder(gfx::Insets::TLBR(1, 0, 0, 0),
-                                          kColorBoringPassportLine),
-      gfx::Insets::TLBR(11, 18, 10, 18)));
-  footer->SetBackground(
-      views::CreateRoundedRectBackground(kColorBoringPassportFooter,
-                                         gfx::RoundedCornersF(0, 0, 12, 12)));
-  return contents;
 }
 
 void BoringPassportBubble::ShowButtons() {
@@ -666,14 +698,28 @@ base::Value RunPassportTestCommand(content::WebContents* page,
     }
   } else if (command == "addVisit" && active && !arg.empty() &&
              args.size() > 2 && args[2].is_int()) {
-    // A visit in the past, as if the person had been there.
+    // A visit in the past: typed by default, as if the person had gone
+    // there, or "link" as a fourth argument, as if a page had loaded it.
     Profile* profile = Profile::FromBrowserContext(active->GetBrowserContext());
     if (history::HistoryService* history = HistoryServiceFactory::GetForProfile(
             profile, ServiceAccessType::EXPLICIT_ACCESS)) {
+      const bool link = args.size() > 3 && args[3].is_string() &&
+                        args[3].GetString() == "link";
       history->AddPage(GURL(arg), base::Time::Now() - base::Days(args[2].GetInt()),
-                       history::SOURCE_BROWSED);
+                       /*context_id=*/0, /*nav_entry_id=*/0, GURL(),
+                       history::RedirectList(),
+                       link ? ui::PAGE_TRANSITION_LINK : ui::PAGE_TRANSITION_TYPED,
+                       history::SOURCE_BROWSED,
+                       history::VisitResponseCodeCategory::kNot404,
+                       /*did_replace_entry=*/false);
       out.Set("added", true);
     }
+  } else if (command == "setFirstSeen" && active && !arg.empty() &&
+             args.size() > 2 && args[2].is_int()) {
+    // As if the active tab had first shown that site some days ago.
+    BoringPassportTabHelper::GetOrCreate(active)->SetFirstSeenForTesting(
+        GURL(arg), base::Time::Now() - base::Days(args[2].GetInt()));
+    out.Set("set", true);
   } else if (command == "engage" && active && !arg.empty() && args.size() > 2 &&
              args[2].is_int()) {
     Profile* profile = Profile::FromBrowserContext(active->GetBrowserContext());

@@ -29,7 +29,7 @@ class View;
 
 // "Site passport": the pop-up under the address field's chip (screens C04
 // and C05). A snapshot of the tab's facts when it opens; it changes only
-// after its own buttons. A browser view: a page cannot open, close, press
+// after its own buttons, and gains the card row if that answer comes late. A browser view: a page cannot open, close, press
 // or draw into it, and every string in it is ours, a count, a month name,
 // the committed origin's host formatted for security display, or a domain
 // from the person's own site engagement.
@@ -43,6 +43,10 @@ class BoringPassportBubble {
   static bool Show(LocationIconView* icon);
   static bool IsShowingFor(const LocationIconView* icon);
   static BoringPassportBubble* GetShowing();
+  // A fact the rows rest on changed for `contents` (a late card answer): an
+  // open Passport for that tab's same page rebuilds its rows. The layout,
+  // verdict and buttons stay as they were.
+  static void FactsChangedFor(content::WebContents* contents);
 
   void Close();
 
@@ -61,7 +65,9 @@ class BoringPassportBubble {
                        content::WebContents* contents,
                        boring::passport::Chip layout);
 
+  std::vector<Row> MakeRows(content::WebContents* contents) const;
   std::unique_ptr<views::View> MakeContents();
+  void FillFacts();
   void ShowButtons();
   void ShowQuestion();
   void Press(const std::u16string& label);
@@ -77,6 +83,7 @@ class BoringPassportBubble {
   std::vector<Row> rows_;
   std::u16string footer_;
   bool asking_ = false;
+  raw_ptr<views::View> facts_view_ = nullptr;
   raw_ptr<views::View> button_row_ = nullptr;
   std::unique_ptr<views::BubbleDialogDelegate> delegate_;
   std::unique_ptr<views::Widget> widget_;

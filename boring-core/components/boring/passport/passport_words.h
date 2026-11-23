@@ -35,6 +35,9 @@ struct ChipInputs {
   // An answer Known site rests on (history, site engagement, the scam list)
   // is still on its way: neither soft chip shows until all are in.
   bool pending = false;
+  // The scam list failed to load, so it cannot vouch for anything: Known
+  // site gives way to no chip (as while pending). New to you still shows.
+  bool scam_list_failed = false;
   // The person pressed "I know this site" for this site.
   bool marked_known = false;
   // On how many different earlier days (local calendar days, before today)
@@ -43,19 +46,69 @@ struct ChipInputs {
   int days_before_today = 0;
   // The name looks like a site the person uses, or a well known one.
   bool lookalike = false;
+  // This tab already showed "New to you" for this site, and the answers for
+  // a newer page of the same site are still on their way: the warning
+  // stays meanwhile. Known site and Blocked are never held over this way.
+  bool held_warning = false;
 };
 
 // The chip to draw, first match wins: nothing, Blocked, Scam list, nothing
-// where the field has words of its own, nothing while answers are pending,
-// Known site (the mark, or visits on two or more earlier days), nothing for
-// exactly one earlier day, New to you. The mark beats the look-alike rule,
-// never Blocked or the scam list.
+// where the field has words of its own, while answers are pending a held
+// New to you (unless marked) or else nothing, Known site (the mark, or
+// two or more earlier days that count, CountKnownDays; nothing instead
+// while the scam list has failed), nothing for exactly one earlier day,
+// New to you. The mark beats the look-alike rule, never Blocked or the scam
+// list.
 Chip DecideChip(const ChipInputs& in);
 
 // The Passport layout pressing the field's icon opens. The same as the
 // chip, except where the field has words of its own: the Passport still
-// opens there. kNone and kBlocked open the page info bubble as before.
+// opens there, but never as Known site (a known site on a connection the
+// browser does not call secure gets the page info bubble). kNone and
+// kBlocked open the page info bubble as before.
 Chip DecideLayout(const ChipInputs& in);
+
+// Known site's days. Page transitions as ui::PageTransition numbers
+// (ui/base/page_transition_types.h); this file has no Chromium headers.
+inline constexpr uint32_t kTransitionCoreMask = 0xFF;
+inline constexpr uint32_t kTransitionTyped = 1;
+inline constexpr uint32_t kTransitionAutoBookmark = 2;
+inline constexpr uint32_t kTransitionAutoSubframe = 3;
+inline constexpr uint32_t kTransitionManualSubframe = 4;
+inline constexpr uint32_t kTransitionGenerated = 5;
+inline constexpr uint32_t kTransitionAutoToplevel = 6;
+inline constexpr uint32_t kTransitionKeyword = 9;
+inline constexpr uint32_t kTransitionKeywordGenerated = 10;
+inline constexpr uint32_t kTransitionForwardBack = 0x01000000;
+inline constexpr uint32_t kTransitionChainEnd = 0x20000000;
+inline constexpr uint32_t kTransitionClientRedirect = 0x40000000;
+
+// One visit history holds for the site. Times are on one clock of the
+// caller's (microseconds); `day` is the visit's local midnight on it.
+struct SiteVisit {
+  int64_t time = 0;
+  int64_t day = 0;
+  uint32_t transition = 0;
+};
+
+// A visit history shows (the end of a redirect chain, in the main frame,
+// not a search results page the keyword made): the visits a day is made of.
+bool VisitIsVisible(uint32_t transition);
+
+// A visit the person plainly started: typed, a bookmark or a new tab page
+// tile, a keyword or a generated address, or opened from outside. Never a
+// link or anything else a page can start, never a client redirect, and
+// never back or forward (a page can go back to a typed entry itself).
+bool PersonStartedVisit(uint32_t transition);
+
+// The earlier days that count toward Known site: different local days
+// before `today` with a visible visit that is either one the person
+// started, or made before `first_shown`, when this tab first showed the
+// site. A page that sits in a tab and loads itself again after midnight, or
+// bounces through another site and back, never vouches for itself.
+int CountKnownDays(const std::vector<SiteVisit>& visits,
+                   int64_t today,
+                   int64_t first_shown);
 
 std::u16string ChipText(Chip chip);
 std::u16string Verdict(Chip layout);

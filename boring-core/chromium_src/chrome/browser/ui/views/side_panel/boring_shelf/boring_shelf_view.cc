@@ -566,9 +566,17 @@ void BoringShelfView::ActivateDownload(const std::string& guid) {
   if (!manager) {
     return;
   }
-  if (download::DownloadItem* item = manager->GetDownloadByGuid(guid)) {
-    item->OpenDownload();
+  download::DownloadItem* item = manager->GetDownloadByGuid(guid);
+  // The row was built earlier: check again at the press that the download
+  // is still there, finished, and not marked dangerous, insecure or removed
+  // since. Otherwise the press does nothing.
+  if (!item || item->GetState() != download::DownloadItem::COMPLETE ||
+      item->IsTemporary() || item->IsTransient() || item->IsDangerous() ||
+      item->IsInsecure() || item->GetFileExternallyRemoved() ||
+      item->GetTargetFilePath().empty()) {
+    return;
   }
+  item->OpenDownload();
 }
 
 // static
