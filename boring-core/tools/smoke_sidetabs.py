@@ -100,6 +100,31 @@ def names_of(under):
         return w.names()
 
 
+def shortcut_of(under, name):
+    """The UI Automation AcceleratorKey of the first control named `name`.
+    The shortcut a button draws is inside the button, so it is not a name of
+    its own; the button carries it as its key shortcut."""
+    import ctypes
+    from smoke_site_panel import _call, oleaut32
+    found = None
+    with Window(frame_window(CHROME, under=under)) as w:
+        for text, element in w.items:
+            if text != name or not element:
+                continue
+            key = ctypes.c_void_p()
+            try:
+                _call(element, 24, ctypes.addressof(key))  # get_CurrentAcceleratorKey
+                found = ctypes.wstring_at(key.value) if key else ""
+            except OSError:
+                found = ""
+            finally:
+                if key:
+                    oleaut32.SysFreeString(key)
+            if found:
+                return found
+    return found
+
+
 def press(under, name):
     with Window(frame_window(CHROME, under=under)) as w:
         return w.press(lambda text: text == name)
@@ -176,8 +201,8 @@ def run_main(port, out, captures, dark, checks, full):
                    bool(bar_names) and all(n.startswith("Boring Browser is being controlled")
                                            for n in bar_names), str(bar_names))
             # Screen C09: the New tab row shows its shortcut at the right.
-            checks(f"{theme}: the New tab row shows Ctrl+T", "Ctrl+T" in names_of(under),
-                   str(names_of(under))[:300])
+            key = shortcut_of(under, NEW_TAB)
+            checks(f"{theme}: the New tab row shows Ctrl+T", key == "Ctrl+T", repr(key))
             # 4. The strip's other buttons are gone.
             checks(f"{theme}: no tab search button in the list", not state["tab_search"], str(state))
             # 3. Width.

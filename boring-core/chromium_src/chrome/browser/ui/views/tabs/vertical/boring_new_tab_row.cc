@@ -4,6 +4,7 @@
 
 #include <utility>
 
+#include "base/strings/utf_string_conversions.h"
 #include "chrome/app/chrome_command_ids.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/ui/actions/chrome_action_id.h"
@@ -99,6 +100,10 @@ BoringNewTabRow::BoringNewTabRow(BrowserWindowInterface* browser)
 
   GetViewAccessibility().SetName(u"New tab");
   GetViewAccessibility().SetRole(ax::mojom::Role::kButton);
+  // The drawn shortcut is inside a button, so assistive tools (and UI
+  // Automation's AcceleratorKey) get it here.
+  GetViewAccessibility().SetKeyShortcuts(
+      base::UTF16ToUTF8(accelerator.GetShortcutText()));
   SetTooltipText(u"New tab");
 }
 
