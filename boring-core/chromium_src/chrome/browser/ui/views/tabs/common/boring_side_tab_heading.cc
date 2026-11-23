@@ -22,11 +22,12 @@ BoringSideTabHeading::BoringSideTabHeading(const std::u16string& text)
   SetAutoColorReadabilityEnabled(false);
   SetHorizontalAlignment(gfx::ALIGN_LEFT);
   const gfx::FontList base = font_list();
-  // The regular weight: text on the tab strip draws heavier than in the
-  // Shelf, so the Shelf's semibold read as bold here (screen C09 draws the
-  // headings quiet).
   SetFontList(base.DeriveWithSizeDelta(kFontSize - base.GetFontSize())
-                  .DeriveWithWeight(gfx::Font::Weight::NORMAL));
+                  .DeriveWithWeight(gfx::Font::Weight::SEMIBOLD));
+  // The tab strip paints on a layer that is not opaque, so LCD text here
+  // came out darker and heavier than the same style in the Shelf; plain
+  // antialiasing draws it as the Shelf does (screen C09).
+  SetSubpixelRenderingEnabled(false);
   SetBorder(views::CreateEmptyBorder(
       gfx::Insets::TLBR(0, kSideInset, kBottomInset, kSideInset)));
   // A heading names what is under it; it is not a control.

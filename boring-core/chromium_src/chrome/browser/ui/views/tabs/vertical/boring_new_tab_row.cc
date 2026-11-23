@@ -63,6 +63,8 @@ BoringNewTabRow::BoringNewTabRow(BrowserWindowInterface* browser)
   label->SetAutoColorReadabilityEnabled(false);
   label->SetHorizontalAlignment(gfx::ALIGN_LEFT);
   label->SetCanProcessEventsWithinSubtree(false);
+  // Plain antialiasing: LCD text on the tab strip's layer drew heavier.
+  label->SetSubpixelRenderingEnabled(false);
   SetFont(label, 13);
   layout->SetFlexForView(label, 1);
 
@@ -86,6 +88,7 @@ BoringNewTabRow::BoringNewTabRow(BrowserWindowInterface* browser)
     shortcut->SetEnabledColor(kColorBoringShelfHeading);
     shortcut->SetAutoColorReadabilityEnabled(false);
     shortcut->SetCanProcessEventsWithinSubtree(false);
+    shortcut->SetSubpixelRenderingEnabled(false);
     SetFont(shortcut, 12);
   }
 

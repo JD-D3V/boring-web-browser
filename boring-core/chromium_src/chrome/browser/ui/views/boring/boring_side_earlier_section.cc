@@ -32,6 +32,7 @@
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/box_layout_view.h"
 #include "ui/views/view_class_properties.h"
+#include "ui/views/view_utils.h"
 
 namespace {
 
@@ -45,6 +46,18 @@ std::map<BrowserWindowInterface*, BoringSideEarlierSection*>& Sections() {
       std::map<BrowserWindowInterface*, BoringSideEarlierSection*>>
       sections;
   return *sections;
+}
+
+// The tab strip paints on a layer that is not opaque, so LCD text came out
+// darker and heavier than the Shelf's same rows; plain antialiasing draws
+// every label of the section as the Shelf does.
+void PlainText(views::View* view) {
+  if (auto* label = views::AsViewClass<views::Label>(view)) {
+    label->SetSubpixelRenderingEnabled(false);
+  }
+  for (views::View* child : view->children()) {
+    PlainText(child);
+  }
 }
 
 BoringSideEarlierSection* SectionFor(BrowserWindowInterface* browser) {
@@ -187,7 +200,7 @@ void BoringSideEarlierSection::Rebuild() {
   }
 
   AddChildView(std::make_unique<boring::shelf::ShelfSectionHeading>(
-      u"Earlier", u"kept 30 days", /*regular=*/true));
+      u"Earlier", u"kept 30 days"));
 
   const size_t shown =
       expanded_ ? state.newest.size()
@@ -238,6 +251,7 @@ void BoringSideEarlierSection::Rebuild() {
   } else {
     confirming_ = false;
   }
+  PlainText(this);
   SetVisible(true);
   PreferredSizeChanged();
 

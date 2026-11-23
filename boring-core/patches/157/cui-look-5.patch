@@ -57,7 +57,17 @@ diff --git a/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc b/chro
    }
  
    // boring: in side tabs the heading row is the group's solid label, sized
-@@ -736,7 +738,7 @@
+@@ -243,6 +245,9 @@
+     boring_count_label_->SetAutoColorReadabilityEnabled(false);
+     boring_count_label_->SetHorizontalAlignment(gfx::ALIGN_RIGHT);
+     boring_count_label_->SetEnabledColor(kColorBoringShelfHeading);
++    // boring: plain antialiasing; LCD text on the tab strip's layer drew
++    // darker and heavier than the quiet ink of the design.
++    boring_count_label_->SetSubpixelRenderingEnabled(false);
+     const gfx::FontList& count_font = boring_count_label_->font_list();
+     boring_count_label_->SetFontList(
+         count_font.DeriveWithSizeDelta(12 - count_font.GetFontSize()));
+@@ -736,7 +741,7 @@
  
    // Update collapse icon.
    if (collapse_icon_) {
