@@ -161,6 +161,19 @@ diff --git a/chrome/browser/ui/views/bookmarks/bookmark_bar_view.cc b/chrome/bro
    all_bookmarks_button_->GetViewAccessibility().SetName(
        all_bookmarks_button_text);
    all_bookmarks_button_->SetText(all_bookmarks_button_text);
+diff --git a/chrome/browser/ui/views/chrome_layout_provider.cc b/chrome/browser/ui/views/chrome_layout_provider.cc
+--- a/chrome/browser/ui/views/chrome_layout_provider.cc
++++ b/chrome/browser/ui/views/chrome_layout_provider.cc
+@@ -359,7 +359,8 @@
+            views::ShapeSysTokens::kMediumSmall},
+           {kActionAppMenuBlockEntryCornerRadius,
+            views::ShapeSysTokens::kMediumSmall},
+-          {kOmniboxExpandedRadius, views::ShapeSysTokens::kMedium},
++          // boring: the Bar's results card has 12px corners (ledger 47).
++          {kOmniboxExpandedRadius, views::ShapeSysTokens::kMediumSmall},
+       });
+   const auto it = shape_token_map.find(id);
+   return it == shape_token_map.end() ? views::ShapeSysTokens::kDefault
 diff --git a/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc b/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc
 --- a/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc
 +++ b/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc
