@@ -1,0 +1,19 @@
+diff --git a/chrome/browser/resources/side_panel/customize_chrome/app.css b/chrome/browser/resources/side_panel/customize_chrome/app.css
+--- a/chrome/browser/resources/side_panel/customize_chrome/app.css
++++ b/chrome/browser/resources/side_panel/customize_chrome/app.css
+@@ -94,6 +94,15 @@
+   margin-bottom: 0;
+ }
+ 
++/* boring: cui-old-colours (ledger 61). Colour lives in Settings,
++ * Appearance only: the Appearance card (colour swatches, hue, follow
++ * device colours, reset, theme pictures, light or dark) is not shown, nor
++ * the line under it. The Toolbar card below is untouched. */
++#appearance,
++#appearance + .sp-cards-separator {
++  display: none;
++}
++
+ #extensions .description {
+   color: var(--cr-secondary-text-color);
+   font-weight: 400;

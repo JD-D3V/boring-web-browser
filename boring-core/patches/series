@@ -34,7 +34,6 @@ tab-underline.patch
 tab-mock-metrics.patch
 tab-connected.patch
 tab-center-content.patch
-colour-picker-schemes.patch
 bookmark-bar.patch
 bookmark-bar-hint.patch
 app-menu-icon.patch
@@ -88,6 +87,7 @@ tab-groups.patch
 cui-toolbar.patch
 cui-menu.patch
 cui-settings.patch
+cui-old-colours.patch
 bar.patch
 accounts.patch
 passport.patch

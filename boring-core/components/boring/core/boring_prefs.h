@@ -160,7 +160,12 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
 // mode on starts with all three switches it covered on, and the old
 // pref is cleared either way. A profile that existed before native
 // messaging hosts could be switched keeps the hosts registered now, a
-// new one starts with none (see kNativeHostsAllowed).
+// new one starts with none (see kNativeHostsAllowed). The colour state
+// the retired Customize colour picker wrote (release 2's Green and Beige,
+// any other swatch, grey, device colours) goes back to a new profile's;
+// a profile that had Green starts on the green accent if its accent was
+// still the default (ledger 61). This runs before ThemeService exists:
+// profile_impl.cc CHECKs that it has not been created yet.
 void MigrateObsoleteProfilePrefs(PrefService* prefs);
 
 // The key the per site switch is stored under: the registrable domain
