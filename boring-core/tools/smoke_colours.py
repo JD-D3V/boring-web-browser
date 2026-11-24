@@ -31,6 +31,15 @@ toolbar, and the Look's own frame band, so the palette stays ours. Then
 the accent is changed to Teal the way the Settings control writes it and
 must follow at once (NOT CHECKED until Settings lists the pref, item 9).
 
+Release 2's colour choices (ledger item 61, steps marked [cui-old-colours]):
+profiles seeded with what the old Customize colour picker wrote (Green
+exactly as Release 2 stored it, grey, "Default", device colours) must draw
+the Look's palette with the accent, Settings must show that Look, and the
+stored colour state must be a new profile's afterwards; old Green also
+gets the accent row's green, and picking Slate repaints. With
+BORING_ALLOW_HEADFUL=1 the Customize side panel must show no Appearance
+card and no swatches (else that step is skipped and says so).
+
 With BORING_ALLOW_HEADFUL=1 it also photographs the new tab page of each
 Look, light and dark, by PrintWindow of our own window. With --captures (or
 BORING_CAPTURES) each picture is also saved as
@@ -49,6 +58,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import sys
 import tempfile
 import time
@@ -315,6 +325,175 @@ def check_accent_live(checks):
 # boring: end cui-accent
 
 
+# boring: cui-old-colours (ledger 61). Release 2's colour choices are retired:
+# a stored Chromium user colour never picks the palette or switches the Look
+# or the accent off, and the startup migration puts it back to a new
+# profile's (boring_prefs.cc ResetRetiredColourPrefs).
+# How ThemeService stored Release 2's Green swatch (opaque 0x1f8a72) in
+# browser.theme.user_color2, and its variant (BrowserColorVariant kTonalSpot).
+GREEN_SEED_INT = 0xFF1F8A72 - (1 << 32)
+TONAL_SPOT = 1
+ACCENT_GREEN = "#1a7f55"  # the Green dot of the accent row in Settings
+# Release 2's Green palette, which must not come back (Cool surfaces with a
+# green accent): its accent, light.
+OLD_GREEN_ACCENT = "176b5b"
+# Pref -> what a new profile has: absent, or the stated value.
+FRESH = {
+    ("browser", "theme", "user_color2"): None,
+    ("browser", "theme", "color_variant2"): None,
+    ("browser", "theme", "is_grayscale2"): False,
+    ("browser", "theme", "follows_system_colors"): False,
+    ("extensions", "theme", "id"): "",
+}
+# name -> (browser.theme prefs as the old picker wrote them, theme id, Look,
+# accent, Look's light frame expected, accent expected).
+OLD_STATES = {
+    # SetUserColorAndBrowserColorVariant(Green, kTonalSpot), then
+    # UseDeviceTheme(false): exactly what picking Green in Release 2 wrote.
+    "old Green": ({"user_color2": GREEN_SEED_INT, "color_variant2": TONAL_SPOT,
+                   "follows_system_colors": False}, "user_color_theme_id",
+                  None, None, SOFT_LIGHT["frame"], ACCENT_GREEN[1:]),
+    # The grey swatch: SetIsGrayscale(true).
+    "old grey": ({"is_grayscale2": True, "follows_system_colors": False}, "",
+                 "slate", "#be2d5a", SLATE_LIGHT["frame"], "be2d5a"),
+    # The picker's "Default": SetUserColor(nullopt) stores transparent.
+    "old Default": ({"user_color2": 0, "follows_system_colors": False}, "",
+                    "slate", "#0f766e", SLATE_LIGHT["frame"], "0f766e"),
+    # Follow device colours on.
+    "old device colours": ({"follows_system_colors": True}, "",
+                           None, None, SOFT_LIGHT["frame"], OWN_ACCENT[False]),
+}
+
+
+def seed_old_state(path, theme, theme_id, look=None, accent=None):
+    default = Path(path) / "Default"
+    default.mkdir(parents=True, exist_ok=True)
+    prefs = {"browser": {"theme": dict(theme)}, "extensions": {"theme": {"id": theme_id}}}
+    appearance = {k: v for k, v in (("look", look), ("accent", accent)) if v is not None}
+    if appearance:
+        prefs["boring"] = {"appearance": appearance}
+    (default / "Preferences").write_text(json.dumps(prefs), encoding="utf-8")
+
+
+def dig(prefs, keys):
+    for k in keys:
+        if not isinstance(prefs, dict) or k not in prefs:
+            return None
+        prefs = prefs[k]
+    return prefs
+
+
+def check_old_state(name, checks):
+    """A profile seeded with an old picker state: the window draws the
+    Look's palette with the accent, Settings shows the Look drawn, and the
+    stored colour state is a new profile's after the run. For old Green
+    also: the accent is the row's green and picking Slate repaints."""
+    from smoke_settings_appearance import CLICK, state, wait, wait_pref
+
+    theme, theme_id, look, accent, frame, want_accent = OLD_STATES[name]
+    tag = f"[cui-old-colours] {name}"
+    with tempfile.TemporaryDirectory(prefix="colours-old-", dir=os.environ.get("TMP")) as prof:
+        seed_old_state(prof, theme, theme_id, look, accent)
+        with Browser(user_data_dir=prof, args=["--window-size=1200,700"]) as b:
+            _, got = read_accent(b)
+            b.get("chrome://settings/appearance")
+            s = wait(lambda: state(b), 20)
+            slate = None
+            if name == "old Green" and s:
+                b.run(CLICK, ['#boringLookRow .cui-look[data-value="slate"]'])
+                if wait_pref(b, PREF, "slate")[0]:
+                    _, slate = read_accent(b)
+        saved = json.loads((Path(prof) / "Default" / "Preferences").read_text(encoding="utf-8"))
+    seen_frame = got.get("--color-frame-active")
+    checks[f"{tag}: the window draws the Look's frame #{frame}"] = (
+        seen_frame == rgb(frame), seen_frame)
+    seen_accent = got.get("--color-sys-primary")
+    checks[f"{tag}: the accent applies, #{want_accent}"] = (
+        seen_accent == rgb(want_accent), seen_accent)
+    drawn = look or "soft_white"
+    looks = (s or {}).get("looks") or []
+    shown = [v for v, _title, on in looks if on == "true"]
+    checks[f"{tag}: Settings shows the Look drawn ({drawn})"] = (shown == [drawn], shown)
+    for keys, fresh in FRESH.items():
+        value = dig(saved, keys)
+        checks[f"{tag}: {'.'.join(keys)} is a new profile's"] = (
+            value is None or value == fresh, value)
+    if name == "old Green":
+        checks[f"{tag}: not the old Green palette"] = (
+            seen_accent != rgb(OLD_GREEN_ACCENT) and seen_frame != rgb(SLATE_LIGHT["frame"]),
+            (seen_frame, seen_accent))
+        kept = dig(saved, ("boring", "appearance", "accent"))
+        checks[f"{tag}: the accent pref is the row's green {ACCENT_GREEN}"] = (
+            kept == ACCENT_GREEN, kept)
+        dots = [v for v, _label, on, _ring in ((s or {}).get("dots") or []) if on == "true"]
+        checks[f"{tag}: Settings shows the green dot picked"] = (dots == [ACCENT_GREEN], dots)
+        slate_frame = (slate or {}).get("--color-frame-active")
+        checks[f"{tag}: picking Slate repaints at once"] = (
+            slate_frame == rgb(SLATE_LIGHT["frame"]), slate_frame)
+        slate_accent = (slate or {}).get("--color-sys-primary")
+        checks[f"{tag}: and keeps the green accent"] = (
+            slate_accent == rgb(ACCENT_GREEN[1:]), slate_accent)
+
+
+# The Customize side panel's overview, read through every shadow root.
+SIDE_PANEL = r"""(() => {
+  const app = document.querySelector('customize-chrome-app');
+  const r = app && app.shadowRoot;
+  if (!r) return null;
+  const vis = e => !!e && e.checkVisibility();
+  const ap = r.querySelector('customize-chrome-appearance');
+  const aps = ap && ap.shadowRoot;
+  const picker = aps && aps.querySelector('cr-theme-color-picker');
+  const ps = picker && picker.shadowRoot;
+  const swatches = ps ? [...ps.querySelectorAll('*')].filter(
+      e => /^CR-THEME-COLOR|^CR-THEME-HUE/.test(e.tagName) && vis(e)).length : 0;
+  return {
+    appearance: vis(r.querySelector('#appearance')),
+    picker: vis(picker),
+    swatches: swatches,
+    follow: vis(aps && aps.querySelector('#followThemeToggle')),
+    reset: vis(aps && aps.querySelector('#setClassicChromeButton')),
+    toolbar: vis(r.querySelector('#toolbarButton')),
+    sections: [...r.querySelectorAll('#overviewPage > .section')].filter(vis).map(e => e.id),
+  };
+})()"""
+
+
+def check_side_panel(checks):
+    """The Customize side panel offers no colour: its overview shows no
+    Appearance card, no swatch, no follow device colours, no reset; the
+    Toolbar card is still there. Opened the way Settings' Customize button
+    opens it, then back to the overview (as smoke_quick_buttons.py does).
+    Needs a headful launch (DevTools on chrome.exe)."""
+    from smoke_memory import close, launch
+    from smoke_quick_buttons import BACK, open_picker
+
+    tag = "[cui-old-colours] side panel"
+    work = Path(tempfile.mkdtemp(prefix="colours-panel-", dir=os.environ.get("TMP")))
+    proc = cdp = None
+    try:
+        proc, cdp = launch(CHROME, work, ["--disable-features=CalculateNativeWinOcclusion"])
+        panel = open_picker(cdp)
+        checks[f"{tag}: the panel opens"] = (bool(panel), panel)
+        if not panel:
+            return
+        cdp.evaluate(panel, BACK)
+        cdp.wait_for(panel, "(" + SIDE_PANEL + " || {}).toolbar === true", 10)
+        got = cdp.evaluate(panel, SIDE_PANEL) or {}
+    finally:
+        if proc:
+            close(proc, cdp)
+        shutil.rmtree(work, ignore_errors=True)
+    checks[f"{tag}: no Appearance card"] = (got.get("appearance") is False, got)
+    checks[f"{tag}: no colour swatches or hue"] = (
+        got.get("picker") is False and got.get("swatches") == 0, got)
+    checks[f"{tag}: no follow device colours, no reset"] = (
+        got.get("follow") is False and got.get("reset") is False, got)
+    checks[f"{tag}: the Toolbar card is still there and alone"] = (
+        got.get("toolbar") is True and got.get("sections") == ["toolbarButton"], got)
+# boring: end cui-old-colours
+
+
 def capture(look, dark, captures=None):
     from capture_native import frame_window, grab, user32
     from drive import OFFSCREEN
@@ -357,6 +536,14 @@ def main():
             for value in ACCENTS:
                 check_accent(look, dark, value, checks)
     check_dusk_always_dark(checks)
+    # boring: cui-old-colours
+    for name in OLD_STATES:
+        check_old_state(name, checks)
+    if headful_allowed():
+        check_side_panel(checks)
+    else:
+        print("[cui-old-colours] side panel: not checked (set BORING_ALLOW_HEADFUL=1)")
+    # boring: end cui-old-colours
     if not opts.no_live:
         check_live(checks)
         check_accent_live(checks)

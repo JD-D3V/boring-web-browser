@@ -81,7 +81,8 @@ EXPECTED_ROWS = [
 ]  # fmt: skip
 # The picker page's headings and the overview's sections.
 EXPECTED_HEADINGS = ["Toolbar", "Navigation", "Your Boring Browser", "Tools and actions"]
-EXPECTED_SECTIONS = ["appearance", "toolbarButton"]
+# The Appearance card is hidden: colour lives in Settings (ledger 61).
+EXPECTED_SECTIONS = ["toolbarButton"]
 # A new profile's toolbar buttons (class names), left to right.
 EXPECTED_FRESH = [
     "BackForwardButton", "BackForwardButton", "ReloadButton", "ExtensionsToolbarButton",

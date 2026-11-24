@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Photograph the browser's main menu, open, in any colour scheme.
+"""Photograph the browser's main menu, open, in any Look.
 
 Same rules as capture_native.py and capture_search_menu.py: the windows are
 drawn with PrintWindow from our own browser only, never a screen grab, and
@@ -8,8 +8,8 @@ nothing is sent to the OS as input. The menu is opened by the
 opens it four seconds after the toolbar is built. Windows then closes it
 again within a couple of seconds, so this polls and photographs it at once.
 
-    python capture_app_menu.py --out menu-cool-light.png
-    python capture_app_menu.py --out menu-beige-dark.png --dark --scheme beige
+    python capture_app_menu.py --out menu-light.png
+    python capture_app_menu.py --out menu-slate-dark.png --dark --scheme slate
     python capture_app_menu.py --out menu.png --expect-height 682
 
 --expect-height fails the run when the menu's height, in DIP, is more than
@@ -107,7 +107,8 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--size", default="1404x900", help="window size, WxH")
     ap.add_argument("--dark", action="store_true")
-    ap.add_argument("--scheme", choices=["cool", "beige", "green"], default="cool")
+    # A Look by the --boring-scheme switch; "profile" draws the stored Look.
+    ap.add_argument("--scheme", choices=["profile", "soft_white", "slate", "dusk"], default="profile")
     ap.add_argument("--url", default="chrome://boring-newtab")
     ap.add_argument("--expect-height", type=float, help="menu height in DIP")
     ap.add_argument("--tolerance", type=float, default=6)
@@ -129,7 +130,7 @@ def main():
     ]
     if args.dark:
         chrome_args.append("--force-dark-mode")
-    if args.scheme in ("beige", "green"):
+    if args.scheme != "profile":
         chrome_args.append("--boring-scheme=" + args.scheme)
 
     out = Path(args.out)

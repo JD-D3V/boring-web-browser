@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Check the small UI fixes that follow the colour choice and the page layout.
 
-Under each colour scheme (Cool is the default; Green is --boring-scheme)
+Under each Look picked with --boring-scheme (Slate as "cool", and Dusk)
 and in light and dark, the colours the browser's own colour provider hands
 out must follow the accent:
 
   * selected text (the address bar's selection and Chromium's own pages)
     is filled with the accent, with the same text colour a filled accent
-    button uses, so it no longer stays indigo under Green;
+    button uses, so it does not stay indigo under another accent;
   * the side tab strip's buttons (new tab, tab search) are filled with the
     palette's wash of the accent, not a tone of the seed colour.
 
@@ -37,8 +37,8 @@ OUT = Path(__file__).resolve().parents[2] / "artifacts/ui-implemented"
 PALETTE = {
     ("cool", False): ((0x4F, 0x46, 0xE5), (0xE6, 0xE5, 0xFB), (0xDC, 0xDE, 0xE8)),
     ("cool", True): ((0x9D, 0x9A, 0xFF), (0x2A, 0x29, 0x50), (0x07, 0x08, 0x0B)),
-    ("green", False): ((0x17, 0x6B, 0x5B), (0xE5, 0xEF, 0xED), (0xDC, 0xDE, 0xE8)),
-    ("green", True): ((0x4F, 0xC9, 0xAE), (0x26, 0x3D, 0x40), (0x07, 0x08, 0x0B)),
+    # Dusk (always dark): its own accent, and its tint is the neutral sel.
+    ("dusk", True): ((0x9B, 0x98, 0xFF), (0x28, 0x2B, 0x3C), (0x0F, 0x10, 0x17)),
 }
 
 NAMES = [

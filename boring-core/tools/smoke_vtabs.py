@@ -12,7 +12,7 @@ Same rules as capture_native.py: the window is drawn with PrintWindow
 from our own browser only, and nothing is sent to the OS as input.
 
     python smoke_vtabs.py --out artifacts/ui-refresh/vtabs
-    python smoke_vtabs.py --out out.png --only green-dark
+    python smoke_vtabs.py --out out.png --only dusk
 
 Needs the built browser (BORING_OUT / BORING_CHROME as for the smoke tests).
 """
@@ -28,12 +28,12 @@ from pathlib import Path
 from capture_native import frame_window, grab, user32
 from drive import CHROME, OFFSCREEN, Browser
 
-# (name, extra switches); Cool is the default scheme.
+# (name, extra switches); no switch is the default Look (Soft white).
 SCENES = [
     ("cool-light", []),
     ("cool-dark", ["--force-dark-mode"]),
-    ("green-dark", ["--force-dark-mode", "--boring-scheme=green"]),
-    ("green-light", ["--boring-scheme=green"]),
+    ("slate-light", ["--boring-scheme=slate"]),
+    ("dusk", ["--boring-scheme=dusk"]),
 ]
 
 PREF = "vertical_tabs.enabled"

@@ -42,7 +42,7 @@ class VerticalTabs(unittest.TestCase):
         import smoke_vtabs
 
         names = {name for name, _ in smoke_vtabs.SCENES}
-        self.assertTrue({"cool-light", "cool-dark", "green-dark"} <= names)
+        self.assertTrue({"cool-light", "cool-dark", "slate-light", "dusk"} <= names)
         self.assertEqual(smoke_vtabs.PREF, "vertical_tabs.enabled")
 
     @unittest.skipUnless((SRC / "chrome").is_dir(), "no 154 tree")

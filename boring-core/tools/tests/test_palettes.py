@@ -40,14 +40,11 @@ FIELDS = [
     "edge",
 ]
 # The palettes from before the compiled UI. Their rules (the band six
-# points off the toolbar) came from the earlier mockup.
+# points off the toolbar) came from the earlier mockup. Beige and Green are
+# retired (ledger 61, test_color_picker.py); Cool is the Slate Look.
 OLD_NAMES = [
     "kCoolLight",
     "kCoolDark",
-    "kBeigeLight",
-    "kBeigeDark",
-    "kGreenLight",
-    "kGreenDark",
 ]
 NAMES = ["kSoftWhiteLight", "kSoftWhiteDark", "kDuskDark", *OLD_NAMES]
 
@@ -183,48 +180,10 @@ class PaletteTest(unittest.TestCase):
         self.assertEqual(hexof(dark["field"]), "#0f1015")
         self.assertEqual(hexof(dark["accent"]), "#9d9aff")
 
-    def test_beige_keeps_the_existing_warm_values(self):
-        light, dark = PALETTES["kBeigeLight"], PALETTES["kBeigeDark"]
-        self.assertEqual(hexof(light["window"]), "#e8e7e2")
-        self.assertEqual(hexof(light["ink"]), "#242e2d")
-        self.assertEqual(hexof(light["muted"]), "#5d6966")
-        self.assertEqual(hexof(light["line"]), "#d8ddd7")
-        self.assertEqual(hexof(light["accent"]), "#176b5b")
-        self.assertEqual(hexof(light["tint"]), "#e5f1eb")
-        self.assertEqual(hexof(dark["window"]), "#131817")
-        self.assertEqual(hexof(dark["ink"]), "#e8ede7")
-        self.assertEqual(hexof(dark["muted"]), "#adb9b2")
-        self.assertEqual(hexof(dark["line"]), "#414e47")
-        self.assertEqual(hexof(dark["accent"]), "#92d4bb")
-        self.assertEqual(hexof(dark["tint"]), "#273f35")
-
-    def test_green_is_cool_surfaces_with_the_brand_green_accent(self):
-        for mode in ("Light", "Dark"):
-            green, cool = PALETTES["kGreen" + mode], PALETTES["kCool" + mode]
-            for field in FIELDS:
-                if field not in ("accent", "tint"):
-                    self.assertEqual(green[field], cool[field], f"{mode} {field}")
-        self.assertEqual(hexof(PALETTES["kGreenLight"]["accent"]), "#176b5b")
-        self.assertEqual(hexof(PALETTES["kGreenDark"]["accent"]), "#4fc9ae")
-
-    def test_green_tints_are_washes_of_the_accent(self):
-        # About 11% over white in light and 18% over the toolbar in dark.
-        for mode, base, alpha in (
-            ("Light", (255, 255, 255), 0.11),
-            ("Dark", None, 0.18),
-        ):
-            p = PALETTES["kGreen" + mode]
-            base = base or p["toolbar"]
-            want = tuple(
-                round(b + (a - b) * alpha)
-                for a, b in zip(p["accent"], base, strict=False)
-            )
-            for got, w in zip(p["tint"], want, strict=False):
-                self.assertLessEqual(
-                    abs(got - w),
-                    1,
-                    "{} tint {} vs {}".format(mode, hexof(p["tint"]), hexof(want)),
-                )
+    def test_retired_palettes_are_gone(self):
+        src = MIXER.read_text(encoding="utf-8")
+        for name in ("kBeigeLight", "kBeigeDark", "kGreenLight", "kGreenDark"):
+            self.assertNotIn(name, src)
 
     def test_default_seed_in_the_frame_patch_is_the_cool_seed(self):
         src = MIXER.read_text(encoding="utf-8")
@@ -395,13 +354,14 @@ class PaletteTest(unittest.TestCase):
         self.assertRegex(body, r"kDusk:\s*return kDuskDark;")
         self.assertTrue(body.rstrip("}").rstrip().endswith(
             "return dark ? kSoftWhiteDark : kSoftWhiteLight;"))
-        self.assertIn(": LookPalette(key, dark);", src)
+        self.assertIn("const Palette& look = LookPalette(key, dark);", src)
 
     def test_scheme_switch_reads_the_command_line(self):
+        # For the smokes and capture tools: the three Looks only.
         src = MIXER.read_text(encoding="utf-8")
         self.assertIn('"boring-scheme"', src)
-        self.assertIn("beige", src)
-        self.assertIn("green", src)
+        self.assertNotIn('"beige"', src)
+        self.assertNotIn('"green"', src)
         for look in ("soft_white", "slate", "dusk"):
             self.assertIn(f'scheme == "{look}"', src)
 
@@ -543,7 +503,7 @@ class AccentTest(unittest.TestCase):
                 self.assertNotEqual(a["tint"], PALETTES[name]["tint"], name)
 
     def test_presets_and_hostile_values_stay_readable_under_every_look(self):
-        for name in LOOK_PALETTES + ["kBeigeLight", "kBeigeDark", "kGreenLight", "kGreenDark"]:
+        for name in LOOK_PALETTES:
             for value in [*PRESETS.values(), *HOSTILE]:
                 if value == DEFAULT_ACCENT:
                     continue  # Each palette as drawn, tested above.
@@ -586,8 +546,9 @@ class AccentTest(unittest.TestCase):
         self.assertIn("const Palette p = WithAccent(look, key, dark);", src)
 
     def test_the_accent_never_switches_our_palette_off(self):
-        # Our palette depends only on the seed colour and custom themes, as
-        # before; the accent pref plays no part in that check.
+        # Our palette depends only on the key's seed (always ours for a
+        # profile with no theme, ledger 61) and custom themes; the accent
+        # pref plays no part in that check.
         src = MIXER.read_text(encoding="utf-8")
         body = re.search(r"bool UsingOurTheme\(.*?\n\}", src, re.S).group(0)
         self.assertNotIn("boring_accent", body)
